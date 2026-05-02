@@ -1,0 +1,101 @@
+Flutter crash report.
+Please report a bug at https://github.com/flutter/flutter/issues.
+
+## command
+
+flutter build web
+
+## exception
+
+FileSystemException: FileSystemException: readInto failed, path = '/Users/xavierpolisetty/Library/CloudStorage/OneDrive-Personal/Documents/NoteLetter/Frontend/ios/Runner.xcodeproj/project.pbxproj' (OS Error: Operation timed out, errno = 60)
+
+```
+#0      _RandomAccessFile.readIntoSync (dart:io/file_impl.dart:948:7)
+#1      _File.readAsBytesSync (dart:io/file_impl.dart:683:35)
+#2      _File.readAsStringSync (dart:io/file_impl.dart:719:18)
+#3      ForwardingFile.readAsStringSync (package:file/src/forwarding/forwarding_file.dart:99:16)
+#4      ErrorHandlingFile.readAsStringSync.<anonymous closure> (package:flutter_tools/src/base/error_handling_io.dart:212:22)
+#5      _runSync (package:flutter_tools/src/base/error_handling_io.dart:552:14)
+#6      ErrorHandlingFile.readAsStringSync (package:flutter_tools/src/base/error_handling_io.dart:211:12)
+#7      XcodeBasedProject.flutterPluginSwiftPackageInProjectSettings (package:flutter_tools/src/xcode_project.dart:165:30)
+#8      DarwinDependencyManagement.setUp (package:flutter_tools/src/macos/darwin_dependency_management.dart:65:29)
+#9      injectPlugins (package:flutter_tools/src/flutter_plugins.dart:1317:42)
+<asynchronous suspension>
+#10     FlutterProject.ensureReadyForPlatformSpecificTooling (package:flutter_tools/src/project.dart:395:5)
+<asynchronous suspension>
+#11     FlutterCommand.regeneratePlatformSpecificToolingIfApplicable (package:flutter_tools/src/runner/flutter_command.dart:1936:5)
+<asynchronous suspension>
+#12     FlutterCommand.verifyThenRunCommand (package:flutter_tools/src/runner/flutter_command.dart:1892:7)
+<asynchronous suspension>
+#13     FlutterCommand.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command.dart:1581:27)
+<asynchronous suspension>
+#14     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#15     CommandRunner.runCommand (package:args/command_runner.dart:212:13)
+<asynchronous suspension>
+#16     FlutterCommandRunner.runCommand.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:503:9)
+<asynchronous suspension>
+#17     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#18     FlutterCommandRunner.runCommand (package:flutter_tools/src/runner/flutter_command_runner.dart:438:5)
+<asynchronous suspension>
+#19     run.<anonymous closure>.<anonymous closure> (package:flutter_tools/runner.dart:98:11)
+<asynchronous suspension>
+#20     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#21     main (package:flutter_tools/executable.dart:101:3)
+<asynchronous suspension>
+```
+
+## flutter doctor
+
+```
+[32m[✓][39m Flutter (Channel stable, 3.35.4, on macOS 15.4 24E248 darwin-arm64, locale en-US) [661ms]
+    [32m•[39m Flutter version 3.35.4 on channel stable at /Users/xavierpolisetty/development/flutter
+    [32m•[39m Upstream repository https://github.com/flutter/flutter.git
+    [32m•[39m Framework revision d693b4b9db (7 months ago), 2025-09-16 14:27:41 +0000
+    [32m•[39m Engine revision c298091351
+    [32m•[39m Dart version 3.9.2
+    [32m•[39m DevTools version 2.48.0
+    [32m•[39m Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop,
+      enable-android, enable-ios, cli-animations, enable-lldb-debugging
+
+[31m[✗][39m Android toolchain - develop for Android devices [641ms]
+    [31m✗[39m Unable to locate Android SDK.
+      Install Android Studio from: https://developer.android.com/studio/index.html
+      On first launch it will assist you in installing the Android SDK components.
+      (or visit https://flutter.dev/to/macos-android-setup for detailed instructions).
+      If the Android SDK has been installed to a custom location, please use
+      `flutter config --android-sdk` to update to that location.
+
+
+[32m[✓][39m Xcode - develop for iOS and macOS (Xcode 16.4) [2.1s]
+    [32m•[39m Xcode at /Applications/Xcode.app/Contents/Developer
+    [32m•[39m Build 16F6
+    [32m•[39m CocoaPods version 1.16.2
+
+[32m[✓][39m Chrome - develop for the web [6ms]
+    [32m•[39m Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+[33m[!][39m Android Studio (not installed) [5ms]
+    [32m•[39m Android Studio not found; download from https://developer.android.com/studio/index.html
+      (or visit https://flutter.dev/to/macos-android-setup for detailed instructions).
+
+[32m[✓][39m Connected device (4 available) [11.9s]
+    [32m•[39m iPhone 16 Pro Max (mobile) • 8CF6C559-ADA2-4D49-8367-0BEC4F0E7860 • ios            •
+      com.apple.CoreSimulator.SimRuntime.iOS-18-6 (simulator)
+    [32m•[39m iPhone 16e (mobile)        • 447F7B4F-9318-42F7-8CBC-A750F962E709 • ios            •
+      com.apple.CoreSimulator.SimRuntime.iOS-18-6 (simulator)
+    [32m•[39m macOS (desktop)            • macos                                • darwin-arm64   • macOS 15.4 24E248
+      darwin-arm64
+    [32m•[39m Chrome (web)               • chrome                               • web-javascript • Google Chrome
+      147.0.7727.56
+    [33m![39m Error: Browsing on the local area network for Xavier’s iPhone 12. Ensure the device is unlocked and
+      attached with a cable or associated with the same local area network as this Mac.
+      The device must be opted into Developer Mode to connect wirelessly. (code -27)
+
+[32m[✓][39m Network resources [274ms]
+    [32m•[39m All expected network resources are available.
+
+[33m![39m Doctor found issues in 2 categories.
+```

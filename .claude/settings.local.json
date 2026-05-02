@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 15 npm run dev)",
+      "Bash(node -e \":*)",
+      "Bash(npx vite:*)",
+      "Bash(node_modules/.bin/vite build:*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npm install:*)"
+    ]
+  }
+}
