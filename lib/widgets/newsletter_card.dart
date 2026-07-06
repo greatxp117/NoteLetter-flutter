@@ -87,7 +87,7 @@ class _NewsletterCardState extends State<NewsletterCard> {
               const SizedBox(height: 10),
               Text(
                 widget.item.title,
-                style: GoogleFonts.libreBaskerville(
+                style: GoogleFonts.sourceSerif4(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

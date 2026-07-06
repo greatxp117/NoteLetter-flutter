@@ -41,7 +41,7 @@ class LandingPage extends StatelessWidget {
                         const SizedBox(width: 10),
                         Text(
                           'NoteLetter',
-                          style: GoogleFonts.libreBaskerville(
+                          style: GoogleFonts.sourceSerif4(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
                             color: theme.colorScheme.onSurface,
@@ -95,7 +95,7 @@ class LandingPage extends StatelessWidget {
                     Text(
                       'Your Knowledge Base,\nAutomatically Curated',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.libreBaskerville(
+                      style: GoogleFonts.sourceSerif4(
                         fontSize: 48,
                         fontWeight: FontWeight.w700,
                         height: 1.2,
@@ -148,7 +148,7 @@ class LandingPage extends StatelessWidget {
                     Text(
                       'Everything you need to manage your knowledge',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.libreBaskerville(
+                      style: GoogleFonts.sourceSerif4(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,
@@ -258,7 +258,7 @@ class _FeatureCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: GoogleFonts.libreBaskerville(
+            style: GoogleFonts.sourceSerif4(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurface,
@@ -329,7 +329,7 @@ class _AuthDialogState extends State<_AuthDialog> {
               // Title
               Text(
                 _isSignUp ? 'Create your account' : 'Welcome back',
-                style: GoogleFonts.libreBaskerville(
+                style: GoogleFonts.sourceSerif4(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

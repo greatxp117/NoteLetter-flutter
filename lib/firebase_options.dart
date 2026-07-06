@@ -11,12 +11,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDQpRub5G2HH1Co9iW_sDHtRJzh9Nn5PZg',
-    appId: '1:1018561733026:web:9873e0f42ab3db6c9312fb',
-    messagingSenderId: '1018561733026',
-    projectId: 'luxletter-b7a40',
-    authDomain: 'luxletter-b7a40.firebaseapp.com',
-    storageBucket: 'luxletter-b7a40.appspot.com',
-    measurementId: 'G-BLW43SHTQW',
+    apiKey: 'AIzaSyBzWYtLfv9HHLZ1QQ-jM74AqcLnrn9op5M',
+    appId: '1:402841655223:web:490590af9a3c84dc6f7a32',
+    messagingSenderId: '402841655223',
+    projectId: 'noteletter-7a111',
+    authDomain: 'noteletter-7a111.firebaseapp.com',
+    storageBucket: 'noteletter-7a111.firebasestorage.app',
   );
 }

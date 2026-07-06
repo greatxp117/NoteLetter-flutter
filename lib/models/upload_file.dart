@@ -10,6 +10,7 @@ class UploadFile {
   String author;
   String description;
   String? docId;
+  List<String>? docIds;
   String? errorMessage;
 
   UploadFile({
@@ -22,6 +23,7 @@ class UploadFile {
     this.author = '',
     this.description = '',
     this.docId,
+    this.docIds,
     this.errorMessage,
   });
 
@@ -38,6 +40,7 @@ class UploadFile {
     String? author,
     String? description,
     String? docId,
+    List<String>? docIds,
     String? errorMessage,
   }) {
     return UploadFile(
@@ -50,6 +53,7 @@ class UploadFile {
       author: author ?? this.author,
       description: description ?? this.description,
       docId: docId ?? this.docId,
+      docIds: docIds ?? this.docIds,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

@@ -5,19 +5,21 @@ import 'app_colors.dart';
 class AppTheme {
   AppTheme._();
 
+  // UI/body font per tokens is Geist, which isn't on Google Fonts — Inter
+  // (same grotesque-sans family) stands in until Geist is bundled as an asset.
   static TextTheme _buildTextTheme(Color bodyColor, Color displayColor) {
     return TextTheme(
-      displayLarge: GoogleFonts.libreBaskerville(
+      displayLarge: GoogleFonts.sourceSerif4(
         fontSize: 56, fontWeight: FontWeight.w400, color: displayColor),
-      displayMedium: GoogleFonts.libreBaskerville(
+      displayMedium: GoogleFonts.sourceSerif4(
         fontSize: 48, fontWeight: FontWeight.w400, color: displayColor),
-      displaySmall: GoogleFonts.libreBaskerville(
+      displaySmall: GoogleFonts.sourceSerif4(
         fontSize: 40, fontWeight: FontWeight.w400, color: displayColor),
-      headlineLarge: GoogleFonts.libreBaskerville(
+      headlineLarge: GoogleFonts.sourceSerif4(
         fontSize: 32, fontWeight: FontWeight.w700, color: displayColor),
-      headlineMedium: GoogleFonts.libreBaskerville(
+      headlineMedium: GoogleFonts.sourceSerif4(
         fontSize: 24, fontWeight: FontWeight.w700, color: displayColor),
-      headlineSmall: GoogleFonts.libreBaskerville(
+      headlineSmall: GoogleFonts.sourceSerif4(
         fontSize: 20, fontWeight: FontWeight.w400, color: displayColor),
       titleLarge: GoogleFonts.inter(
         fontSize: 18, fontWeight: FontWeight.w500, color: bodyColor),
@@ -82,7 +84,7 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.sidebarLight,
         elevation: 0,
-        titleTextStyle: GoogleFonts.libreBaskerville(
+        titleTextStyle: GoogleFonts.sourceSerif4(
           fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.foregroundLight),
         iconTheme: const IconThemeData(color: AppColors.foregroundLight),
       ),
@@ -95,7 +97,7 @@ class AppTheme {
     const colorScheme = ColorScheme.dark(
       surface: AppColors.backgroundDark,
       primary: AppColors.primaryDark,
-      onPrimary: AppColors.primaryForeground,
+      onPrimary: AppColors.primaryForegroundDark,
       secondary: AppColors.secondaryDark,
       onSecondary: AppColors.foregroundDark,
       onSurface: AppColors.foregroundDark,
@@ -133,7 +135,7 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.sidebarDark,
         elevation: 0,
-        titleTextStyle: GoogleFonts.libreBaskerville(
+        titleTextStyle: GoogleFonts.sourceSerif4(
           fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.foregroundDark),
         iconTheme: const IconThemeData(color: AppColors.foregroundDark),
       ),

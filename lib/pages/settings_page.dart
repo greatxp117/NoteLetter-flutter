@@ -27,7 +27,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _deliveryTimeCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _purposeCtrl = TextEditingController();
-  int _itemsPerNewsletter = 5;
+  int _lookbackDays = 7;
 
   // Privacy toggles (local only for now)
   bool _allowTraining = false;
@@ -70,10 +70,10 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _enabled = s.enabled;
       _frequency = s.frequency;
-      _itemsPerNewsletter = s.itemsPerNewsletter;
+      _lookbackDays = s.lookbackDays;
     });
     _deliveryTimeCtrl.text = s.deliveryTime;
-    _emailCtrl.text = s.emailAddress;
+    _emailCtrl.text = s.email;
     _purposeCtrl.text = s.purposeText;
   }
 
@@ -92,9 +92,9 @@ class _SettingsPageState extends State<SettingsPage> {
       enabled: _enabled,
       frequency: _frequency,
       deliveryTime: _deliveryTimeCtrl.text.trim(),
-      emailAddress: _emailCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
       purposeText: _purposeCtrl.text.trim(),
-      itemsPerNewsletter: _itemsPerNewsletter,
+      lookbackDays: _lookbackDays,
     );
 
     final error =
@@ -142,7 +142,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     Text(
                       'Settings',
-                      style: GoogleFonts.libreBaskerville(
+                      style: GoogleFonts.sourceSerif4(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,
@@ -301,19 +301,19 @@ class _SettingsPageState extends State<SettingsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Items per newsletter: $_itemsPerNewsletter',
+                                'Lookback window: $_lookbackDays days',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                     fontWeight: FontWeight.w500),
                               ),
                               Slider(
-                                value: _itemsPerNewsletter.toDouble(),
+                                value: _lookbackDays.toDouble(),
                                 min: 1,
-                                max: 20,
-                                divisions: 19,
+                                max: 30,
+                                divisions: 29,
                                 activeColor: primary,
-                                label: '$_itemsPerNewsletter',
+                                label: '$_lookbackDays',
                                 onChanged: (v) =>
-                                    setState(() => _itemsPerNewsletter = v.round()),
+                                    setState(() => _lookbackDays = v.round()),
                               ),
                             ],
                           ),

@@ -96,7 +96,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             children: [
                               Text(
                                 "$_greeting! Here's your digest",
-                                style: GoogleFonts.libreBaskerville(
+                                style: GoogleFonts.sourceSerif4(
                                   fontSize: 28,
                                   fontWeight: FontWeight.w700,
                                   color: theme.colorScheme.onSurface,
@@ -198,7 +198,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       children: [
                         Text(
                           "Today's Highlights",
-                          style: GoogleFonts.libreBaskerville(
+                          style: GoogleFonts.sourceSerif4(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
                             color: theme.colorScheme.onSurface,
@@ -272,7 +272,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               children: [
                                 Text(
                                   'Ready for a deeper dive?',
-                                  style: GoogleFonts.libreBaskerville(
+                                  style: GoogleFonts.sourceSerif4(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
                                     color: theme.colorScheme.onSurface,
@@ -359,7 +359,7 @@ class _SearchResultsSection extends StatelessWidget {
             children: [
               Text(
                 '${results.length} result${results.length == 1 ? '' : 's'}',
-                style: GoogleFonts.libreBaskerville(
+                style: GoogleFonts.sourceSerif4(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,
@@ -443,11 +443,11 @@ class _SearchResultCard extends StatelessWidget {
               height: 1.5,
             ),
           ),
-          if (result.chunk.topics.isNotEmpty) ...[
+          if (result.document.themes.isNotEmpty) ...[
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
-              children: result.chunk.topics.take(3).map((t) {
+              children: result.document.themes.take(3).map((t) {
                 return Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

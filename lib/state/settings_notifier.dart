@@ -4,6 +4,7 @@ import '../models/newsletter_settings.dart';
 import '../models/cloud_integration.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 
 class SettingsNotifier extends ChangeNotifier {
   NewsletterSettings? _newsletter;
@@ -31,15 +32,12 @@ class SettingsNotifier extends ChangeNotifier {
     }
   }
 
+  // Settings are a direct one-shot Firestore read, not a function call
+  // (spec/api/newsletter.md — only the PUT re-embeds purposeText and needs
+  // a function).
   Future<void> _loadNewsletter() async {
     try {
-      final data =
-          await ApiService.instance.get('/fn_settings/newsletter');
-      _newsletter = NewsletterSettings.fromJson(data);
-    } on UnauthorizedException {
-      await AuthService.instance.signOut();
-    } on ApiException catch (e) {
-      _error = e.message;
+      _newsletter = await FirestoreService.instance.getNewsletterSettings();
     } catch (_) {
       _error = 'Could not load newsletter settings.';
     }
@@ -73,12 +71,13 @@ class SettingsNotifier extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final data = await ApiService.instance.put(
-        '/fn_settings/newsletter',
+      await ApiService.instance.put(
+        '/fn_newsletter_settings',
         data: settings.toJson(),
       );
-      _newsletter =
-          NewsletterSettings.fromJson(data['settings'] as Map<String, dynamic>);
+      // Response echoes only the applied partial update — re-read the full
+      // doc from Firestore rather than assume its shape.
+      _newsletter = await FirestoreService.instance.getNewsletterSettings();
       return null;
     } on UnauthorizedException {
       await AuthService.instance.signOut();

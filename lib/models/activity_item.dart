@@ -21,20 +21,6 @@ class ActivityItem {
     this.createdAt,
   });
 
-  factory ActivityItem.fromJson(Map<String, dynamic> json) {
-    return ActivityItem(
-      kind: json['kind'] as String? ?? 'document',
-      id: json['id'] as String? ?? '',
-      type: json['type'] as String? ?? '',
-      status: json['status'] as String? ?? '',
-      title: json['title'] as String? ?? 'Untitled',
-      provider: json['provider'] as String?,
-      errorMessage: json['error_message'] as String?,
-      metadata: json['metadata'] as Map<String, dynamic>?,
-      createdAt: json['created_at'] as int?,
-    );
-  }
-
   String get formattedDate {
     if (createdAt == null) return '';
     final dt = DateTime.fromMillisecondsSinceEpoch(createdAt!);

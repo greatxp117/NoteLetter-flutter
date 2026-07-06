@@ -25,7 +25,7 @@ class ChatPage extends StatelessWidget {
                   children: [
                     Text(
                       'Research Assistant',
-                      style: GoogleFonts.libreBaskerville(
+                      style: GoogleFonts.sourceSerif4(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,

@@ -1,12 +1,17 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/activity_item.dart';
 import '../services/api_service.dart';
-import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 
+/// Backs the Activity/Library screens with the canonical merge
+/// (activity_events + documents, see spec/screens/activity.md) — realtime
+/// Firestore subscriptions, never HTTP polling (INV-02).
 class ActivityNotifier extends ChangeNotifier {
   List<ActivityItem> _items = [];
   bool _isLoading = false;
   String? _error;
+  StreamSubscription<List<ActivityItem>>? _sub;
 
   List<ActivityItem> get items => List.unmodifiable(_items);
   bool get isLoading => _isLoading;
@@ -15,31 +20,69 @@ class ActivityNotifier extends ChangeNotifier {
   List<ActivityItem> get documents =>
       _items.where((i) => i.kind == 'document').toList();
 
-  Future<void> load({int limit = 50}) async {
-    if (_isLoading) return;
+  /// Idempotent — starts the subscription once; safe to call from initState.
+  void start({int limit = 100}) {
+    if (_sub != null) return;
     _isLoading = true;
-    _error = null;
     notifyListeners();
-
-    try {
-      final data = await ApiService.instance
-          .get('/fn_list_activity', queryParameters: {'limit': limit});
-
-      final rawList = data['items'] as List? ?? [];
-      _items = rawList
-          .map((e) => ActivityItem.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } on UnauthorizedException {
-      await AuthService.instance.signOut();
-    } on ApiException catch (e) {
-      _error = e.message;
-    } catch (_) {
-      _error = 'Could not load activity. Please try again.';
-    } finally {
+    _sub = FirestoreService.instance
+        .subscribeActivity(maxItems: limit)
+        .listen((items) {
+      _items = items;
+      _error = null;
       _isLoading = false;
       notifyListeners();
+    }, onError: (_) {
+      _error = 'Could not load activity. Please try again.';
+      _isLoading = false;
+      notifyListeners();
+    });
+  }
+
+  /// Kept for call-site compatibility — the subscription is already live.
+  Future<void> load({int limit = 100}) async => start(limit: limit);
+  Future<void> refresh() async => start();
+
+  /// Permanent delete (doc + chunks + GCS) — the document list updates via
+  /// the live subscription, not a local mutation.
+  Future<String?> deleteDocument(String docId) async {
+    try {
+      await ApiService.instance.post('/fn_delete_document', data: {'docId': docId});
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Failed to delete document.';
     }
   }
 
-  Future<void> refresh() => load();
+  /// Retry from the failed stage — `status: "error"` documents only.
+  Future<String?> retryDocument(String docId) async {
+    try {
+      await ApiService.instance.post('/fn_retry_document', data: {'docId': docId});
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Failed to retry document.';
+    }
+  }
+
+  /// Cancel mid-pipeline.
+  Future<String?> cancelDocument(String docId) async {
+    try {
+      await ApiService.instance.post('/fn_cancel_document', data: {'docId': docId});
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Failed to cancel document.';
+    }
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
 }

@@ -31,10 +31,11 @@ class UploadNotifier extends ChangeNotifier {
     final url = rawUrl.trim();
     if (url.isEmpty) return;
 
-    final isYoutube = url.contains('youtube.com') || url.contains('youtu.be');
-    final displayName = isYoutube
-        ? 'YouTube: ${_truncate(url)}'
-        : _truncate(url);
+    final type = _detectUrlType(url);
+    if (type == null) return; // unparseable — reject locally (INV-07)
+
+    final displayName =
+        type == 'youtube' ? 'YouTube: ${_truncate(url)}' : _truncate(url);
 
     final file = UploadFile(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -44,7 +45,18 @@ class UploadNotifier extends ChangeNotifier {
     );
     _files.add(file);
     notifyListeners();
-    await _ingestUrl(file, url, isYoutube);
+    await _ingestUrl(file, url, type);
+  }
+
+  /// Canonical client-side detection table (INV-07) — mirrors web `detectUrlType()`.
+  String? _detectUrlType(String rawUrl) {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || uri.host.isEmpty) return null;
+    final host = uri.host.replaceFirst(RegExp(r'^www\.'), '');
+    if (host == 'youtube.com' || host == 'youtu.be') return 'youtube';
+    if (host == 'instagram.com') return 'instagram';
+    if (host == 'tiktok.com' || host == 'vm.tiktok.com') return 'tiktok';
+    return 'article';
   }
 
   void removeFile(String id) {
@@ -97,18 +109,20 @@ class UploadNotifier extends ChangeNotifier {
     }
   }
 
-  Future<void> _ingestUrl(UploadFile file, String url, bool isYoutube) async {
+  Future<void> _ingestUrl(UploadFile file, String url, String type) async {
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.5);
 
-      final endpoint = isYoutube ? '/fn_ingest_youtube' : '/fn_ingest_url';
-      final result =
-          await ApiService.instance.post(endpoint, data: {'url': url});
+      final result = await ApiService.instance
+          .post('/fn_ingest_url', data: {'url': url, 'type': type});
 
+      // Response has either a single `docId` or a playlist `docIds` (INV-07).
+      final docIds = (result['docIds'] as List?)?.cast<String>();
       _patch(file.id,
           status: UploadStatus.completed,
           progress: 1.0,
-          docId: result['docId'] as String?);
+          docId: result['docId'] as String?,
+          docIds: docIds);
     } on UnauthorizedException {
       await AuthService.instance.signOut();
       _patch(file.id, status: UploadStatus.error, errorMessage: 'Session expired.');
@@ -127,6 +141,7 @@ class UploadNotifier extends ChangeNotifier {
     String? author,
     String? description,
     String? docId,
+    List<String>? docIds,
     String? errorMessage,
   }) {
     final index = _files.indexWhere((f) => f.id == id);
@@ -137,6 +152,7 @@ class UploadNotifier extends ChangeNotifier {
     if (author != null) f.author = author;
     if (description != null) f.description = description;
     if (docId != null) f.docId = docId;
+    if (docIds != null) f.docIds = docIds;
     if (errorMessage != null) f.errorMessage = errorMessage;
     notifyListeners();
   }

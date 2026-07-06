@@ -8,6 +8,8 @@ import 'pages/chat_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/not_found_page.dart';
 import 'pages/branding_page.dart';
+import 'pages/reader_page.dart';
+import 'pages/letters_page.dart';
 
 GoRouter createRouter(AuthNotifier authNotifier) {
   return GoRouter(
@@ -25,6 +27,11 @@ GoRouter createRouter(AuthNotifier authNotifier) {
       GoRoute(
         path: '/landing',
         builder: (context, state) => const LandingPage(),
+      ),
+      GoRoute(
+        path: '/reader/:docId',
+        builder: (context, state) =>
+            ReaderPage(docId: state.pathParameters['docId']!),
       ),
       ShellRoute(
         builder: (context, state, child) => AppLayout(child: child),
@@ -51,6 +58,10 @@ GoRouter createRouter(AuthNotifier authNotifier) {
           GoRoute(
             path: '/branding',
             builder: (context, state) => const BrandingPage(),
+          ),
+          GoRoute(
+            path: '/letters',
+            builder: (context, state) => const LettersPage(),
           ),
         ],
       ),

@@ -16,9 +16,11 @@ dependencies:
   file_picker: ^8.0.7
   firebase_core: ^4.6.0
   firebase_auth: ^6.3.0
+  cloud_firestore: ^6.1.0
   dio: ^5.9.2
   url_launcher: ^6.3.2
   mime: ^2.0.0
+  flutter_html: ^3.0.0
 
 dev_dependencies:
   flutter_test:

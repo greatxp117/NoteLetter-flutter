@@ -5,22 +5,25 @@ import 'auth_service.dart';
 class ApiException implements Exception {
   final int statusCode;
   final String message;
+  final String? errorCode;
+  final String? requestId;
 
-  const ApiException(this.statusCode, this.message);
+  const ApiException(this.statusCode, this.message, {this.errorCode, this.requestId});
 
   @override
-  String toString() => 'ApiException($statusCode): $message';
+  String toString() => 'ApiException($statusCode, $errorCode): $message';
 }
 
 class UnauthorizedException extends ApiException {
-  const UnauthorizedException() : super(401, 'Session expired. Please log in again.');
+  const UnauthorizedException()
+      : super(401, 'Session expired. Please log in again.', errorCode: 'UNAUTHORIZED');
 }
 
 class ApiService {
   static final ApiService instance = ApiService._();
 
   static const _baseUrl =
-      'https://us-central1-luxletter-b7a40.cloudfunctions.net';
+      'https://us-central1-noteletter-7a111.cloudfunctions.net';
 
   late final Dio _client;
 
@@ -105,9 +108,14 @@ class ApiService {
     if (e.response?.statusCode == 401) return const UnauthorizedException();
 
     String message = 'Something went wrong. Please try again.';
+    String? errorCode;
+    String? requestId;
     if (e.response?.data is Map) {
-      final errField = (e.response!.data as Map)['error'];
+      final body = e.response!.data as Map;
+      final errField = body['error'] ?? body['message'];
       if (errField is String && errField.isNotEmpty) message = errField;
+      errorCode = body['error_code'] as String?;
+      requestId = body['request_id'] as String?;
     } else if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||
         e.type == DioExceptionType.sendTimeout) {
@@ -116,7 +124,8 @@ class ApiService {
       message = 'Could not connect to the server. Check your internet connection.';
     }
 
-    return ApiException(e.response?.statusCode ?? 0, message);
+    return ApiException(e.response?.statusCode ?? 0, message,
+        errorCode: errorCode, requestId: requestId);
   }
 }
 

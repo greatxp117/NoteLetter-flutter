@@ -19,7 +19,7 @@ class NotFoundPage extends StatelessWidget {
           children: [
             Text(
               '404',
-              style: GoogleFonts.libreBaskerville(
+              style: GoogleFonts.sourceSerif4(
                 fontSize: 80,
                 fontWeight: FontWeight.w700,
                 color: primary.withValues(alpha: 0.3),
@@ -28,7 +28,7 @@ class NotFoundPage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Page not found',
-              style: GoogleFonts.libreBaskerville(
+              style: GoogleFonts.sourceSerif4(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.onSurface,

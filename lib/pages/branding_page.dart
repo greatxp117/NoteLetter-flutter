@@ -36,7 +36,7 @@ class BrandingPage extends StatelessWidget {
                     children: [
                       Text(
                         'NoteLetter Design System',
-                        style: GoogleFonts.libreBaskerville(
+                        style: GoogleFonts.sourceSerif4(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
                           color: theme.colorScheme.onSurface,
@@ -62,7 +62,7 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Core Principles',
-                  style: GoogleFonts.libreBaskerville(
+                  style: GoogleFonts.sourceSerif4(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface,
@@ -82,21 +82,21 @@ class BrandingPage extends StatelessWidget {
                       children: const [
                         _PrincipleCard(
                           icon: Icons.spa_outlined,
-                          color: Color(0xFF10B981),
+                          color: AppColors.positive,
                           title: 'Clarity',
                           description:
                               'Every element serves a purpose. Remove noise, amplify signal.',
                         ),
                         _PrincipleCard(
                           icon: Icons.auto_awesome_outlined,
-                          color: Color(0xFF8B5CF6),
+                          color: AppColors.secondaryAccent,
                           title: 'Warmth',
                           description:
                               'Approachable yet authoritative. Knowledge should feel inviting.',
                         ),
                         _PrincipleCard(
                           icon: Icons.speed_outlined,
-                          color: Color(0xFFF59E0B),
+                          color: AppColors.primary,
                           title: 'Efficiency',
                           description:
                               'Respect the user\'s time. Every interaction should feel effortless.',
@@ -116,7 +116,7 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Typography',
-                  style: GoogleFonts.libreBaskerville(
+                  style: GoogleFonts.sourceSerif4(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface,
@@ -156,7 +156,7 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Color Palette',
-                  style: GoogleFonts.libreBaskerville(
+                  style: GoogleFonts.sourceSerif4(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface,
@@ -176,12 +176,12 @@ class BrandingPage extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       childAspectRatio: 1.0,
                       children: [
-                        _ColorSwatch(color: AppColors.primary, label: 'Primary', hex: '#D97706'),
-                        _ColorSwatch(color: AppColors.primaryDark, label: 'Primary Dark', hex: '#E08B2A'),
-                        _ColorSwatch(color: AppColors.backgroundLight, label: 'BG Light', hex: '#FDFC F9'),
-                        _ColorSwatch(color: AppColors.backgroundDark, label: 'BG Dark', hex: '#151A23'),
-                        _ColorSwatch(color: AppColors.foregroundLight, label: 'FG Light', hex: '#0F1826'),
-                        _ColorSwatch(color: AppColors.foregroundDark, label: 'FG Dark', hex: '#E8E2D9'),
+                        _ColorSwatch(color: AppColors.primary, label: 'Primary', hex: '#9D352D'),
+                        _ColorSwatch(color: AppColors.primaryDark, label: 'Primary Dark', hex: '#E97D39'),
+                        _ColorSwatch(color: AppColors.backgroundLight, label: 'BG Light', hex: '#FAFAF7'),
+                        _ColorSwatch(color: AppColors.backgroundDark, label: 'BG Dark', hex: '#14171F'),
+                        _ColorSwatch(color: AppColors.foregroundLight, label: 'FG Light', hex: '#14171F'),
+                        _ColorSwatch(color: AppColors.foregroundDark, label: 'FG Dark', hex: '#FAFAF7'),
                       ],
                     );
                   },
@@ -197,7 +197,7 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Design Language',
-                  style: GoogleFonts.libreBaskerville(
+                  style: GoogleFonts.sourceSerif4(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface,
@@ -291,7 +291,7 @@ class _PrincipleCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: GoogleFonts.libreBaskerville(
+                      style: GoogleFonts.sourceSerif4(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,
@@ -337,7 +337,7 @@ class _TypographyCard extends StatelessWidget {
             Text(
               name,
               style: (isSerif
-                  ? GoogleFonts.libreBaskerville(
+                  ? GoogleFonts.sourceSerif4(
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)
                   : GoogleFonts.inter(
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
@@ -359,7 +359,7 @@ class _TypographyCard extends StatelessWidget {
                   child: Text(
                     s.$1,
                     style: isSerif
-                        ? GoogleFonts.libreBaskerville(
+                        ? GoogleFonts.sourceSerif4(
                             fontSize: 14,
                             fontWeight: s.$2,
                             fontStyle: s.$3,
@@ -449,7 +449,7 @@ class _DesignLanguageCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
-                style: GoogleFonts.libreBaskerville(
+                style: GoogleFonts.sourceSerif4(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

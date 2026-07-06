@@ -1,93 +1,72 @@
+/// `/users/{uid}/settings/newsletter` — fields per contract data-model.md.
+/// `purposeEmbedding` is never read/rendered (INV-05); it isn't modeled here.
 class NewsletterSettings {
   final bool enabled;
-  final String frequency;
+  final String email;
   final String deliveryTime;
   final String timezone;
+  final String frequency;
   final String purposeText;
-  final List<String> topicFilters;
   final List<String> sourceTypes;
-  final int itemsPerNewsletter;
-  final String dateRangeMode;
-  final int? dateRangeDays;
-  final int? excludeRecentDays;
-  final String emailAddress;
+  final int lookbackDays;
 
   const NewsletterSettings({
     this.enabled = true,
-    this.frequency = 'daily',
+    this.email = '',
     this.deliveryTime = '07:00',
     this.timezone = 'America/New_York',
+    this.frequency = 'daily',
     this.purposeText = '',
-    this.topicFilters = const [],
     this.sourceTypes = const [],
-    this.itemsPerNewsletter = 5,
-    this.dateRangeMode = 'rolling',
-    this.dateRangeDays,
-    this.excludeRecentDays,
-    this.emailAddress = '',
+    this.lookbackDays = 7,
   });
 
   factory NewsletterSettings.fromJson(Map<String, dynamic> json) {
     return NewsletterSettings(
       enabled: json['enabled'] as bool? ?? true,
-      frequency: json['frequency'] as String? ?? 'daily',
+      email: json['email'] as String? ?? '',
       deliveryTime: json['deliveryTime'] as String? ?? '07:00',
       timezone: json['timezone'] as String? ?? 'America/New_York',
+      frequency: json['frequency'] as String? ?? 'daily',
       purposeText: json['purposeText'] as String? ?? '',
-      topicFilters: (json['topicFilters'] as List?)?.cast<String>() ?? [],
       sourceTypes: (json['sourceTypes'] as List?)?.cast<String>() ?? [],
-      itemsPerNewsletter: json['itemsPerNewsletter'] as int? ?? 5,
-      dateRangeMode: json['dateRangeMode'] as String? ?? 'rolling',
-      dateRangeDays: json['dateRangeDays'] as int?,
-      excludeRecentDays: json['excludeRecentDays'] as int?,
-      emailAddress: json['emailAddress'] as String? ?? '',
+      lookbackDays: json['lookbackDays'] as int? ?? 7,
     );
   }
 
+  /// Partial update body for `fn_newsletter_settings` PUT — any subset.
   Map<String, dynamic> toJson() {
     return {
       'enabled': enabled,
-      'frequency': frequency,
       'deliveryTime': deliveryTime,
       'timezone': timezone,
+      'frequency': frequency,
+      if (email.isNotEmpty) 'email': email,
       if (purposeText.isNotEmpty) 'purposeText': purposeText,
-      if (topicFilters.isNotEmpty) 'topicFilters': topicFilters,
       if (sourceTypes.isNotEmpty) 'sourceTypes': sourceTypes,
-      'itemsPerNewsletter': itemsPerNewsletter,
-      'dateRangeMode': dateRangeMode,
-      if (dateRangeDays != null) 'dateRangeDays': dateRangeDays,
-      if (excludeRecentDays != null) 'excludeRecentDays': excludeRecentDays,
-      if (emailAddress.isNotEmpty) 'emailAddress': emailAddress,
+      'lookbackDays': lookbackDays,
     };
   }
 
   NewsletterSettings copyWith({
     bool? enabled,
-    String? frequency,
+    String? email,
     String? deliveryTime,
     String? timezone,
+    String? frequency,
     String? purposeText,
-    List<String>? topicFilters,
     List<String>? sourceTypes,
-    int? itemsPerNewsletter,
-    String? dateRangeMode,
-    int? dateRangeDays,
-    int? excludeRecentDays,
-    String? emailAddress,
+    int? lookbackDays,
   }) {
     return NewsletterSettings(
       enabled: enabled ?? this.enabled,
-      frequency: frequency ?? this.frequency,
+      email: email ?? this.email,
       deliveryTime: deliveryTime ?? this.deliveryTime,
       timezone: timezone ?? this.timezone,
+      frequency: frequency ?? this.frequency,
       purposeText: purposeText ?? this.purposeText,
-      topicFilters: topicFilters ?? this.topicFilters,
       sourceTypes: sourceTypes ?? this.sourceTypes,
-      itemsPerNewsletter: itemsPerNewsletter ?? this.itemsPerNewsletter,
-      dateRangeMode: dateRangeMode ?? this.dateRangeMode,
-      dateRangeDays: dateRangeDays ?? this.dateRangeDays,
-      excludeRecentDays: excludeRecentDays ?? this.excludeRecentDays,
-      emailAddress: emailAddress ?? this.emailAddress,
+      lookbackDays: lookbackDays ?? this.lookbackDays,
     );
   }
 }

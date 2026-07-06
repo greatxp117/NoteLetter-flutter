@@ -34,7 +34,7 @@ class AppLayout extends StatelessWidget {
               centerTitle: true,
               title: Text(
                 'NoteLetter',
-                style: GoogleFonts.libreBaskerville(
+                style: GoogleFonts.sourceSerif4(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/activity_item.dart';
@@ -48,7 +49,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   children: [
                     Text(
                       'Knowledge Base',
-                      style: GoogleFonts.libreBaskerville(
+                      style: GoogleFonts.sourceSerif4(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,
@@ -416,12 +417,22 @@ class _DocumentRowState extends State<_DocumentRow> {
                             ? AppColors.mutedForegroundDark
                             : AppColors.mutedForeground),
                     itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'open',
+                        enabled: item.status == 'complete',
+                        child: const Text('Open'),
+                      ),
+                      if (item.status == 'error')
+                        const PopupMenuItem(
+                            value: 'retry', child: Text('Retry')),
+                      if (item.status == 'queued' ||
+                          item.status == 'processing')
+                        const PopupMenuItem(
+                            value: 'cancel', child: Text('Cancel')),
                       const PopupMenuItem(
-                          value: 'open', child: Text('Open Source')),
+                          value: 'delete', child: Text('Delete')),
                     ],
-                    onSelected: (action) {
-                      // Future: open document detail
-                    },
+                    onSelected: (action) => _handleAction(context, action),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -432,5 +443,68 @@ class _DocumentRowState extends State<_DocumentRow> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleAction(BuildContext context, String? action) async {
+    final item = widget.item;
+    final activity = context.read<ActivityNotifier>();
+
+    if (action == 'open') {
+      context.push('/reader/${item.id}');
+      return;
+    }
+
+    if (action == 'retry') {
+      final error = await activity.retryDocument(item.id);
+      if (!context.mounted) return;
+      if (error != null) {
+        AppToast.show(context, error, type: ToastType.error);
+      } else {
+        AppToast.show(context, 'Retrying document.', type: ToastType.info);
+      }
+      return;
+    }
+
+    if (action == 'cancel') {
+      final error = await activity.cancelDocument(item.id);
+      if (!context.mounted) return;
+      if (error != null) {
+        AppToast.show(context, error, type: ToastType.error);
+      } else {
+        AppToast.show(context, 'Cancelled.', type: ToastType.info);
+      }
+      return;
+    }
+
+    if (action == 'delete') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Delete document?'),
+          content: Text(
+              'This permanently deletes "${item.title}" and its indexed content. '
+              'This cannot be undone.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+
+      final error = await activity.deleteDocument(item.id);
+      if (!context.mounted) return;
+      if (error != null) {
+        AppToast.show(context, error, type: ToastType.error);
+      } else {
+        AppToast.show(context, 'Document deleted.', type: ToastType.info);
+      }
+    }
   }
 }

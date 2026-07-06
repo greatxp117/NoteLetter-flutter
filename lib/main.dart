@@ -10,6 +10,7 @@ import 'state/search_notifier.dart';
 import 'state/chat_notifier.dart';
 import 'state/activity_notifier.dart';
 import 'state/settings_notifier.dart';
+import 'state/newsletter_notifier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,7 @@ void main() async {
         ChangeNotifierProvider<ChatNotifier>(create: (_) => ChatNotifier()),
         ChangeNotifierProvider<ActivityNotifier>(create: (_) => ActivityNotifier()),
         ChangeNotifierProvider<SettingsNotifier>(create: (_) => SettingsNotifier()),
+        ChangeNotifierProvider<NewsletterNotifier>(create: (_) => NewsletterNotifier()),
       ],
       child: NoteLetterApp(router: createRouter(authNotifier)),
     ),
