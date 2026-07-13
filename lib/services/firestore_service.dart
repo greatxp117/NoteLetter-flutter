@@ -6,6 +6,7 @@ import '../models/document.dart';
 import '../models/newsletter.dart';
 import '../models/newsletter_settings.dart';
 import '../models/tag.dart';
+import 'activity_merge.dart';
 import 'auth_service.dart';
 
 /// Direct Firestore access (INV-02): documents/activity/tags are realtime
@@ -64,15 +65,7 @@ class FirestoreService {
     List<ActivityItem> docItems = [];
 
     void emitMerged() {
-      final coveredDocIds = eventItems
-          .map((e) => e.metadata?['doc_id'] as String?)
-          .whereType<String>()
-          .toSet();
-      final combined = [
-        ...eventItems,
-        ...docItems.where((d) => !coveredDocIds.contains(d.id)),
-      ]..sort((a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
-      controller.add(combined.take(maxItems).toList());
+      controller.add(mergeActivity(eventItems, docItems, maxItems: maxItems));
     }
 
     final eventsSub = _db

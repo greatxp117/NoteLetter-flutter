@@ -33,8 +33,22 @@ Pattern: `pages/` + `state/` (Provider ChangeNotifiers) + `services/` — NOT fe
 ```bash
 flutter pub get
 flutter run                    # -d chrome / macos / simulator
-flutter analyze && dart test   # tests: contract harness lands in Milestone 3 (test/contract/)
+flutter analyze
+flutter test test/contract/    # Tier-1 contract harness (Milestone 3 scaffold)
 ```
+
+## Conformance (Milestone 3 scaffold)
+
+`test/contract/` is the Tier-1 harness against the captured fixtures in
+`../NoteLetter-contracts/fixtures/`. **It red-stops at `pin_check_test.dart`
+by design** — the Flutter pin is contract **1.0.0** and the contracts VERSION is
+ahead, so `/conformance` fails loudly on skew (the catch-up signal). The pure
+suites that already conform run green: `activity_merge_test` (INV-02, backed by
+the extracted pure `lib/services/activity_merge.dart`) and the chunk cases of
+`firestore_shapes_test` (INV-05/06). `api_stub_test` marks api/* conformance as
+NOT-IMPLEMENTED. Advancing the pin (and turning the whole suite green) is the
+Milestone-2 realignment + catch-up work — e.g. `Document.fromJson` still reads
+`tags` where the contract is `tag_ids`.
 
 Emulator development (after config fix): `--dart-define=USE_EMULATOR=true` per `/emu`.
 
