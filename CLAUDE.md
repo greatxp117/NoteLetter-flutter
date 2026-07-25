@@ -2,11 +2,21 @@
 
 Flutter client for NoteLetter. Part of the multi-repo workspace — read the umbrella `../CLAUDE.md` and `../NoteLetter-contracts/spec/overview.md` before any data-layer work.
 
-## Status: Milestone 2 realignment landed (config/API/models/Firestore/read-tracking/screens/theming) — some gaps remain
+## Status: Milestone 2 realignment landed + 1.1.0→2.3.0 catch-up substantially done — pin still 1.0.0 pending remaining gaps + a green /conformance
 
-**Contract version: 1.0.0**, targeting real project `noteletter-7a111` (web target only — native iOS/Android Firebase apps not yet registered). `flutter analyze` and `flutter build web` are clean as of the last pass. `/conformance` has not been formally run against this client — treat this status as "realigned per `/parity flutter`," not certified.
+**Contract version: 1.0.0**, targeting real project `noteletter-7a111` (web target only — native iOS/Android Firebase apps not yet registered). `flutter analyze` clean. `/conformance` has not been run; the pin stays **1.0.0** until the remaining gaps land and a green run advances it.
 
-Full detail and remaining gaps: **[`REALIGNMENT.md`](REALIGNMENT.md)** — its "Deferred / not built" section is authoritative for what's left (tags UI, multi-image upload, audio, cloud-file-picker Sources screen, native app registration, Geist font assets, chunk `html` rendering in the Reader).
+**Catch-up landed (2026-07-24, `/parity flutter` → per-feature commits):**
+- **2.0.0** newsletter canonical field names (`emailAddress`/`dateRangeDays`) — fixed an active prod 400 on settings save.
+- **2.2.0** newsletter `empty`/`error` status rows (informational, not openable) + `excludeRecentDays` control.
+- **1.1.0/1.5.0** dropped dead `display_html`/`questions` from `Document`.
+- **Reader** now renders rich `chunk.html` via `flutter_html` (text fallback).
+- **Cloud-import / Sources stack (1.2.4/1.3.0/1.4.0)**: new `/sources` screen — provider connect/disconnect + reconnect health banner, `fn_list_cloud_files` picker (breadcrumb/pagination/caps), `fn_import_from_cloud`, live `cloud_import_jobs` subscription with retry/duplicate affordances, `fn_request_cloud_sync`. Full API layer incl. `fn_sync_settings`/`fn_check_source_freshness`/`fn_update_from_source` (`CloudNotifier`).
+- **2.3.0** OAuth return consumed on `/sources` (`cloud_connect`/`provider`/`reason`/`org`, auto-open picker, reason banner, strip params); retired the old wrong-route `/settings` handling.
+- **Auto-organization (1.2.x)**: models + subscriptions (`organization_suggestions`, `cloud_folders`, `settings/organization`) + `OrgNotifier` (all org endpoints); Sources shows a live suggestions review queue + per-provider enable.
+- **Tags UI** (`/tags`) over `subscribeTags` + all tag endpoints (`TagsNotifier`).
+
+**Still deferred (this is what blocks the pin, alongside a green /conformance):** sync-settings panel + reader freshness banner + completion notifications (1.4.0 UI; API done); org settings sliders + organized-folders/charter panel + reorg-plan sheet (API done); document tag/priority + content editing (`fn_update_document`/`fn_update_content`) + raw-file view (`fn_get_raw_document_url`); multi-image upload; audio (`fn_generate_audio`); Geist font assets; plum chrome sidebar fidelity; native iOS/Android Firebase registration. Regenerate **[`REALIGNMENT.md`](REALIGNMENT.md)** via `/parity flutter` for the authoritative live list.
 
 Historical drift this pass fixed (previously recorded in `NoteLetter-contracts/CHANGELOG.md` 1.0.0): stale Firebase project (`luxletter-b7a40`), removed endpoints (`fn_ingest_youtube`, `fn_settings/newsletter`, `fn_list_activity`), INV-02 HTTP polling instead of Firestore subscriptions, missing `logReadEvent`/INV-03, missing embedding stripping, amber/navy theme drift.
 
