@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/chunk.dart';
@@ -110,17 +111,33 @@ class _ReaderPageState extends State<ReaderPage> {
                                   ?.copyWith(fontStyle: FontStyle.italic)),
                           const SizedBox(height: 24),
                         ],
-                        // Chunks in reading order — plain text render (no
-                        // HTML renderer dependency yet; `chunk.html` carries
-                        // the rich markup, assembled client-side since 1.1.0).
-                        ..._chunks.map((c) => Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: Text(
-                                c.text,
-                                style: theme.textTheme.bodyLarge
-                                    ?.copyWith(height: 1.6),
-                              ),
-                            )),
+                        // Chunks in reading order — render the rich `chunk.html`
+                        // (assembled client-side since 1.1.0), falling back to
+                        // plain `text` when a chunk carries no markup.
+                        ..._chunks.map((c) {
+                          final hasHtml = (c.html ?? '').trim().isNotEmpty;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: hasHtml
+                                ? Html(
+                                    data: c.html,
+                                    style: {
+                                      'body': Style(
+                                        margin: Margins.zero,
+                                        fontSize: FontSize(
+                                            theme.textTheme.bodyLarge?.fontSize ??
+                                                16),
+                                        lineHeight: LineHeight.number(1.6),
+                                      ),
+                                    },
+                                  )
+                                : Text(
+                                    c.text,
+                                    style: theme.textTheme.bodyLarge
+                                        ?.copyWith(height: 1.6),
+                                  ),
+                          );
+                        }),
                         if (_chunks.isEmpty)
                           Text('No content indexed yet.',
                               style: theme.textTheme.bodyMedium
