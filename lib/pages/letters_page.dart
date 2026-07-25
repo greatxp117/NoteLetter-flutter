@@ -101,18 +101,51 @@ class _LettersPageState extends State<LettersPage> {
                                 itemBuilder: (context, i) {
                                   final n = notifier.history[i];
                                   final isSelected = n.id == selected?.id;
+                                  final badge = _statusBadge(n.status);
+                                  // empty/error rows carry no html to preview;
+                                  // show their reason instead of the trigger.
+                                  final sub = n.isReadable
+                                      ? (n.trigger == 'manual'
+                                          ? 'Manual send'
+                                          : 'Scheduled')
+                                      : (n.errorMessage ??
+                                          (n.trigger == 'manual'
+                                              ? 'Manual send'
+                                              : 'Scheduled'));
                                   return ListTile(
                                     selected: isSelected,
                                     selectedTileColor:
                                         primary.withValues(alpha: 0.08),
-                                    title: Text(_formatDate(n.generatedAt),
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w600)),
+                                    title: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(_formatDate(n.generatedAt),
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w600)),
+                                        ),
+                                        if (badge != null)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: badge.color
+                                                  .withValues(alpha: 0.12),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(badge.label,
+                                                style: theme.textTheme.labelSmall
+                                                    ?.copyWith(
+                                                        color: badge.color,
+                                                        fontWeight:
+                                                            FontWeight.w600)),
+                                          ),
+                                      ],
+                                    ),
                                     subtitle: Text(
-                                      n.trigger == 'manual'
-                                          ? 'Manual send'
-                                          : 'Scheduled',
+                                      sub,
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(color: muted),
                                     ),
@@ -135,10 +168,41 @@ class _LettersPageState extends State<LettersPage> {
                           style: theme.textTheme.bodyMedium
                               ?.copyWith(color: muted)),
                     )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(32, 28, 32, 48),
-                      child: Html(data: selected.html),
-                    ),
+                  : !selected.isReadable
+                      // empty/error/generating: nothing was rendered — show the
+                      // reason as an informational panel, not a broken preview.
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(48),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                    selected.status == 'error'
+                                        ? Icons.error_outline
+                                        : Icons.mark_email_read_outlined,
+                                    size: 32,
+                                    color: muted),
+                                const SizedBox(height: 12),
+                                Text(_statusBadge(selected.status)?.label ??
+                                    'No content',
+                                    style: theme.textTheme.titleMedium),
+                                const SizedBox(height: 8),
+                                Text(
+                                  selected.errorMessage ??
+                                      'This newsletter has no content to display.',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium
+                                      ?.copyWith(color: muted),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(32, 28, 32, 48),
+                          child: Html(data: selected.html),
+                        ),
             ),
           ],
         );
@@ -151,4 +215,30 @@ class _LettersPageState extends State<LettersPage> {
     final dt = DateTime.fromMillisecondsSinceEpoch(ms);
     return '${dt.month}/${dt.day}/${dt.year}';
   }
+
+  /// Status → badge (contract 2.2.0, ADR-011). `sent` needs no badge; `empty`
+  /// is informational ("Nothing new"), not a failure. Unknown statuses fall
+  /// through to an informational badge — the vocabulary is open.
+  _Badge? _statusBadge(String status) {
+    switch (status) {
+      case 'sent':
+        return null;
+      case 'error':
+        return const _Badge('Failed', AppColors.critical);
+      case 'empty':
+        return const _Badge('Nothing new', AppColors.mutedForeground);
+      case 'generating':
+        return const _Badge('Sending…', AppColors.secondaryAccent);
+      case '':
+        return null;
+      default:
+        return _Badge(status, AppColors.mutedForeground);
+    }
+  }
+}
+
+class _Badge {
+  final String label;
+  final Color color;
+  const _Badge(this.label, this.color);
 }

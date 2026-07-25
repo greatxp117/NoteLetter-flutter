@@ -15,6 +15,10 @@ class NewsletterSettings {
   final List<String> sourceTypes;
   final int dateRangeDays;
 
+  /// Suppress chunks included in a newsletter this recently, so the daily
+  /// letter doesn't echo itself (2.2.0 surfaces this as an editable control).
+  final int excludeRecentDays;
+
   const NewsletterSettings({
     this.enabled = true,
     this.emailAddress = '',
@@ -24,6 +28,7 @@ class NewsletterSettings {
     this.purposeText = '',
     this.sourceTypes = const [],
     this.dateRangeDays = 30, // contract default (rolling window)
+    this.excludeRecentDays = 7, // contract default
   });
 
   factory NewsletterSettings.fromJson(Map<String, dynamic> json) {
@@ -36,6 +41,7 @@ class NewsletterSettings {
       purposeText: json['purposeText'] as String? ?? '',
       sourceTypes: (json['sourceTypes'] as List?)?.cast<String>() ?? [],
       dateRangeDays: json['dateRangeDays'] as int? ?? 30,
+      excludeRecentDays: json['excludeRecentDays'] as int? ?? 7,
     );
   }
 
@@ -51,6 +57,7 @@ class NewsletterSettings {
       if (purposeText.isNotEmpty) 'purposeText': purposeText,
       if (sourceTypes.isNotEmpty) 'sourceTypes': sourceTypes,
       'dateRangeDays': dateRangeDays,
+      'excludeRecentDays': excludeRecentDays,
     };
   }
 
@@ -63,6 +70,7 @@ class NewsletterSettings {
     String? purposeText,
     List<String>? sourceTypes,
     int? dateRangeDays,
+    int? excludeRecentDays,
   }) {
     return NewsletterSettings(
       enabled: enabled ?? this.enabled,
@@ -73,6 +81,7 @@ class NewsletterSettings {
       purposeText: purposeText ?? this.purposeText,
       sourceTypes: sourceTypes ?? this.sourceTypes,
       dateRangeDays: dateRangeDays ?? this.dateRangeDays,
+      excludeRecentDays: excludeRecentDays ?? this.excludeRecentDays,
     );
   }
 }

@@ -28,6 +28,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _emailCtrl = TextEditingController();
   final _purposeCtrl = TextEditingController();
   int _dateRangeDays = 30;
+  int _excludeRecentDays = 7;
 
   // Privacy toggles (local only for now)
   bool _allowTraining = false;
@@ -71,6 +72,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _enabled = s.enabled;
       _frequency = s.frequency;
       _dateRangeDays = s.dateRangeDays;
+      _excludeRecentDays = s.excludeRecentDays;
     });
     _deliveryTimeCtrl.text = s.deliveryTime;
     _emailCtrl.text = s.emailAddress;
@@ -95,6 +97,7 @@ class _SettingsPageState extends State<SettingsPage> {
       emailAddress: _emailCtrl.text.trim(),
       purposeText: _purposeCtrl.text.trim(),
       dateRangeDays: _dateRangeDays,
+      excludeRecentDays: _excludeRecentDays,
     );
 
     final error =
@@ -128,6 +131,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = isDark ? AppColors.primaryDark : AppColors.primary;
+    final muted =
+        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
 
     return Consumer<SettingsNotifier>(
       builder: (context, settings, _) {
@@ -314,6 +319,31 @@ class _SettingsPageState extends State<SettingsPage> {
                                 label: '$_dateRangeDays',
                                 onChanged: (v) =>
                                     setState(() => _dateRangeDays = v.round()),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _excludeRecentDays == 0
+                                    ? "Don't skip recently-sent passages"
+                                    : 'Skip passages sent in the last '
+                                        '$_excludeRecentDays day'
+                                        '${_excludeRecentDays == 1 ? '' : 's'}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w500),
+                              ),
+                              Text(
+                                'Stops your daily letter from repeating itself.',
+                                style: theme.textTheme.bodySmall
+                                    ?.copyWith(color: muted),
+                              ),
+                              Slider(
+                                value: _excludeRecentDays.toDouble(),
+                                min: 0,
+                                max: 30,
+                                divisions: 30,
+                                activeColor: primary,
+                                label: '$_excludeRecentDays',
+                                onChanged: (v) => setState(
+                                    () => _excludeRecentDays = v.round()),
                               ),
                             ],
                           ),

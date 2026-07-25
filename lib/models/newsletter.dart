@@ -8,7 +8,13 @@ class Newsletter {
   final int? generatedAt;
   final String html;
   final String trigger;
+
+  /// `generating | sent | error | empty` (2.2.0, ADR-011) — vocabulary is
+  /// OPEN: an unknown status renders as informational, never as a failure.
   final String status;
+
+  /// Client-visible failure/skip reason; set on `error` and `empty`.
+  final String? errorMessage;
 
   const Newsletter({
     required this.id,
@@ -17,6 +23,7 @@ class Newsletter {
     required this.html,
     required this.trigger,
     required this.status,
+    this.errorMessage,
   });
 
   factory Newsletter.fromJson(String id, Map<String, dynamic> json) {
@@ -27,6 +34,12 @@ class Newsletter {
       html: json['html'] as String? ?? '',
       trigger: json['trigger'] as String? ?? 'scheduled',
       status: json['status'] as String? ?? '',
+      errorMessage: json['error_message'] as String?,
     );
   }
+
+  /// A row is a readable letter only when it was actually rendered and sent.
+  /// `empty`/`error` (and any future non-`sent` status) carry no `html` to
+  /// preview — they are informational history rows.
+  bool get isReadable => status == 'sent' && html.isNotEmpty;
 }
