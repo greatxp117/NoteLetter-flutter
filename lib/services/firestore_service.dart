@@ -2,9 +2,12 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/activity_item.dart';
 import '../models/chunk.dart';
+import '../models/cloud_folder.dart';
 import '../models/document.dart';
 import '../models/import_job.dart';
 import '../models/newsletter.dart';
+import '../models/organization_settings.dart';
+import '../models/organization_suggestion.dart';
 import '../models/newsletter_settings.dart';
 import '../models/tag.dart';
 import 'activity_merge.dart';
@@ -68,6 +71,59 @@ class FirestoreService {
         .snapshots()
         .map((snap) =>
             snap.docs.map((d) => ImportJob.fromJson(d.id, d.data())).toList());
+  }
+
+  /// Realtime pending organization suggestions (1.2.0): `user_id ==`,
+  /// `status == "pending"`, `created_at desc`. Read-only; resolve via the
+  /// endpoint (INV-13). Audit/other-status views are one-shot elsewhere.
+  Stream<List<OrganizationSuggestion>> subscribeOrganizationSuggestions() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('organization_suggestions')
+        .where('user_id', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => OrganizationSuggestion.fromJson(d.id, d.data()))
+            .toList());
+  }
+
+  /// Realtime organized-folder tree for a provider (1.2.0): `user_id ==`,
+  /// `provider ==`. Strips `charter.embedding` (INV-05).
+  Stream<List<CloudFolder>> subscribeCloudFolders(String provider) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('cloud_folders')
+        .where('user_id', isEqualTo: uid)
+        .where('provider', isEqualTo: provider)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+              final data = Map<String, dynamic>.from(d.data());
+              final charter = (data['charter'] as Map?)?.cast<String, dynamic>();
+              if (charter != null) {
+                charter.remove('embedding');
+                data['charter'] = charter;
+              }
+              return CloudFolder.fromJson(d.id, data);
+            }).toList());
+  }
+
+  /// One-shot read of `/users/{uid}/settings/organization` (INV-02 — GET is not
+  /// served; clients read the doc directly).
+  Future<OrganizationSettings> getOrganizationSettings() async {
+    final uid = _uid;
+    if (uid == null) return const OrganizationSettings();
+    final snap = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('settings')
+        .doc('organization')
+        .get();
+    if (!snap.exists) return const OrganizationSettings();
+    return OrganizationSettings.fromJson(snap.data()!);
   }
 
   /// Canonical activity merge (spec/screens/activity.md): activity_events +

@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/import_job.dart';
+import '../models/organization_suggestion.dart';
 import '../state/cloud_notifier.dart';
+import '../state/org_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 
@@ -48,6 +50,7 @@ class _SourcesPageState extends State<SourcesPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CloudNotifier>().start();
+      context.read<OrgNotifier>().start();
       _handleOAuthReturn();
     });
   }
@@ -152,6 +155,9 @@ class _SourcesPageState extends State<SourcesPage> {
 
               const SizedBox(height: 24),
               _ImportActivity(jobs: cloud.jobs, muted: muted),
+
+              const SizedBox(height: 24),
+              _OrganizationSection(muted: muted),
             ],
           ),
         );
@@ -280,6 +286,26 @@ class _ProviderCard extends StatelessWidget {
                         type: isErr ? ToastType.error : ToastType.success);
                   },
                 ),
+                // Auto-organization enable (1.2.0) — requests write scopes via
+                // OAuth; returns to /sources with org=enabled on a full grant.
+                Builder(builder: (context) {
+                  final org = context.watch<OrgNotifier>();
+                  final enabled = org.settings.configFor(providerId).enabled;
+                  if (enabled) {
+                    return Chip(
+                      avatar: Icon(Icons.auto_awesome,
+                          size: 14, color: AppColors.positive),
+                      label: const Text('Auto-organization on'),
+                      visualDensity: VisualDensity.compact,
+                    );
+                  }
+                  return OutlinedButton.icon(
+                    icon: const Icon(Icons.auto_awesome_outlined, size: 16),
+                    label: const Text('Enable auto-organization'),
+                    onPressed: () =>
+                        run(() => org.enableOrganization(providerId)),
+                  );
+                }),
               ],
             ),
           ],
@@ -599,6 +625,129 @@ class _JobRow extends StatelessWidget {
       default:
         return ('Waiting', muted);
     }
+  }
+}
+
+// ── Auto-organization (1.2.0, INV-13) ────────────────────────────────────────
+
+class _OrganizationSection extends StatelessWidget {
+  final Color muted;
+  const _OrganizationSection({required this.muted});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final org = context.watch<OrgNotifier>();
+    final pending = org.suggestions;
+    if (pending.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Organization suggestions',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text('${pending.length}',
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: AppColors.primary)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...pending.map((s) => _SuggestionCard(suggestion: s, muted: muted)),
+      ],
+    );
+  }
+}
+
+class _SuggestionCard extends StatelessWidget {
+  final OrganizationSuggestion suggestion;
+  final Color muted;
+  const _SuggestionCard({required this.suggestion, required this.muted});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final org = context.read<OrgNotifier>();
+    final busy = org.isResolving(suggestion.id);
+
+    Future<void> act(String action) async {
+      final err = await org.resolve([suggestion.id], action);
+      if (context.mounted && err != null) {
+        AppToast.show(context, err, type: ToastType.error);
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(suggestion.title,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+              ),
+              Text('${(suggestion.confidence * 100).round()}% confident',
+                  style: theme.textTheme.labelSmall?.copyWith(color: muted)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (suggestion.reason.isNotEmpty)
+            Text(suggestion.reason, style: theme.textTheme.bodyMedium),
+          if (suggestion.detail.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(suggestion.detail,
+                style: theme.textTheme.bodySmall?.copyWith(color: muted)),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (busy)
+                const Padding(
+                  padding: EdgeInsets.only(right: 12),
+                  child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+              TextButton(
+                onPressed: busy ? null : () => act('decline'),
+                child: Text('Decline', style: TextStyle(color: muted)),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor: isDark
+                        ? AppColors.primaryDark
+                        : AppColors.primary),
+                onPressed: busy ? null : () => act('approve'),
+                child: const Text('Approve'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
