@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/tag.dart';
+import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 
@@ -25,11 +26,7 @@ class TagsNotifier extends ChangeNotifier {
   Future<String?> createTag(String title,
       {String? description, String? color}) async {
     try {
-      await ApiService.instance.post('/fn_create_tag', data: {
-        'title': title,
-        if (description != null) 'description': description,
-        if (color != null) 'color': color,
-      });
+      await Api.instance.createTag(title, description: description, color: color);
       return null; // the subscription reflects the new tag
     } on ApiException catch (e) {
       return e.message;
@@ -41,8 +38,7 @@ class TagsNotifier extends ChangeNotifier {
   Future<String?> updateTag(String tagId,
       {String? title, String? description, String? color}) async {
     try {
-      await ApiService.instance.post('/fn_update_tag', data: {
-        'tagId': tagId,
+      await Api.instance.updateTag(tagId, {
         if (title != null) 'title': title,
         if (description != null) 'description': description,
         if (color != null) 'color': color,
@@ -57,7 +53,7 @@ class TagsNotifier extends ChangeNotifier {
 
   Future<String?> deleteTag(String tagId) async {
     try {
-      await ApiService.instance.post('/fn_delete_tag', data: {'tagId': tagId});
+      await Api.instance.deleteTag(tagId);
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -70,8 +66,7 @@ class TagsNotifier extends ChangeNotifier {
   /// suggestion maps for a review sheet, or null on failure.
   Future<List<Map<String, dynamic>>?> suggestTags(String purposeText) async {
     try {
-      final data = await ApiService.instance
-          .post('/fn_suggest_tags', data: {'purposeText': purposeText});
+      final data = await Api.instance.suggestTags(purposeText);
       return ((data['tags'] as List?) ?? const [])
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList();
@@ -83,7 +78,7 @@ class TagsNotifier extends ChangeNotifier {
   /// Persist accepted suggestions in one batch.
   Future<String?> approveTags(List<Map<String, dynamic>> tags) async {
     try {
-      await ApiService.instance.post('/fn_approve_tags', data: {'tags': tags});
+      await Api.instance.approveTags(tags);
       return null;
     } on ApiException catch (e) {
       return e.message;

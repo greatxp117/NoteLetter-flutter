@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/activity_item.dart';
+import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 
@@ -47,7 +48,7 @@ class ActivityNotifier extends ChangeNotifier {
   /// the live subscription, not a local mutation.
   Future<String?> deleteDocument(String docId) async {
     try {
-      await ApiService.instance.post('/fn_delete_document', data: {'docId': docId});
+      await Api.instance.deleteDocument(docId);
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -59,7 +60,7 @@ class ActivityNotifier extends ChangeNotifier {
   /// Retry from the failed stage — `status: "error"` documents only.
   Future<String?> retryDocument(String docId) async {
     try {
-      await ApiService.instance.post('/fn_retry_document', data: {'docId': docId});
+      await Api.instance.retryDocument(docId);
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -71,7 +72,7 @@ class ActivityNotifier extends ChangeNotifier {
   /// Cancel mid-pipeline.
   Future<String?> cancelDocument(String docId) async {
     try {
-      await ApiService.instance.post('/fn_cancel_document', data: {'docId': docId});
+      await Api.instance.cancelDocument(docId);
       return null;
     } on ApiException catch (e) {
       return e.message;

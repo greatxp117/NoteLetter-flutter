@@ -2,6 +2,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'auth_service.dart';
 
+/// Resolves the Firebase ID token for INV-01. Defaults to the signed-in user;
+/// swappable in the conformance harness so request construction is testable
+/// without a live Firebase session (mirrors the web reference's mocked auth).
+typedef TokenProvider = Future<String?> Function();
+
 class ApiException implements Exception {
   final int statusCode;
   final String message;
@@ -26,6 +31,15 @@ class ApiService {
       'https://us-central1-noteletter-7a111.cloudfunctions.net';
 
   late final Dio _client;
+
+  /// INV-01 token source. Overridden by the conformance harness.
+  TokenProvider tokenProvider = () => AuthService.instance.getIdToken();
+
+  /// Test seam: inject a Dio adapter that captures the outgoing request and
+  /// returns a canned response, so the api/* conformance suite can assert
+  /// request construction without touching the network.
+  set httpClientAdapter(HttpClientAdapter adapter) =>
+      _client.httpClientAdapter = adapter;
 
   // Separate client for GCS direct uploads — no auth header, no base URL.
   final Dio _rawClient = Dio(BaseOptions(
@@ -74,6 +88,18 @@ class ApiService {
   }) async {
     try {
       final response = await _client.put(path, data: data);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handle(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final response = await _client.patch(path, data: data);
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handle(e);
@@ -135,7 +161,7 @@ class _AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await AuthService.instance.getIdToken();
+    final token = await ApiService.instance.tokenProvider();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }

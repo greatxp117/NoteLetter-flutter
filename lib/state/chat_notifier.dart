@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/chat_message.dart';
 import '../models/search_result.dart';
+import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
@@ -32,10 +33,7 @@ class ChatNotifier extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final data = await ApiService.instance.post('/fn_search_notes', data: {
-        'query': trimmed,
-        'limit': 5,
-      });
+      final data = await Api.instance.searchNotes(trimmed, limit: 5);
 
       final rawList = data['results'] as List? ?? [];
       final results = rawList

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/import_job.dart';
+import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
@@ -78,7 +79,7 @@ class CloudNotifier extends ChangeNotifier {
     _loadingIntegrations = true;
     notifyListeners();
     try {
-      final data = await ApiService.instance.get('/fn_get_cloud_integrations');
+      final data = await Api.instance.getCloudIntegrations();
       final raw = (data['integrations'] as List?) ?? const [];
       _integrations = raw
           .map((e) => CloudIntegration.fromJson(e as Map<String, dynamic>))
@@ -97,8 +98,7 @@ class CloudNotifier extends ChangeNotifier {
   /// or null. The callback returns to /sources with `cloud_connect` params.
   Future<String?> connect(String provider) async {
     try {
-      final data = await ApiService.instance
-          .post('/fn_connect_cloud_storage', data: {'provider': provider});
+      final data = await Api.instance.connectCloudStorage(provider);
       final authUrl = data['authUrl'] as String?;
       if (authUrl == null) return 'No authorization URL returned.';
       final ok = await launchUrl(Uri.parse(authUrl),
@@ -116,8 +116,7 @@ class CloudNotifier extends ChangeNotifier {
 
   Future<String?> disconnect(String provider) async {
     try {
-      await ApiService.instance
-          .post('/fn_disconnect_cloud_storage', data: {'provider': provider});
+      await Api.instance.disconnectCloudStorage(provider);
       _integrations.removeWhere((i) => i.provider == provider);
       if (_browseProvider == provider) closePicker();
       notifyListeners();
@@ -176,8 +175,7 @@ class CloudNotifier extends ChangeNotifier {
     try {
       final params = <String, dynamic>{'provider': provider};
       if (folderId != 'root') params['folderId'] = folderId;
-      final data = await ApiService.instance
-          .get('/fn_list_cloud_files', queryParameters: params);
+      final data = await Api.instance.listCloudFiles(params);
       _listing = CloudFileListing.fromJson(data);
     } on ApiException catch (e) {
       _browseError = e.message;
@@ -199,8 +197,7 @@ class CloudNotifier extends ChangeNotifier {
       final params = <String, dynamic>{'provider': provider, 'pageToken': token};
       final folderId = _crumbs.isNotEmpty ? _crumbs.last.id : 'root';
       if (folderId != 'root') params['folderId'] = folderId;
-      final data = await ApiService.instance
-          .get('/fn_list_cloud_files', queryParameters: params);
+      final data = await Api.instance.listCloudFiles(params);
       final next = CloudFileListing.fromJson(data);
       _listing = CloudFileListing(
         items: [...?_listing?.items, ...next.items],
@@ -252,11 +249,11 @@ class CloudNotifier extends ChangeNotifier {
       return ('Nothing selected.', true);
     }
     try {
-      final data = await ApiService.instance.post('/fn_import_from_cloud', data: {
-        'provider': provider,
-        'folder_ids': _selectedFolders.toList(),
-        'file_ids': _selectedFiles.toList(),
-      });
+      final data = await Api.instance.importFromCloud(
+        provider,
+        folderIds: _selectedFolders.toList(),
+        fileIds: _selectedFiles.toList(),
+      );
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
       final n = (data['queued_files'] as num?)?.toInt() ?? 0;
       closePicker();
@@ -273,8 +270,7 @@ class CloudNotifier extends ChangeNotifier {
 
   Future<String?> retryJob(String jobId) async {
     try {
-      await ApiService.instance
-          .post('/fn_retry_import_job', data: {'job_id': jobId});
+      await Api.instance.retryImportJob(jobId);
       return null; // subscription reflects the new status
     } on ApiException catch (e) {
       return e.message; // 409/429 copy is user-facing
@@ -286,8 +282,7 @@ class CloudNotifier extends ChangeNotifier {
   /// Manual "sync now" over the provider's configured sync folders.
   Future<(String, bool)> syncNow(String provider) async {
     try {
-      final data = await ApiService.instance
-          .post('/fn_request_cloud_sync', data: {'provider': provider});
+      final data = await Api.instance.requestCloudSync(provider);
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
       return ('Checking $f folder(s)…', false);
     } on ApiException catch (e) {
@@ -309,16 +304,16 @@ class CloudNotifier extends ChangeNotifier {
     List<String>? includeTypes,
     List<String>? excludePatterns,
   }) async {
-    final body = <String, dynamic>{'provider': provider};
-    if (autoSyncEnabled != null) body['auto_sync_enabled'] = autoSyncEnabled;
-    if (syncFrequency != null) body['sync_frequency'] = syncFrequency;
-    if (syncPreferredHour != null) body['sync_preferred_hour'] = syncPreferredHour;
-    if (folderIds != null) body['folder_ids'] = folderIds;
-    if (includeTypes != null) body['include_types'] = includeTypes;
-    if (excludePatterns != null) body['exclude_patterns'] = excludePatterns;
     try {
-      final data =
-          await ApiService.instance.post('/fn_sync_settings', data: body);
+      final data = await Api.instance.syncSettings(
+        provider,
+        autoSyncEnabled: autoSyncEnabled,
+        syncFrequency: syncFrequency,
+        syncPreferredHour: syncPreferredHour,
+        folderIds: folderIds,
+        includeTypes: includeTypes,
+        excludePatterns: excludePatterns,
+      );
       final updated =
           CloudIntegration.fromJson(data['integration'] as Map<String, dynamic>);
       final i = _integrations.indexWhere((x) => x.provider == provider);
@@ -341,8 +336,7 @@ class CloudNotifier extends ChangeNotifier {
   /// once per reader open — never poll (INV-02).
   Future<Map<String, dynamic>?> checkSourceFreshness(String docId) async {
     try {
-      return await ApiService.instance
-          .get('/fn_check_source_freshness', queryParameters: {'docId': docId});
+      return await Api.instance.checkSourceFreshness(docId);
     } catch (_) {
       return null;
     }
@@ -352,8 +346,7 @@ class CloudNotifier extends ChangeNotifier {
   /// Progress rides the document's own subscription + the jobs subscription.
   Future<String?> updateFromSource(String documentId) async {
     try {
-      await ApiService.instance
-          .post('/fn_update_from_source', data: {'document_id': documentId});
+      await Api.instance.updateFromSource(documentId);
       return null;
     } on ApiException catch (e) {
       return e.message; // 409/429 cooldown copy is user-facing

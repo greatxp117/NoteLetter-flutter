@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/search_result.dart';
+import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
@@ -32,11 +33,8 @@ class SearchNotifier extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final data = await ApiService.instance.post('/fn_search_notes', data: {
-        'query': trimmed,
-        if (sourceTypes != null) 'sourceTypes': sourceTypes,
-        'limit': limit,
-      });
+      final data = await Api.instance
+          .searchNotes(trimmed, sourceTypes: sourceTypes, limit: limit);
 
       final rawList = data['results'] as List? ?? [];
       _results = rawList

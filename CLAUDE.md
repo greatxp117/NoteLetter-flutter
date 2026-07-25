@@ -4,7 +4,7 @@ Flutter client for NoteLetter. Part of the multi-repo workspace — read the umb
 
 ## Status: Milestone 2 realignment landed + 1.1.0→2.3.0 catch-up substantially done — pin still 1.0.0 pending remaining gaps + a green /conformance
 
-**Contract version: 1.0.0**, targeting real project `noteletter-7a111` (web target only — native iOS/Android Firebase apps not yet registered). `flutter analyze` clean. `/conformance` has not been run; the pin stays **1.0.0** until the remaining gaps land and a green run advances it.
+**Contract version: 1.0.0**, targeting real project `noteletter-7a111` (web target only — native iOS/Android Firebase apps not yet registered). `flutter analyze` clean. **Tier-1 `/conformance` now runs green except the deliberate pin red-stop** — the `api/*` request-construction suite is implemented (89 cases over all nine `api/*` fixture suites, mirroring the web `api-request` harness) and the `firestore`/`activity-merge` suites pass. The pin stays **1.0.0** until the remaining UI gaps land and the pin is advanced together with a green run (which flips `pin_check_test`).
 
 **Catch-up landed (2026-07-24, `/parity flutter` → per-feature commits):**
 - **2.0.0** newsletter canonical field names (`emailAddress`/`dateRangeDays`) — fixed an active prod 400 on settings save.
@@ -52,13 +52,17 @@ flutter test test/contract/    # Tier-1 contract harness (Milestone 3 scaffold)
 `test/contract/` is the Tier-1 harness against the captured fixtures in
 `../NoteLetter-contracts/fixtures/`. **It red-stops at `pin_check_test.dart`
 by design** — the Flutter pin is contract **1.0.0** and the contracts VERSION is
-ahead, so `/conformance` fails loudly on skew (the catch-up signal). The pure
-suites that already conform run green: `activity_merge_test` (INV-02, backed by
-the extracted pure `lib/services/activity_merge.dart`) and the chunk cases of
-`firestore_shapes_test` (INV-05/06). `api_stub_test` marks api/* conformance as
-NOT-IMPLEMENTED. Advancing the pin (and turning the whole suite green) is the
-Milestone-2 realignment + catch-up work — e.g. `Document.fromJson` still reads
-`tags` where the contract is `tag_ids`.
+ahead, so `/conformance` fails loudly on skew (the catch-up signal). The
+suites that conform run green: `api_requests_test` (api/* request construction,
+89 cases — every builder routes through the canonical `lib/services/api.dart`,
+which all ten `state/*_notifier.dart` now call so the app's live requests are
+exactly what is asserted), `activity_merge_test` (INV-02, backed by the
+extracted pure `lib/services/activity_merge.dart`), and the chunk cases of
+`firestore_shapes_test` (INV-05/06). The remaining work to turn the WHOLE suite
+green and advance the pin is the deferred UI + one known model drift:
+`Document.fromJson` still reads `tags` where the contract is `tag_ids` (the
+`firestore_shapes_test` Document cases are why that suite only exercises chunks
+today).
 
 Emulator development (after config fix): `--dart-define=USE_EMULATOR=true` per `/emu`.
 

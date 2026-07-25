@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/newsletter.dart';
+import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 
@@ -37,7 +38,7 @@ class NewsletterNotifier extends ChangeNotifier {
     _isSending = true;
     notifyListeners();
     try {
-      await ApiService.instance.post('/fn_request_newsletter', data: const {});
+      await Api.instance.requestNewsletter();
       return null;
     } on ApiException catch (e) {
       return e.message;

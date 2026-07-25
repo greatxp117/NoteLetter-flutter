@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/newsletter_settings.dart';
 import '../models/cloud_integration.dart';
+import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
@@ -50,8 +51,7 @@ class SettingsNotifier extends ChangeNotifier {
 
   Future<void> _loadIntegrations() async {
     try {
-      final data =
-          await ApiService.instance.get('/fn_get_cloud_integrations');
+      final data = await Api.instance.getCloudIntegrations();
       final rawList = data['integrations'] as List? ?? [];
       _integrations = rawList
           .map((e) =>
@@ -71,10 +71,7 @@ class SettingsNotifier extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      await ApiService.instance.put(
-        '/fn_newsletter_settings',
-        data: settings.toJson(),
-      );
+      await Api.instance.updateNewsletterSettings(settings.toJson());
       // Response echoes only the applied partial update — re-read the full
       // doc from Firestore rather than assume its shape.
       _newsletter = await FirestoreService.instance.getNewsletterSettings();
@@ -97,10 +94,7 @@ class SettingsNotifier extends ChangeNotifier {
 
   Future<String?> connectProvider(String provider) async {
     try {
-      final data = await ApiService.instance.post(
-        '/fn_connect_cloud_storage',
-        data: {'provider': provider},
-      );
+      final data = await Api.instance.connectCloudStorage(provider);
       final authUrl = data['authUrl'] as String?;
       if (authUrl == null) return 'No auth URL returned from server.';
       final uri = Uri.parse(authUrl);
@@ -120,10 +114,7 @@ class SettingsNotifier extends ChangeNotifier {
 
   Future<String?> disconnectProvider(String provider) async {
     try {
-      await ApiService.instance.post(
-        '/fn_disconnect_cloud_storage',
-        data: {'provider': provider},
-      );
+      await Api.instance.disconnectCloudStorage(provider);
       _integrations.removeWhere((i) => i.provider == provider);
       notifyListeners();
       return null;

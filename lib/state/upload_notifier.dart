@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/upload_file.dart';
+import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
@@ -80,14 +81,8 @@ class UploadNotifier extends ChangeNotifier {
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.1);
 
-      final session = await ApiService.instance.post(
-        '/fn_create_upload_session',
-        data: {
-          'filename': file.name,
-          'mimeType': file.mimeType,
-          'size': file.size,
-        },
-      );
+      final session = await Api.instance
+          .createUploadSession(file.name, file.mimeType, file.size);
 
       final docId = session['docId'] as String;
       final uploadUrl = session['uploadUrl'] as String;
@@ -113,8 +108,7 @@ class UploadNotifier extends ChangeNotifier {
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.5);
 
-      final result = await ApiService.instance
-          .post('/fn_ingest_url', data: {'url': url, 'type': type});
+      final result = await Api.instance.ingestUrl(url, type);
 
       // Response has either a single `docId` or a playlist `docIds` (INV-07).
       final docIds = (result['docIds'] as List?)?.cast<String>();
