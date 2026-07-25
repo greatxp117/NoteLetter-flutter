@@ -11,6 +11,7 @@ import 'pages/branding_page.dart';
 import 'pages/reader_page.dart';
 import 'pages/letters_page.dart';
 import 'pages/sources_page.dart';
+import 'pages/tags_page.dart';
 
 GoRouter createRouter(AuthNotifier authNotifier) {
   return GoRouter(
@@ -71,6 +72,10 @@ GoRouter createRouter(AuthNotifier authNotifier) {
           GoRoute(
             path: '/letters',
             builder: (context, state) => const LettersPage(),
+          ),
+          GoRoute(
+            path: '/tags',
+            builder: (context, state) => const TagsPage(),
           ),
         ],
       ),
