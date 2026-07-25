@@ -27,7 +27,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _deliveryTimeCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _purposeCtrl = TextEditingController();
-  int _lookbackDays = 7;
+  int _dateRangeDays = 30;
 
   // Privacy toggles (local only for now)
   bool _allowTraining = false;
@@ -70,10 +70,10 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _enabled = s.enabled;
       _frequency = s.frequency;
-      _lookbackDays = s.lookbackDays;
+      _dateRangeDays = s.dateRangeDays;
     });
     _deliveryTimeCtrl.text = s.deliveryTime;
-    _emailCtrl.text = s.email;
+    _emailCtrl.text = s.emailAddress;
     _purposeCtrl.text = s.purposeText;
   }
 
@@ -92,9 +92,9 @@ class _SettingsPageState extends State<SettingsPage> {
       enabled: _enabled,
       frequency: _frequency,
       deliveryTime: _deliveryTimeCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
+      emailAddress: _emailCtrl.text.trim(),
       purposeText: _purposeCtrl.text.trim(),
-      lookbackDays: _lookbackDays,
+      dateRangeDays: _dateRangeDays,
     );
 
     final error =
@@ -301,19 +301,19 @@ class _SettingsPageState extends State<SettingsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Lookback window: $_lookbackDays days',
+                                'Date range: $_dateRangeDays days',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                     fontWeight: FontWeight.w500),
                               ),
                               Slider(
-                                value: _lookbackDays.toDouble(),
+                                value: _dateRangeDays.toDouble(),
                                 min: 1,
                                 max: 30,
                                 divisions: 29,
                                 activeColor: primary,
-                                label: '$_lookbackDays',
+                                label: '$_dateRangeDays',
                                 onChanged: (v) =>
-                                    setState(() => _lookbackDays = v.round()),
+                                    setState(() => _dateRangeDays = v.round()),
                               ),
                             ],
                           ),
