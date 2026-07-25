@@ -38,6 +38,11 @@ int? tsMs(dynamic value) {
 /// `/documents/{docId}` — field skeleton per contract data-model.md.
 /// `embedding` is not a document field (only chunks carry it); nothing to
 /// strip here (INV-05 applies to chunk/tag reads).
+///
+/// Deliberately absent: `display_html` (1.1.0, ADR-002 — no longer stored;
+/// clients assemble reading content from chunks) and `questions` (1.5.0,
+/// ADR-008 — deprecated; summaries are free-structured prose, no client
+/// renders "Questions to consider").
 class Document {
   final String id;
   final String userId;
@@ -54,12 +59,10 @@ class Document {
   final String? summary;
   final List<String> keyPoints;
   final List<String> themes;
-  final List<String> questions;
   final List<String> tags;
   final String? thumbnailUrl;
   final String? errorMessage;
   final double sourcePriority;
-  final String? displayHtml;
   final int viewCount;
   final int? lastViewedAt;
 
@@ -79,12 +82,10 @@ class Document {
     this.summary,
     this.keyPoints = const [],
     this.themes = const [],
-    this.questions = const [],
     this.tags = const [],
     this.thumbnailUrl,
     this.errorMessage,
     this.sourcePriority = 0.5,
-    this.displayHtml,
     this.viewCount = 0,
     this.lastViewedAt,
   });
@@ -106,12 +107,10 @@ class Document {
       summary: json['summary'] as String?,
       keyPoints: (json['key_points'] as List?)?.cast<String>() ?? [],
       themes: (json['themes'] as List?)?.cast<String>() ?? [],
-      questions: (json['questions'] as List?)?.cast<String>() ?? [],
       tags: (json['tags'] as List?)?.cast<String>() ?? [],
       thumbnailUrl: json['thumbnail_url'] as String?,
       errorMessage: json['error_message'] as String?,
       sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,
-      displayHtml: json['display_html'] as String?,
       viewCount: json['view_count'] as int? ?? 0,
       lastViewedAt: tsMs(json['last_viewed_at']),
     );

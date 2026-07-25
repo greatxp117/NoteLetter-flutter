@@ -111,8 +111,8 @@ class _ReaderPageState extends State<ReaderPage> {
                           const SizedBox(height: 24),
                         ],
                         // Chunks in reading order — plain text render (no
-                        // HTML renderer dependency yet; `chunk.html`/
-                        // `document.display_html` carry the rich markup).
+                        // HTML renderer dependency yet; `chunk.html` carries
+                        // the rich markup, assembled client-side since 1.1.0).
                         ..._chunks.map((c) => Padding(
                               padding: const EdgeInsets.only(bottom: 16),
                               child: Text(
