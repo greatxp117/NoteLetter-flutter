@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/activity_item.dart';
 import '../models/chunk.dart';
 import '../models/document.dart';
+import '../models/import_job.dart';
 import '../models/newsletter.dart';
 import '../models/newsletter_settings.dart';
 import '../models/tag.dart';
@@ -51,6 +52,22 @@ class FirestoreService {
               data.remove('embedding');
               return Tag.fromJson(d.id, data);
             }).toList());
+  }
+
+  /// Realtime cloud import jobs (INV-02, 1.2.4): `user_id ==`, `created_at
+  /// desc`, limit 50; aggregate/filter by provider client-side. Read-only —
+  /// the Cloud Tasks workers own writes.
+  Stream<List<ImportJob>> subscribeCloudImportJobs({int limit = 50}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('cloud_import_jobs')
+        .where('user_id', isEqualTo: uid)
+        .orderBy('created_at', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => ImportJob.fromJson(d.id, d.data())).toList());
   }
 
   /// Canonical activity merge (spec/screens/activity.md): activity_events +

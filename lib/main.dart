@@ -11,6 +11,7 @@ import 'state/chat_notifier.dart';
 import 'state/activity_notifier.dart';
 import 'state/settings_notifier.dart';
 import 'state/newsletter_notifier.dart';
+import 'state/cloud_notifier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +29,7 @@ void main() async {
         ChangeNotifierProvider<ActivityNotifier>(create: (_) => ActivityNotifier()),
         ChangeNotifierProvider<SettingsNotifier>(create: (_) => SettingsNotifier()),
         ChangeNotifierProvider<NewsletterNotifier>(create: (_) => NewsletterNotifier()),
+        ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
       ],
       child: NoteLetterApp(router: createRouter(authNotifier)),
     ),

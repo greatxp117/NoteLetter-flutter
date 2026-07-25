@@ -10,6 +10,7 @@ import 'pages/not_found_page.dart';
 import 'pages/branding_page.dart';
 import 'pages/reader_page.dart';
 import 'pages/letters_page.dart';
+import 'pages/sources_page.dart';
 
 GoRouter createRouter(AuthNotifier authNotifier) {
   return GoRouter(
@@ -50,9 +51,17 @@ GoRouter createRouter(AuthNotifier authNotifier) {
           ),
           GoRoute(
             path: '/settings',
-            builder: (context, state) => SettingsPage(
+            builder: (context, state) => const SettingsPage(),
+          ),
+          GoRoute(
+            // 2.3.0 (ADR-012): the OAuth callback lands here with an explicit
+            // result in the query string.
+            path: '/sources',
+            builder: (context, state) => SourcesPage(
               cloudConnectResult: state.uri.queryParameters['cloud_connect'],
               cloudConnectProvider: state.uri.queryParameters['provider'],
+              cloudConnectReason: state.uri.queryParameters['reason'],
+              cloudConnectOrg: state.uri.queryParameters['org'],
             ),
           ),
           GoRoute(

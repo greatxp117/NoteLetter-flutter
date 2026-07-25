@@ -1,0 +1,649 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../models/cloud_file.dart';
+import '../models/cloud_integration.dart';
+import '../models/import_job.dart';
+import '../state/cloud_notifier.dart';
+import '../theme/app_colors.dart';
+import '../widgets/app_toast.dart';
+
+/// Canonical provider ids (1.2.0) with display names for not-yet-connected
+/// providers (the integration list only carries connected ones).
+const _providers = <String, String>{
+  'google_drive': 'Google Drive',
+  'onedrive': 'OneDrive',
+  'dropbox': 'Dropbox',
+  'notion': 'Notion',
+};
+
+/// Sources — cloud connect/import/sync + import activity. See
+/// spec/screens/sources.md. (Document upload + organized-folders/suggestions
+/// panels are separate follow-ups.)
+class SourcesPage extends StatefulWidget {
+  /// OAuth return params (2.3.0, ADR-012), passed from the /sources route.
+  final String? cloudConnectResult; // 'success' | 'error'
+  final String? cloudConnectProvider;
+  final String? cloudConnectReason;
+  final String? cloudConnectOrg; // 'enabled' on org_upgrade success
+
+  const SourcesPage({
+    super.key,
+    this.cloudConnectResult,
+    this.cloudConnectProvider,
+    this.cloudConnectReason,
+    this.cloudConnectOrg,
+  });
+
+  @override
+  State<SourcesPage> createState() => _SourcesPageState();
+}
+
+class _SourcesPageState extends State<SourcesPage> {
+  String? _errorBanner;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CloudNotifier>().start();
+      _handleOAuthReturn();
+    });
+  }
+
+  // 2.3.0 (ADR-012): the callback lands here with an explicit result. Success →
+  // confirm + auto-open the provider's picker; error → reason banner. Then strip
+  // the params so a refresh/back doesn't re-fire. We do NOT infer connection
+  // from an integrations diff.
+  Future<void> _handleOAuthReturn() async {
+    final result = widget.cloudConnectResult;
+    if (result == null) return;
+    final cloud = context.read<CloudNotifier>();
+    final provider = widget.cloudConnectProvider;
+
+    if (result == 'success') {
+      await cloud.loadIntegrations();
+      if (!mounted) return;
+      final name = provider != null
+          ? (_providers[provider] ?? provider)
+          : 'Your account';
+      final org = widget.cloudConnectOrg == 'enabled';
+      AppToast.show(
+        context,
+        org
+            ? '$name connected — auto-organization enabled.'
+            : '$name connected.',
+        type: ToastType.success,
+      );
+      if (provider != null) {
+        await cloud.openPicker(provider); // auto-open the import picker
+      }
+    } else {
+      setState(() => _errorBanner = _reasonCopy(widget.cloudConnectReason));
+    }
+    if (!mounted) return;
+    // Strip the params (equivalent of history.replaceState).
+    context.go('/sources');
+  }
+
+  // Open vocabulary — unknown reasons fall through to generic copy.
+  String _reasonCopy(String? reason) {
+    switch (reason) {
+      case 'invalid_state':
+        return "Connection couldn't be verified. Please try connecting again.";
+      case 'missing_params':
+        return 'The provider returned an incomplete response. Please try again.';
+      case 'insufficient_scope':
+        return 'Not enough permissions were granted. Reconnect and accept the '
+            'requested access.';
+      case 'access_denied':
+        return 'The connection was cancelled.';
+      default:
+        return "Couldn't finish connecting. Please try again.";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final muted =
+        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
+
+    return Consumer<CloudNotifier>(
+      builder: (context, cloud, _) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(32, 28, 32, 48),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Sources',
+                  style: GoogleFonts.sourceSerif4(
+                      fontSize: 26, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text('Connect cloud storage and import documents.',
+                  style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
+              const SizedBox(height: 20),
+
+              if (_errorBanner != null)
+                _Banner(
+                  icon: Icons.error_outline,
+                  color: AppColors.critical,
+                  text: _errorBanner!,
+                  onDismiss: () => setState(() => _errorBanner = null),
+                ),
+
+              // Provider connection cards.
+              ..._providers.entries.map((e) {
+                final integration = cloud.integrationFor(e.key);
+                return _ProviderCard(
+                  providerId: e.key,
+                  displayName: e.value,
+                  integration: integration,
+                  muted: muted,
+                );
+              }),
+
+              const SizedBox(height: 24),
+
+              // Live picker (single provider open at a time).
+              if (cloud.browseProvider != null) _PickerPanel(muted: muted),
+
+              const SizedBox(height: 24),
+              _ImportActivity(jobs: cloud.jobs, muted: muted),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Provider card ─────────────────────────────────────────────────────────────
+
+class _ProviderCard extends StatelessWidget {
+  final String providerId;
+  final String displayName;
+  final CloudIntegration? integration;
+  final Color muted;
+
+  const _ProviderCard({
+    required this.providerId,
+    required this.displayName,
+    required this.integration,
+    required this.muted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
+    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final cloud = context.read<CloudNotifier>();
+    final connected = integration != null;
+    final needsReconnect = integration?.needsReconnect ?? false;
+
+    Future<void> run(Future<String?> Function() action,
+        {String? okMsg}) async {
+      final err = await action();
+      if (!context.mounted) return;
+      if (err != null) {
+        AppToast.show(context, err, type: ToastType.error);
+      } else if (okMsg != null) {
+        AppToast.show(context, okMsg, type: ToastType.success);
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.cloud_outlined, size: 20, color: primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(displayName,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      !connected
+                          ? 'Not connected'
+                          : (integration!.providerEmail ??
+                              integration!.lastSyncLabel),
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    ),
+                  ],
+                ),
+              ),
+              if (!connected)
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: primary),
+                  onPressed: () => run(() => cloud.connect(providerId)),
+                  child: const Text('Connect'),
+                )
+              else
+                TextButton(
+                  onPressed: () => run(() => cloud.disconnect(providerId),
+                      okMsg: '$displayName disconnected.'),
+                  child: Text('Disconnect',
+                      style: TextStyle(color: AppColors.critical)),
+                ),
+            ],
+          ),
+
+          // Reconnect banner (1.3.0) — browsing disabled while flagged.
+          if (needsReconnect) ...[
+            const SizedBox(height: 12),
+            _Banner(
+              icon: Icons.link_off,
+              color: AppColors.critical,
+              text: integration!.statusReason ??
+                  'This connection expired — reconnect to keep importing.',
+              action: TextButton(
+                onPressed: () => run(() => cloud.connect(providerId)),
+                child: const Text('Reconnect'),
+              ),
+            ),
+          ],
+
+          // Import + sync actions (hidden while reconnect is required).
+          if (connected && !needsReconnect) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.folder_open, size: 16),
+                  label: const Text('Browse files…'),
+                  onPressed: () => cloud.openPicker(providerId),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.sync, size: 16),
+                  label: const Text('Sync now'),
+                  onPressed: () async {
+                    final (msg, isErr) = await cloud.syncNow(providerId);
+                    if (!context.mounted) return;
+                    AppToast.show(context, msg,
+                        type: isErr ? ToastType.error : ToastType.success);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── File picker ───────────────────────────────────────────────────────────────
+
+class _PickerPanel extends StatelessWidget {
+  final Color muted;
+  const _PickerPanel({required this.muted});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
+    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final cloud = context.watch<CloudNotifier>();
+    final listing = cloud.listing;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Import from ${_providers[cloud.browseProvider] ?? cloud.browseProvider}',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Close',
+                onPressed: cloud.closePicker,
+              ),
+            ],
+          ),
+
+          // Breadcrumb.
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (var i = 0; i < cloud.crumbs.length; i++) ...[
+                if (i > 0)
+                  Icon(Icons.chevron_right, size: 16, color: muted),
+                InkWell(
+                  onTap: i == cloud.crumbs.length - 1
+                      ? null
+                      : () => cloud.jumpToCrumb(i),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 4),
+                    child: Text(cloud.crumbs[i].label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: i == cloud.crumbs.length - 1 ? null : primary,
+                        )),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const Divider(),
+
+          if (cloud.browsing)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (cloud.browseError != null)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(cloud.browseError!,
+                  style: TextStyle(color: AppColors.critical)),
+            )
+          else if (listing == null || listing.items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('This folder is empty.',
+                  style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
+            )
+          else
+            ...listing.items.map((f) => _FileRow(file: f, muted: muted)),
+
+          if (listing?.nextPageToken != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: cloud.loadingMore ? null : cloud.loadMore,
+                child: Text(cloud.loadingMore ? 'Loading…' : 'Load more'),
+              ),
+            ),
+
+          const Divider(),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${cloud.selectedFolders.length}/$kMaxImportFolders folders · '
+                  '${cloud.selectedFiles.length}/$kMaxImportFiles files',
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: primary),
+                onPressed: cloud.hasSelection
+                    ? () async {
+                        final (msg, isErr) = await cloud.importSelection();
+                        if (!context.mounted) return;
+                        AppToast.show(context, msg,
+                            type: isErr
+                                ? ToastType.error
+                                : ToastType.success);
+                      }
+                    : null,
+                child: const Text('Import selected'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FileRow extends StatelessWidget {
+  final CloudFile file;
+  final Color muted;
+  const _FileRow({required this.file, required this.muted});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cloud = context.read<CloudNotifier>();
+    final selected = file.isFolder
+        ? cloud.selectedFolders.contains(file.id)
+        : cloud.selectedFiles.contains(file.id);
+
+    void toggle() {
+      final note =
+          file.isFolder ? cloud.toggleFolder(file.id) : cloud.toggleFile(file.id);
+      if (note != null && context.mounted) {
+        AppToast.show(context, note, type: ToastType.info);
+      }
+    }
+
+    return Row(
+      children: [
+        Checkbox(value: selected, onChanged: (_) => toggle()),
+        Icon(
+          file.isFolder
+              ? Icons.folder_outlined
+              : Icons.insert_drive_file_outlined,
+          size: 18,
+          color: muted,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: InkWell(
+            onTap: file.isFolder ? () => cloud.enterFolder(file) : toggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(file.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium),
+                  ),
+                  if (file.exportable)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text('→ PDF',
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(color: muted)),
+                    ),
+                  if (file.isFolder)
+                    Icon(Icons.chevron_right, size: 18, color: muted),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Import activity ───────────────────────────────────────────────────────────
+
+class _ImportActivity extends StatelessWidget {
+  final List<ImportJob> jobs;
+  final Color muted;
+  const _ImportActivity({required this.jobs, required this.muted});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (jobs.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Import activity',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        ...jobs.map((j) => _JobRow(job: j, muted: muted)),
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text('Showing the 50 most recent import jobs.',
+              style: theme.textTheme.labelSmall?.copyWith(color: muted)),
+        ),
+      ],
+    );
+  }
+}
+
+class _JobRow extends StatelessWidget {
+  final ImportJob job;
+  final Color muted;
+  const _JobRow({required this.job, required this.muted});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cloud = context.read<CloudNotifier>();
+    final pill = _pill(job);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 20, height: 20, child: _leading(job)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  job.providerFileName.isEmpty
+                      ? '(fetching name…)'
+                      : job.providerFileName,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  [
+                    pill.$1,
+                    if (job.providerPath.isNotEmpty) job.providerPath,
+                    if (job.errorMessage != null) job.errorMessage!,
+                  ].join(' · '),
+                  style: theme.textTheme.bodySmall?.copyWith(color: pill.$2),
+                ),
+              ],
+            ),
+          ),
+          if (job.isDuplicate && job.documentId != null)
+            TextButton(
+              onPressed: () => context.go('/reader/${job.documentId}'),
+              child: const Text('View'),
+            ),
+          if (job.canRetry && !job.isSizeLimited)
+            TextButton(
+              onPressed: () async {
+                final err = await cloud.retryJob(job.id);
+                if (context.mounted && err != null) {
+                  AppToast.show(context, err, type: ToastType.error);
+                }
+              },
+              child: Text(job.isDuplicate ? 'Import again' : 'Retry'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _leading(ImportJob j) {
+    if (j.isWorking || j.status == 'pending' || j.status == 'queued') {
+      return const CircularProgressIndicator(strokeWidth: 2);
+    }
+    if (j.status == 'complete') {
+      return Icon(Icons.check_circle, size: 18, color: AppColors.positive);
+    }
+    if (j.status == 'error') {
+      return Icon(Icons.error_outline, size: 18, color: AppColors.critical);
+    }
+    return Icon(Icons.remove_circle_outline, size: 18, color: muted); // skipped/cancelled
+  }
+
+  /// (label, color) for the status sub-line.
+  (String, Color) _pill(ImportJob j) {
+    switch (j.status) {
+      case 'complete':
+        return ('Imported', AppColors.positive);
+      case 'error':
+        return ('Failed', AppColors.critical);
+      case 'skipped':
+        return (j.isDuplicate ? 'Already imported' : 'Skipped', muted);
+      case 'cancelled':
+        return ('Cancelled', muted);
+      case 'downloading':
+        return ('Downloading', muted);
+      case 'processing':
+        return ('Processing', muted);
+      default:
+        return ('Waiting', muted);
+    }
+  }
+}
+
+// ── Shared banner ─────────────────────────────────────────────────────────────
+
+class _Banner extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String text;
+  final Widget? action;
+  final VoidCallback? onDismiss;
+
+  const _Banner({
+    required this.icon,
+    required this.color,
+    required this.text,
+    this.action,
+    this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: theme.textTheme.bodySmall),
+          ),
+          if (action != null) action!,
+          if (onDismiss != null)
+            IconButton(
+              icon: const Icon(Icons.close, size: 16),
+              onPressed: onDismiss,
+            ),
+        ],
+      ),
+    );
+  }
+}

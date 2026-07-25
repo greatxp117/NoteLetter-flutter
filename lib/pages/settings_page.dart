@@ -7,14 +7,7 @@ import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 
 class SettingsPage extends StatefulWidget {
-  final String? cloudConnectResult;
-  final String? cloudConnectProvider;
-
-  const SettingsPage({
-    super.key,
-    this.cloudConnectResult,
-    this.cloudConnectProvider,
-  });
+  const SettingsPage({super.key});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -38,33 +31,12 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _handleOAuthCallback();
       context.read<SettingsNotifier>().loadAll().then((_) {
         if (!mounted) return;
         final settings = context.read<SettingsNotifier>().newsletter;
         if (settings != null) _populateForm(settings);
       });
     });
-  }
-
-  void _handleOAuthCallback() {
-    if (!mounted) return;
-    final result = widget.cloudConnectResult;
-    final provider = widget.cloudConnectProvider;
-    if (result == 'success') {
-      AppToast.show(
-        context,
-        'Connected ${_providerLabel(provider)} successfully.',
-        type: ToastType.success,
-      );
-      context.read<SettingsNotifier>().loadIntegrations();
-    } else if (result == 'error') {
-      AppToast.show(
-        context,
-        'Failed to connect ${_providerLabel(provider)}. Please try again.',
-        type: ToastType.error,
-      );
-    }
   }
 
   void _populateForm(NewsletterSettings s) {
@@ -111,20 +83,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  String _providerLabel(String? provider) {
-    switch (provider) {
-      case 'google_drive':
-        return 'Google Drive';
-      case 'onedrive':
-        return 'OneDrive';
-      case 'dropbox':
-        return 'Dropbox';
-      case 'notion':
-        return 'Notion';
-      default:
-        return provider ?? 'cloud storage';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {

@@ -18,6 +18,7 @@ const _navItems = [
   _NavItem(Icons.menu_book_outlined, 'Knowledge Base', '/library'),
   _NavItem(Icons.chat_bubble_outline, 'Chat', '/chat'),
   _NavItem(Icons.mail_outline, 'Letters', '/letters'),
+  _NavItem(Icons.cloud_outlined, 'Sources', '/sources'),
   _NavItem(Icons.auto_awesome_outlined, 'Welcome', '/landing'),
   _NavItem(Icons.palette_outlined, 'Branding', '/branding'),
   _NavItem(Icons.settings_outlined, 'Settings', '/settings'),
