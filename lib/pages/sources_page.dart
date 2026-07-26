@@ -10,6 +10,7 @@ import '../state/cloud_notifier.dart';
 import '../state/org_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
+import 'sources/organization_settings_panel.dart';
 import 'sources/sync_settings_panel.dart';
 
 /// Canonical provider ids (1.2.0) with display names for not-yet-connected
@@ -156,6 +157,9 @@ class _SourcesPageState extends State<SourcesPage> {
 
               const SizedBox(height: 24),
               _ImportActivity(jobs: cloud.jobs, muted: muted),
+
+              const SizedBox(height: 24),
+              const OrganizationSettingsPanel(),
 
               const SizedBox(height: 24),
               _OrganizationSection(muted: muted),
