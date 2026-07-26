@@ -30,17 +30,16 @@ class Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final bg = isDark ? AppColors.sidebarDark : AppColors.sidebarLight;
-    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+    // Plum chrome — identical in light & dark (web app-kit.css `.sb`):
+    // background --chrome (plum-600), foreground --paper-50. Never keyed off
+    // Theme.brightness; the chrome "stays warm either way".
     final currentRoute = GoRouterState.of(context).uri.path;
 
     return Container(
       width: 256,
-      decoration: BoxDecoration(
-        color: bg,
-        border: Border(right: BorderSide(color: border)),
+      decoration: const BoxDecoration(
+        color: AppColors.chrome,
+        border: Border(right: BorderSide(color: AppColors.chromeBorder)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -61,13 +60,13 @@ class Sidebar extends StatelessWidget {
                   style: GoogleFonts.sourceSerif4(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurface,
+                    color: AppColors.chromeForeground,
                   ),
                 ),
               ],
             ),
           ),
-          Divider(height: 1, color: border),
+          const Divider(height: 1, color: AppColors.chromeBorder),
           const SizedBox(height: 8),
           // Nav items
           ...(_navItems.map((item) {
@@ -75,7 +74,7 @@ class Sidebar extends StatelessWidget {
             return _SidebarNavItem(item: item, isActive: isActive);
           })),
           const Spacer(),
-          Divider(height: 1, color: border),
+          const Divider(height: 1, color: AppColors.chromeBorder),
           // Storage
           Padding(
             padding: const EdgeInsets.all(16),
@@ -84,14 +83,16 @@ class Sidebar extends StatelessWidget {
               children: [
                 Text(
                   '2.1 GB / 6 GB used',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 12,
+                    color: AppColors.chromeSubtle,
                   ),
                 ),
                 const SizedBox(height: 6),
                 LinearProgressIndicator(
                   value: 0.35,
-                  backgroundColor: isDark ? AppColors.borderDark : AppColors.borderLight,
+                  backgroundColor: AppColors.chromeBorder,
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -106,7 +107,7 @@ class Sidebar extends StatelessWidget {
                 onPressed: notifier.toggle,
                 icon: Icon(
                   notifier.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                  color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                  color: AppColors.chromeMuted,
                 ),
                 tooltip: notifier.isDark ? 'Light mode' : 'Dark mode',
               ),
@@ -133,16 +134,18 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
-
+    // On plum chrome the foreground is always paper-toned (web `.sb-item`):
+    // idle rgba(255,255,255,.62); hover/active promote to paper-50 with a
+    // white-alpha fill; the active item also carries a brick-400 left bar.
     Color bgColor = Colors.transparent;
     if (widget.isActive) {
-      bgColor = primary.withValues(alpha: 0.1);
+      bgColor = AppColors.chromeActive;
     } else if (_hovered) {
-      bgColor = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05);
+      bgColor = AppColors.chromeHover;
     }
+    final fg = (widget.isActive || _hovered)
+        ? AppColors.chromeForeground
+        : AppColors.chromeMuted;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -150,33 +153,48 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: () => context.go(widget.item.route),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                widget.item.icon,
-                size: 18,
-                color: widget.isActive
-                    ? primary
-                    : (isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+        child: Stack(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(6),
               ),
-              const SizedBox(width: 10),
-              Text(
-                widget.item.label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: widget.isActive ? primary : theme.colorScheme.onSurface,
-                  fontWeight: widget.isActive ? FontWeight.w600 : FontWeight.w400,
+              child: Row(
+                children: [
+                  Icon(widget.item.icon, size: 18, color: fg),
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.item.label,
+                    style: TextStyle(
+                      fontFamily: 'Geist',
+                      fontSize: 14,
+                      color: fg,
+                      fontWeight:
+                          widget.isActive ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Active accent bar — brick-400, mirrors web `.sb-item.active::before`.
+            if (widget.isActive)
+              Positioned(
+                left: 0,
+                top: 10,
+                bottom: 10,
+                child: Container(
+                  width: 2,
+                  decoration: BoxDecoration(
+                    color: AppColors.chromeAccentBar,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );

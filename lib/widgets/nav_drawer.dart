@@ -30,13 +30,11 @@ class NavDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
+    // Plum chrome, identical in light & dark (see Sidebar / web app-kit.css).
     final currentRoute = GoRouterState.of(context).uri.path;
 
     return Drawer(
-      backgroundColor: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
+      backgroundColor: AppColors.chrome,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -56,32 +54,30 @@ class NavDrawer extends StatelessWidget {
                     style: GoogleFonts.sourceSerif4(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.onSurface,
+                      color: AppColors.chromeForeground,
                     ),
                   ),
                 ],
               ),
             ),
-            Divider(height: 1, color: isDark ? AppColors.borderDark : AppColors.borderLight),
+            const Divider(height: 1, color: AppColors.chromeBorder),
             const SizedBox(height: 8),
             ...(_navItems.map((item) {
               final isActive = currentRoute == item.route;
+              final fg = isActive ? AppColors.chromeForeground : AppColors.chromeMuted;
               return ListTile(
-                leading: Icon(
-                  item.icon,
-                  color: isActive
-                      ? primary
-                      : (isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
-                ),
+                leading: Icon(item.icon, color: fg),
                 title: Text(
                   item.label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isActive ? primary : theme.colorScheme.onSurface,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 14,
+                    color: fg,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
                 selected: isActive,
-                selectedTileColor: primary.withValues(alpha: 0.1),
+                selectedTileColor: AppColors.chromeActive,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -90,7 +86,7 @@ class NavDrawer extends StatelessWidget {
               );
             })),
             const Spacer(),
-            Divider(height: 1, color: isDark ? AppColors.borderDark : AppColors.borderLight),
+            const Divider(height: 1, color: AppColors.chromeBorder),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -98,14 +94,16 @@ class NavDrawer extends StatelessWidget {
                 children: [
                   Text(
                     '2.1 GB / 6 GB used',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                    style: TextStyle(
+                      fontFamily: 'Geist',
+                      fontSize: 12,
+                      color: AppColors.chromeSubtle,
                     ),
                   ),
                   const SizedBox(height: 6),
                   LinearProgressIndicator(
                     value: 0.35,
-                    backgroundColor: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    backgroundColor: AppColors.chromeBorder,
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -116,10 +114,16 @@ class NavDrawer extends StatelessWidget {
               builder: (ctx, notifier, _) => ListTile(
                 leading: Icon(
                   notifier.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                  color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                  color: AppColors.chromeMuted,
                 ),
-                title: Text(notifier.isDark ? 'Light Mode' : 'Dark Mode',
-                    style: theme.textTheme.bodyMedium),
+                title: Text(
+                  notifier.isDark ? 'Light Mode' : 'Dark Mode',
+                  style: const TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 14,
+                    color: AppColors.chromeForeground,
+                  ),
+                ),
                 onTap: notifier.toggle,
               ),
             ),
