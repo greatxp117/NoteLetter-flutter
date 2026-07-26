@@ -39,6 +39,11 @@ int? tsMs(dynamic value) {
 /// `embedding` is not a document field (only chunks carry it); nothing to
 /// strip here (INV-05 applies to chunk/tag reads).
 ///
+/// Tags are read from `tag_ids` (data-model.md) — the 1.0.0 spec named this
+/// `tags`, which was extraction drift; the backend has always written
+/// `tag_ids`. Docs created before 1.1.0 also carry a vestigial empty `tags`
+/// field, so reading `tags` would drop their real tags — read `tag_ids` only.
+///
 /// Deliberately absent: `display_html` (1.1.0, ADR-002 — no longer stored;
 /// clients assemble reading content from chunks) and `questions` (1.5.0,
 /// ADR-008 — deprecated; summaries are free-structured prose, no client
@@ -59,7 +64,7 @@ class Document {
   final String? summary;
   final List<String> keyPoints;
   final List<String> themes;
-  final List<String> tags;
+  final List<String> tagIds;
   final String? thumbnailUrl;
   final String? errorMessage;
   final double sourcePriority;
@@ -82,7 +87,7 @@ class Document {
     this.summary,
     this.keyPoints = const [],
     this.themes = const [],
-    this.tags = const [],
+    this.tagIds = const [],
     this.thumbnailUrl,
     this.errorMessage,
     this.sourcePriority = 0.5,
@@ -107,7 +112,7 @@ class Document {
       summary: json['summary'] as String?,
       keyPoints: (json['key_points'] as List?)?.cast<String>() ?? [],
       themes: (json['themes'] as List?)?.cast<String>() ?? [],
-      tags: (json['tags'] as List?)?.cast<String>() ?? [],
+      tagIds: (json['tag_ids'] as List?)?.cast<String>() ?? [],
       thumbnailUrl: json['thumbnail_url'] as String?,
       errorMessage: json['error_message'] as String?,
       sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,
