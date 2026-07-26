@@ -304,6 +304,33 @@ class FirestoreService {
     return chunks;
   }
 
+  /// One-shot document read (Library detail sheet): strip `embedding`,
+  /// timestamps → ms. Ownership is enforced by the security rule on the get.
+  Future<Document?> getDocument(String docId) async {
+    final snap = await _db.collection('documents').doc(docId).get();
+    if (!snap.exists) return null;
+    final data = Map<String, dynamic>.from(snap.data()!);
+    data.remove('embedding');
+    return Document.fromJson(snap.id, data);
+  }
+
+  /// One-shot tags read (`created_at desc`) for pickers that don't need a live
+  /// subscription. Strips `embedding` (INV-05).
+  Future<List<Tag>> getTags() async {
+    final uid = _uid;
+    if (uid == null) return const [];
+    final snap = await _db
+        .collection('tags')
+        .where('user_id', isEqualTo: uid)
+        .orderBy('created_at', descending: true)
+        .get();
+    return snap.docs.map((d) {
+      final data = Map<String, dynamic>.from(d.data());
+      data.remove('embedding');
+      return Tag.fromJson(d.id, data);
+    }).toList();
+  }
+
   /// Reading history for one document (Reader → History panel): the
   /// `read_events` for [docId], `created_at desc`, limit 50 (INV-02 —
   /// `user_id ==` filter). Timestamps → epoch ms (INV-06).

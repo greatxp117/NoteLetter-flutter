@@ -7,6 +7,7 @@ import '../state/activity_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/file_uploader.dart';
+import 'library/document_detail_sheet.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -422,6 +423,8 @@ class _DocumentRowState extends State<_DocumentRow> {
                         enabled: item.status == 'complete',
                         child: const Text('Open'),
                       ),
+                      const PopupMenuItem(
+                          value: 'details', child: Text('Priority & tags…')),
                       if (item.status == 'error')
                         const PopupMenuItem(
                             value: 'retry', child: Text('Retry')),
@@ -451,6 +454,14 @@ class _DocumentRowState extends State<_DocumentRow> {
 
     if (action == 'open') {
       context.push('/reader/${item.id}');
+      return;
+    }
+
+    if (action == 'details') {
+      final saved = await DocumentDetailSheet.show(context, item.id);
+      if (saved == true && context.mounted) {
+        AppToast.show(context, 'Saved.', type: ToastType.info);
+      }
       return;
     }
 
