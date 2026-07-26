@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -56,6 +57,39 @@ class _FileUploaderState extends State<FileUploader> {
               ?.call(match.errorMessage ?? 'Upload failed.');
         }
       });
+    }
+  }
+
+  // Multi-image note capture (contract 1.1.0): pick ≤20 images → one image_set.
+  Future<void> _pickImageSet(UploadNotifier notifier) async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+      type: FileType.image,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final images = <({String name, int size, Uint8List bytes, String mimeType})>[];
+    for (final f in result.files.take(20)) {
+      final bytes = f.bytes;
+      if (bytes == null) continue;
+      images.add((
+        name: f.name,
+        size: f.size,
+        bytes: bytes,
+        mimeType: lookupMimeType(f.name) ?? 'image/jpeg',
+      ));
+    }
+    if (images.isEmpty) return;
+
+    await notifier.addImageSet(images);
+    if (!mounted) return;
+    final match = notifier.files.lastWhere((f) => f.mimeType == 'image/*',
+        orElse: () => UploadFile(id: '', name: '', size: 0));
+    if (match.status == UploadStatus.completed) {
+      widget.onUploadComplete?.call();
+    } else if (match.status == UploadStatus.error) {
+      widget.onUploadError?.call(match.errorMessage ?? 'Image upload failed.');
     }
   }
 
@@ -151,7 +185,7 @@ class _FileUploaderState extends State<FileUploader> {
             ),
             const SizedBox(height: 8),
             // URL input toggle
-            if (!_showUrlInput)
+            if (!_showUrlInput) ...[
               TextButton.icon(
                 onPressed: () => setState(() => _showUrlInput = true),
                 icon: const Icon(Icons.link, size: 16),
@@ -160,8 +194,18 @@ class _FileUploaderState extends State<FileUploader> {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   alignment: Alignment.centerLeft,
                 ),
-              )
-            else
+              ),
+              // Multi-image note (≤20 images → one image_set doc).
+              TextButton.icon(
+                onPressed: () => _pickImageSet(notifier),
+                icon: const Icon(Icons.photo_library_outlined, size: 16),
+                label: const Text('Add an image set (up to 20)'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  alignment: Alignment.centerLeft,
+                ),
+              ),
+            ] else
               Row(
                 children: [
                   Expanded(
