@@ -71,6 +71,10 @@ class Document {
   final int viewCount;
   final int? lastViewedAt;
 
+  /// `{ job_id, provider }` when this document was imported from a cloud
+  /// provider (data-model.md). Drives the Reader source-freshness check (1.4.0).
+  final Map<String, dynamic>? sourceIntegration;
+
   const Document({
     required this.id,
     required this.userId,
@@ -93,6 +97,7 @@ class Document {
     this.sourcePriority = 0.5,
     this.viewCount = 0,
     this.lastViewedAt,
+    this.sourceIntegration,
   });
 
   factory Document.fromJson(String id, Map<String, dynamic> json) {
@@ -118,6 +123,7 @@ class Document {
       sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,
       viewCount: json['view_count'] as int? ?? 0,
       lastViewedAt: tsMs(json['last_viewed_at']),
+      sourceIntegration: (json['source_integration'] as Map?)?.cast<String, dynamic>(),
     );
   }
 }

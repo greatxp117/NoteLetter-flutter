@@ -54,6 +54,16 @@ class Api {
   Future<Map<String, dynamic>> retryDocument(String docId) =>
       _http.post('/fn_retry_document', data: {'docId': docId});
 
+  /// Signed GET URL for the original uploaded file (Reader → Original panel).
+  /// Response: `{ signed_url, mime_type, doc_type, display_html }`.
+  Future<Map<String, dynamic>> getRawDocumentUrl(String docId) =>
+      _http.post('/fn_get_raw_document_url', data: {'docId': docId});
+
+  /// TTS MP3 for the whole document (Reader → Listen panel). Response:
+  /// `{ audio_url, duration_seconds, cached }`. 413 = too long, 422 = no text.
+  Future<Map<String, dynamic>> generateAudio(String docId) =>
+      _http.post('/fn_generate_audio', data: {'docId': docId});
+
   // ── Content editing (INV-04 / INV-10 / INV-11) ────────────────────────────
 
   /// Edit chunk content. Each `chunks` entry carries exactly one of `html`

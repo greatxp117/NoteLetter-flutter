@@ -237,6 +237,18 @@ class FirestoreService {
   /// Reader: one-shot doc + its chunks (`chunk_index` asc). Fires
   /// `logReadEvent('doc_opened', ...)` — fire-and-forget (INV-03).
   Future<(Document, List<Chunk>)?> getReaderDocument(String docId) async {
+    final result = await _fetchReaderDocument(docId);
+    if (result != null) unawaited(logReadEvent('doc_opened', docId));
+    return result;
+  }
+
+  /// Same reads as [getReaderDocument] but WITHOUT logging `doc_opened` — used
+  /// to refresh the open reader after a content edit / reorganization rewrites
+  /// chunks (INV-03: one +1 per open, not per reload).
+  Future<(Document, List<Chunk>)?> getReaderDocumentQuietly(String docId) =>
+      _fetchReaderDocument(docId);
+
+  Future<(Document, List<Chunk>)?> _fetchReaderDocument(String docId) async {
     final uid = _uid;
     if (uid == null) return null;
     final snap = await _db.collection('documents').doc(docId).get();
@@ -258,7 +270,6 @@ class FirestoreService {
       return Chunk.fromJson(cd);
     }).toList();
 
-    unawaited(logReadEvent('doc_opened', docId));
     return (document, chunks);
   }
 
@@ -291,6 +302,40 @@ class FirestoreService {
 
     unawaited(logReadEvent('chunk_viewed', documentId, chunkId));
     return chunks;
+  }
+
+  /// Reading history for one document (Reader → History panel): the
+  /// `read_events` for [docId], `created_at desc`, limit 50 (INV-02 —
+  /// `user_id ==` filter). Timestamps → epoch ms (INV-06).
+  Future<List<Map<String, dynamic>>> getReadHistory(String docId) async {
+    final uid = _uid;
+    if (uid == null) return const [];
+    final snap = await _db
+        .collection('read_events')
+        .where('user_id', isEqualTo: uid)
+        .where('document_id', isEqualTo: docId)
+        .orderBy('created_at', descending: true)
+        .limit(50)
+        .get();
+    return snap.docs.map((d) {
+      final data = d.data();
+      return {
+        'id': d.id,
+        'event_type': data['event_type'],
+        'chunk_id': data['chunk_id'],
+        'created_at': tsMs(data['created_at']),
+      };
+    }).toList();
+  }
+
+  /// Live `/reorg_plans/{planId}` subscription (Reorganize sheet): tracks
+  /// `status` (`executing → done | failed`) as the backend rewrites chunks
+  /// under the reader (INV-02 — a doc subscription, never a poll).
+  Stream<Map<String, dynamic>?> subscribeReorgPlan(String planId) {
+    return _db.collection('reorg_plans').doc(planId).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      return Map<String, dynamic>.from(snap.data()!);
+    });
   }
 
   /// The ONE sanctioned transaction that bumps `view_count`/`last_viewed_at`
