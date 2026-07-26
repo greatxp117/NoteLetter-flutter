@@ -105,11 +105,8 @@ class Sidebar extends StatelessWidget {
             child: Consumer<ThemeNotifier>(
               builder: (ctx, notifier, _) => IconButton(
                 onPressed: notifier.toggle,
-                icon: Icon(
-                  notifier.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                  color: AppColors.chromeMuted,
-                ),
-                tooltip: notifier.isDark ? 'Light mode' : 'Dark mode',
+                icon: Icon(notifier.modeIcon, color: AppColors.chromeMuted),
+                tooltip: '${notifier.modeLabel} — tap to change',
               ),
             ),
           ),

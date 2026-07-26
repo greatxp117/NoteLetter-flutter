@@ -112,12 +112,9 @@ class NavDrawer extends StatelessWidget {
             ),
             Consumer<ThemeNotifier>(
               builder: (ctx, notifier, _) => ListTile(
-                leading: Icon(
-                  notifier.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                  color: AppColors.chromeMuted,
-                ),
+                leading: Icon(notifier.modeIcon, color: AppColors.chromeMuted),
                 title: Text(
-                  notifier.isDark ? 'Light Mode' : 'Dark Mode',
+                  notifier.modeLabel,
                   style: const TextStyle(
                     fontFamily: 'Geist',
                     fontSize: 14,
