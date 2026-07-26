@@ -62,7 +62,7 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
       // Confidence threshold.
       Row(children: [
         Text('Auto-apply confidence',
-            style: GoogleFonts.inter(fontSize: 14, color: fg)),
+            style: TextStyle(fontFamily: 'Geist', fontSize: 14, color: fg)),
         const Spacer(),
         Text('${(threshold * 100).round()}%',
             style: GoogleFonts.robotoMono(fontSize: 13, color: fg)),
@@ -82,11 +82,11 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
       ),
       Text(
           'Files at or above this confidence are filed automatically; below it, they become suggestions.',
-          style: GoogleFonts.inter(fontSize: 12, color: muted)),
+          style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: muted)),
       const SizedBox(height: 16),
       // Default reorg mode.
       Text('Default reorganize mode',
-          style: GoogleFonts.inter(fontSize: 14, color: fg)),
+          style: TextStyle(fontFamily: 'Geist', fontSize: 14, color: fg)),
       const SizedBox(height: 8),
       Row(children: [
         _modeChip('Split', settings.defaultReorgMode == 'split', primary, fg,
@@ -101,7 +101,7 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
         final cfg = settings.configFor(p);
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_providerName[p] ?? p,
-              style: GoogleFonts.inter(
+              style: TextStyle(fontFamily: 'Geist', 
                   fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
           _flag('Write folder READMEs', cfg.readmesEnabled, primary, fg,
               (v) => save({
@@ -135,7 +135,7 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
         contentPadding: EdgeInsets.zero,
         dense: true,
         activeThumbColor: primary,
-        title: Text(label, style: GoogleFonts.inter(fontSize: 13, color: fg)),
+        title: Text(label, style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: fg)),
         value: value,
         onChanged: onChanged,
       );
@@ -157,7 +157,7 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
         ),
         child: Text(label,
             style:
-                GoogleFonts.inter(fontSize: 13, color: on ? accentFg : fg)),
+                TextStyle(fontFamily: 'Geist', fontSize: 13, color: on ? accentFg : fg)),
       ),
     );
   }
@@ -185,7 +185,7 @@ class OrganizedFoldersPanel extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 4),
             child: Text('No organized folders yet.',
-                style: GoogleFonts.inter(fontSize: 12, color: muted)),
+                style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: muted)),
           );
         }
         return Column(
@@ -270,14 +270,14 @@ class _FolderRowState extends State<_FolderRow> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(f.providerPath.isEmpty ? f.name : f.providerPath,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(fontFamily: 'Geist', 
                       fontSize: 13, fontWeight: FontWeight.w500, color: fg),
                   overflow: TextOverflow.ellipsis),
             ),
             if (f.readmeStatus != null) _readmeChip(f.readmeStatus!, isDark),
             const SizedBox(width: 8),
             Text('${f.docCount} docs',
-                style: GoogleFonts.inter(fontSize: 11, color: muted)),
+                style: TextStyle(fontFamily: 'Geist', fontSize: 11, color: muted)),
           ]),
           if (_editing) ...[
             const SizedBox(height: 8),
@@ -285,7 +285,7 @@ class _FolderRowState extends State<_FolderRow> {
               controller: _controller,
               maxLines: 3,
               enabled: !_busy,
-              style: GoogleFonts.inter(fontSize: 13, color: fg),
+              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: fg),
               decoration: const InputDecoration(
                 isDense: true,
                 hintText: 'What belongs in this folder…',
@@ -313,7 +313,7 @@ class _FolderRowState extends State<_FolderRow> {
               Text(f.charterText!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(fontSize: 12, color: muted)),
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: muted)),
             ],
             const SizedBox(height: 6),
             Row(children: [
@@ -355,7 +355,7 @@ class _FolderRowState extends State<_FolderRow> {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text('README $status',
-          style: GoogleFonts.inter(fontSize: 10, color: color)),
+          style: TextStyle(fontFamily: 'Geist', fontSize: 10, color: color)),
     );
   }
 }

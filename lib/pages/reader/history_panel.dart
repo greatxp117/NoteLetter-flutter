@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/chunk.dart';
 import '../../services/firestore_service.dart';
 import 'reader_ui.dart';
@@ -103,10 +102,10 @@ class _HistoryPanelState extends State<HistoryPanel> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(label != null ? '$base ($label)' : base,
-                    style: GoogleFonts.inter(fontSize: 13, color: ui.fg)),
+                    style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg)),
               ),
               Text(_fmtWhen(e['created_at'] as int?),
-                  style: GoogleFonts.inter(fontSize: 12, color: ui.muted)),
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
             ],
           ),
         );

@@ -75,7 +75,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
     Widget label(String t) => Padding(
           padding: const EdgeInsets.only(top: 14, bottom: 6),
           child: Text(t.toUpperCase(),
-              style: GoogleFonts.inter(
+              style: TextStyle(fontFamily: 'Geist', 
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.7,
@@ -88,13 +88,13 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
         tilePadding: EdgeInsets.zero,
         childrenPadding: const EdgeInsets.only(bottom: 8),
         title: Text('Sync settings',
-            style: GoogleFonts.inter(
+            style: TextStyle(fontFamily: 'Geist', 
                 fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
         subtitle: Text(
             i.autoSyncEnabled
                 ? 'Auto-sync ${i.syncFrequency} · ${i.lastSyncLabel}'
                 : 'Auto-sync off · ${i.lastSyncLabel}',
-            style: GoogleFonts.inter(fontSize: 12, color: muted)),
+            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: muted)),
         children: [
           AbsorbPointer(
             absorbing: _saving,
@@ -108,7 +108,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                     dense: true,
                     activeThumbColor: primary,
                     title: Text('Automatic sync',
-                        style: GoogleFonts.inter(fontSize: 14, color: fg)),
+                        style: TextStyle(fontFamily: 'Geist', fontSize: 14, color: fg)),
                     value: i.autoSyncEnabled,
                     onChanged: (v) =>
                         _save((c) => c.syncSettings(widget.providerId,
@@ -133,7 +133,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                     value: i.syncPreferredHour ?? 9,
                     dropdownColor:
                         isDark ? AppColors.cardDark : Colors.white,
-                    style: GoogleFonts.inter(fontSize: 13, color: fg),
+                    style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: fg),
                     items: List.generate(
                         24,
                         (h) => DropdownMenuItem(
@@ -198,7 +198,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: GoogleFonts.inter(fontSize: 12, color: muted)),
+                style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: muted)),
           ),
         ]),
       );
@@ -219,7 +219,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
           border: Border.all(color: on ? primary : border),
         ),
         child: Text(label,
-            style: GoogleFonts.inter(
+            style: TextStyle(fontFamily: 'Geist', 
                 fontSize: 12, color: on ? accentFg : fg)),
       ),
     );

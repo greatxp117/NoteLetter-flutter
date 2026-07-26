@@ -5,8 +5,17 @@ import 'app_colors.dart';
 class AppTheme {
   AppTheme._();
 
-  // UI/body font per tokens is Geist, which isn't on Google Fonts — Inter
-  // (same grotesque-sans family) stands in until Geist is bundled as an asset.
+  // Per design-tokens.md: serif `Source Serif 4` for display/headings/reading,
+  // sans `Geist` for UI body, mono `Geist Mono` for code/caps-labels. Geist and
+  // Geist Mono are bundled as OFL assets (see pubspec `fonts:` + assets/fonts/)
+  // because neither ships in the google_fonts package; the serif still comes
+  // from google_fonts. `Geist`/`Geist Mono` are referenced by family name.
+  static const String fontSans = 'Geist';
+  static const String fontMono = 'Geist Mono';
+
+  static TextStyle _geist(double size, FontWeight weight, Color color) =>
+      TextStyle(fontFamily: fontSans, fontSize: size, fontWeight: weight, color: color);
+
   static TextTheme _buildTextTheme(Color bodyColor, Color displayColor) {
     return TextTheme(
       displayLarge: GoogleFonts.sourceSerif4(
@@ -21,24 +30,15 @@ class AppTheme {
         fontSize: 24, fontWeight: FontWeight.w700, color: displayColor),
       headlineSmall: GoogleFonts.sourceSerif4(
         fontSize: 20, fontWeight: FontWeight.w400, color: displayColor),
-      titleLarge: GoogleFonts.inter(
-        fontSize: 18, fontWeight: FontWeight.w500, color: bodyColor),
-      titleMedium: GoogleFonts.inter(
-        fontSize: 16, fontWeight: FontWeight.w500, color: bodyColor),
-      titleSmall: GoogleFonts.inter(
-        fontSize: 14, fontWeight: FontWeight.w500, color: bodyColor),
-      bodyLarge: GoogleFonts.inter(
-        fontSize: 16, fontWeight: FontWeight.w400, color: bodyColor),
-      bodyMedium: GoogleFonts.inter(
-        fontSize: 14, fontWeight: FontWeight.w400, color: bodyColor),
-      bodySmall: GoogleFonts.inter(
-        fontSize: 12, fontWeight: FontWeight.w400, color: bodyColor),
-      labelLarge: GoogleFonts.inter(
-        fontSize: 14, fontWeight: FontWeight.w700, color: bodyColor),
-      labelMedium: GoogleFonts.inter(
-        fontSize: 12, fontWeight: FontWeight.w500, color: bodyColor),
-      labelSmall: GoogleFonts.inter(
-        fontSize: 11, fontWeight: FontWeight.w300, color: bodyColor),
+      titleLarge: _geist(18, FontWeight.w500, bodyColor),
+      titleMedium: _geist(16, FontWeight.w500, bodyColor),
+      titleSmall: _geist(14, FontWeight.w500, bodyColor),
+      bodyLarge: _geist(16, FontWeight.w400, bodyColor),
+      bodyMedium: _geist(14, FontWeight.w400, bodyColor),
+      bodySmall: _geist(12, FontWeight.w400, bodyColor),
+      labelLarge: _geist(14, FontWeight.w700, bodyColor),
+      labelMedium: _geist(12, FontWeight.w500, bodyColor),
+      labelSmall: _geist(11, FontWeight.w300, bodyColor),
     );
   }
 

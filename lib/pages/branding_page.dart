@@ -339,7 +339,7 @@ class _TypographyCard extends StatelessWidget {
               style: (isSerif
                   ? GoogleFonts.sourceSerif4(
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)
-                  : GoogleFonts.inter(
+                  : TextStyle(fontFamily: 'Geist', 
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
             ),
             const SizedBox(height: 4),
@@ -364,7 +364,7 @@ class _TypographyCard extends StatelessWidget {
                             fontWeight: s.$2,
                             fontStyle: s.$3,
                             color: theme.colorScheme.onSurface)
-                        : GoogleFonts.inter(
+                        : TextStyle(fontFamily: 'Geist', 
                             fontSize: 14,
                             fontWeight: s.$2,
                             fontStyle: s.$3,

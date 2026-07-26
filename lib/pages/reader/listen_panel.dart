@@ -147,7 +147,7 @@ class _ListenPanelState extends State<ListenPanel> {
             padding: const EdgeInsets.only(top: 12),
             child: Center(
               child: Text(_error!,
-                  style: GoogleFonts.inter(fontSize: 13, color: ui.critical)),
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical)),
             ),
           ),
       ]);
@@ -175,7 +175,7 @@ class _ListenPanelState extends State<ListenPanel> {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('NOW READING',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(fontFamily: 'Geist', 
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.8,
@@ -209,9 +209,9 @@ class _ListenPanelState extends State<ListenPanel> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(_fmt(_pos),
-                    style: GoogleFonts.inter(fontSize: 12, color: ui.muted)),
+                    style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
                 Text('-${_fmt(_dur - _pos)}',
-                    style: GoogleFonts.inter(fontSize: 12, color: ui.muted)),
+                    style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
               ],
             ),
           ),

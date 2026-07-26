@@ -265,7 +265,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       // Toolbar.
       Row(children: [
         Text('${visible.length} passages · $totalWords words',
-            style: GoogleFonts.inter(
+            style: TextStyle(fontFamily: 'Geist', 
                 fontSize: 11, fontWeight: FontWeight.w600, color: ui.muted)),
         const Spacer(),
         _editing
@@ -299,7 +299,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                   style: GoogleFonts.robotoMono(fontSize: 11, color: ui.muted)),
               const SizedBox(width: 10),
               Text('~${_wordCount(c.text)} words',
-                  style: GoogleFonts.inter(fontSize: 11, color: ui.muted)),
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 11, color: ui.muted)),
               if (c.userEdited) ...[
                 const SizedBox(width: 8),
                 Container(
@@ -310,7 +310,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text('edited',
-                      style: GoogleFonts.inter(fontSize: 10, color: ui.muted)),
+                      style: TextStyle(fontFamily: 'Geist', fontSize: 10, color: ui.muted)),
                 ),
               ],
               const Spacer(),
@@ -355,7 +355,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text('Contains an image or table — remove only.',
-                    style: GoogleFonts.inter(fontSize: 11, color: ui.muted)),
+                    style: TextStyle(fontFamily: 'Geist', fontSize: 11, color: ui.muted)),
               ),
             if (_editing && !c.atomic)
               Align(
@@ -373,7 +373,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(_error!,
-              style: GoogleFonts.inter(fontSize: 13, color: ui.critical)),
+              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical)),
         ),
       if (_dirty)
         Padding(
@@ -381,10 +381,10 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           child: Row(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Text edited',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(fontFamily: 'Geist', 
                       fontSize: 13, fontWeight: FontWeight.w600, color: ui.fg)),
               Text('saving re-embeds changed passages',
-                  style: GoogleFonts.inter(fontSize: 11, color: ui.muted)),
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 11, color: ui.muted)),
             ]),
             const Spacer(),
             TextButton.icon(

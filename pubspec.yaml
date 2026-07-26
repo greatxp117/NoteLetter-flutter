@@ -34,3 +34,25 @@ flutter:
     - assets/landing-hero.png
     - assets/hero-knowledge.png
     - assets/favicon.png
+  # UI/body font is Geist, mono is Geist Mono (design-tokens.md). Neither is on
+  # the google_fonts package, so they are bundled as OFL assets (assets/fonts/,
+  # license in Geist-OFL.txt). Serif (Source Serif 4) still comes from google_fonts.
+  fonts:
+    - family: Geist
+      fonts:
+        - asset: assets/fonts/Geist-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Geist-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Geist-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Geist-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Geist-Bold.ttf
+          weight: 700
+    - family: Geist Mono
+      fonts:
+        - asset: assets/fonts/GeistMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/GeistMono-Medium.ttf
+          weight: 500

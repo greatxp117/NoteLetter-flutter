@@ -151,7 +151,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
             _done
                 ? 'Done'
                 : (_playing ? 'Reading' : 'Tap play to read'),
-            style: GoogleFonts.inter(fontSize: 12, color: ui.muted),
+            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted),
           ),
         ]),
       ),
@@ -169,9 +169,9 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
       const SizedBox(height: 8),
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text(_done ? 'Finished' : '${_fmt(secsLeft)} left',
-            style: GoogleFonts.inter(fontSize: 12, color: ui.muted)),
+            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
         Text('${(_idx + (_done ? 0 : 1)).clamp(0, _total)} / $_total words',
-            style: GoogleFonts.inter(fontSize: 12, color: ui.muted)),
+            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
       ]),
       const SizedBox(height: 16),
       // Controls.
@@ -195,14 +195,14 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Text('PACE',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(fontFamily: 'Geist', 
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.8,
                       color: ui.muted)),
               const Spacer(),
               Text('$_wpm wpm',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(fontFamily: 'Geist', 
                       fontSize: 13, fontWeight: FontWeight.w600, color: ui.fg)),
             ]),
             Slider(
@@ -229,7 +229,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
                       border: Border.all(color: on ? ui.primary : ui.border),
                     ),
                     child: Text('$p',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(fontFamily: 'Geist', 
                             fontSize: 12,
                             color: on ? ui.accentFg : ui.muted)),
                   ),

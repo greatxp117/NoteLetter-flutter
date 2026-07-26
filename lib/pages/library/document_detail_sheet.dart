@@ -133,7 +133,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 20),
                 Text('SOURCE PRIORITY',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(fontFamily: 'Geist', 
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.8,
@@ -156,10 +156,10 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                   ),
                 ]),
                 Text(_priorityLabel(_priority),
-                    style: GoogleFonts.inter(fontSize: 12, color: muted)),
+                    style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: muted)),
                 const SizedBox(height: 24),
                 Text('TAGS',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(fontFamily: 'Geist', 
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.8,
@@ -167,7 +167,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                 const SizedBox(height: 10),
                 if (_tags.isEmpty)
                   Text('No tags yet — create some on the Tags screen.',
-                      style: GoogleFonts.inter(fontSize: 13, color: muted))
+                      style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: muted))
                 else
                   Wrap(
                     spacing: 8,
@@ -190,7 +190,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                                 Border.all(color: on ? primary : border),
                           ),
                           child: Text(t.title,
-                              style: GoogleFonts.inter(
+                              style: TextStyle(fontFamily: 'Geist', 
                                   fontSize: 13,
                                   color: on ? accentFg : fg)),
                         ),
@@ -200,7 +200,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   Text(_error!,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(fontFamily: 'Geist', 
                           fontSize: 13, color: AppColors.critical)),
                 ],
                 const SizedBox(height: 24),

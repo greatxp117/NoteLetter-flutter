@@ -126,7 +126,7 @@ class _ReaderPageState extends State<ReaderPage> {
           : _error != null
               ? Center(
                   child: Text(_error!,
-                      style: GoogleFonts.inter(color: ui.critical)))
+                      style: TextStyle(fontFamily: 'Geist', color: ui.critical)))
               : SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 64),
                   child: Center(
@@ -182,7 +182,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 style: GoogleFonts.sourceSerif4(
                     fontSize: 18, fontWeight: FontWeight.w700, color: ui.fg)),
             Text(label.toUpperCase(),
-                style: GoogleFonts.inter(
+                style: TextStyle(fontFamily: 'Geist', 
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.6,
@@ -220,7 +220,7 @@ class _ReaderPageState extends State<ReaderPage> {
                   Icon(t.$3, size: 15, color: on ? ui.accentFg : ui.muted),
                   const SizedBox(width: 6),
                   Text(t.$2,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(fontFamily: 'Geist', 
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                           color: on ? ui.accentFg : ui.fg)),

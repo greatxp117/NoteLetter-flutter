@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
@@ -87,7 +86,7 @@ class _SourceFreshnessState extends State<SourceFreshness> {
         padding: const EdgeInsets.only(top: 12),
         child: Text(
           'The original file is no longer at $provider — this imported copy is the surviving record.',
-          style: GoogleFonts.inter(fontSize: 13, color: ui.muted),
+          style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.muted),
         ),
       );
     }
@@ -108,13 +107,13 @@ class _SourceFreshnessState extends State<SourceFreshness> {
           child: _queued
               ? Text(
                   'Update queued — this source is being re-imported from $provider. Its content will refresh when processing finishes.',
-                  style: GoogleFonts.inter(fontSize: 13, color: ui.fg))
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg))
               : _error != null
                   ? Text(_error!,
                       style:
-                          GoogleFonts.inter(fontSize: 13, color: ui.critical))
+                          TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical))
                   : Text('A newer version of this file exists in $provider.',
-                      style: GoogleFonts.inter(fontSize: 13, color: ui.fg)),
+                      style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg)),
         ),
         if (!_queued) ...[
           const SizedBox(width: 8),

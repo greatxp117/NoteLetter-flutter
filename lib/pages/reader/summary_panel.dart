@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/document.dart';
 import 'reader_ui.dart';
 
@@ -48,7 +47,7 @@ class SummaryPanel extends StatelessWidget {
                         border: Border.all(color: ui.border),
                       ),
                       child: Text(t,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(fontFamily: 'Geist', 
                               fontSize: 12, color: ui.muted)),
                     ))
                 .toList(),
@@ -74,7 +73,7 @@ class SummaryPanel extends StatelessWidget {
                     ),
                     Expanded(
                       child: Text(kp,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(fontFamily: 'Geist', 
                               fontSize: 15, height: 1.5, color: ui.fg)),
                     ),
                   ],

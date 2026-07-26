@@ -25,7 +25,7 @@ class ReaderUi {
   /// Small uppercase section label (web `.eyebrow`).
   Widget eyebrow(String text) => Text(
         text.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(fontFamily: 'Geist', 
           fontSize: 11,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.8,
@@ -38,7 +38,7 @@ class ReaderUi {
         padding: const EdgeInsets.only(top: 8),
         child: Text(
           text,
-          style: GoogleFonts.inter(
+          style: TextStyle(fontFamily: 'Geist', 
               fontSize: 14, height: 1.55, color: muted),
         ),
       );
@@ -69,7 +69,7 @@ class ReaderUi {
               const SizedBox(height: 6),
               Text(sub,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 13, color: muted)),
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: muted)),
               if (action != null) ...[const SizedBox(height: 16), action],
             ],
           ),

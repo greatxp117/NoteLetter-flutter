@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
@@ -145,7 +144,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                   if (_error != null)
                     Text(_error!,
                         style:
-                            GoogleFonts.inter(fontSize: 13, color: ui.critical)),
+                            TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical)),
                   if (_plan == null && _error == null)
                     ui.note('Reading the document and drafting a plan…'),
                   if (_live != null)
@@ -201,7 +200,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
               'Split removes those sections from this document. A snapshot of the original is kept, but the document itself will change. Continue?',
-              style: GoogleFonts.inter(fontSize: 13, color: ui.critical),
+              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical),
             ),
             const SizedBox(height: 12),
             Row(children: [
@@ -259,13 +258,13 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(s['title'] ?? 'Section',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(fontFamily: 'Geist', 
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: ui.fg)),
                     Text('${s['summary'] ?? ''} · $chunkCount passage${chunkCount == 1 ? '' : 's'}',
                         style:
-                            GoogleFonts.inter(fontSize: 12, color: ui.muted)),
+                            TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
                   ]),
             ),
           ]),
@@ -280,7 +279,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                   DropdownButton<String>(
                     value: c.destKey,
                     underline: const SizedBox.shrink(),
-                    style: GoogleFonts.inter(fontSize: 13, color: ui.fg),
+                    style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg),
                     dropdownColor: ui.card,
                     items: dests
                         .map<DropdownMenuItem<String>>((d) => DropdownMenuItem(
@@ -309,7 +308,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           color: on ? ui.primary : Colors.transparent,
           child: Text(label,
-              style: GoogleFonts.inter(
+              style: TextStyle(fontFamily: 'Geist', 
                   fontSize: 12, color: on ? ui.accentFg : ui.muted)),
         ),
       );

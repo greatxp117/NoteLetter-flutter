@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
@@ -90,7 +89,7 @@ class _OriginalPanelState extends State<OriginalPanel> {
                       : (widget.doc.title.isEmpty
                           ? 'Original file'
                           : widget.doc.title),
-                  style: GoogleFonts.inter(fontSize: 14, color: ui.fg),
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 14, color: ui.fg),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
