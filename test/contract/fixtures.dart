@@ -14,7 +14,16 @@ Map<String, dynamic> _manifest() =>
     jsonDecode(File('${contractsRoot()}/fixtures/manifest.json').readAsStringSync())
         as Map<String, dynamic>;
 
-String contractVersion() => _manifest()['contractVersion'] as String;
+/// The version fixtures were last captured at (may legitimately lag the
+/// canonical VERSION when later contract versions add no new fixtures).
+String manifestContractVersion() => _manifest()['contractVersion'] as String;
+
+/// The canonical contract version — the `VERSION` file, matching the web
+/// reference's pin-check (`readFileSync(CONTRACTS, 'VERSION')`). This is what
+/// `/conformance` compares the client pin against; `manifestContractVersion`
+/// is NOT the pin target (it tracks fixture-capture, and can lag VERSION).
+String contractsVersion() =>
+    File('${contractsRoot()}/VERSION').readAsStringSync().trim();
 
 /// Returns the suite's parsed cases.json, or null if the suite is not yet
 /// `captured` (a client harness never depends on pending-capture).
