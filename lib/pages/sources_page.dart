@@ -10,6 +10,7 @@ import '../state/cloud_notifier.dart';
 import '../state/org_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
+import 'sources/sync_settings_panel.dart';
 
 /// Canonical provider ids (1.2.0) with display names for not-yet-connected
 /// providers (the integration list only carries connected ones).
@@ -308,6 +309,9 @@ class _ProviderCard extends StatelessWidget {
                 }),
               ],
             ),
+            const SizedBox(height: 4),
+            SyncSettingsPanel(
+                providerId: providerId, integration: integration!),
           ],
         ],
       ),
