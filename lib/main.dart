@@ -14,6 +14,7 @@ import 'state/newsletter_notifier.dart';
 import 'state/cloud_notifier.dart';
 import 'state/org_notifier.dart';
 import 'state/tags_notifier.dart';
+import 'state/theme_notifier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +35,7 @@ void main() async {
         ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
         ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
         ChangeNotifierProvider<TagsNotifier>(create: (_) => TagsNotifier()),
+        ChangeNotifierProvider<ThemeNotifier>(create: (_) => ThemeNotifier()),
       ],
       child: NoteLetterApp(router: createRouter(authNotifier)),
     ),

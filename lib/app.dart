@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'state/theme_notifier.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 
@@ -40,7 +42,7 @@ class NoteLetterApp extends StatelessWidget {
         cardColor: AppColors.cardDark,
         dividerColor: AppColors.borderDark,
       ),
-      themeMode: ThemeMode.system,
+      themeMode: context.watch<ThemeNotifier>().themeMode,
     );
   }
 }
