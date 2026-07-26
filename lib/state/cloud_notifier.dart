@@ -70,9 +70,50 @@ class CloudNotifier extends ChangeNotifier {
         .subscribeCloudImportJobs()
         .listen((list) {
       _jobs = list;
+      _evaluateSession();
       notifyListeners();
     });
     loadIntegrations();
+  }
+
+  // ── Completion notifications (1.4.0, ADR-007 — client-side, sources.md) ──────
+  // A tracked session = jobs that arrive on the subscription after a kickoff
+  // this app session (picker import / Sync now). When such a session goes from
+  // having non-terminal jobs to all-terminal, publish a one-shot summary the UI
+  // shows as a local notification. No backend surface (INV-02).
+
+  /// Set to a summary string when a tracked session completes; the UI reads and
+  /// resets it. Never persisted.
+  final ValueNotifier<String?> completionMessage = ValueNotifier(null);
+  int? _sessionStartAt;
+  bool _sawWorking = false;
+
+  void _beginSession() {
+    _sessionStartAt = DateTime.now().millisecondsSinceEpoch;
+    _sawWorking = false;
+  }
+
+  void _evaluateSession() {
+    final start = _sessionStartAt;
+    if (start == null) return;
+    // Jobs created at/after kickoff (2s slack for clock skew) are this session.
+    final tracked =
+        _jobs.where((j) => (j.createdAt ?? 0) >= start - 2000).toList();
+    if (tracked.isEmpty) return;
+    if (tracked.any((j) => !j.isTerminal)) {
+      _sawWorking = true;
+      return;
+    }
+    if (!_sawWorking) return; // instant/all-terminal → no transition to report
+    final imported = tracked.where((j) => j.status == 'complete').length;
+    final failed = tracked.where((j) => j.status == 'error').length;
+    final skipped = tracked
+        .where((j) => j.status == 'skipped' || j.status == 'cancelled')
+        .length;
+    completionMessage.value =
+        '$imported imported · $failed failed · $skipped already imported/skipped';
+    _sessionStartAt = null;
+    _sawWorking = false;
   }
 
   Future<void> loadIntegrations() async {
@@ -256,6 +297,7 @@ class CloudNotifier extends ChangeNotifier {
       );
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
       final n = (data['queued_files'] as num?)?.toInt() ?? 0;
+      _beginSession();
       closePicker();
       return ('Queued $f folder(s) and $n file(s).', false);
     } on UnauthorizedException {
@@ -284,6 +326,7 @@ class CloudNotifier extends ChangeNotifier {
     try {
       final data = await Api.instance.requestCloudSync(provider);
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
+      _beginSession();
       return ('Checking $f folder(s)…', false);
     } on ApiException catch (e) {
       return (e.message, true); // 400 no-folders / 409 reconnect / 429 cooldown
@@ -358,6 +401,7 @@ class CloudNotifier extends ChangeNotifier {
   @override
   void dispose() {
     _jobsSub?.cancel();
+    completionMessage.dispose();
     super.dispose();
   }
 }

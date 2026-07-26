@@ -46,15 +46,33 @@ class SourcesPage extends StatefulWidget {
 
 class _SourcesPageState extends State<SourcesPage> {
   String? _errorBanner;
+  CloudNotifier? _cloud;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CloudNotifier>().start();
+      _cloud = context.read<CloudNotifier>();
+      _cloud!.start();
+      _cloud!.completionMessage.addListener(_onSessionComplete);
       context.read<OrgNotifier>().start();
       _handleOAuthReturn();
     });
+  }
+
+  @override
+  void dispose() {
+    _cloud?.completionMessage.removeListener(_onSessionComplete);
+    super.dispose();
+  }
+
+  // Completion notification (1.4.0): a tracked import/sync session went
+  // all-terminal — summarize it as a toast, then clear the one-shot.
+  void _onSessionComplete() {
+    final msg = _cloud?.completionMessage.value;
+    if (msg == null || !mounted) return;
+    AppToast.show(context, msg, type: ToastType.success);
+    _cloud!.completionMessage.value = null;
   }
 
   // 2.3.0 (ADR-012): the callback lands here with an explicit result. Success →
