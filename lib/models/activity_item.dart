@@ -3,6 +3,7 @@ class ActivityItem {
   final String id;
   final String type;
   final String status;
+  final String level;
   final String title;
   final String? provider;
   final String? errorMessage;
@@ -14,12 +15,20 @@ class ActivityItem {
     required this.id,
     required this.type,
     required this.status,
+    this.level = 'info',
     required this.title,
     this.provider,
     this.errorMessage,
     this.metadata,
     this.createdAt,
   });
+
+  /// Feed level for a document row (2.5.0, ADR-014) — mirrors web docItemLevel.
+  static String docLevel(String status) {
+    if (status == 'error') return 'error';
+    if (status == 'complete') return 'success';
+    return 'info';
+  }
 
   String get formattedDate {
     if (createdAt == null) return '';

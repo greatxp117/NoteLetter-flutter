@@ -6,6 +6,7 @@ import 'pages/dashboard_page.dart';
 import 'pages/library_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/notification_settings_page.dart';
 import 'pages/not_found_page.dart';
 import 'pages/branding_page.dart';
 import 'pages/reader_page.dart';
@@ -53,6 +54,10 @@ GoRouter createRouter(AuthNotifier authNotifier) {
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsPage(),
+          ),
+          GoRoute(
+            path: '/settings/notifications',
+            builder: (context, state) => const NotificationSettingsPage(),
           ),
           GoRoute(
             // 2.3.0 (ADR-012): the OAuth callback lands here with an explicit

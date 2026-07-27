@@ -208,7 +208,43 @@ const _suites = [
   'api/newsletter',
   'api/cloud-storage',
   'api/organization',
+  'api/notification-channels',
+  'api/device-registration',
 ];
+
+// Endpoints whose builder needs the request METHOD (and possibly query) — the
+// single-arg [adapters] map can't express these, so they dispatch here.
+const _methodAware = {
+  'fn_notification_channels',
+  'fn_register_device',
+  'fn_unregister_device',
+};
+
+Future<dynamic> _invokeMethodAware(
+    String endpoint, String method, Map<String, dynamic> b) {
+  switch (endpoint) {
+    case 'fn_notification_channels':
+      if (method == 'PUT') {
+        final rest = Map<String, dynamic>.of(b)..remove('channelId');
+        return Api.instance.updateNotificationChannel(b['channelId'], rest);
+      }
+      if (method == 'DELETE') {
+        return Api.instance.deleteNotificationChannel(b['channelId']);
+      }
+      return Api.instance.createNotificationChannel(
+        type: b['type'],
+        levels: _strs(b['levels'])!,
+        label: b['label'],
+        destination: b['destination'],
+        enabled: b['enabled'],
+      );
+    case 'fn_register_device':
+      return Api.instance.registerDevice(b['token'], b['platform'] ?? 'web');
+    case 'fn_unregister_device':
+      return Api.instance.unregisterDevice(b['token']);
+  }
+  throw StateError('no method-aware dispatch for $endpoint');
+}
 
 void main() {
   final capture = _CaptureAdapter();
@@ -227,9 +263,10 @@ void main() {
         final endpoint = req['endpoint'] as String?;
         final method = req['method'] as String?;
         final adapter = endpoint == null ? null : adapters[endpoint];
+        final methodAware = endpoint != null && _methodAware.contains(endpoint);
         final id = c['id'] as String;
-        // Only cases with a builder we can drive from the request body.
-        if (adapter == null) continue;
+        // Only cases with a builder we can drive from the request body/query.
+        if (adapter == null && !methodAware) continue;
         if (method == 'OPTIONS' || method == 'GET') continue;
         if (id.contains('mismatch') || id.contains('missing-url')) continue;
 
@@ -242,10 +279,18 @@ void main() {
             ..status = status
             ..responseBody = resp['body'];
 
-          final b = (_decodeUuids(req['body']) as Map).cast<String, dynamic>();
+          // Body may be absent (DELETE); id/token then arrives via the query.
+          final b = <String, dynamic>{
+            if (req['body'] is Map)
+              ...(_decodeUuids(req['body']) as Map).cast<String, dynamic>(),
+            if (req['query'] is Map)
+              ...(_decodeUuids(req['query']) as Map).cast<String, dynamic>(),
+          };
           Object? threw;
           try {
-            await adapter(b);
+            await (methodAware
+                ? _invokeMethodAware(endpoint, method!, b)
+                : adapter!(b));
           } catch (e) {
             threw = e;
           }

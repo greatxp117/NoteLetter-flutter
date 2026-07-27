@@ -6,6 +6,7 @@ import '../models/cloud_folder.dart';
 import '../models/document.dart';
 import '../models/import_job.dart';
 import '../models/newsletter.dart';
+import '../models/notification_channel.dart';
 import '../models/organization_settings.dart';
 import '../models/organization_suggestion.dart';
 import '../models/newsletter_settings.dart';
@@ -155,6 +156,7 @@ class FirestoreService {
           id: d.id,
           type: data['type'] as String? ?? '',
           status: data['status'] as String? ?? '',
+          level: data['level'] as String? ?? 'info',
           title: data['title'] as String? ?? '',
           provider: data['provider'] as String?,
           errorMessage: null,
@@ -174,11 +176,13 @@ class FirestoreService {
         .listen((snap) {
       docItems = snap.docs.map((d) {
         final data = d.data();
+        final docStatus = data['status'] as String? ?? '';
         return ActivityItem(
           kind: 'document',
           id: d.id,
           type: data['type'] as String? ?? '',
-          status: data['status'] as String? ?? '',
+          status: docStatus,
+          level: ActivityItem.docLevel(docStatus),
           title: data['title'] as String? ?? 'Untitled',
           provider: null,
           errorMessage: data['error_message'] as String?,
@@ -200,6 +204,23 @@ class FirestoreService {
     };
 
     return controller.stream;
+  }
+
+  /// Realtime notification channels (2.5.0, ADR-014): `/users/{uid}/
+  /// notification_channels`, newest first. Subscribed (INV-02); writes go
+  /// through `fn_notification_channels` (INV-04).
+  Stream<List<NotificationChannel>> subscribeNotificationChannels() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('notification_channels')
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => NotificationChannel.fromJson(d.id, d.data()))
+            .toList());
   }
 
   /// One-shot read of `/users/{uid}/settings/newsletter`, strips

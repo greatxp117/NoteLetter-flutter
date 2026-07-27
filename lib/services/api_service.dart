@@ -106,6 +106,20 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final response =
+          await _client.delete(path, queryParameters: queryParameters, data: data);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handle(e);
+    }
+  }
+
   /// PUT raw bytes to a GCS signed URL.
   /// Must NOT include the Authorization header.
   Future<void> putBytes(

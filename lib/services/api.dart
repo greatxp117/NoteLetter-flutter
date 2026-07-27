@@ -129,6 +129,42 @@ class Api {
   Future<Map<String, dynamic>> requestNewsletter() =>
       _http.post('/fn_request_newsletter', data: const {});
 
+  // ── Notification channels (2.5.0, ADR-014) + push devices (2.6.0, ADR-015) ──
+
+  /// Create a channel. Only provided keys are sent (mirrors web/backend closed
+  /// key set); `type`/`levels` required.
+  Future<Map<String, dynamic>> createNotificationChannel({
+    required String type,
+    required List<String> levels,
+    String? label,
+    String? destination,
+    bool? enabled,
+  }) {
+    final body = <String, dynamic>{'type': type, 'levels': levels};
+    if (label != null) body['label'] = label;
+    if (destination != null) body['destination'] = destination;
+    if (enabled != null) body['enabled'] = enabled;
+    return _http.post('/fn_notification_channels', data: body);
+  }
+
+  Future<Map<String, dynamic>> updateNotificationChannel(
+          String channelId, Map<String, dynamic> partial) =>
+      _http.put('/fn_notification_channels',
+          data: {'channelId': channelId, ...partial});
+
+  /// DELETE carries channelId as a query param (a DELETE body is not portable).
+  Future<Map<String, dynamic>> deleteNotificationChannel(String channelId) =>
+      _http.delete('/fn_notification_channels',
+          queryParameters: {'channelId': channelId});
+
+  Future<Map<String, dynamic>> registerDevice(String token,
+          [String platform = 'web']) =>
+      _http.post('/fn_register_device',
+          data: {'token': token, 'platform': platform});
+
+  Future<Map<String, dynamic>> unregisterDevice(String token) =>
+      _http.delete('/fn_unregister_device', queryParameters: {'token': token});
+
   // ── Cloud storage (INV-01) ────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getCloudIntegrations() =>

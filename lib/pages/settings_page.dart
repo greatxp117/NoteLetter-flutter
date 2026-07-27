@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/newsletter_settings.dart';
@@ -322,6 +323,20 @@ class _SettingsPageState extends State<SettingsPage> {
                         ],
                       ],
                     ),
+                  ),
+                ),
+              ),
+              // Notifications card (2.5.0 ADR-014 / 2.6.0 ADR-015)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.notifications_none),
+                    title: const Text('Notifications'),
+                    subtitle: const Text(
+                        'How you hear about NoteLetter — on-screen, email, or push, at the severity you choose.'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.go('/settings/notifications'),
                   ),
                 ),
               ),
