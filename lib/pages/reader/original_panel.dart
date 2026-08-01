@@ -23,9 +23,15 @@ class _OriginalPanelState extends State<OriginalPanel> {
   String? _error;
   bool _isUrlDoc = false;
 
+  bool get _hasTwoSources => widget.doc.sourceImageUrl?.isNotEmpty ?? false;
+
   @override
   void initState() {
     super.initState();
+    // Article-from-screenshot (2.8.0, ADR-017): two sources — the captured
+    // screenshot (source_image_url, directly renderable) + the resolved article
+    // (source_url). Rendered by the two-source branch below; no raw-file call.
+    if (_hasTwoSources) return;
     // URL-typed doc (has source_url, no stored file): open the source directly.
     if ((widget.doc.sourceUrl?.isNotEmpty ?? false) &&
         (widget.doc.gcsPath == null || widget.doc.gcsPath!.isEmpty)) {
@@ -55,10 +61,41 @@ class _OriginalPanelState extends State<OriginalPanel> {
     await launchUrl(Uri.parse(_url!), mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _launch(String url) async {
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ui = ReaderUi(context);
     final kind = widget.doc.type.toUpperCase();
+
+    if (_hasTwoSources) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ui.intro('Original · two sources',
+            'This article was recognized from a screenshot you captured. Both sources are kept: the image you shared, and the original web article it resolved to.'),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.network(
+            widget.doc.sourceImageUrl!,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => ui.empty(Icons.image_outlined,
+                'Screenshot unavailable', 'The captured screenshot could not be loaded.'),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text('Captured screenshot',
+            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
+        if (widget.doc.sourceUrl?.isNotEmpty ?? false) ...[
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () => _launch(widget.doc.sourceUrl!),
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: const Text('View original article'),
+          ),
+        ],
+      ]);
+    }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ui.intro('Original · $kind',
