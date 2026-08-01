@@ -278,6 +278,8 @@ class _DocumentRowState extends State<_DocumentRow> {
         return Icons.description_outlined;
       case 'youtube':
         return Icons.play_circle_outline;
+      case 'podcast':
+        return Icons.podcasts_outlined;
       case 'url':
         return Icons.link;
       case 'image':
@@ -296,6 +298,8 @@ class _DocumentRowState extends State<_DocumentRow> {
         return Colors.blue;
       case 'youtube':
         return Colors.red.shade700;
+      case 'podcast':
+        return Colors.deepPurple.shade400;
       case 'url':
         return Colors.teal;
       case 'image':

@@ -53,6 +53,7 @@ class ActivityItem {
       case 'image_set': return 'Images';
       case 'instagram': return 'Instagram';
       case 'tiktok': return 'TikTok';
+      case 'podcast': return 'Podcast';
       case 'service_connected': return 'Integration';
       default: return type;
     }

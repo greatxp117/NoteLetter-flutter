@@ -78,6 +78,15 @@ class _ReaderPageState extends State<ReaderPage> {
 
   List<String> get _paras => _chunks.map((c) => c.text).toList();
 
+  /// Real per-line start times for audio/video transcripts (youtube/tiktok/
+  /// instagram/podcast): each transcript chunk's HTML is a single `<p data-start="…">`.
+  /// `null` per chunk when absent (non-transcript sources) → ListenPanel falls back
+  /// to word-count-proportional timing. Mirrors the web ReaderView.
+  List<double?> get _lineStarts => _chunks.map((c) {
+        final m = RegExp(r'data-start="([\d.]+)"').firstMatch(c.html ?? '');
+        return m != null ? double.tryParse(m.group(1)!) : null;
+      }).toList();
+
   static const _tabs = [
     ('summary', 'Summary', Icons.auto_awesome_outlined),
     ('manuscript', 'Manuscript', Icons.notes_outlined),
@@ -163,7 +172,7 @@ class _ReaderPageState extends State<ReaderPage> {
         return SpeedReadPanel(paras: _paras);
       case 'listen':
         return ListenPanel(
-            docId: widget.docId, doc: _document!, paras: _paras);
+            docId: widget.docId, doc: _document!, paras: _paras, lineStarts: _lineStarts);
       case 'original':
         return OriginalPanel(docId: widget.docId, doc: _document!);
       case 'history':

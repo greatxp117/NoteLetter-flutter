@@ -67,6 +67,11 @@ class Document {
   final List<String> tagIds;
   final String? thumbnailUrl;
 
+  /// podcast only (2.7.0, ADR-016): the resolved RSS `<enclosure>` MP3 URL, so
+  /// the reader can play the real episode against the transcript's real
+  /// timestamps. Null for every other type and every pre-2.7.0 doc.
+  final String? sourceAudioUrl;
+
   /// article-from-screenshot only (2.8.0, ADR-017): a durable, directly
   /// renderable URL to the captured screenshot, carried as the document's
   /// SECOND source alongside [sourceUrl]. Provenance, not content — never in
@@ -100,6 +105,7 @@ class Document {
     this.themes = const [],
     this.tagIds = const [],
     this.thumbnailUrl,
+    this.sourceAudioUrl,
     this.sourceImageUrl,
     this.errorMessage,
     this.sourcePriority = 0.5,
@@ -127,6 +133,7 @@ class Document {
       themes: (json['themes'] as List?)?.cast<String>() ?? [],
       tagIds: (json['tag_ids'] as List?)?.cast<String>() ?? [],
       thumbnailUrl: json['thumbnail_url'] as String?,
+      sourceAudioUrl: json['source_audio_url'] as String?,
       sourceImageUrl: json['source_image_url'] as String?,
       errorMessage: json['error_message'] as String?,
       sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,

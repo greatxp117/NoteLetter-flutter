@@ -110,6 +110,8 @@ class UploadNotifier extends ChangeNotifier {
     if (host == 'youtube.com' || host == 'youtu.be') return 'youtube';
     if (host == 'instagram.com') return 'instagram';
     if (host == 'tiktok.com' || host == 'vm.tiktok.com') return 'tiktok';
+    if (host == 'podcasts.apple.com') return 'podcast';
+    if (host == 'open.spotify.com' && uri.path.startsWith('/episode/')) return 'podcast';
     return 'article';
   }
 

@@ -103,6 +103,7 @@ class ChatNotifier extends ChangeNotifier {
     switch (type) {
       case 'pdf': return 'PDF';
       case 'youtube': return 'YouTube';
+      case 'podcast': return 'Podcast';
       case 'url': return 'Article';
       case 'docx': return 'Word';
       case 'image': return 'Image';

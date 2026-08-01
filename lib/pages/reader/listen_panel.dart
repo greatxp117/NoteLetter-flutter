@@ -6,19 +6,27 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import 'reader_ui.dart';
 
-/// Reader → Listen panel: TTS via `fn_generate_audio`, then an inline player
-/// with a tap-to-seek transcript (line starts estimated proportionally to word
-/// counts, mirroring the web ListenPanel). Handles 413 (too long) / 422 (no
-/// text). Per reader.md.
+/// Reader → Listen panel. A podcast/video carries its real source audio
+/// (`source_audio_url`, 2.7.0/ADR-016) + real per-line transcript timestamps
+/// (`lineStarts`) — prefer those. Otherwise TTS via `fn_generate_audio` with
+/// line starts estimated proportionally to word counts (mirrors the web
+/// ListenPanel). Handles 413 (too long) / 422 (no text). Per reader.md.
 class ListenPanel extends StatefulWidget {
   final String docId;
   final Document doc;
   final List<String> paras;
+
+  /// Real per-line start times (seconds) for transcript sources; one entry per
+  /// para, `null` where a chunk had no `data-start`. Used only when EVERY entry
+  /// is present. Empty/absent → always fall back to proportional timing.
+  final List<double?> lineStarts;
+
   const ListenPanel(
       {super.key,
       required this.docId,
       required this.doc,
-      required this.paras});
+      required this.paras,
+      this.lineStarts = const []});
 
   @override
   State<ListenPanel> createState() => _ListenPanelState();
@@ -33,9 +41,27 @@ class _ListenPanelState extends State<ListenPanel> {
   Duration _dur = Duration.zero;
   bool _playing = false;
 
+  /// The real episode audio (podcast/video), when present — played directly
+  /// instead of TTS narration.
+  String? get _sourceAudio =>
+      (widget.doc.sourceAudioUrl?.isNotEmpty ?? false) ? widget.doc.sourceAudioUrl : null;
+
+  /// Real transcript timestamps are usable only when every para has one.
+  bool get _hasRealStarts =>
+      widget.lineStarts.length == widget.paras.length &&
+      widget.paras.isNotEmpty &&
+      widget.lineStarts.every((s) => s != null && s.isFinite);
+
   @override
   void initState() {
     super.initState();
+    // Podcast/video: the real episode is already available — load it directly,
+    // no "Generate audio" step.
+    final src = _sourceAudio;
+    if (src != null) {
+      _audioUrl = src;
+      _player.setSourceUrl(src);
+    }
     _player.onPositionChanged.listen((p) {
       if (mounted) setState(() => _pos = p);
     });
@@ -86,6 +112,11 @@ class _ListenPanelState extends State<ListenPanel> {
   }
 
   List<double> get _starts {
+    // Real transcript timestamps (podcast/video) when every line has one; else a
+    // word-count-proportional approximation over the narration duration (TTS).
+    if (_hasRealStarts) {
+      return widget.lineStarts.map((s) => s!).toList();
+    }
     final w = widget.paras
         .map((p) => p.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).length)
         .toList();
@@ -159,7 +190,9 @@ class _ListenPanelState extends State<ListenPanel> {
     final starts = _starts;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      ui.intro(_dur == Duration.zero ? 'Listen' : 'Listen · ${_fmt(_dur)} narration'),
+      ui.intro(_dur == Duration.zero
+          ? 'Listen'
+          : 'Listen · ${_fmt(_dur)}${_sourceAudio != null ? '' : ' narration'}'),
       // Player card.
       Container(
         padding: const EdgeInsets.all(20),

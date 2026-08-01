@@ -214,7 +214,7 @@ class _FileUploaderState extends State<FileUploader> {
                       autofocus: true,
                       decoration: InputDecoration(
                         hintText:
-                            'https://example.com/article or youtube.com/watch?v=…',
+                            'Paste a link — article, video, or podcast…',
                         prefixIcon:
                             const Icon(Icons.link, size: 18),
                         suffixIcon: _urlSubmitting
