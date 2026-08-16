@@ -13,6 +13,9 @@ import 'pages/reader_page.dart';
 import 'pages/letters_page.dart';
 import 'pages/sources_page.dart';
 import 'pages/tags_page.dart';
+import 'pages/study_page.dart';
+import 'pages/study/session_player.dart';
+import 'pages/study/program_editor.dart';
 
 GoRouter createRouter(AuthNotifier authNotifier) {
   return GoRouter(
@@ -50,6 +53,26 @@ GoRouter createRouter(AuthNotifier authNotifier) {
           GoRoute(
             path: '/chat',
             builder: (context, state) => const ChatPage(),
+          ),
+          // Study (2.34.0). `/study/session/:id` is where the session
+          // email's CTA lands, so it must be a real route, not a tab.
+          GoRoute(
+            path: '/study',
+            builder: (context, state) => const StudyPage(),
+          ),
+          GoRoute(
+            path: '/study/new',
+            builder: (context, state) => const ProgramEditorPage(),
+          ),
+          GoRoute(
+            path: '/study/session/:sessionId',
+            builder: (context, state) =>
+                SessionPlayerPage(sessionId: state.pathParameters['sessionId']!),
+          ),
+          GoRoute(
+            path: '/study/:programId',
+            builder: (context, state) =>
+                ProgramEditorPage(programId: state.pathParameters['programId']),
           ),
           GoRoute(
             path: '/settings',

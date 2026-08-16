@@ -19,6 +19,7 @@ const _navItems = [
   _NavItem(Icons.label_outline, 'Tags', '/tags'),
   _NavItem(Icons.chat_bubble_outline, 'Chat', '/chat'),
   _NavItem(Icons.mail_outline, 'Letters', '/letters'),
+  _NavItem(Icons.school_outlined, 'Study', '/study'),
   _NavItem(Icons.cloud_outlined, 'Sources', '/sources'),
   _NavItem(Icons.auto_awesome_outlined, 'Welcome', '/landing'),
   _NavItem(Icons.palette_outlined, 'Branding', '/branding'),
