@@ -291,8 +291,8 @@ Future<dynamic> _invokeMethodAware(
       return Api.instance.applySyllabusPlan(
         b['programId'],
         b['documentId'],
-        _maps(b['units']) ?? const [],
-        _maps(b['assessments']) ?? const [],
+        _maps(b['units']),
+        _maps(b['assessments']),
       );
     case 'fn_scripture_newsletter_settings':
       if (method == 'GET') {
