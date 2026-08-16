@@ -9,10 +9,9 @@ run; `test/contract/pin_check_test.dart` parses this exact line and fails loudly
 while it differs from `../NoteLetter-contracts/VERSION`).
 
 At **full feature parity with the web reference**, Study and Scripture included.
-Configured against **real prod** `noteletter-7a111`, and registered natively as
-`xp.NoteLetter.Flutter` — deliberately its own bundle id, because `xp.NoteLetter`
-belongs to the Swift app in `NoteLetter/` and the Android slot is reserved for a
-planned native client.
+Defaults to **real prod** `noteletter-7a111`. Registered as
+`xp.NoteLetter.Flutter` — its own bundle id, because `xp.NoteLetter` belongs to
+the Swift app and the Android slot is reserved for a native client.
 
 What changed and when: `../NoteLetter-contracts/CHANGELOG.md`. Why:
 `spec/decisions/`. What is still open here: `../TODO.md`. The live per-file
@@ -58,7 +57,9 @@ flutter analyze                # clean apart from two pre-existing landing_page 
 flutter test test/contract/    # Tier-1 contract harness
 ```
 
-Emulator development: `--dart-define=USE_EMULATOR=true`, per `/emu`.
+Emulator: `--dart-define=USE_EMULATOR=true` (+ `EMULATOR_*_PORT`), per `/emu`.
+Device run: `integration_test/device_run_test.dart` — invocation in its header;
+needs `--timeout none` (the iOS build outlasts the per-test timeout).
 
 ## Rules that are easy to break here
 
