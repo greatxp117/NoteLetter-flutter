@@ -78,8 +78,42 @@ class Document {
   /// chunk HTML. Null for every other document and every pre-2.8.0 doc.
   final String? sourceImageUrl;
 
+  /// 2.13.0 (ADR-020) — the source's own byline. Extracted on every URL ingest
+  /// since 1.0.0 and persisted by nobody until 2.13.0, so null on every older
+  /// document and on every source with no byline (pdf/docx/image/plain).
+  final String? author;
+
+  /// 2.13.0 — an ISO `YYYY-MM-DD` **string**, deliberately NOT a Timestamp:
+  /// INV-06 does not apply. It is the source's claim about itself, not an
+  /// instant we observed, and converting it renders an article published
+  /// "January 3" as "January 2" for every reader west of UTC. Format it as a
+  /// calendar date with no timezone conversion, and never substitute
+  /// [createdAt] — "when you saved it" and "when it was published" differ.
+  final String? publishDate;
+
+  /// 2.19.0 (ADR-024) — which half of the pipeline is running. Meaningful ONLY
+  /// while [status] is processing, cleared at every terminal write. Open
+  /// vocabulary (`extraction` | `embedding` today): render an unknown value
+  /// neutrally, never as an error, and never render the raw token to a user.
+  final String? processingStage;
+
+  /// 3.1.0 (ADR-039) — the reader finished this document. Written ONLY by
+  /// `fn_set_read_state`, never by a client, and reversible. Deliberately not
+  /// derivable from chunk coverage: reading every passage and declaring
+  /// yourself done are different claims, and only the second is reversible.
+  final int? finishedAt;
+
+  /// 2.31.2 (ADR-032, INV-16) — the reader pinned this source for the next
+  /// letter. A Timestamp rather than a boolean so overflow beyond the per-letter
+  /// cap is carried oldest-first rather than dropped. Cleared only by a letter
+  /// that actually carried the document.
+  final int? nextLetterRequestedAt;
+
   final String? errorMessage;
   final double sourcePriority;
+
+  /// INV-03a — OPENED. Bumped by `doc_opened` and, since 4.0.0, by nothing
+  /// else: expanding a search hit no longer clears a source's unread dot.
   final int viewCount;
   final int? lastViewedAt;
 
@@ -107,6 +141,11 @@ class Document {
     this.thumbnailUrl,
     this.sourceAudioUrl,
     this.sourceImageUrl,
+    this.author,
+    this.publishDate,
+    this.processingStage,
+    this.finishedAt,
+    this.nextLetterRequestedAt,
     this.errorMessage,
     this.sourcePriority = 0.5,
     this.viewCount = 0,
@@ -135,6 +174,12 @@ class Document {
       thumbnailUrl: json['thumbnail_url'] as String?,
       sourceAudioUrl: json['source_audio_url'] as String?,
       sourceImageUrl: json['source_image_url'] as String?,
+      author: json['author'] as String?,
+      // NOT tsMs(): publish_date is an ISO date STRING, not a Timestamp.
+      publishDate: json['publish_date'] as String?,
+      processingStage: json['processing_stage'] as String?,
+      finishedAt: tsMs(json['finished_at']),
+      nextLetterRequestedAt: tsMs(json['next_letter_requested_at']),
       errorMessage: json['error_message'] as String?,
       sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,
       viewCount: json['view_count'] as int? ?? 0,
