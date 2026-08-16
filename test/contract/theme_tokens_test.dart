@@ -1,6 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_app/theme/app_colors.dart';
 import 'package:flutter_app/theme/app_radius.dart';
 import 'package:flutter_app/theme/app_theme.dart';
@@ -15,12 +15,11 @@ import 'package:flutter_app/theme/app_theme.dart';
 /// These assertions make that class of regression visible: reseed the scheme
 /// and the role/token equalities below break immediately.
 void main() {
-  // Building the full ThemeData reaches GoogleFonts for the serif ramp, which
-  // needs a binding — and, left alone, tries to FETCH the font over the
-  // network. (Worth knowing beyond the test: Source Serif 4 is not bundled the
-  // way Geist is, so the app resolves it at runtime.)
+  // The full ThemeData is constructible in a plain unit test because all three
+  // token fonts are bundled assets referenced by family name. While the serif
+  // resolved through google_fonts this test could not build the theme at all —
+  // it reached the network.
   TestWidgetsFlutterBinding.ensureInitialized();
-  GoogleFonts.config.allowRuntimeFetching = false;
 
   group('ColorScheme is built from the semantic tokens', () {
     test('light roles carry their tokens', () {
@@ -81,13 +80,64 @@ void main() {
       // --bg is the page, --surface is the card laid on it. Collapsing them
       // loses the contrast that makes a card read as lifted.
       //
-      // Asserted on the TOKENS, not on `AppTheme.light.scaffoldBackgroundColor`
-      // — constructing the ThemeData pulls Source Serif 4 through google_fonts,
-      // which is not bundled (unlike Geist) and so is fetched at runtime. That
-      // is a real gap in its own right and is filed in ../TODO.md; it is not
-      // something this test should paper over by mocking the bundle.
-      expect(AppColors.backgroundLight, isNot(AppTheme.lightScheme.surface));
-      expect(AppColors.backgroundDark, isNot(AppTheme.darkScheme.surface));
+      expect(AppTheme.light.scaffoldBackgroundColor, AppColors.backgroundLight);
+      expect(AppTheme.light.scaffoldBackgroundColor,
+          isNot(AppTheme.lightScheme.surface));
+      expect(AppTheme.dark.scaffoldBackgroundColor, AppColors.backgroundDark);
+      expect(AppTheme.dark.scaffoldBackgroundColor,
+          isNot(AppTheme.darkScheme.surface));
+    });
+  });
+
+  group('type tokens', () {
+    // design-tokens.md §Type: serif Source Serif 4, sans Geist, mono Geist Mono.
+    // The serif used to come from google_fonts, which fetches at runtime and
+    // falls back to the platform serif when that fails — silently, on every
+    // heading. The mono was RobotoMono, which is not the token font at all.
+    test('the three families are the token families', () {
+      expect(AppTheme.fontSerif, 'Source Serif 4');
+      expect(AppTheme.fontSans, 'Geist');
+      expect(AppTheme.fontMono, 'Geist Mono');
+      expect(AppTheme.serif(fontSize: 16).fontFamily, 'Source Serif 4');
+      expect(AppTheme.mono(fontSize: 11).fontFamily, 'Geist Mono');
+    });
+
+    test('serif weight drives the variable wght axis', () {
+      // One asset covers the axis, so a plain `fontWeight` would render every
+      // heading at the default instance.
+      final bold = AppTheme.serif(fontSize: 24, fontWeight: FontWeight.w700);
+      expect(bold.fontWeight, FontWeight.w700);
+      expect(bold.fontVariations, contains(const FontVariation('wght', 700)));
+      final regular = AppTheme.serif(fontSize: 16);
+      expect(regular.fontVariations, contains(const FontVariation('wght', 400)));
+    });
+
+    test('every bundled family is declared in pubspec', () {
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      for (final family in [AppTheme.fontSans, AppTheme.fontMono, AppTheme.fontSerif]) {
+        expect(pubspec, contains('family: $family'),
+            reason: '$family must be a bundled asset, not a runtime fetch');
+      }
+      // The italic cut is a separate asset; without it `fontStyle: italic`
+      // synthesises a slant instead of using the real italic design.
+      expect(pubspec, contains('SourceSerif4-Italic-Variable.ttf'));
+    });
+
+    test('nothing in lib/ reaches google_fonts', () {
+      // The regression that matters: one reintroduced call puts a network fetch
+      // back on a heading, and a silent fallback looks fine in review.
+      // Matched on the IMPORT, not the bare word — app_theme.dart's own doc
+      // comment names GoogleFonts in order to say "never use it", and a check
+      // that flags its own warning is a check people delete.
+      final offenders = <String>[];
+      for (final f in Directory('lib').listSync(recursive: true)) {
+        if (f is File && f.path.endsWith('.dart')) {
+          if (f.readAsStringSync().contains("import 'package:google_fonts")) {
+            offenders.add(f.path);
+          }
+        }
+      }
+      expect(offenders, isEmpty);
     });
   });
 

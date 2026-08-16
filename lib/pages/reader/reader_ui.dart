@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
 
 /// Shared reader-panel chrome — the Flutter mirror of the web reader's
 /// `.panel-intro` / `.eyebrow` / `.panel-note` / `.browse-empty` primitives,
@@ -70,7 +70,7 @@ class ReaderUi {
               Icon(icon, size: 26, color: muted),
               const SizedBox(height: 12),
               Text(title,
-                  style: GoogleFonts.sourceSerif4(
+                  style: AppTheme.serif(
                       fontSize: 18, fontWeight: FontWeight.w600, color: fg)),
               const SizedBox(height: 6),
               Text(sub,

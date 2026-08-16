@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
@@ -13,6 +12,7 @@ import '../widgets/app_toast.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sync_settings_panel.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 /// Canonical provider ids (1.2.0) with display names for not-yet-connected
 /// providers (the integration list only carries connected ones).
@@ -158,7 +158,7 @@ class _SourcesPageState extends State<SourcesPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Sources',
-                  style: GoogleFonts.sourceSerif4(
+                  style: AppTheme.serif(
                       fontSize: 26, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               Text('Connect cloud storage and import documents.',

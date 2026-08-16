@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../models/cloud_folder.dart';
 import '../../services/firestore_service.dart';
@@ -7,6 +6,7 @@ import '../../state/org_notifier.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_toast.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_theme.dart';
 
 const _providerName = {
   'google_drive': 'Google Drive',
@@ -57,7 +57,7 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Organization settings',
-          style: GoogleFonts.sourceSerif4(
+          style: AppTheme.serif(
               fontSize: 18, fontWeight: FontWeight.w700, color: fg)),
       const SizedBox(height: 12),
       // Confidence threshold.
@@ -66,7 +66,7 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
             style: TextStyle(fontFamily: 'Geist', fontSize: 14, color: fg)),
         const Spacer(),
         Text('${(threshold * 100).round()}%',
-            style: GoogleFonts.robotoMono(fontSize: 13, color: fg)),
+            style: AppTheme.mono(fontSize: 13, color: fg)),
       ]),
       Slider(
         value: threshold.clamp(0.5, 0.95),

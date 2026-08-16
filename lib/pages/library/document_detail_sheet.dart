@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/document.dart';
 import '../../models/tag.dart';
 import '../../services/api.dart';
@@ -7,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_theme.dart';
 
 /// Library document-detail affordances (library.md): edit `sourcePriority` and
 /// `tagIds` via `fn_update_document`. Priority is propagated to the document's
@@ -128,7 +128,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                   ),
                 ),
                 Text(_doc?.title ?? 'Document',
-                    style: GoogleFonts.sourceSerif4(
+                    style: AppTheme.serif(
                         fontSize: 18, fontWeight: FontWeight.w700, color: fg),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis),
@@ -153,7 +153,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                     child: Text(_priority.toStringAsFixed(2),
                         textAlign: TextAlign.end,
                         style:
-                            GoogleFonts.robotoMono(fontSize: 13, color: fg)),
+                            AppTheme.mono(fontSize: 13, color: fg)),
                   ),
                 ]),
                 Text(_priorityLabel(_priority),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/newsletter_settings.dart';
 import '../state/settings_notifier.dart';
@@ -10,6 +9,7 @@ import '../state/activation_message.dart';
 import '../state/schedule.dart';
 import 'settings/summaries_section.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -124,7 +124,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     Text(
                       'Settings',
-                      style: GoogleFonts.sourceSerif4(
+                      style: AppTheme.serif(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,

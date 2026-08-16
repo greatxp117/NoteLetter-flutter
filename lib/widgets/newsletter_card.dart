@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../models/newsletter_item.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 class NewsletterCard extends StatefulWidget {
   final NewsletterItem item;
@@ -88,7 +88,7 @@ class _NewsletterCardState extends State<NewsletterCard> {
               const SizedBox(height: 10),
               Text(
                 widget.item.title,
-                style: GoogleFonts.sourceSerif4(
+                style: AppTheme.serif(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

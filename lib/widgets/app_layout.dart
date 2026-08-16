@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import 'sidebar.dart';
 import 'nav_drawer.dart';
+import '../theme/app_theme.dart';
 
 class AppLayout extends StatelessWidget {
   final Widget child;
@@ -34,7 +34,7 @@ class AppLayout extends StatelessWidget {
               centerTitle: true,
               title: Text(
                 'NoteLetter',
-                style: GoogleFonts.sourceSerif4(
+                style: AppTheme.serif(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

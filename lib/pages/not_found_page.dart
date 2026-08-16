@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
 
 class NotFoundPage extends StatelessWidget {
   const NotFoundPage({super.key});
@@ -19,7 +19,7 @@ class NotFoundPage extends StatelessWidget {
           children: [
             Text(
               '404',
-              style: GoogleFonts.sourceSerif4(
+              style: AppTheme.serif(
                 fontSize: 80,
                 fontWeight: FontWeight.w700,
                 color: primary.withValues(alpha: 0.3),
@@ -28,7 +28,7 @@ class NotFoundPage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Page not found',
-              style: GoogleFonts.sourceSerif4(
+              style: AppTheme.serif(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.onSurface,

@@ -1,11 +1,11 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_theme.dart';
 
 /// Reader → Listen panel. A podcast/video carries its real source audio
 /// (`source_audio_url`, 2.7.0/ADR-016) + real per-line transcript timestamps
@@ -215,7 +215,7 @@ class _ListenPanelState extends State<ListenPanel> {
                         letterSpacing: 0.8,
                         color: ui.muted)),
                 Text(widget.doc.title.isEmpty ? 'Untitled' : widget.doc.title,
-                    style: GoogleFonts.sourceSerif4(
+                    style: AppTheme.serif(
                         fontSize: 16, fontWeight: FontWeight.w600, color: ui.fg),
                     overflow: TextOverflow.ellipsis),
               ]),
@@ -285,7 +285,7 @@ class _ListenPanelState extends State<ListenPanel> {
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Text(
               widget.paras[i],
-              style: GoogleFonts.sourceSerif4(
+              style: AppTheme.serif(
                 fontSize: 16,
                 height: 1.5,
                 color: i == active

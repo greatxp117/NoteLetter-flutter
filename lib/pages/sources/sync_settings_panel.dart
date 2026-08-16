@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../models/cloud_integration.dart';
 import '../../state/cloud_notifier.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_toast.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_theme.dart';
 
 /// Tier-C sync-settings panel (sources.md §Sync settings, 1.4.0/ADR-007).
 /// Collapsible per provider: auto-sync toggle, frequency, preferred-hour (UTC),
@@ -164,7 +164,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                     controller: _patternsController,
                     focusNode: _patternsFocus,
                     maxLines: 3,
-                    style: GoogleFonts.robotoMono(fontSize: 12, color: fg),
+                    style: AppTheme.mono(fontSize: 12, color: fg),
                     decoration: const InputDecoration(
                       isDense: true,
                       hintText: '*.tmp\ndrafts/**',

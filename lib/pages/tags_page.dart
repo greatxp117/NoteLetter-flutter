@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/tag.dart';
 import '../state/tags_notifier.dart';
@@ -7,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import 'tags/split_shelf_sheet.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 /// Tags — list/create/edit/delete over the live tags subscription. Mutations go
 /// through `fn_*` (INV-04). See spec/api/tags.md.
@@ -100,7 +100,7 @@ class _TagsPageState extends State<TagsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Tags',
-                    style: GoogleFonts.sourceSerif4(
+                    style: AppTheme.serif(
                         fontSize: 26, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text('Organize your library with tags.',

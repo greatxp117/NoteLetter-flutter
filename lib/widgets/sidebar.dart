@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 class _NavItem {
   final IconData icon;
@@ -59,7 +59,7 @@ class Sidebar extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   'NoteLetter',
-                  style: GoogleFonts.sourceSerif4(
+                  style: AppTheme.serif(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: AppColors.chromeForeground,

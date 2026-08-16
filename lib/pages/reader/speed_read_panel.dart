@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_theme.dart';
 
 /// Reader → Speed read panel: RSVP (one word at a time, pinned to a fixed
 /// optical-recognition point), with a follow-along transcript. Contract data is
@@ -132,7 +132,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
           const SizedBox(height: 8),
           RichText(
             text: TextSpan(
-              style: GoogleFonts.robotoMono(
+              style: AppTheme.mono(
                   fontSize: w.length > 9 ? 30 : 38,
                   fontWeight: FontWeight.w500,
                   color: ui.fg),

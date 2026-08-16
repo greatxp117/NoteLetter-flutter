@@ -10,7 +10,6 @@ dependencies:
   flutter:
     sdk: flutter
   go_router: ^14.2.0
-  google_fonts: ^6.2.1
   provider: ^6.1.2
   flutter_animate: ^4.5.0
   file_picker: ^8.0.7
@@ -28,6 +27,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   flutter_lints: ^5.0.0
 
 flutter:
@@ -37,9 +38,16 @@ flutter:
     - assets/landing-hero.png
     - assets/hero-knowledge.png
     - assets/favicon.png
-  # UI/body font is Geist, mono is Geist Mono (design-tokens.md). Neither is on
-  # the google_fonts package, so they are bundled as OFL assets (assets/fonts/,
-  # license in Geist-OFL.txt). Serif (Source Serif 4) still comes from google_fonts.
+  # All three token fonts are BUNDLED as OFL assets (assets/fonts/, licenses in
+  # Geist-OFL.txt and SourceSerif4-OFL.txt): sans Geist, mono Geist Mono, serif
+  # Source Serif 4 (design-tokens.md).
+  #
+  # The serif previously resolved through `google_fonts`, which fetches over the
+  # network on first use and falls back silently when that fails — on every
+  # heading, the display ramp and the reader's body text. A silent fallback to
+  # the platform serif is invisible in review and impossible to see in a test.
+  # The TTFs are the same variable files the Swift app ships, so both clients
+  # render from one file rather than two sources that can drift.
   fonts:
     - family: Geist
       fonts:
@@ -59,3 +67,10 @@ flutter:
           weight: 400
         - asset: assets/fonts/GeistMono-Medium.ttf
           weight: 500
+    # Variable files — one asset covers the whole weight axis, driven by
+    # FontVariation('wght') in AppTheme.serif rather than by separate cuts.
+    - family: Source Serif 4
+      fonts:
+        - asset: assets/fonts/SourceSerif4-Variable.ttf
+        - asset: assets/fonts/SourceSerif4-Italic-Variable.ttf
+          style: italic

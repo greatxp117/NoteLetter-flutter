@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../models/activity_item.dart';
@@ -11,6 +10,7 @@ import '../theme/app_colors.dart';
 import '../widgets/file_uploader.dart';
 import '../widgets/vector_search.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -93,17 +93,23 @@ class _DashboardPageState extends State<DashboardPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          // Wrap, not Row: at phone width a 28px serif greeting
+                          // plus the day chip does not fit on one line, and a
+                          // Row would clip it (measured: 199px of overflow at
+                          // 338pt). The chip drops below instead.
+                          Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
                               Text(
                                 "$_greeting! Here's your digest",
-                                style: GoogleFonts.sourceSerif4(
+                                style: AppTheme.serif(
                                   fontSize: 28,
                                   fontWeight: FontWeight.w700,
                                   color: theme.colorScheme.onSurface,
                                 ),
                               ),
-                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 10, vertical: 4),
@@ -199,7 +205,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       children: [
                         Text(
                           "Today's Highlights",
-                          style: GoogleFonts.sourceSerif4(
+                          style: AppTheme.serif(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
                             color: theme.colorScheme.onSurface,
@@ -273,7 +279,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               children: [
                                 Text(
                                   'Ready for a deeper dive?',
-                                  style: GoogleFonts.sourceSerif4(
+                                  style: AppTheme.serif(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
                                     color: theme.colorScheme.onSurface,
@@ -360,7 +366,7 @@ class _SearchResultsSection extends StatelessWidget {
             children: [
               Text(
                 '${results.length} result${results.length == 1 ? '' : 's'}',
-                style: GoogleFonts.sourceSerif4(
+                style: AppTheme.serif(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

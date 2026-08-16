@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 class BrandingPage extends StatelessWidget {
   const BrandingPage({super.key});
@@ -37,7 +37,7 @@ class BrandingPage extends StatelessWidget {
                     children: [
                       Text(
                         'NoteLetter Design System',
-                        style: GoogleFonts.sourceSerif4(
+                        style: AppTheme.serif(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
                           color: theme.colorScheme.onSurface,
@@ -63,7 +63,7 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Core Principles',
-                  style: GoogleFonts.sourceSerif4(
+                  style: AppTheme.serif(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface,
@@ -117,7 +117,7 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Typography',
-                  style: GoogleFonts.sourceSerif4(
+                  style: AppTheme.serif(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface,
@@ -157,7 +157,7 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Color Palette',
-                  style: GoogleFonts.sourceSerif4(
+                  style: AppTheme.serif(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface,
@@ -198,7 +198,7 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Design Language',
-                  style: GoogleFonts.sourceSerif4(
+                  style: AppTheme.serif(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface,
@@ -292,7 +292,7 @@ class _PrincipleCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: GoogleFonts.sourceSerif4(
+                      style: AppTheme.serif(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,
@@ -338,7 +338,7 @@ class _TypographyCard extends StatelessWidget {
             Text(
               name,
               style: (isSerif
-                  ? GoogleFonts.sourceSerif4(
+                  ? AppTheme.serif(
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)
                   : TextStyle(fontFamily: 'Geist', 
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
@@ -360,7 +360,7 @@ class _TypographyCard extends StatelessWidget {
                   child: Text(
                     s.$1,
                     style: isSerif
-                        ? GoogleFonts.sourceSerif4(
+                        ? AppTheme.serif(
                             fontSize: 14,
                             fontWeight: s.$2,
                             fontStyle: s.$3,
@@ -450,7 +450,7 @@ class _DesignLanguageCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
-                style: GoogleFonts.sourceSerif4(
+                style: AppTheme.serif(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

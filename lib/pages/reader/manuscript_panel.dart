@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/chunk.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
@@ -11,6 +10,7 @@ import 'passage_mark.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'dwell.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
 
 /// One editable passage. `chunkId == null` marks a passage created by a split
 /// (sent to `fn_update_content` with `chunkId: null` so the backend mints one).
@@ -371,7 +371,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             if (_editing)
             Row(children: [
               Text('№ ${(i + 1).toString().padLeft(2, '0')}',
-                  style: GoogleFonts.robotoMono(fontSize: 11, color: ui.muted)),
+                  style: AppTheme.mono(fontSize: 11, color: ui.muted)),
               const SizedBox(width: 10),
               Text('~${_wordCount(c.text)} words',
                   style: TextStyle(fontFamily: 'Geist', fontSize: 11, color: ui.muted)),
@@ -414,7 +414,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                 onChanged: (_) {
                   if (!c.dirty) setState(() => c.dirty = true);
                 },
-                style: GoogleFonts.sourceSerif4(
+                style: AppTheme.serif(
                     fontSize: 16, height: 1.5, color: ui.fg),
                 decoration: InputDecoration(
                   isDense: true,
@@ -535,7 +535,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     if (html.isEmpty) {
       return Text(c.text,
           style:
-              GoogleFonts.sourceSerif4(fontSize: 16, height: 1.6, color: ui.fg));
+              AppTheme.serif(fontSize: 16, height: 1.6, color: ui.fg));
     }
     return Html(
       data: html,

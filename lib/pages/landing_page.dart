@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});
@@ -28,27 +28,37 @@ class LandingPage extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: primary,
-                            borderRadius: AppRadius.controlR(36),
+                    // Flexible + ellipsis: the brand is what gives way when the
+                    // bar does not fit, never the actions. At phone width the
+                    // fixed layout overflowed by 3.3pt — small enough to look
+                    // like nothing, and still a clipped control.
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: primary,
+                              borderRadius: AppRadius.controlR(36),
+                            ),
+                            child: const Icon(Icons.edit_note, color: Colors.white, size: 20),
                           ),
-                          child: const Icon(Icons.edit_note, color: Colors.white, size: 20),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'NoteLetter',
-                          style: GoogleFonts.sourceSerif4(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: theme.colorScheme.onSurface,
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              'NoteLetter',
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.serif(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     Row(
                       children: [
@@ -96,7 +106,7 @@ class LandingPage extends StatelessWidget {
                     Text(
                       'Your Knowledge Base,\nAutomatically Curated',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.sourceSerif4(
+                      style: AppTheme.serif(
                         fontSize: 48,
                         fontWeight: FontWeight.w700,
                         height: 1.2,
@@ -149,7 +159,7 @@ class LandingPage extends StatelessWidget {
                     Text(
                       'Everything you need to manage your knowledge',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.sourceSerif4(
+                      style: AppTheme.serif(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,
@@ -259,7 +269,7 @@ class _FeatureCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: GoogleFonts.sourceSerif4(
+            style: AppTheme.serif(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurface,
@@ -330,7 +340,7 @@ class _AuthDialogState extends State<_AuthDialog> {
               // Title
               Text(
                 _isSignUp ? 'Create your account' : 'Welcome back',
-                style: GoogleFonts.sourceSerif4(
+                style: AppTheme.serif(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,

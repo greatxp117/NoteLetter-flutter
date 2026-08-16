@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/activity_item.dart';
 import '../state/activity_notifier.dart';
@@ -9,6 +8,7 @@ import '../widgets/app_toast.dart';
 import '../widgets/file_uploader.dart';
 import 'library/document_detail_sheet.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -51,7 +51,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   children: [
                     Text(
                       'Knowledge Base',
-                      style: GoogleFonts.sourceSerif4(
+                      style: AppTheme.serif(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import '../models/chunk.dart';
 import '../models/document.dart';
@@ -17,6 +16,7 @@ import 'reader/summary_panel.dart';
 import '../services/api.dart';
 import '../widgets/app_toast.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 /// Reader — one-shot doc + chunks (`chunk_index` asc), fires `logReadEvent`
 /// on open (INV-03). Six panels (Summary/Manuscript/SpeedRead/Listen/Original/
@@ -120,7 +120,7 @@ class _ReaderPageState extends State<ReaderPage> {
         ),
         title: Text(
           doc?.title ?? 'Reader',
-          style: GoogleFonts.sourceSerif4(
+          style: AppTheme.serif(
               fontSize: 18, fontWeight: FontWeight.w700),
           overflow: TextOverflow.ellipsis,
         ),
@@ -276,7 +276,7 @@ class _ReaderPageState extends State<ReaderPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(num,
-                style: GoogleFonts.sourceSerif4(
+                style: AppTheme.serif(
                     fontSize: 18, fontWeight: FontWeight.w700, color: ui.fg)),
             Text(label.toUpperCase(),
                 style: TextStyle(fontFamily: 'Geist', 

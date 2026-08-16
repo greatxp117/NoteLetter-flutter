@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/newsletter.dart';
 import '../state/newsletter_notifier.dart';
@@ -10,6 +9,7 @@ import '../state/settings_notifier.dart';
 import 'letters/pinned_sources.dart';
 import 'letters/readings_letter.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 /// Letters — newsletter history (INV-09) + "send now". See
 /// spec/screens/letters.md.
@@ -74,7 +74,7 @@ class _LettersPageState extends State<LettersPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Letters',
-                            style: GoogleFonts.sourceSerif4(
+                            style: AppTheme.serif(
                                 fontSize: 22, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 12),
                         // 2.33.0 — the pin's only surface outside the

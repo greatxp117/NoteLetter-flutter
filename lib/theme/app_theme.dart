@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'app_radius.dart';
 
@@ -7,29 +6,82 @@ class AppTheme {
   AppTheme._();
 
   // Per design-tokens.md: serif `Source Serif 4` for display/headings/reading,
-  // sans `Geist` for UI body, mono `Geist Mono` for code/caps-labels. Geist and
-  // Geist Mono are bundled as OFL assets (see pubspec `fonts:` + assets/fonts/)
-  // because neither ships in the google_fonts package; the serif still comes
-  // from google_fonts. `Geist`/`Geist Mono` are referenced by family name.
+  // sans `Geist` for UI body, mono `Geist Mono` for code/caps-labels. All three
+  // are bundled as OFL assets (see pubspec `fonts:` + assets/fonts/) and
+  // referenced by family name — nothing is fetched at runtime.
   static const String fontSans = 'Geist';
   static const String fontMono = 'Geist Mono';
+  static const String fontSerif = 'Source Serif 4';
 
   static TextStyle _geist(double size, FontWeight weight, Color color) =>
       TextStyle(fontFamily: fontSans, fontSize: size, fontWeight: weight, color: color);
 
+  /// Serif (`Source Serif 4`) — display, headings and reading text.
+  ///
+  /// Use this, never `GoogleFonts.sourceSerif4`. The font is bundled, so this
+  /// resolves from the app package with no network and no silent fallback to
+  /// the platform serif — which is exactly what the google_fonts path did when
+  /// a fetch failed, invisibly, on every heading in the app.
+  ///
+  /// It is a VARIABLE font: one asset covers the weight axis, so the weight has
+  /// to be driven through `fontVariations`. `fontWeight` is passed as well —
+  /// it is what the engine falls back to for synthetic bolding, and what any
+  /// style-merging code reads.
+  static TextStyle serif({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    double? height,
+    FontStyle? fontStyle,
+    double? letterSpacing,
+  }) {
+    final w = fontWeight ?? FontWeight.w400;
+    return TextStyle(
+      fontFamily: fontSerif,
+      fontSize: fontSize,
+      fontWeight: w,
+      fontVariations: [FontVariation('wght', w.value.toDouble())],
+      color: color,
+      height: height,
+      fontStyle: fontStyle,
+      letterSpacing: letterSpacing,
+    );
+  }
+
+  /// Mono (`Geist Mono`) — code and caps-labels.
+  ///
+  /// design-tokens.md names Geist Mono; this app had been calling
+  /// `GoogleFonts.robotoMono`, which is both a different typeface from the one
+  /// the tokens specify and a second runtime fetch.
+  static TextStyle mono({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      TextStyle(
+        fontFamily: fontMono,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+      );
+
   static TextTheme _buildTextTheme(Color bodyColor, Color displayColor) {
     return TextTheme(
-      displayLarge: GoogleFonts.sourceSerif4(
+      displayLarge: serif(
         fontSize: 56, fontWeight: FontWeight.w400, color: displayColor),
-      displayMedium: GoogleFonts.sourceSerif4(
+      displayMedium: serif(
         fontSize: 48, fontWeight: FontWeight.w400, color: displayColor),
-      displaySmall: GoogleFonts.sourceSerif4(
+      displaySmall: serif(
         fontSize: 40, fontWeight: FontWeight.w400, color: displayColor),
-      headlineLarge: GoogleFonts.sourceSerif4(
+      headlineLarge: serif(
         fontSize: 32, fontWeight: FontWeight.w700, color: displayColor),
-      headlineMedium: GoogleFonts.sourceSerif4(
+      headlineMedium: serif(
         fontSize: 24, fontWeight: FontWeight.w700, color: displayColor),
-      headlineSmall: GoogleFonts.sourceSerif4(
+      headlineSmall: serif(
         fontSize: 20, fontWeight: FontWeight.w400, color: displayColor),
       titleLarge: _geist(18, FontWeight.w500, bodyColor),
       titleMedium: _geist(16, FontWeight.w500, bodyColor),
@@ -126,7 +178,7 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.sidebarLight,
         elevation: 0,
-        titleTextStyle: GoogleFonts.sourceSerif4(
+        titleTextStyle: serif(
           fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.foregroundLight),
         iconTheme: const IconThemeData(color: AppColors.foregroundLight),
       ),
@@ -253,7 +305,7 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.sidebarDark,
         elevation: 0,
-        titleTextStyle: GoogleFonts.sourceSerif4(
+        titleTextStyle: serif(
           fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.foregroundDark),
         iconTheme: const IconThemeData(color: AppColors.foregroundDark),
       ),

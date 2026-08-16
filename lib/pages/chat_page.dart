@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import '../widgets/chat_interface.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
 
 class ChatPage extends StatelessWidget {
   const ChatPage({super.key});
@@ -26,7 +26,7 @@ class ChatPage extends StatelessWidget {
                   children: [
                     Text(
                       'Research Assistant',
-                      style: GoogleFonts.sourceSerif4(
+                      style: AppTheme.serif(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,
