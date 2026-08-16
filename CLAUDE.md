@@ -2,9 +2,9 @@
 
 Flutter client for NoteLetter. Part of the multi-repo workspace — read the umbrella `../CLAUDE.md` and `../NoteLetter-contracts/spec/overview.md` before any data-layer work.
 
-## Status: pinned at contract 4.1.1 — **full feature parity with the web reference** (2026-08-15)
+## Status: pinned at contract 4.1.2 — **full feature parity with the web reference** (2026-08-15)
 
-**Contract version: 4.1.1** (2.8.0 → **4.1.1** on 2026-08-15, the Milestone-2 feature catch-up), targeting real project `noteletter-7a111` (web target only — native iOS/Android Firebase apps still not registered). `flutter analyze` clean apart from two pre-existing `landing_page` lints. Contract suite **179 tests green**, incl. two new fixture suites (`api/read-state`, `api/chunk-tags`) and three new pure-logic suites (`read_counters`, `dwell`, `chunk_shelves`).
+**Contract version: 4.1.2** (2.8.0 → **4.1.1** on 2026-08-15, the Milestone-2 feature catch-up), targeting real project `noteletter-7a111` (web target only — native iOS/Android Firebase apps still not registered). `flutter analyze` clean apart from two pre-existing `landing_page` lints. Contract suite **179 tests green**, incl. two new fixture suites (`api/read-state`, `api/chunk-tags`) and three new pure-logic suites (`read_counters`, `dwell`, `chunk_shelves`).
 
 **What this pass fixed, and why the first item mattered most.** `logReadEvent` bumped the document on **every** event and the chunk on any `chunkId` — non-conforming at 3.1.0 and 4.0.0, and this client is configured against **real prod**, so it re-inflated exactly the counters the 4.0.0 backfill had corrected. The contract record claimed this client pointed at the retired `luxletter-b7a40` project and therefore could not reach prod; that was **false and corrected at 4.1.1**. Nothing but "nobody currently runs it" stood in the way.
 
