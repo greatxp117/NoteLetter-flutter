@@ -6,6 +6,8 @@ import '../models/newsletter.dart';
 import '../state/newsletter_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
+import '../state/settings_notifier.dart';
+import 'letters/pinned_sources.dart';
 
 /// Letters — newsletter history (INV-09) + "send now". See
 /// spec/screens/letters.md.
@@ -24,6 +26,11 @@ class _LettersPageState extends State<LettersPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NewsletterNotifier>().load();
+      // The pinned block reads `itemsPerNewsletter` from settings and never
+      // defaults it, so the settings must actually be loaded for the "how many
+      // arrive" sentence to appear at all.
+      final settings = context.read<SettingsNotifier>();
+      if (settings.newsletter == null) settings.loadAll();
     });
   }
 
@@ -68,6 +75,11 @@ class _LettersPageState extends State<LettersPage> {
                             style: GoogleFonts.sourceSerif4(
                                 fontSize: 22, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 12),
+                        // 2.33.0 — the pin's only surface outside the
+                        // extension. Above "Send now" because it describes what
+                        // the NEXT letter will carry.
+                        PinnedSources(
+                            settings: context.watch<SettingsNotifier>().newsletter),
                         FilledButton.icon(
                           onPressed: notifier.isSending ? null : _sendNow,
                           style: FilledButton.styleFrom(backgroundColor: primary),

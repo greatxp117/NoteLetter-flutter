@@ -15,6 +15,12 @@ class NewsletterSettings {
   final List<String> sourceTypes;
   final int dateRangeDays;
 
+  /// How many items a letter carries. Contract-accepted since 2.0.0 and never
+  /// modelled here. **Half of it is the per-letter pin cap** (INV-16), which is
+  /// why the pinned block reads this rather than guessing: a control that
+  /// states a number the letter does not honour is a wrong promise.
+  final int itemsPerNewsletter;
+
   /// Suppress chunks included in a newsletter this recently, so the daily
   /// letter doesn't echo itself (2.2.0 surfaces this as an editable control).
   final int excludeRecentDays;
@@ -33,6 +39,7 @@ class NewsletterSettings {
     this.purposeText = '',
     this.sourceTypes = const [],
     this.dateRangeDays = 30, // contract default (rolling window)
+    this.itemsPerNewsletter = 5, // contract default
     this.excludeRecentDays = 7, // contract default
   });
 
@@ -46,6 +53,7 @@ class NewsletterSettings {
       purposeText: json['purposeText'] as String? ?? '',
       sourceTypes: (json['sourceTypes'] as List?)?.cast<String>() ?? [],
       dateRangeDays: json['dateRangeDays'] as int? ?? 30,
+      itemsPerNewsletter: json['itemsPerNewsletter'] as int? ?? 5,
       excludeRecentDays: json['excludeRecentDays'] as int? ?? 7,
     );
   }
@@ -62,6 +70,7 @@ class NewsletterSettings {
       if (purposeText.isNotEmpty) 'purposeText': purposeText,
       if (sourceTypes.isNotEmpty) 'sourceTypes': sourceTypes,
       'dateRangeDays': dateRangeDays,
+      'itemsPerNewsletter': itemsPerNewsletter,
       'excludeRecentDays': excludeRecentDays,
     };
   }
@@ -75,6 +84,7 @@ class NewsletterSettings {
     String? purposeText,
     List<String>? sourceTypes,
     int? dateRangeDays,
+    int? itemsPerNewsletter,
     int? excludeRecentDays,
   }) {
     return NewsletterSettings(
@@ -86,6 +96,7 @@ class NewsletterSettings {
       purposeText: purposeText ?? this.purposeText,
       sourceTypes: sourceTypes ?? this.sourceTypes,
       dateRangeDays: dateRangeDays ?? this.dateRangeDays,
+      itemsPerNewsletter: itemsPerNewsletter ?? this.itemsPerNewsletter,
       excludeRecentDays: excludeRecentDays ?? this.excludeRecentDays,
     );
   }

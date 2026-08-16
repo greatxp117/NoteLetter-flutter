@@ -45,6 +45,13 @@ class Api {
           String docId, Map<String, dynamic> updates) =>
       _http.patch('/fn_update_document', data: {'docId': docId, ...updates});
 
+  /// Pin / unpin a source for the next letter (2.31.2, ADR-032, INV-16).
+  /// `includeInNextLetter` is the request key; the stored field is
+  /// `next_letter_requested_at`, a Timestamp rather than a boolean so overflow
+  /// beyond the per-letter cap is CARRIED oldest-first rather than dropped.
+  Future<Map<String, dynamic>> setNextLetter(String docId, bool on) =>
+      updateDocument(docId, {'includeInNextLetter': on});
+
   Future<Map<String, dynamic>> deleteDocument(String docId) =>
       _http.post('/fn_delete_document', data: {'docId': docId});
 

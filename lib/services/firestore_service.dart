@@ -43,6 +43,32 @@ class FirestoreService {
             }).toList());
   }
 
+  /// Pinned-for-the-next-letter sources (2.33.0). **Its own subscription, not a
+  /// filter over [subscribeDocuments]**: that one is capped at the 200 most
+  /// recent, so a pin on an older source would silently never appear.
+  ///
+  /// Ordered by the field and filtered client-side rather than with `!= null`,
+  /// because an unpin writes **null** rather than deleting the key, so those
+  /// rows still come back and are dropped here. `orderBy` alone already
+  /// excludes documents that never had the field, which is nearly all of them.
+  Stream<List<Document>> subscribePinnedDocuments() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('documents')
+        .where('user_id', isEqualTo: uid)
+        .orderBy('next_letter_requested_at')
+        .snapshots()
+        .map((snap) => snap.docs
+            .where((d) => d.data()['next_letter_requested_at'] != null)
+            .map((d) {
+              final data = Map<String, dynamic>.from(d.data());
+              data.remove('embedding');
+              return Document.fromJson(d.id, data);
+            })
+            .toList());
+  }
+
   /// Realtime tags list. Strips `embedding` (INV-05).
   Stream<List<Tag>> subscribeTags() {
     final uid = _uid;
