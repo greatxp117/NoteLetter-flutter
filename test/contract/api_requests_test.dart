@@ -147,6 +147,13 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   'fn_update_document': (b) => Api.instance
       .updateDocument(b['docId'], Map<String, dynamic>.of(b)..remove('docId')),
   'fn_delete_document': (b) => Api.instance.deleteDocument(b['docId']),
+  'fn_set_read_state': (b) =>
+      Api.instance.setReadState(b['docId'], b['finished'] as bool),
+  'fn_update_chunk_tags': (b) =>
+      Api.instance.updateChunkTags(b['documentId'], _maps(b['overrides'])),
+  'fn_suggest_shelf_split': (b) => Api.instance.suggestShelfSplit(b['tagId']),
+  'fn_split_shelf': (b) =>
+      Api.instance.splitShelf(b['tagId'], _maps(b['parts'])),
   'fn_cancel_document': (b) => Api.instance.cancelDocument(b['docId']),
   'fn_retry_document': (b) => Api.instance.retryDocument(b['docId']),
   'fn_update_content': (b) =>
@@ -210,6 +217,9 @@ const _suites = [
   'api/organization',
   'api/notification-channels',
   'api/device-registration',
+  // 4.0.0 realignment — the suites this client now implements.
+  'api/read-state',
+  'api/chunk-tags',
 ];
 
 // Endpoints whose builder needs the request METHOD (and possibly query) — the
