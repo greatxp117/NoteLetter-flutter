@@ -5,6 +5,7 @@ import '../models/tag.dart';
 import '../state/tags_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
+import 'tags/split_shelf_sheet.dart';
 
 /// Tags — list/create/edit/delete over the live tags subscription. Mutations go
 /// through `fn_*` (INV-04). See spec/api/tags.md.
@@ -39,6 +40,16 @@ class _TagsPageState extends State<TagsPage> {
             color: result.color);
     if (!mounted) return;
     if (err != null) AppToast.show(context, err, type: ToastType.error);
+  }
+
+  /// Review-before-write: the sheet returns true only after fn_split_shelf
+  /// succeeded. The parent shelf is kept either way (ADR-025) — a parent
+  /// deleted the moment it empties would be silently re-created by the
+  /// auto-tagger the next time a document fits none of the children.
+  Future<void> _split(Tag tag) async {
+    await SplitShelfSheet.show(context, tag.id, tag.title);
+    // No reload: tags are a live subscription (INV-02), so the new shelves and
+    // the parent's recomputed count arrive on their own.
   }
 
   Future<void> _delete(Tag tag) async {
@@ -105,6 +116,7 @@ class _TagsPageState extends State<TagsPage> {
                         muted: muted,
                         onEdit: () => _edit(existing: t),
                         onDelete: () => _delete(t),
+                        onSplit: () => _split(t),
                       )),
               ],
             ),
@@ -120,12 +132,14 @@ class _TagRow extends StatelessWidget {
   final Color muted;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onSplit;
 
   const _TagRow({
     required this.tag,
     required this.muted,
     required this.onEdit,
     required this.onDelete,
+    required this.onSplit,
   });
 
   @override
@@ -175,6 +189,14 @@ class _TagRow extends StatelessWidget {
               ],
             ),
           ),
+          // 2.20.0 — offered only at >= 5 volumes. ABSENT below that rather
+          // than disabled: the endpoint 400s there, and a control that cannot
+          // work is worse than no control.
+          if (tag.documentCount >= splitMinDocuments)
+            IconButton(
+                tooltip: 'Split this shelf',
+                icon: const Icon(Icons.call_split, size: 18),
+                onPressed: onSplit),
           IconButton(
               icon: const Icon(Icons.edit_outlined, size: 18),
               onPressed: onEdit),

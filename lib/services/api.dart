@@ -116,6 +116,23 @@ class Api {
           String tagId, Map<String, dynamic> updates) =>
       _http.post('/fn_update_tag', data: {'tagId': tagId, ...updates});
 
+  /// Propose how one shelf could be divided (2.20.0, ADR-025). **Stateless —
+  /// saves nothing**, the `fn_suggest_tags` shape, which is what keeps the LLM
+  /// call out of the write path.
+  ///
+  /// 400 below 5 documents (a split has nothing to divide), and `parts: []` is
+  /// a 200 meaning the shelf does not divide cleanly — not an error.
+  Future<Map<String, dynamic>> suggestShelfSplit(String tagId) =>
+      _http.post('/fn_suggest_shelf_split', data: {'tagId': tagId});
+
+  /// Execute a split the user has REVIEWED. The parent shelf is never deleted,
+  /// even when every document moves — a parent deleted the moment it empties
+  /// would be silently re-created by the auto-tagger the next time a document
+  /// fits none of the children.
+  Future<Map<String, dynamic>> splitShelf(
+          String tagId, List<Map<String, dynamic>> parts) =>
+      _http.post('/fn_split_shelf', data: {'tagId': tagId, 'parts': parts});
+
   Future<Map<String, dynamic>> deleteTag(String tagId) =>
       _http.post('/fn_delete_tag', data: {'tagId': tagId});
 
