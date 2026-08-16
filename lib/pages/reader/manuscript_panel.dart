@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,6 +6,9 @@ import '../../models/chunk.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import 'reader_ui.dart';
+import 'package:visibility_detector/visibility_detector.dart';
+import 'dwell.dart';
+import '../../services/firestore_service.dart';
 
 /// One editable passage. `chunkId == null` marks a passage created by a split
 /// (sent to `fn_update_content` with `chunkId: null` so the backend mints one).
@@ -67,6 +71,12 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
   @override
   void dispose() {
+    for (final t in _dwellTimers.values) {
+      t.cancel();
+    }
+    _flushTimer?.cancel();
+    // Flush on the way out — unmount is one of the three flush points.
+    _flush();
     for (final c in _controllers.values) {
       c.dispose();
     }
@@ -248,6 +258,55 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     });
   }
 
+  // ── Read tracking (3.1.0, ADR-039) ───────────────────────────────────────
+  // A passage is read once continuously visible for
+  // `min(0.5 x words / 220 x 60, 20)` seconds. The timer RESETS when it leaves,
+  // so a fast scroll to the bottom marks nothing — that is the whole point of
+  // the rule, and the reason a fixed short dwell was rejected.
+  final Map<String, Timer> _dwellTimers = {};
+  final Set<String> _readThisSession = {};
+  final Set<String> _pendingFlush = {};
+  Timer? _flushTimer;
+
+  void _onVisibility(_EditChunk c, double fraction) {
+    if (!mounted || _editing) return;   // editing is not reading
+    // A split-created passage has no id yet — nothing to record against.
+    final id = c.chunkId;
+    if (id == null || id.isEmpty || _readThisSession.contains(id)) return;
+
+    // Not a fixed threshold: a passage taller than the screen can never be
+    // 50% visible, so anything at all counts as on-screen and the DWELL is
+    // what discriminates.
+    if (fraction <= 0) {
+      _dwellTimers.remove(id)?.cancel();
+      return;
+    }
+    if (_dwellTimers.containsKey(id)) return;
+    _dwellTimers[id] = Timer(dwellFor(wordsIn(c.text)), () {
+      _dwellTimers.remove(id);
+      if (!mounted) return;
+      _readThisSession.add(id);
+      _pendingFlush.add(id);
+      _scheduleFlush();
+    });
+  }
+
+  // Batched (ADR-039 §4): accumulate and flush once, never one write per
+  // scroll event. Firestore's +1 rule is per document, so many distinct
+  // chunks commit together happily.
+  void _scheduleFlush() {
+    _flushTimer ??= Timer(const Duration(seconds: 15), _flush);
+  }
+
+  Future<void> _flush() async {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    if (_pendingFlush.isEmpty) return;
+    final ids = _pendingFlush.toList();
+    _pendingFlush.clear();
+    await FirestoreService.instance.logChunksRead(widget.docId, ids);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ui = ReaderUi(context);
@@ -284,7 +343,10 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       ...List.generate(visible.length, (i) {
         final c = visible[i];
         final realIdx = _chunks.indexOf(c);
-        return Container(
+        return VisibilityDetector(
+          key: Key('dwell-${c.chunkId ?? 'new-$i'}'),
+          onVisibilityChanged: (info) => _onVisibility(c, info.visibleFraction),
+          child: Container(
           margin: const EdgeInsets.only(bottom: 20),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -367,6 +429,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                 ),
               ),
           ]),
+        ),
         );
       }),
       if (_error != null)

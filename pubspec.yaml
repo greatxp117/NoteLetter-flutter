@@ -23,6 +23,7 @@ dependencies:
   flutter_html: ^3.0.0
   audioplayers: ^6.1.0
   shared_preferences: ^2.3.2
+  visibility_detector: ^0.4.0+2
 
 dev_dependencies:
   flutter_test:

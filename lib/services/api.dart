@@ -52,6 +52,21 @@ class Api {
   Future<Map<String, dynamic>> setNextLetter(String docId, bool on) =>
       updateDocument(docId, {'includeInNextLetter': on});
 
+  /// Mark a document finished, or un-mark it (3.1.0, ADR-039).
+  ///
+  /// An endpoint rather than a client write because **un-finish has to be
+  /// possible**: `read_events` is append-only and the rules permit a client
+  /// only a `+1`, so nothing client-side could ever undo a mark. Sole writer of
+  /// `finished_at` AND of the `doc_finished` event, so the automatic
+  /// scroll-to-end finish and the manual control take one path.
+  ///
+  /// [finished] is a required boolean, never a toggle — a toggle makes the
+  /// result depend on state the client may have read seconds ago, and two
+  /// surfaces set it.
+  Future<Map<String, dynamic>> setReadState(String docId, bool finished) =>
+      _http.post('/fn_set_read_state',
+          data: {'docId': docId, 'finished': finished});
+
   Future<Map<String, dynamic>> deleteDocument(String docId) =>
       _http.post('/fn_delete_document', data: {'docId': docId});
 

@@ -416,6 +416,40 @@ class FirestoreService {
     });
   }
 
+  /// Passages the reader actually read, flushed as ONE batch (INV-03b: never
+  /// one write per scroll event). Each chunk gets its own +1, which the rules
+  /// allow because that rule is per document. Fire-and-forget, exactly like
+  /// [logReadEvent] — a failed log must never block the UI.
+  Future<void> logChunksRead(String documentId, List<String> chunkIds) async {
+    final uid = _uid;
+    final ids = chunkIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (uid == null || ids.isEmpty) return;
+    try {
+      final batch = _db.batch();
+      for (final id in ids) {
+        final ref = _db.collection('chunks').doc(id);
+        final snap = await ref.get();
+        if (!snap.exists) continue;
+        batch.update(ref, {
+          'view_count': ((snap.data()?['view_count'] as int?) ?? 0) + 1,
+          'last_viewed_at': FieldValue.serverTimestamp(),
+        });
+        batch.set(_db.collection('read_events').doc(), {
+          'user_id': uid,
+          'event_type': 'chunk_read',
+          'document_id': documentId,
+          'chunk_id': id,
+          'created_at': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+    } catch (_) {
+      // fire-and-forget
+    }
+  }
+
+  /// Mark a document finished / un-finish it (3.1.0). Delegates to the
+  /// endpoint, which is the SOLE writer of `finished_at` and `doc_finished`.
   /// The ONE sanctioned transaction that bumps a read counter and writes the
   /// matching `read_events` doc (INV-03a/INV-03b). Fire-and-forget — a failed
   /// log must never block the UI.

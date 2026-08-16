@@ -14,6 +14,8 @@ import 'reader/reorganize_sheet.dart';
 import 'reader/source_freshness.dart';
 import 'reader/speed_read_panel.dart';
 import 'reader/summary_panel.dart';
+import '../services/api.dart';
+import '../widgets/app_toast.dart';
 
 /// Reader — one-shot doc + chunks (`chunk_index` asc), fires `logReadEvent`
 /// on open (INV-03). Six panels (Summary/Manuscript/SpeedRead/Listen/Original/
@@ -27,6 +29,7 @@ class ReaderPage extends StatefulWidget {
 }
 
 class _ReaderPageState extends State<ReaderPage> {
+  bool _finishBusy = false;
   bool _loading = true;
   String? _error;
   Document? _document;
@@ -149,6 +152,7 @@ class _ReaderPageState extends State<ReaderPage> {
                           _bylineRow(ui, doc),
                           const SizedBox(height: 12),
                           _metaRow(ui, doc),
+                          _finishControl(ui, doc),
                           const SizedBox(height: 16),
                           _tabBar(ui),
                           const SizedBox(height: 24),
@@ -280,7 +284,62 @@ class _ReaderPageState extends State<ReaderPage> {
       stat('${doc.viewCount}', 'Views'),
       stat(doc.lastViewedAt != null ? _fmtDate(doc.lastViewedAt!) : 'Never',
           'Last read'),
+      // Coverage, rendered HERE and only here (screens/reader.md): every chunk
+      // is already in memory, so it costs no extra read — the same number on a
+      // list screen would be one query per row. Since 4.0.0 view_count counts
+      // only chunk_read, so this means passages READ and can no longer be moved
+      // by a newsletter delivery or a search glance.
+      stat('${_chunks.where((c) => c.viewCount > 0).length} / ${_chunks.length}',
+          'Passages read'),
     ]);
+  }
+
+  /// Finish / un-finish (3.1.0, ADR-039). The label says which it will do —
+  /// never a checkbox whose meaning the reader has to infer — and the write is
+  /// NOT optimistic: `finished_at` comes back from the response rather than
+  /// being minted locally.
+  Widget _finishControl(ReaderUi ui, Document doc) {
+    final finished = doc.finishedAt != null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(children: [
+        OutlinedButton(
+          onPressed: _finishBusy ? null : () => _setFinished(!finished),
+          child: Text(_finishBusy
+              ? 'Saving…'
+              : finished
+                  ? 'Mark as unfinished'
+                  : 'Mark as finished'),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            finished
+                ? 'You marked this finished${doc.finishedAt != null ? ' on ${_fmtDate(doc.finishedAt!)}' : ''}.'
+                : 'Reaching the end does this for you — this is for the times '
+                    'you got there another way.',
+            style: TextStyle(
+                fontFamily: 'Geist', fontSize: 12, color: ui.muted),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Future<void> _setFinished(bool finished) async {
+    setState(() => _finishBusy = true);
+    try {
+      await Api.instance.setReadState(widget.docId, finished);
+      // Re-read rather than mint a timestamp locally: the endpoint is the sole
+      // writer of finished_at and the server clock is the one that counts.
+      await _reload();
+    } catch (_) {
+      if (mounted) {
+        AppToast.show(context, 'Could not save that.', type: ToastType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _finishBusy = false);
+    }
   }
 
   Widget _tabBar(ReaderUi ui) {
