@@ -12,6 +12,7 @@ import '../models/organization_suggestion.dart';
 import '../models/newsletter_settings.dart';
 import '../models/tag.dart';
 import 'activity_merge.dart';
+import 'read_counters.dart';
 import 'auth_service.dart';
 
 /// Direct Firestore access (INV-02): documents/activity/tags are realtime
@@ -386,28 +387,64 @@ class FirestoreService {
     });
   }
 
-  /// The ONE sanctioned transaction that bumps `view_count`/`last_viewed_at`
-  /// and writes the matching `read_events` doc (INV-03). Fire-and-forget —
-  /// a failed log must never block the UI.
+  /// The ONE sanctioned transaction that bumps a read counter and writes the
+  /// matching `read_events` doc (INV-03a/INV-03b). Fire-and-forget — a failed
+  /// log must never block the UI.
+  ///
+  /// WHICH counter moves is a property of the EVENT, never of whether a
+  /// `chunkId` was passed. Since contract 4.0.0 (ADR-039 §Amendment) each event
+  /// moves EXACTLY ONE counter:
+  ///
+  ///   doc_opened    → documents.view_count + last_viewed_at
+  ///   chunk_read    → chunks.view_count    + last_viewed_at
+  ///   chunk_viewed  → chunks.search_view_count, and nothing else
+  ///
+  /// This client used to bump the document on EVERY event and the chunk on any
+  /// `chunkId`, which meant expanding a search result cleared the source's
+  /// unread dot and counted as having read the passage. A counter fed by more
+  /// than one event cannot be read as an answer to anything — that is the whole
+  /// of 4.0.0, and this client is configured against real prod, so the old
+  /// behaviour re-inflated counters the 4.0.0 backfill had just corrected.
   Future<void> logReadEvent(String eventType, String documentId,
       [String? chunkId]) async {
     final uid = _uid;
     if (uid == null) return;
+    // The rule lives in read_counters.dart as a pure function so it can be
+    // asserted directly — this transaction cannot be (see that file).
+    final targets = readCounterTargets(eventType, chunkId: chunkId);
+    final bumpsDocument = targets.document;
+    final bumpsChunkRead = targets.chunkRead;
+    final bumpsChunkSearch = targets.chunkSearch;
     try {
       await _db.runTransaction((tx) async {
         final docRef = _db.collection('documents').doc(documentId);
-        final docSnap = await tx.get(docRef);
-        tx.update(docRef, {
-          'view_count': ((docSnap.data()?['view_count'] as int?) ?? 0) + 1,
-          'last_viewed_at': FieldValue.serverTimestamp(),
-        });
+        // Firestore requires every read before any write in a transaction.
+        final docSnap = bumpsDocument ? await tx.get(docRef) : null;
+        final chunkRef = (bumpsChunkRead || bumpsChunkSearch)
+            ? _db.collection('chunks').doc(chunkId)
+            : null;
+        final chunkSnap = chunkRef != null ? await tx.get(chunkRef) : null;
 
-        if (chunkId != null) {
-          final chunkRef = _db.collection('chunks').doc(chunkId);
-          final chunkSnap = await tx.get(chunkRef);
-          tx.update(chunkRef, {
-            'view_count': ((chunkSnap.data()?['view_count'] as int?) ?? 0) + 1,
+        if (bumpsDocument) {
+          tx.update(docRef, {
+            'view_count': ((docSnap!.data()?['view_count'] as int?) ?? 0) + 1,
             'last_viewed_at': FieldValue.serverTimestamp(),
+          });
+        }
+        if (bumpsChunkRead) {
+          tx.update(chunkRef!, {
+            'view_count': ((chunkSnap!.data()?['view_count'] as int?) ?? 0) + 1,
+            'last_viewed_at': FieldValue.serverTimestamp(),
+          });
+        }
+        if (bumpsChunkSearch) {
+          // No last_viewed_at: the rules permit this shape and only this shape,
+          // and how recently a passage was glanced at in a result list is not a
+          // question any screen asks. Absent on every pre-4.0.0 chunk, so the
+          // `?? 0` is the contract's "treat absent as 0", not padding.
+          tx.update(chunkRef!, {
+            'search_view_count':
+                ((chunkSnap!.data()?['search_view_count'] as int?) ?? 0) + 1,
           });
         }
 
