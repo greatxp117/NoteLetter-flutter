@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "402841655223",
+    "project_id": "noteletter-7a111",
+    "storage_bucket": "noteletter-7a111.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:402841655223:android:85ddd3eafe65225d6f7a32",
+        "android_client_info": {
+          "package_name": "xp.NoteLetter.Flutter"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "402841655223-h6f2mc0ir141s18smscd6shvqkspsr44.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB22rHdOE0SiG_BCv5J3JW6b3JUl5c7-AI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "402841655223-h6f2mc0ir141s18smscd6shvqkspsr44.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "402841655223-v2n3mj3q80kli2gtmevavgmmq4p6a63k.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "xp.NoteLetter"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
