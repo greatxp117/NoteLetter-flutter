@@ -146,7 +146,7 @@ class _TagRow extends StatelessWidget {
             width: 14,
             height: 14,
             decoration: BoxDecoration(
-              color: _parseColor(tag.color) ?? muted,
+              color: AppColors.shelfColor(tag.color) ?? muted,
               shape: BoxShape.circle,
             ),
           ),
@@ -187,13 +187,6 @@ class _TagRow extends StatelessWidget {
     );
   }
 
-  Color? _parseColor(String? hex) {
-    if (hex == null) return null;
-    var h = hex.replaceFirst('#', '').trim();
-    if (h.length == 6) h = 'FF$h';
-    final v = int.tryParse(h, radix: 16);
-    return v == null ? null : Color(v);
-  }
 }
 
 class _TagDraft {
@@ -216,14 +209,17 @@ class _TagDialogState extends State<_TagDialog> {
       TextEditingController(text: widget.existing?.title ?? '');
   late final TextEditingController _desc =
       TextEditingController(text: widget.existing?.description ?? '');
-  late final TextEditingController _color =
-      TextEditingController(text: widget.existing?.color ?? '');
+  // 2.15.0 (ADR-022): a shelf's colour is a design-token NAME from a closed
+  // set of ten, not a colour value. Held as a nullable name rather than free
+  // text — the old field was labelled "Color (hex, e.g. #9D352D)", which could
+  // not produce a conforming value and invited a 400 for anything the user
+  // typed that was not a valid 6-digit hex.
+  late String? _color = widget.existing?.color;
 
   @override
   void dispose() {
     _title.dispose();
     _desc.dispose();
-    _color.dispose();
     super.dispose();
   }
 
@@ -243,10 +239,30 @@ class _TagDialogState extends State<_TagDialog> {
             controller: _desc,
             decoration: const InputDecoration(labelText: 'Description'),
           ),
-          TextField(
-            controller: _color,
-            decoration:
-                const InputDecoration(labelText: 'Color (hex, e.g. #9D352D)'),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Colour',
+                style: Theme.of(context).textTheme.labelMedium),
+          ),
+          const SizedBox(height: 8),
+          // The ten names are the whole writable vocabulary. A legacy hex on an
+          // existing shelf still RENDERS (AppColors.shelfColor tolerates it and
+          // there is no backfill) — it simply matches no swatch, so saving
+          // without touching this leaves the stored value alone.
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in AppColors.shelfColors.entries)
+                _Swatch(
+                  name: entry.key,
+                  color: entry.value,
+                  selected: _color == entry.key,
+                  onTap: () => setState(
+                      () => _color = _color == entry.key ? null : entry.key),
+                ),
+            ],
           ),
         ],
       ),
@@ -263,13 +279,59 @@ class _TagDialogState extends State<_TagDialog> {
               _TagDraft(
                 title,
                 _desc.text.trim().isEmpty ? null : _desc.text.trim(),
-                _color.text.trim().isEmpty ? null : _color.text.trim(),
+                _color,
               ),
             );
           },
           child: const Text('Save'),
         ),
       ],
+    );
+  }
+}
+
+/// One shelf colour. Labelled by its token name for screen readers, because a
+/// bare circle names nothing.
+class _Swatch extends StatelessWidget {
+  const _Swatch({
+    required this.name,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String name;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: name,
+      selected: selected,
+      button: true,
+      child: Tooltip(
+        message: name,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: selected
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

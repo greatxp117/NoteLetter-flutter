@@ -333,7 +333,7 @@ class _DocumentRowState extends State<_DocumentRow> {
         break;
       default:
         statusColor = Colors.orange;
-        statusLabel = 'Processing';
+        statusLabel = item.statusLabel;
     }
 
     final wordCount = item.wordCount;

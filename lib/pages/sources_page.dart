@@ -32,12 +32,19 @@ class SourcesPage extends StatefulWidget {
   final String? cloudConnectReason;
   final String? cloudConnectOrg; // 'enabled' on org_upgrade success
 
+  /// 2.21.0 (ADR-026) — `new` | `reconnected`, read from the integration doc
+  /// immediately before it is overwritten, which is the only moment a reconnect
+  /// is still distinguishable from a first connect. **Open vocabulary**: any
+  /// other value takes the ordinary success path.
+  final String? cloudConnectConnection;
+
   const SourcesPage({
     super.key,
     this.cloudConnectResult,
     this.cloudConnectProvider,
     this.cloudConnectReason,
     this.cloudConnectOrg,
+    this.cloudConnectConnection,
   });
 
   @override
@@ -92,14 +99,22 @@ class _SourcesPageState extends State<SourcesPage> {
           ? (_providers[provider] ?? provider)
           : 'Your account';
       final org = widget.cloudConnectOrg == 'enabled';
+      // 2.21.0 — a re-authorisation is not a new connection. Saying "connected"
+      // for a routine token refresh is wrong, and auto-opening the import
+      // picker on every rotation nags: that prompt is for a library GAINING a
+      // source. Open vocabulary, so anything unrecognised takes the new-connect
+      // path rather than falling into silence.
+      final reconnected = widget.cloudConnectConnection == 'reconnected';
       AppToast.show(
         context,
-        org
-            ? '$name connected — auto-organization enabled.'
-            : '$name connected.',
+        reconnected
+            ? '$name was already connected — sign-in refreshed, nothing else changed.'
+            : org
+                ? '$name connected — auto-organization enabled.'
+                : '$name connected.',
         type: ToastType.success,
       );
-      if (provider != null) {
+      if (provider != null && !reconnected) {
         await cloud.openPicker(provider); // auto-open the import picker
       }
     } else {

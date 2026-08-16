@@ -68,6 +68,8 @@ GoRouter createRouter(AuthNotifier authNotifier) {
               cloudConnectProvider: state.uri.queryParameters['provider'],
               cloudConnectReason: state.uri.queryParameters['reason'],
               cloudConnectOrg: state.uri.queryParameters['org'],
+              cloudConnectConnection:
+                  state.uri.queryParameters['connection'],
             ),
           ),
           GoRoute(

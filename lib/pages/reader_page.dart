@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 import '../models/chunk.dart';
 import '../models/document.dart';
 import '../services/firestore_service.dart';
@@ -145,6 +146,7 @@ class _ReaderPageState extends State<ReaderPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SourceFreshness(docId: widget.docId, doc: doc!),
+                          _bylineRow(ui, doc),
                           const SizedBox(height: 12),
                           _metaRow(ui, doc),
                           const SizedBox(height: 16),
@@ -181,6 +183,80 @@ class _ReaderPageState extends State<ReaderPage> {
       default:
         return SummaryPanel(doc: _document!);
     }
+  }
+
+  /// Byline & reading cost (2.13.0, ADR-020 — screens/reader.md §Header).
+  /// What the document IS, before what the system did to it. Every part is
+  /// optional; the row disappears entirely when none apply.
+  Widget _bylineRow(ReaderUi ui, Document doc) {
+    final parts = <String>[];
+
+    // Rendered AS STORED — never reformatted, re-cased or split.
+    if (doc.author != null && doc.author!.trim().isNotEmpty) {
+      parts.add(doc.author!);
+    }
+
+    // publish_date is an ISO `YYYY-MM-DD` STRING, not a Timestamp: INV-06 does
+    // not apply, so it is formatted as a calendar date with NO timezone
+    // conversion. Converting it would render an article published "January 3"
+    // as "January 2" for every reader west of UTC. And createdAt is never
+    // substituted — "when you saved it" and "when it was published" differ.
+    final published = _fmtPublishDate(doc.publishDate);
+    if (published != null) parts.add(published);
+
+    final host = _sourceHost(doc.sourceUrl);
+    if (host != null) parts.add(host);
+
+    // max(1, ceil(word_count / 220)) — normative, so every client says the
+    // same number. 220 wpm is the same constant the read-tracking dwell rule
+    // uses; a client must not hold two opinions about reading speed.
+    final words = doc.wordCount ?? 0;
+    if (words > 0 && doc.sourceAudioUrl == null) {
+      final mins = (words / 220).ceil().clamp(1, 1 << 30);
+      parts.add('$mins min read');
+    }
+
+    if (parts.isEmpty) return const SizedBox.shrink();
+
+    final row = Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        parts.join('  ·  '),
+        style: TextStyle(
+            fontFamily: 'Geist', fontSize: 13, color: ui.muted),
+      ),
+    );
+
+    // The whole byline links to the source when there is one.
+    if (doc.sourceUrl == null) return row;
+    return InkWell(
+      onTap: () => launchUrlString(doc.sourceUrl!,
+          mode: LaunchMode.externalApplication),
+      child: row,
+    );
+  }
+
+  /// `YYYY-MM-DD` → "3 January 2026". Returns null rather than guessing when
+  /// the string is not the shape the contract promises.
+  static String? _fmtPublishDate(String? iso) {
+    if (iso == null) return null;
+    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(iso.trim());
+    if (m == null) return null;
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final mo = int.parse(m.group(2)!);
+    if (mo < 1 || mo > 12) return null;
+    return '${int.parse(m.group(3)!)} ${months[mo - 1]} ${m.group(1)}';
+  }
+
+  /// The hostname, `www.` stripped. Null when there is no parseable host.
+  static String? _sourceHost(String? url) {
+    if (url == null) return null;
+    final h = Uri.tryParse(url)?.host;
+    if (h == null || h.isEmpty) return null;
+    return h.startsWith('www.') ? h.substring(4) : h;
   }
 
   Widget _metaRow(ReaderUi ui, Document doc) {

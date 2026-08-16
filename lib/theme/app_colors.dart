@@ -17,6 +17,10 @@ class AppColors {
   static const _brick400 = Color(0xFFE97D39);
   static const _brick500 = Color(0xFF9D352D);
   static const _sage500 = Color(0xFF6F8159);
+  static const _sage700 = Color(0xFF495936);
+  static const _brick700 = Color(0xFF6E1F18);
+  static const _ink300 = Color(0xFF8A91A4);
+  static const _ink400 = Color(0xFF4E5566);
   static const _plum500 = Color(0xFF3F2C3E);
   static const _plum600 = Color(0xFF2D1F2E);
 
@@ -57,4 +61,45 @@ class AppColors {
   static const borderDark = Color(0x1AFFFFFF); // --border rgba(255,255,255,.10)
   static const secondaryDark = Color(0x14FFFFFF); // --secondary rgba(255,255,255,.08)
   static const mutedForegroundDark = Color(0xA6FFFFFF); // --fg-muted rgba(255,255,255,.65)
+
+  // ── Shelf colours (2.15.0, ADR-022) ──────────────────────────────────────
+  // `/tags.color` stores a design-token NAME, not a colour value — the one
+  // place a token name crosses the wire as data. A hex literal cannot be
+  // themed by a client that renders light and dark, and a CSS `var()` string
+  // means nothing off the web; what every client can act on is WHICH token.
+  //
+  // Raw steps only, never semantic tokens: semantics flip between themes, so a
+  // shelf coloured `--seal` would change hue when the user toggles the theme.
+  // All ten already exist in the palette above — this adds no token.
+  //
+  // CLOSED FOR WRITING, TOLERANT ON READING. Legacy 6-digit hex stays valid
+  // forever (every auto-created tag holds the `#6B7280` default and there is no
+  // backfill), and an unrecognised value renders muted rather than failing.
+  static const shelfColors = <String, Color>{
+    'sage-500': _sage500,
+    'sage-700': _sage700,
+    'brick-400': _brick400,
+    'brick-500': _brick500,
+    'brick-700': _brick700,
+    'plum-500': _plum500,
+    'plum-600': _plum600,
+    'ink-300': _ink300,
+    'ink-400': _ink400,
+    'ink-500': _ink500,
+  };
+
+  /// Resolve a `/tags.color` value. Returns null for anything unrecognised so
+  /// the caller can fall back to its own muted colour — never an error.
+  static Color? shelfColor(String? value) {
+    if (value == null) return null;
+    final v = value.trim();
+    final token = shelfColors[v];
+    if (token != null) return token;
+    // Legacy hex, permanently valid.
+    var h = v.replaceFirst('#', '');
+    if (h.length == 6) h = 'FF$h';
+    if (h.length != 8) return null;
+    final n = int.tryParse(h, radix: 16);
+    return n == null ? null : Color(n);
+  }
 }

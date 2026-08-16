@@ -192,6 +192,9 @@ class FirestoreService {
             'word_count': data['word_count'],
             'thumbnail_url': data['thumbnail_url'],
             'processed_at': tsMs(data['processed_at']),
+            // 2.19.0 (ADR-024) — which half of the pipeline is running.
+            // Meaningful only while status == processing.
+            'processing_stage': data['processing_stage'],
           },
           createdAt: tsMs(data['created_at']),
         );
