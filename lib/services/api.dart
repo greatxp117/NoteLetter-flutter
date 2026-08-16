@@ -52,6 +52,26 @@ class Api {
   Future<Map<String, dynamic>> setNextLetter(String docId, bool on) =>
       updateDocument(docId, {'includeInNextLetter': on});
 
+  // ── Scripture (2.23.0 / 2.24.0 / 2.26.0) ────────────────────────────────
+  /// Resolve a citation to the passages the library holds (`fn_scripture_lookup`).
+  /// The CLIENT parses the citation (ADR-027 §2); this asks what is behind it.
+  Future<Map<String, dynamic>> scriptureLookup(String reference,
+          {String? translation}) =>
+      _http.post('/fn_scripture_lookup', data: {
+        'reference': reference,
+        if (translation != null) 'translation': translation,
+      });
+
+  /// `/users/{uid}/settings/scripture_newsletter` — its OWN closed key set,
+  /// deliberately separate from the daily letter's (ADR-029). Sending a daily
+  /// key here is a 400, and vice versa.
+  Future<Map<String, dynamic>> updateScriptureNewsletterSettings(
+          Map<String, dynamic> partial) =>
+      _http.put('/fn_scripture_newsletter_settings', data: partial);
+
+  Future<Map<String, dynamic>> getScriptureNewsletterSettings() =>
+      _http.get('/fn_scripture_newsletter_settings');
+
   /// Per-chunk shelf overrides (2.35.0, ADR-034).
   ///
   /// A chunk INHERITS its document's shelves; this records the reader's

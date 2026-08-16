@@ -273,6 +273,12 @@ class FirestoreService {
   }
 
   /// Newsletter history by `generated_at desc` (INV-09).
+  ///
+  /// **Filtered `kind != "scripture"`, never `kind == "daily"`** (2.25.2): the
+  /// field is absent on every pre-2.24.0 record, so equality would drop a real
+  /// user's entire letter history. The filter is applied client-side for the
+  /// same reason the web reference does it — an inequality here would need its
+  /// own index and would exclude the documents that have no `kind` at all.
   Future<List<Newsletter>> listNewsletters({int limit = 30}) async {
     final uid = _uid;
     if (uid == null) return const [];
@@ -282,7 +288,26 @@ class FirestoreService {
         .orderBy('generated_at', descending: true)
         .limit(limit)
         .get();
-    return snap.docs.map((d) => Newsletter.fromJson(d.id, d.data())).toList();
+    return snap.docs
+        .map((d) => Newsletter.fromJson(d.id, d.data()))
+        .where((n) => !n.isScripture)
+        .toList();
+  }
+
+  /// The readings letter's own history — the other side of the same filter.
+  Future<List<Newsletter>> listScriptureNewsletters({int limit = 30}) async {
+    final uid = _uid;
+    if (uid == null) return const [];
+    final snap = await _db
+        .collection('newsletters')
+        .where('user_id', isEqualTo: uid)
+        .orderBy('generated_at', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs
+        .map((d) => Newsletter.fromJson(d.id, d.data()))
+        .where((n) => n.isScripture)
+        .toList();
   }
 
   /// Reader: one-shot doc + its chunks (`chunk_index` asc). Fires
