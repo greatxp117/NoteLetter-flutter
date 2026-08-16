@@ -52,6 +52,72 @@ class Api {
   Future<Map<String, dynamic>> setNextLetter(String docId, bool on) =>
       updateDocument(docId, {'includeInNextLetter': on});
 
+  // ── Study programs (2.34.0 ADR-033; reshaped 3.0.0 ADR-038) ─────────────
+  Future<Map<String, dynamic>> createStudyProgram(Map<String, dynamic> body) =>
+      _http.post('/fn_study_programs', data: body);
+
+  Future<Map<String, dynamic>> updateStudyProgram(
+          String programId, Map<String, dynamic> partial) =>
+      _http.put('/fn_study_programs', data: {'programId': programId, ...partial});
+
+  /// DELETE by query param, never PATCH.
+  Future<Map<String, dynamic>> deleteStudyProgram(String programId) =>
+      _http.delete('/fn_study_programs?programId=$programId');
+
+  /// 429 is a COOLDOWN, not an error — render it as copy.
+  Future<Map<String, dynamic>> requestStudySession(String programId) =>
+      _http.post('/fn_request_study_session', data: {'programId': programId});
+
+  /// `item.due_at` (epoch ms) in the response is the schedule's answer —
+  /// RENDER it, never compute it. `alreadyGraded` and `itemRetired` (INV-18)
+  /// are informational and must read as recorded, never as errors.
+  Future<Map<String, dynamic>> submitStudyAnswer(
+          String sessionId, String qid, String grade,
+          {String? answerText}) =>
+      _http.post('/fn_submit_study_answer', data: {
+        'sessionId': sessionId,
+        'qid': qid,
+        'grade': grade,
+        if (answerText != null && answerText.isNotEmpty) 'answerText': answerText,
+      });
+
+  /// Start a new unit (3.0.0, ADR-038). **The reader holds the pointer** — this
+  /// is always an explicit action, available with or without a syllabus, and
+  /// it snapshots the coverage frontier BEFORE the new positions land.
+  ///
+  /// [positions] is `{documentId: chunkIndex|null}`, asked once per `reading`
+  /// source at the moment of advancing; a position on a `notes` source is a
+  /// 400. **Deliberately not idempotent — confirm before calling.**
+  Future<Map<String, dynamic>> advanceStudyUnit(String programId,
+          {Map<String, dynamic>? positions}) =>
+      _http.post('/fn_study_advance_unit', data: {
+        'programId': programId,
+        if (positions != null && positions.isNotEmpty) 'positions': positions,
+      });
+
+  /// Stateless parse of an ordinary ingested syllabus document. Saves nothing.
+  Future<Map<String, dynamic>> suggestSyllabusPlan(
+          String programId, String documentId) =>
+      _http.post('/fn_suggest_syllabus_plan',
+          data: {'programId': programId, 'documentId': documentId});
+
+  /// 3.0.0: takes **`assessments`** where 2.x took `exams`, and `unitIndexes`
+  /// is gone — coverage is positional, so there is no index to be wrong about.
+  Future<Map<String, dynamic>> applySyllabusPlan(
+          String programId,
+          String documentId,
+          List<Map<String, dynamic>> units,
+          List<Map<String, dynamic>> assessments) =>
+      _http.post('/fn_apply_syllabus_plan', data: {
+        'programId': programId,
+        'documentId': documentId,
+        'units': units,
+        'assessments': assessments,
+      });
+
+  Future<Map<String, dynamic>> detachSyllabusPlan(String programId) =>
+      _http.delete('/fn_apply_syllabus_plan?programId=$programId');
+
   // ── Scripture (2.23.0 / 2.24.0 / 2.26.0) ────────────────────────────────
   /// Resolve a citation to the passages the library holds (`fn_scripture_lookup`).
   /// The CLIENT parses the citation (ADR-027 §2); this asks what is behind it.

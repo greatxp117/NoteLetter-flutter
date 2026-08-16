@@ -10,6 +10,7 @@ import '../models/notification_channel.dart';
 import '../models/organization_settings.dart';
 import '../models/organization_suggestion.dart';
 import '../models/newsletter_settings.dart';
+import '../models/study.dart';
 import '../models/tag.dart';
 import 'activity_merge.dart';
 import 'read_counters.dart';
@@ -66,6 +67,61 @@ class FirestoreService {
               data.remove('embedding');
               return Document.fromJson(d.id, data);
             })
+            .toList());
+  }
+
+  // ── Study (2.34.0, ADR-033) ─────────────────────────────────────────────
+  /// Programs, newest first. Read-only for clients (INV-04) — every write goes
+  /// through an `fn_study_*` endpoint.
+  Stream<List<StudyProgram>> subscribeStudyPrograms() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('study_programs')
+        .where('user_id', isEqualTo: uid)
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => StudyProgram.fromJson(d.id, d.data()))
+            .toList());
+  }
+
+  /// ONE session, live.
+  ///
+  /// This is the single record in the system a client watches **while a
+  /// function writes into it** — `responses` lands via `fn_submit_study_answer`
+  /// — and that is exactly what makes a session resumable: close the app
+  /// mid-session, come back, and the grades already given are there.
+  Stream<StudySession?> subscribeStudySession(String sessionId) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(null);
+    return _db.collection('study_sessions').doc(sessionId).snapshots().map((d) {
+      if (!d.exists) return null;
+      final data = d.data()!;
+      // A single-doc read cannot carry a `user_id ==` filter, so ownership is
+      // checked here rather than assumed.
+      if (data['user_id'] != uid) return null;
+      return StudySession.fromJson(d.id, data);
+    });
+  }
+
+  /// Session history for a program (or all programs when [programId] is null).
+  Stream<List<StudySession>> subscribeStudySessions({String? programId,
+      int limit = 30}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    var q = _db
+        .collection('study_sessions')
+        .where('user_id', isEqualTo: uid);
+    if (programId != null) {
+      q = q.where('program_id', isEqualTo: programId);
+    }
+    return q
+        .orderBy('generated_at', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => StudySession.fromJson(d.id, d.data()))
             .toList());
   }
 
