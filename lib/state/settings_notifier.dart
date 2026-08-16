@@ -66,12 +66,20 @@ class SettingsNotifier extends ChangeNotifier {
     }
   }
 
+  /// The raw body of the last `fn_newsletter_settings` PUT, so the screen can
+  /// read `activationSend` (2.30.0). Null until a save happens.
+  Map<String, dynamic>? lastActivation;
+
   Future<String?> saveNewsletter(NewsletterSettings settings) async {
     _isSaving = true;
     _error = null;
     notifyListeners();
     try {
-      await Api.instance.updateNewsletterSettings(settings.toJson());
+      final res = await Api.instance.updateNewsletterSettings(settings.toJson());
+      // 2.30.0 (ADR-031): present only when this request TRANSITIONED delivery
+      // on. Kept so the screen can state what the backend decided instead of
+      // inferring it — the reason vocabulary is open.
+      lastActivation = res;
       // Response echoes only the applied partial update — re-read the full
       // doc from Firestore rather than assume its shape.
       _newsletter = await FirestoreService.instance.getNewsletterSettings();

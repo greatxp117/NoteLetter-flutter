@@ -6,6 +6,8 @@ import '../models/newsletter_settings.dart';
 import '../state/settings_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
+import '../state/activation_message.dart';
+import '../state/schedule.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -17,6 +19,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   // Newsletter form controllers
   bool _enabled = true;
+  String _timezone = deviceTimezone();
   String _frequency = 'daily';
   final _deliveryTimeCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -43,6 +46,8 @@ class _SettingsPageState extends State<SettingsPage> {
   void _populateForm(NewsletterSettings s) {
     setState(() {
       _enabled = s.enabled;
+      // A stored zone always wins; the device guess is only a default.
+      _timezone = s.timezone.isNotEmpty ? s.timezone : deviceTimezone();
       _frequency = s.frequency;
       _dateRangeDays = s.dateRangeDays;
       _excludeRecentDays = s.excludeRecentDays;
@@ -67,21 +72,32 @@ class _SettingsPageState extends State<SettingsPage> {
       enabled: _enabled,
       frequency: _frequency,
       deliveryTime: _deliveryTimeCtrl.text.trim(),
+      timezone: _timezone,
       emailAddress: _emailCtrl.text.trim(),
       purposeText: _purposeCtrl.text.trim(),
       dateRangeDays: _dateRangeDays,
       excludeRecentDays: _excludeRecentDays,
     );
 
-    final error =
-        await context.read<SettingsNotifier>().saveNewsletter(updated);
+    final notifier = context.read<SettingsNotifier>();
+    final wasEnabled = current.enabled;
+    final error = await notifier.saveNewsletter(updated);
     if (!mounted) return;
 
     if (error != null) {
       AppToast.show(context, error, type: ToastType.error);
-    } else {
-      AppToast.show(context, 'Newsletter settings saved.', type: ToastType.success);
+      return;
     }
+
+    // 2.30.0 (ADR-031) — when this save TURNED delivery on, say what actually
+    // happened rather than "saved". The backend decides whether a letter goes
+    // now; this only reports it. Keyed on the transition, not the value, so a
+    // partial save that merely carries `enabled: true` says nothing new.
+    final activation = (!wasEnabled && _enabled)
+        ? activationMessage(notifier.lastActivation)
+        : null;
+    AppToast.show(context, activation ?? 'Newsletter settings saved.',
+        type: ToastType.success);
   }
 
 
@@ -159,6 +175,62 @@ class _SettingsPageState extends State<SettingsPage> {
                                 'Receive your personalised digest by email'),
                             activeThumbColor: primary,
                             contentPadding: EdgeInsets.zero,
+                          ),
+                          // 2.30.0 (ADR-031): said BEFORE the switch is
+                          // touched. Unannounced mail seconds after a settings
+                          // change reads as a bug. Shown only while off, since
+                          // it describes what turning it ON will do.
+                          if (!_enabled)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2, bottom: 6),
+                              child: Text(activationHint,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                      color: isDark
+                                          ? AppColors.mutedForegroundDark
+                                          : AppColors.mutedForeground)),
+                            ),
+                          // 2.29.0: the schedule is STATED from what was read,
+                          // never assumed. The web reference said "Arrives
+                          // tomorrow morning" to every reader, including
+                          // accounts that had no schedule at all.
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              scheduleSentence(
+                                enabled: _enabled,
+                                deliveryTime: _deliveryTimeCtrl.text.trim(),
+                                timezone: _timezone,
+                                frequency: _frequency,
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: isDark
+                                      ? AppColors.mutedForegroundDark
+                                      : AppColors.mutedForeground),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // 2.29.0 — a client that sends `deliveryTime` sends
+                          // `timezone` in the SAME call, or the orchestrator
+                          // reads the stored time as UTC.
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Timezone',
+                                  style: theme.textTheme.bodySmall
+                                      ?.copyWith(fontWeight: FontWeight.w500)),
+                              const SizedBox(height: 6),
+                              DropdownButtonFormField<String>(
+                                initialValue: _timezone,
+                                isExpanded: true,
+                                items: [
+                                  for (final tz in timezoneOptions(_timezone))
+                                    DropdownMenuItem(
+                                        value: tz, child: Text(tz)),
+                                ],
+                                onChanged: (v) => setState(
+                                    () => _timezone = v ?? _timezone),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 12),
                           Row(

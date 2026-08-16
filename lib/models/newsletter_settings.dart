@@ -23,6 +23,11 @@ class NewsletterSettings {
     this.enabled = true,
     this.emailAddress = '',
     this.deliveryTime = '07:00',
+    // A hardcoded default zone is a wrong promise for everyone outside it —
+    // 2.29.0's whole point. Callers building fresh settings pass
+    // `deviceTimezone()`; this constant only survives where nothing supplied
+    // one, and an empty string would be worse (the orchestrator would read the
+    // stored time as UTC).
     this.timezone = 'America/New_York',
     this.frequency = 'daily',
     this.purposeText = '',
