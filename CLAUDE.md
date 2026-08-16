@@ -2,7 +2,7 @@
 
 Flutter client for NoteLetter. Part of the multi-repo workspace — read the umbrella `../CLAUDE.md` and `../NoteLetter-contracts/spec/overview.md` before any data-layer work.
 
-## Status: pinned at contract 4.1.1 — Milestone-2 feature catch-up (2026-08-15), Study and Scripture deliberately unbuilt
+## Status: pinned at contract 4.1.1 — Milestone-2 catch-up done; Study + Scripture **data layer built, screens owed** (2026-08-15)
 
 **Contract version: 4.1.1** (2.8.0 → **4.1.1** on 2026-08-15, the Milestone-2 feature catch-up), targeting real project `noteletter-7a111` (web target only — native iOS/Android Firebase apps still not registered). `flutter analyze` clean apart from two pre-existing `landing_page` lints. Contract suite **179 tests green**, incl. two new fixture suites (`api/read-state`, `api/chunk-tags`) and three new pure-logic suites (`read_counters`, `dwell`, `chunk_shelves`).
 
@@ -12,7 +12,15 @@ Landed: **2.13.0** reader byline (`author`, `publish_date` as a *calendar* date 
 
 Three defects found by reading the code this touched, none on the task list: `ActivityItem.statusLabel` ended `default: return status` — **the 2.19.0 defect itself**, showing users the literal `pending_upload`; `readTime` used **200 wpm** where the contract normatively says 220, so this client disagreed with the web reference on every document; and `NewsletterSettings` never modelled `itemsPerNewsletter`, **half of which is the per-letter pin cap**, so the pinned block would have had to guess.
 
-**Deliberately unbuilt, recorded not skipped:** the **Study** vertical (2.34.0–3.0.0 — programs, SM-2 player, syllabus, units) and the **Scripture** vertical (2.22.0–2.28.x — parser port, shipped bible, readings letter, verse search). Neither has any Flutter surface, and a client without the surface owes nothing for correctness; their ten fixture suites have no adapter here. **4.1.0's reading-stats breakdown is also unbuilt** — that section is explicitly permissive.
+**Study and Scripture — the data layer is BUILT and proven; the screens are OWED.** This is a half-landed vertical and is recorded as such rather than as done.
+
+*Built and asserted (278 contract tests, all green):* the **citation parser** (`lib/scripture/parse.dart`, 22 cases) against a byte-identical copy of `spec/scripture-books.json` pinned by test — `aliases_douay_rheims` is never merged (DR "1 Kings" is 1 Samuel, "Ecclus" is Sirach, and both must return null), and a bare book name is not a citation; **all seven `fn_study_*` endpoints** plus `fn_scripture_lookup` and the scripture settings pair; **models** for programs/items/sessions/syllabus and `ScriptureNewsletterSettings` (its own closed key set); **subscriptions** including the single-doc session watch that makes a session resumable; and **adapters for all six fixture suites** (71 cases, green on the first run).
+
+*Fixed in passing:* `listNewsletters` filtered nothing, so the first scripture letter this account generates would have appeared in the **daily** letter history. Now `kind != "scripture"`, never `kind == "daily"` — the field is absent on every pre-2.24.0 record and equality would drop a real user's whole history.
+
+*Owed — the screens only:* `/study` programs list, the program editor (ordered source picker, `SourceKindPanel`, `UnitPanel`, syllabus attach → editable review → apply), the session player (non-optimistic grading, server-stated return dates, `chunk_read` where the excerpt mounts), the readings-letter surface and the `see all` day view. Roughly 1,700 lines of UI on the web reference. **None of it affects conformance** — the pin is honest at 4.1.1 because every contract-critical behaviour (request construction, read mapping, filters, the parser) is built and asserted; what is missing is surface, not correctness.
+
+*Two rules to honour when those screens land:* the readings letter renders **no send action** (`fn_build_scripture_newsletter` is an OIDC-only worker with no `fn_request_*` counterpart — a button there is the 1.5.1 defect again), and the **calendar is shown, not chosen**.
 
 **Not harness-provable, stated rather than implied:** `logReadEvent`'s transaction itself. `fake_cloud_firestore` cannot resolve here (4.1.1 is incompatible with `cloud_firestore` 6.x; 4.2.0 needs `meta ^1.17.0` against this SDK's 1.16.0), so the *rule* is extracted as a pure function and asserted while the Firestore plumbing is not. Same class as the web reference's own blind spot.
 
