@@ -1,0 +1,976 @@
+{
+  "canon": "catholic",
+  "book_count": 73,
+  "artifact": "contract artifact — ADR-027 §2. Clients EMBED this and parse locally.",
+  "matching": "case-insensitive; periods stripped; internal whitespace collapsed; longest match wins",
+  "ambiguity": "Douay-Rheims numbers Samuel/Kings as 1-4 Kings, so \"1 Kings\" means 1 Samuel there and 1 Kings in every modern edition. A parser MUST resolve these four to the MODERN reading and MUST NOT silently prefer the Douay-Rheims one; the aliases are listed so a scripture-aware extractor can resolve a DR edition's own headings correctly when it knows the edition.",
+  "books": [
+    {
+      "id": "gen",
+      "name": "Genesis",
+      "order": 1,
+      "section": "pentateuch",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "gen",
+        "gn",
+        "ge"
+      ]
+    },
+    {
+      "id": "exod",
+      "name": "Exodus",
+      "order": 2,
+      "section": "pentateuch",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "ex",
+        "exod",
+        "exo"
+      ]
+    },
+    {
+      "id": "lev",
+      "name": "Leviticus",
+      "order": 3,
+      "section": "pentateuch",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "lev",
+        "lv"
+      ]
+    },
+    {
+      "id": "num",
+      "name": "Numbers",
+      "order": 4,
+      "section": "pentateuch",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "num",
+        "nm",
+        "nb"
+      ]
+    },
+    {
+      "id": "deut",
+      "name": "Deuteronomy",
+      "order": 5,
+      "section": "pentateuch",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "deut",
+        "dt",
+        "dtn"
+      ]
+    },
+    {
+      "id": "josh",
+      "name": "Joshua",
+      "order": 6,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "josh",
+        "jos",
+        "jsh"
+      ],
+      "aliases_douay_rheims": [
+        "josue"
+      ]
+    },
+    {
+      "id": "judg",
+      "name": "Judges",
+      "order": 7,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "judg",
+        "jdg",
+        "jgs"
+      ]
+    },
+    {
+      "id": "ruth",
+      "name": "Ruth",
+      "order": 8,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "ruth",
+        "rth",
+        "ru"
+      ]
+    },
+    {
+      "id": "1sam",
+      "name": "1 Samuel",
+      "order": 9,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "1 sam",
+        "1sam",
+        "1 sm",
+        "1sm"
+      ],
+      "aliases_douay_rheims": [
+        "1 kings",
+        "1kings",
+        "1 kingdoms"
+      ],
+      "note": "Douay-Rheims calls this 1 Kings — see §Ambiguity."
+    },
+    {
+      "id": "2sam",
+      "name": "2 Samuel",
+      "order": 10,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "2 sam",
+        "2sam",
+        "2 sm",
+        "2sm"
+      ],
+      "aliases_douay_rheims": [
+        "2 kings",
+        "2kings",
+        "2 kingdoms"
+      ],
+      "note": "Douay-Rheims calls this 2 Kings — see §Ambiguity."
+    },
+    {
+      "id": "1kgs",
+      "name": "1 Kings",
+      "order": 11,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "1 kgs",
+        "1kgs",
+        "1 kg"
+      ],
+      "aliases_douay_rheims": [
+        "3 kings",
+        "3kings"
+      ],
+      "note": "Douay-Rheims calls this 3 Kings, and DR \"1 Kings\" is 1 Samuel — see §Ambiguity."
+    },
+    {
+      "id": "2kgs",
+      "name": "2 Kings",
+      "order": 12,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "2 kgs",
+        "2kgs",
+        "2 kg"
+      ],
+      "aliases_douay_rheims": [
+        "4 kings",
+        "4kings"
+      ],
+      "note": "Douay-Rheims calls this 4 Kings, and DR \"2 Kings\" is 2 Samuel — see §Ambiguity."
+    },
+    {
+      "id": "1chr",
+      "name": "1 Chronicles",
+      "order": 13,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "1 chr",
+        "1chr",
+        "1 ch"
+      ],
+      "aliases_douay_rheims": [
+        "1 paralipomenon",
+        "1 par"
+      ]
+    },
+    {
+      "id": "2chr",
+      "name": "2 Chronicles",
+      "order": 14,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "2 chr",
+        "2chr",
+        "2 ch"
+      ],
+      "aliases_douay_rheims": [
+        "2 paralipomenon",
+        "2 par"
+      ]
+    },
+    {
+      "id": "ezra",
+      "name": "Ezra",
+      "order": 15,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "ezra",
+        "ezr"
+      ],
+      "aliases_douay_rheims": [
+        "1 esdras",
+        "1 esd"
+      ]
+    },
+    {
+      "id": "neh",
+      "name": "Nehemiah",
+      "order": 16,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "neh",
+        "ne"
+      ],
+      "aliases_douay_rheims": [
+        "2 esdras",
+        "2 esd"
+      ]
+    },
+    {
+      "id": "tob",
+      "name": "Tobit",
+      "order": 17,
+      "section": "historical",
+      "deuterocanonical": true,
+      "abbreviations": [
+        "tob",
+        "tb"
+      ],
+      "aliases_douay_rheims": [
+        "tobias"
+      ]
+    },
+    {
+      "id": "jdt",
+      "name": "Judith",
+      "order": 18,
+      "section": "historical",
+      "deuterocanonical": true,
+      "abbreviations": [
+        "jdt",
+        "jth"
+      ]
+    },
+    {
+      "id": "esth",
+      "name": "Esther",
+      "order": 19,
+      "section": "historical",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "esth",
+        "est",
+        "es"
+      ]
+    },
+    {
+      "id": "1macc",
+      "name": "1 Maccabees",
+      "order": 20,
+      "section": "historical",
+      "deuterocanonical": true,
+      "abbreviations": [
+        "1 macc",
+        "1macc",
+        "1 mc",
+        "1mc"
+      ]
+    },
+    {
+      "id": "2macc",
+      "name": "2 Maccabees",
+      "order": 21,
+      "section": "historical",
+      "deuterocanonical": true,
+      "abbreviations": [
+        "2 macc",
+        "2macc",
+        "2 mc",
+        "2mc"
+      ]
+    },
+    {
+      "id": "job",
+      "name": "Job",
+      "order": 22,
+      "section": "wisdom",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "job",
+        "jb"
+      ]
+    },
+    {
+      "id": "ps",
+      "name": "Psalms",
+      "order": 23,
+      "section": "wisdom",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "ps",
+        "psa",
+        "psalm",
+        "psalms",
+        "pss"
+      ]
+    },
+    {
+      "id": "prov",
+      "name": "Proverbs",
+      "order": 24,
+      "section": "wisdom",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "prov",
+        "prv",
+        "pr"
+      ]
+    },
+    {
+      "id": "eccl",
+      "name": "Ecclesiastes",
+      "order": 25,
+      "section": "wisdom",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "eccl",
+        "eccles",
+        "qoh",
+        "ec"
+      ]
+    },
+    {
+      "id": "song",
+      "name": "Song of Songs",
+      "order": 26,
+      "section": "wisdom",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "song",
+        "sos",
+        "sg",
+        "song of solomon"
+      ],
+      "aliases_douay_rheims": [
+        "canticle of canticles",
+        "canticles",
+        "cant"
+      ]
+    },
+    {
+      "id": "wis",
+      "name": "Wisdom",
+      "order": 27,
+      "section": "wisdom",
+      "deuterocanonical": true,
+      "abbreviations": [
+        "wis",
+        "ws"
+      ],
+      "aliases_douay_rheims": [
+        "wisdom of solomon"
+      ]
+    },
+    {
+      "id": "sir",
+      "name": "Sirach",
+      "order": 28,
+      "section": "wisdom",
+      "deuterocanonical": true,
+      "abbreviations": [
+        "sir",
+        "si"
+      ],
+      "aliases_douay_rheims": [
+        "ecclesiasticus",
+        "ecclus"
+      ]
+    },
+    {
+      "id": "isa",
+      "name": "Isaiah",
+      "order": 29,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "isa",
+        "is"
+      ],
+      "aliases_douay_rheims": [
+        "isaias"
+      ]
+    },
+    {
+      "id": "jer",
+      "name": "Jeremiah",
+      "order": 30,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "jer",
+        "je"
+      ],
+      "aliases_douay_rheims": [
+        "jeremias"
+      ]
+    },
+    {
+      "id": "lam",
+      "name": "Lamentations",
+      "order": 31,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "lam",
+        "la"
+      ]
+    },
+    {
+      "id": "bar",
+      "name": "Baruch",
+      "order": 32,
+      "section": "prophets",
+      "deuterocanonical": true,
+      "abbreviations": [
+        "bar",
+        "ba"
+      ]
+    },
+    {
+      "id": "ezek",
+      "name": "Ezekiel",
+      "order": 33,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "ezek",
+        "ez",
+        "eze"
+      ],
+      "aliases_douay_rheims": [
+        "ezechiel"
+      ]
+    },
+    {
+      "id": "dan",
+      "name": "Daniel",
+      "order": 34,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "dan",
+        "dn",
+        "da"
+      ]
+    },
+    {
+      "id": "hos",
+      "name": "Hosea",
+      "order": 35,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "hos",
+        "ho"
+      ],
+      "aliases_douay_rheims": [
+        "osee"
+      ]
+    },
+    {
+      "id": "joel",
+      "name": "Joel",
+      "order": 36,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "joel",
+        "jl"
+      ]
+    },
+    {
+      "id": "amos",
+      "name": "Amos",
+      "order": 37,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "amos",
+        "am"
+      ]
+    },
+    {
+      "id": "obad",
+      "name": "Obadiah",
+      "order": 38,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "obad",
+        "ob"
+      ],
+      "aliases_douay_rheims": [
+        "abdias"
+      ],
+      "single_chapter": true
+    },
+    {
+      "id": "jonah",
+      "name": "Jonah",
+      "order": 39,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "jonah",
+        "jon",
+        "jnh"
+      ],
+      "aliases_douay_rheims": [
+        "jonas"
+      ]
+    },
+    {
+      "id": "mic",
+      "name": "Micah",
+      "order": 40,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "mic",
+        "mi"
+      ],
+      "aliases_douay_rheims": [
+        "micheas"
+      ]
+    },
+    {
+      "id": "nah",
+      "name": "Nahum",
+      "order": 41,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "nah",
+        "na"
+      ]
+    },
+    {
+      "id": "hab",
+      "name": "Habakkuk",
+      "order": 42,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "hab",
+        "hb"
+      ],
+      "aliases_douay_rheims": [
+        "habacuc"
+      ]
+    },
+    {
+      "id": "zeph",
+      "name": "Zephaniah",
+      "order": 43,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "zeph",
+        "zep",
+        "zp"
+      ],
+      "aliases_douay_rheims": [
+        "sophonias"
+      ]
+    },
+    {
+      "id": "hag",
+      "name": "Haggai",
+      "order": 44,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "hag",
+        "hg"
+      ],
+      "aliases_douay_rheims": [
+        "aggeus"
+      ]
+    },
+    {
+      "id": "zech",
+      "name": "Zechariah",
+      "order": 45,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "zech",
+        "zec",
+        "zc"
+      ],
+      "aliases_douay_rheims": [
+        "zacharias"
+      ]
+    },
+    {
+      "id": "mal",
+      "name": "Malachi",
+      "order": 46,
+      "section": "prophets",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "mal",
+        "ml"
+      ],
+      "aliases_douay_rheims": [
+        "malachias"
+      ]
+    },
+    {
+      "id": "matt",
+      "name": "Matthew",
+      "order": 47,
+      "section": "gospels",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "matt",
+        "mt",
+        "mat"
+      ]
+    },
+    {
+      "id": "mark",
+      "name": "Mark",
+      "order": 48,
+      "section": "gospels",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "mark",
+        "mk",
+        "mrk",
+        "mr"
+      ]
+    },
+    {
+      "id": "luke",
+      "name": "Luke",
+      "order": 49,
+      "section": "gospels",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "luke",
+        "lk",
+        "lu"
+      ]
+    },
+    {
+      "id": "john",
+      "name": "John",
+      "order": 50,
+      "section": "gospels",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "john",
+        "jn",
+        "jhn"
+      ]
+    },
+    {
+      "id": "acts",
+      "name": "Acts",
+      "order": 51,
+      "section": "acts",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "acts",
+        "ac",
+        "act"
+      ],
+      "aliases_douay_rheims": [
+        "acts of the apostles"
+      ]
+    },
+    {
+      "id": "rom",
+      "name": "Romans",
+      "order": 52,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "rom",
+        "rm",
+        "ro"
+      ]
+    },
+    {
+      "id": "1cor",
+      "name": "1 Corinthians",
+      "order": 53,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "1 cor",
+        "1cor",
+        "1 co"
+      ]
+    },
+    {
+      "id": "2cor",
+      "name": "2 Corinthians",
+      "order": 54,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "2 cor",
+        "2cor",
+        "2 co"
+      ]
+    },
+    {
+      "id": "gal",
+      "name": "Galatians",
+      "order": 55,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "gal",
+        "ga"
+      ]
+    },
+    {
+      "id": "eph",
+      "name": "Ephesians",
+      "order": 56,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "eph",
+        "ep"
+      ]
+    },
+    {
+      "id": "phil",
+      "name": "Philippians",
+      "order": 57,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "phil",
+        "php",
+        "pp"
+      ]
+    },
+    {
+      "id": "col",
+      "name": "Colossians",
+      "order": 58,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "col",
+        "cl"
+      ]
+    },
+    {
+      "id": "1thess",
+      "name": "1 Thessalonians",
+      "order": 59,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "1 thess",
+        "1thess",
+        "1 thes",
+        "1 th"
+      ]
+    },
+    {
+      "id": "2thess",
+      "name": "2 Thessalonians",
+      "order": 60,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "2 thess",
+        "2thess",
+        "2 thes",
+        "2 th"
+      ]
+    },
+    {
+      "id": "1tim",
+      "name": "1 Timothy",
+      "order": 61,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "1 tim",
+        "1tim",
+        "1 tm"
+      ]
+    },
+    {
+      "id": "2tim",
+      "name": "2 Timothy",
+      "order": 62,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "2 tim",
+        "2tim",
+        "2 tm"
+      ]
+    },
+    {
+      "id": "titus",
+      "name": "Titus",
+      "order": 63,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "titus",
+        "ti",
+        "tit"
+      ]
+    },
+    {
+      "id": "phlm",
+      "name": "Philemon",
+      "order": 64,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "phlm",
+        "phm",
+        "pm"
+      ],
+      "single_chapter": true
+    },
+    {
+      "id": "heb",
+      "name": "Hebrews",
+      "order": 65,
+      "section": "pauline",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "heb"
+      ],
+      "note": "Hebrews is `heb`; `hb` belongs to Habakkuk (NABRE convention)."
+    },
+    {
+      "id": "jas",
+      "name": "James",
+      "order": 66,
+      "section": "catholic_epistles",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "jas",
+        "jm",
+        "ja"
+      ]
+    },
+    {
+      "id": "1pet",
+      "name": "1 Peter",
+      "order": 67,
+      "section": "catholic_epistles",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "1 pet",
+        "1pet",
+        "1 pt"
+      ]
+    },
+    {
+      "id": "2pet",
+      "name": "2 Peter",
+      "order": 68,
+      "section": "catholic_epistles",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "2 pet",
+        "2pet",
+        "2 pt"
+      ]
+    },
+    {
+      "id": "1john",
+      "name": "1 John",
+      "order": 69,
+      "section": "catholic_epistles",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "1 john",
+        "1john",
+        "1 jn"
+      ]
+    },
+    {
+      "id": "2john",
+      "name": "2 John",
+      "order": 70,
+      "section": "catholic_epistles",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "2 john",
+        "2john",
+        "2 jn"
+      ],
+      "single_chapter": true
+    },
+    {
+      "id": "3john",
+      "name": "3 John",
+      "order": 71,
+      "section": "catholic_epistles",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "3 john",
+        "3john",
+        "3 jn"
+      ],
+      "single_chapter": true
+    },
+    {
+      "id": "jude",
+      "name": "Jude",
+      "order": 72,
+      "section": "catholic_epistles",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "jude",
+        "jud",
+        "jd"
+      ],
+      "single_chapter": true
+    },
+    {
+      "id": "rev",
+      "name": "Revelation",
+      "order": 73,
+      "section": "revelation",
+      "deuterocanonical": false,
+      "abbreviations": [
+        "rev",
+        "rv",
+        "re"
+      ],
+      "aliases_douay_rheims": [
+        "apocalypse",
+        "apoc"
+      ]
+    }
+  ],
+  "disjointness": "Primary `abbreviations` are globally unique and are the ONLY lookup a parser builds. `aliases_douay_rheims` MUST be kept separate: several collide with modern primaries by design (DR \"1 Kings\" is 1 Samuel), so merging the two lists produces a table that resolves those citations to the wrong book."
+}
