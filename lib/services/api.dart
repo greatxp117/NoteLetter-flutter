@@ -52,6 +52,20 @@ class Api {
   Future<Map<String, dynamic>> setNextLetter(String docId, bool on) =>
       updateDocument(docId, {'includeInNextLetter': on});
 
+  /// Per-chunk shelf overrides (2.35.0, ADR-034).
+  ///
+  /// A chunk INHERITS its document's shelves; this records the reader's
+  /// explicit deviations. Effective shelves are computed at read as
+  /// `(document.tag_ids - removed) + added` — storing the computed list would
+  /// go stale the moment the document's shelves change.
+  ///
+  /// Each entry REPLACES that chunk's overrides wholesale; both lists empty
+  /// clears it, since pure inheritance is the absence of the field.
+  Future<Map<String, dynamic>> updateChunkTags(
+          String documentId, List<Map<String, dynamic>> overrides) =>
+      _http.post('/fn_update_chunk_tags',
+          data: {'documentId': documentId, 'overrides': overrides});
+
   /// Mark a document finished, or un-mark it (3.1.0, ADR-039).
   ///
   /// An endpoint rather than a client write because **un-finish has to be
