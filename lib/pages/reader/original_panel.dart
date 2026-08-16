@@ -4,6 +4,7 @@ import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import 'reader_ui.dart';
+import '../../theme/app_radius.dart';
 
 /// Reader → Original panel: the raw file as it arrived. URL-typed docs open
 /// their `source_url` directly (no call, per reader.md); file docs mint a signed
@@ -75,7 +76,7 @@ class _OriginalPanelState extends State<OriginalPanel> {
         ui.intro('Original · two sources',
             'This article was recognized from a screenshot you captured. Both sources are kept: the image you shared, and the original web article it resolved to.'),
         ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: AppRadius.mdR,
           child: Image.network(
             widget.doc.sourceImageUrl!,
             fit: BoxFit.contain,
@@ -112,7 +113,7 @@ class _OriginalPanelState extends State<OriginalPanel> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: ui.card,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppRadius.mdR,
             border: Border.all(color: ui.border),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

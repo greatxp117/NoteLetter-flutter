@@ -6,6 +6,7 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
 
 /// Library document-detail affordances (library.md): edit `sourcePriority` and
 /// `tagIds` via `fn_update_document`. Priority is propagated to the document's
@@ -123,7 +124,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                         color: border,
-                        borderRadius: BorderRadius.circular(2)),
+                        borderRadius: AppRadius.pillR(4)),
                   ),
                 ),
                 Text(_doc?.title ?? 'Document',
@@ -185,7 +186,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: on ? primary : surface,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: AppRadius.pillR(28),
                             border:
                                 Border.all(color: on ? primary : border),
                           ),

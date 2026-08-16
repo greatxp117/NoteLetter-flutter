@@ -8,6 +8,7 @@ import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/file_uploader.dart';
 import 'library/document_detail_sheet.dart';
+import '../theme/app_radius.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -114,7 +115,7 @@ class _LibraryPageState extends State<LibraryPage> {
                               color: isDark
                                   ? AppColors.borderDark
                                   : AppColors.borderLight),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: AppRadius.mdR,
                         ),
                         child: Row(
                           children: [
@@ -401,7 +402,7 @@ class _DocumentRowState extends State<_DocumentRow> {
                       horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: AppRadius.controlR(20),
                   ),
                   child: Text(
                     statusLabel,

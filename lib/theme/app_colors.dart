@@ -10,6 +10,7 @@ class AppColors {
   // ── Raw palette (subset used directly) ──────────────────────────────────
   static const _paper50 = Color(0xFFFAFAF7);
   static const _paper100 = Color(0xFFF3F2EC);
+  static const _paper200 = Color(0xFFE9E7DF);
   static const _ink500 = Color(0xFF2C3142);
   static const _ink600 = Color(0xFF1F2330);
   static const _ink700 = Color(0xFF14171F);
@@ -61,6 +62,17 @@ class AppColors {
   static const borderDark = Color(0x1AFFFFFF); // --border rgba(255,255,255,.10)
   static const secondaryDark = Color(0x14FFFFFF); // --secondary rgba(255,255,255,.08)
   static const mutedForegroundDark = Color(0xA6FFFFFF); // --fg-muted rgba(255,255,255,.65)
+
+  // ── Sunken surfaces, rules and subtle text ───────────────────────────────
+  // Semantic, so each flips with the theme (never a raw step picked once and
+  // reused in both — that is how white-on-white shipped in dark mode while
+  // every element was individually correct).
+  static const surfaceSunkenLight = _paper200; // --surface-sunken
+  static const surfaceSunkenDark = _ink800; // --surface-sunken (dark)
+  static const ruleLight = Color(0x0F14171F); // --rule rgba(20,23,31,.06)
+  static const ruleDark = Color(0x0FFFFFFF); // --rule rgba(255,255,255,.06)
+  static const subtleForegroundLight = _ink300; // --fg-subtle
+  static const subtleForegroundDark = Color(0x73FFFFFF); // --fg-subtle rgba(255,255,255,.45)
 
   // ── Shelf colours (2.15.0, ADR-022) ──────────────────────────────────────
   // `/tags.color` stores a design-token NAME, not a colour value — the one

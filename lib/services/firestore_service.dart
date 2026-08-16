@@ -210,6 +210,26 @@ class FirestoreService {
     return OrganizationSettings.fromJson(snap.data()!);
   }
 
+  /// `/users/{uid}/settings/summary` (4.3.0, ADR-040). Read directly — the
+  /// endpoint's GET is a 410 (INV-02). An absent doc, or an absent
+  /// `summaryPrompt` key, means **the default is in effect**; the backend owns
+  /// the operative default text, so the client never stores a copy of it.
+  Stream<String?> subscribeSummarySettings() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(null);
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('settings')
+        .doc('summary')
+        .snapshots()
+        .map((snap) {
+      if (!snap.exists) return null;
+      final v = snap.data()?['summaryPrompt'];
+      return v is String && v.trim().isNotEmpty ? v : null;
+    });
+  }
+
   /// Canonical activity merge (spec/screens/activity.md): activity_events +
   /// documents not covered by an event's `metadata.doc_id`, sorted by
   /// `created_at desc`, capped at [maxItems].

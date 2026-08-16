@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/chunk.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../theme/app_radius.dart';
 import 'reader_ui.dart';
+import 'passage_mark.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'dwell.dart';
 import '../../services/firestore_service.dart';
@@ -307,6 +309,15 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     await FirestoreService.instance.logChunksRead(widget.docId, ids);
   }
 
+  /// Which passages are marked read, taken from the `chunks` PROP rather than
+  /// the local edit copy (which drops counters). It therefore updates live: a
+  /// confirmed `chunk_read` batch folds into the reader's state and arrives
+  /// here.
+  Set<String> get _countedIds => widget.chunks
+      .where((c) => c.viewCount > 0)
+      .map((c) => c.chunkId)
+      .toSet();
+
   @override
   Widget build(BuildContext context) {
     final ui = ReaderUi(context);
@@ -343,19 +354,21 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       ...List.generate(visible.length, (i) {
         final c = visible[i];
         final realIdx = _chunks.indexOf(c);
-        return VisibilityDetector(
-          key: Key('dwell-${c.chunkId ?? 'new-$i'}'),
-          onVisibilityChanged: (info) => _onVisibility(c, info.visibleFraction),
-          child: Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: ui.card,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-                color: c.dirty ? ui.primary.withValues(alpha: 0.5) : ui.border),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Counted state comes from the `chunks` PROP, not the local edit copy
+        // (which drops counters), so a confirmed chunk_read batch lights the
+        // mark up live.
+        final counted = c.chunkId != null &&
+            (_countedIds.contains(c.chunkId) ||
+                _readThisSession.contains(c.chunkId));
+
+        final body =
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // 2.13.0: chunk-boundary SCAFFOLDING — the passage number, the rule,
+            // the per-passage word count and the split/merge affordances — is
+            // edit-mode only. Those are how the system chunked the text, not a
+            // feature of the source. 4.2.0 amended this for the EXTENT alone,
+            // which is why the gutter mark below is outside this gate.
+            if (_editing)
             Row(children: [
               Text('№ ${(i + 1).toString().padLeft(2, '0')}',
                   style: GoogleFonts.robotoMono(fontSize: 11, color: ui.muted)),
@@ -369,14 +382,14 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: ui.surface,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(AppRadius.control(20)),
                   ),
                   child: Text('edited',
                       style: TextStyle(fontFamily: 'Geist', fontSize: 10, color: ui.muted)),
                 ),
               ],
               const Spacer(),
-              if (_editing) ...[
+              ...[
                 if (i > 0 && !c.atomic && !visible[i - 1].atomic)
                   IconButton(
                     tooltip: 'Merge up',
@@ -393,7 +406,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                 ),
               ],
             ]),
-            const SizedBox(height: 8),
+            if (_editing) const SizedBox(height: 8),
             if (_editing && !c.atomic)
               TextField(
                 controller: _controllerFor(realIdx, c),
@@ -428,8 +441,54 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                   label: const Text('Split here'),
                 ),
               ),
-          ]),
-        ),
+          ]);
+
+        return VisibilityDetector(
+          key: Key('dwell-${c.chunkId ?? 'new-$i'}'),
+          onVisibilityChanged: (info) => _onVisibility(c, info.visibleFraction),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            // At rest the passage carries NO card chrome: the mark shows extent
+            // rather than dividing, and the prose stays a clean continuous
+            // sheet. Editing keeps the card, because there the passage really
+            // is the object being manipulated.
+            padding: _editing
+                ? const EdgeInsets.all(16)
+                : const EdgeInsets.only(right: 16),
+            decoration: _editing
+                ? BoxDecoration(
+                    color: ui.card,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(
+                        color: c.dirty
+                            ? ui.primary.withValues(alpha: 0.5)
+                            : ui.border),
+                  )
+                : null,
+            // A Stack, not a stretched Row: in a Column the cross axis is
+            // unbounded, so `CrossAxisAlignment.stretch` would hand the mark an
+            // infinite height and assert. The Stack sizes to the text and the
+            // positioned mark fills exactly that — which is the passage's
+            // extent, the one measurement the mark exists to report.
+            child: _editing
+                ? body
+                : Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 4,
+                        child: PassageMark(counted: counted, ui: ui),
+                      ),
+                      // The gutter — the mark sits OUTSIDE the text column.
+                      Padding(
+                        padding: const EdgeInsets.only(left: 26),
+                        child: body,
+                      ),
+                    ],
+                  ),
+          ),
         );
       }),
       if (_error != null)

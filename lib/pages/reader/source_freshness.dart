@@ -3,6 +3,7 @@ import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import 'reader_ui.dart';
+import '../../theme/app_radius.dart';
 
 const _providerName = {
   'google_drive': 'Google Drive',
@@ -97,7 +98,7 @@ class _SourceFreshnessState extends State<SourceFreshness> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: ui.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadius.mdR,
         border: Border.all(color: ui.border),
       ),
       child: Row(children: [

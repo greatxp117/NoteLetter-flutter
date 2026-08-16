@@ -16,6 +16,7 @@ import 'reader/speed_read_panel.dart';
 import 'reader/summary_panel.dart';
 import '../services/api.dart';
 import '../widgets/app_toast.dart';
+import '../theme/app_radius.dart';
 
 /// Reader — one-shot doc + chunks (`chunk_index` asc), fires `logReadEvent`
 /// on open (INV-03). Six panels (Summary/Manuscript/SpeedRead/Listen/Original/
@@ -185,7 +186,14 @@ class _ReaderPageState extends State<ReaderPage> {
         return HistoryPanel(docId: widget.docId, chunks: _chunks);
       case 'summary':
       default:
-        return SummaryPanel(doc: _document!);
+        return SummaryPanel(
+          doc: _document!,
+          // The response body is the update path — the document was loaded
+          // with a one-shot get, so nothing else will deliver the new fields
+          // and re-fetching would only ask for what we were just told.
+          onRegenerated: (res) => setState(
+              () => _document = _document!.withRegeneratedSummary(res)),
+        );
     }
   }
 
@@ -357,7 +365,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: on ? ui.primary : ui.surface,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppRadius.controlR(32),
                   border: Border.all(color: on ? ui.primary : ui.border),
                 ),
                 child: Row(children: [

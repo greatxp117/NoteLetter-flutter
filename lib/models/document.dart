@@ -153,6 +153,48 @@ class Document {
     this.sourceIntegration,
   });
 
+  /// Apply an `fn_regenerate_summary` response (4.3.0, ADR-040).
+  ///
+  /// Deliberately narrow rather than a general `copyWith`: regeneration moves
+  /// **exactly** `summary`, `key_points` and `themes`. The title never changes
+  /// (it ripples into lists, letters and activity), and neither do passages,
+  /// shelves or any counter. A general copyWith here would make it possible to
+  /// carry a field the endpoint never returned, and the reader document is a
+  /// one-shot fetch with no subscription to correct it.
+  Document withRegeneratedSummary(Map<String, dynamic> res) {
+    return Document(
+      id: id,
+      userId: userId,
+      title: title,
+      type: type,
+      status: status,
+      mimeType: mimeType,
+      sourceUrl: sourceUrl,
+      gcsPath: gcsPath,
+      createdAt: createdAt,
+      processedAt: processedAt,
+      chunkCount: chunkCount,
+      wordCount: wordCount,
+      summary: res['summary'] as String? ?? summary,
+      keyPoints: (res['keyPoints'] as List?)?.cast<String>() ?? keyPoints,
+      themes: (res['themes'] as List?)?.cast<String>() ?? themes,
+      tagIds: tagIds,
+      thumbnailUrl: thumbnailUrl,
+      sourceAudioUrl: sourceAudioUrl,
+      sourceImageUrl: sourceImageUrl,
+      author: author,
+      publishDate: publishDate,
+      processingStage: processingStage,
+      finishedAt: finishedAt,
+      nextLetterRequestedAt: nextLetterRequestedAt,
+      errorMessage: errorMessage,
+      sourcePriority: sourcePriority,
+      viewCount: viewCount,
+      lastViewedAt: lastViewedAt,
+      sourceIntegration: sourceIntegration,
+    );
+  }
+
   factory Document.fromJson(String id, Map<String, dynamic> json) {
     return Document(
       id: id,

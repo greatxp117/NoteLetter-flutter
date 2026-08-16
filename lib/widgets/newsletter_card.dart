@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/newsletter_item.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 
 class NewsletterCard extends StatefulWidget {
   final NewsletterItem item;
@@ -32,7 +33,7 @@ class _NewsletterCardState extends State<NewsletterCard> {
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: isDark ? AppColors.cardDark : AppColors.cardLight,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.mdR,
           border: Border.all(color: border),
           boxShadow: _hovered
               ? [
@@ -56,7 +57,7 @@ class _NewsletterCardState extends State<NewsletterCard> {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: AppRadius.controlR(20),
                     ),
                     child: Text(
                       widget.item.source,
@@ -115,7 +116,7 @@ class _NewsletterCardState extends State<NewsletterCard> {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: isDark ? AppColors.secondaryDark : AppColors.secondaryLight,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: AppRadius.pillR(20),
                           ),
                           child: Text(
                             tag,

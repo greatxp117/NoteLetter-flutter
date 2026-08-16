@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 
 class _NavItem {
   final IconData icon;
@@ -79,7 +80,7 @@ class NavDrawer extends StatelessWidget {
                 ),
                 selected: isActive,
                 selectedTileColor: AppColors.chromeActive,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                shape: RoundedRectangleBorder(borderRadius: AppRadius.controlR(40)),
                 onTap: () {
                   Navigator.of(context).pop();
                   context.go(item.route);
@@ -106,7 +107,7 @@ class NavDrawer extends StatelessWidget {
                     value: 0.35,
                     backgroundColor: AppColors.chromeBorder,
                     color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: AppRadius.pillR(4),
                   ),
                 ],
               ),

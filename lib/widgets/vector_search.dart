@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/search_notifier.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 
 class VectorSearch extends StatefulWidget {
   final String placeholder;
@@ -50,7 +51,7 @@ class _VectorSearchState extends State<VectorSearch> {
                   ? primary
                   : (isDark ? AppColors.borderDark : AppColors.borderLight),
             ),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: AppRadius.controlR(44),
           ),
           child: Row(
             children: [

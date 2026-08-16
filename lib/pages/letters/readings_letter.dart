@@ -22,6 +22,7 @@ import '../../services/firestore_service.dart';
 import '../../state/schedule.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_toast.dart';
+import '../../theme/app_radius.dart';
 
 class ReadingsLetterPanel extends StatefulWidget {
   const ReadingsLetterPanel({super.key});
@@ -98,7 +99,7 @@ class _ReadingsLetterPanelState extends State<ReadingsLetterPanel> {
       decoration: BoxDecoration(
         border: Border.all(
             color: isDark ? AppColors.borderDark : AppColors.borderLight),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

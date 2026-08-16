@@ -12,6 +12,7 @@ import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sync_settings_panel.dart';
+import '../theme/app_radius.dart';
 
 /// Canonical provider ids (1.2.0) with display names for not-yet-connected
 /// providers (the integration list only carries connected ones).
@@ -245,7 +246,7 @@ class _ProviderCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,7 +376,7 @@ class _PickerPanel extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -695,7 +696,7 @@ class _OrganizationSection extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: AppRadius.controlR(20),
               ),
               child: Text('${pending.length}',
                   style: theme.textTheme.labelSmall
@@ -735,7 +736,7 @@ class _SuggestionCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -817,7 +818,7 @@ class _Banner extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdR,
       ),
       child: Row(
         children: [

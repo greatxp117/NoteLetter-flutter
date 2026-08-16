@@ -4,6 +4,7 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import 'reader_ui.dart';
+import '../../theme/app_radius.dart';
 
 /// Reader "Reorganize document" plan sheet (reader.md 1.2.0). Analyze → editable
 /// plan (per-section destination + split/copy) → explicit confirm for any split
@@ -129,7 +130,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
     final ui = ReaderUi(context);
     return Dialog(
       backgroundColor: ui.dark ? ui.card : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.xlR),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640, maxHeight: 640),
         child: Padding(
@@ -194,7 +195,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: ui.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: AppRadius.mdR,
             border: Border.all(color: ui.primary.withValues(alpha: 0.5)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -243,7 +244,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.mdR,
           border: Border.all(color: ui.border),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -316,7 +317,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: AppRadius.controlR(24),
         border: Border.all(color: ui.border),
       ),
       clipBehavior: Clip.antiAlias,

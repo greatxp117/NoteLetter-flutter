@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 
 class BrandingPage extends StatelessWidget {
   const BrandingPage({super.key});
@@ -25,7 +26,7 @@ class BrandingPage extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: AppRadius.controlR(48),
                   ),
                   child: Icon(Icons.edit_note, color: primary, size: 24),
                 ),
@@ -281,7 +282,7 @@ class _PrincipleCard extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.controlR(36),
               ),
               child: Icon(icon, color: color, size: 18),
             ),

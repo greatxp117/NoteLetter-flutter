@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 
 class _NavItem {
   final IconData icon;
@@ -95,7 +96,7 @@ class Sidebar extends StatelessWidget {
                   value: 0.35,
                   backgroundColor: AppColors.chromeBorder,
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: AppRadius.pillR(4),
                 ),
               ],
             ),
@@ -159,7 +160,7 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: bgColor,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: AppRadius.controlR(36),
               ),
               child: Row(
                 children: [
@@ -188,7 +189,7 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
                   width: 2,
                   decoration: BoxDecoration(
                     color: AppColors.chromeAccentBar,
-                    borderRadius: BorderRadius.circular(1),
+                    borderRadius: AppRadius.pillR(2),
                   ),
                 ),
               ),

@@ -10,6 +10,7 @@ import '../state/search_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/file_uploader.dart';
 import '../widgets/vector_search.dart';
+import '../theme/app_radius.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -108,7 +109,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                     horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: AppRadius.controlR(24),
                                 ),
                                 child: Text(
                                   _dayName,
@@ -402,7 +403,7 @@ class _SearchResultCard extends StatelessWidget {
         color: isDark ? AppColors.cardDark : AppColors.cardLight,
         border: Border.all(
             color: isDark ? AppColors.borderDark : AppColors.borderLight),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,7 +415,7 @@ class _SearchResultCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: AppRadius.controlR(20),
                 ),
                 child: Text(
                   result.document.type.toUpperCase(),
@@ -455,7 +456,7 @@ class _SearchResultCard extends StatelessWidget {
                     color: isDark
                         ? AppColors.borderDark
                         : AppColors.borderLight,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: AppRadius.controlR(20),
                   ),
                   child: Text(t, style: theme.textTheme.labelSmall),
                 );
@@ -505,7 +506,7 @@ class _ActivityCard extends StatelessWidget {
         color: isDark ? AppColors.cardDark : AppColors.cardLight,
         border: Border.all(
             color: isDark ? AppColors.borderDark : AppColors.borderLight),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,7 +518,7 @@ class _ActivityCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: AppRadius.controlR(20),
                 ),
                 child: Text(
                   item.typeLabel,
@@ -648,7 +649,7 @@ class _ErrorBanner extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.red.withValues(alpha: 0.08),
           border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.mdR,
         ),
         child: Row(
           children: [

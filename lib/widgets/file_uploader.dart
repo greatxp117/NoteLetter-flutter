@@ -6,6 +6,7 @@ import 'package:mime/mime.dart';
 import '../state/upload_notifier.dart';
 import '../models/upload_file.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 
 class FileUploader extends StatefulWidget {
   final VoidCallback? onUploadComplete;
@@ -148,7 +149,7 @@ class _FileUploaderState extends State<FileUploader> {
                         : (isDark
                             ? AppColors.backgroundDark
                             : AppColors.backgroundLight),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: AppRadius.mdR,
                     border: Border.all(
                       color: _isDragOver
                           ? primary
@@ -303,7 +304,7 @@ class _FileItem extends StatelessWidget {
         color: isDark ? AppColors.cardDark : AppColors.cardLight,
         border: Border.all(
             color: isDark ? AppColors.borderDark : AppColors.borderLight),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,7 +337,7 @@ class _FileItem extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: AppRadius.controlR(20),
                 ),
                 child: Text(
                   statusLabel,
@@ -363,7 +364,7 @@ class _FileItem extends StatelessWidget {
               backgroundColor:
                   isDark ? AppColors.borderDark : AppColors.borderLight,
               color: primary,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: AppRadius.pillR(4),
             ),
           ],
           if (file.status == UploadStatus.error &&

@@ -12,6 +12,7 @@ import '../../models/study.dart';
 import '../../services/api.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
 
 /// Grades in SM-2 order, with the promise each one makes.
 const _gradeLabels = {
@@ -209,7 +210,7 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
       decoration: BoxDecoration(
         border: Border.all(
             color: isDark ? AppColors.borderDark : AppColors.borderLight),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,7 +242,7 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
             color: color.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(999)),
+            borderRadius: AppRadius.pillR(20)),
         child: Text(label,
             style: theme.textTheme.labelSmall?.copyWith(color: color)),
       );

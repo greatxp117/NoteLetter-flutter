@@ -6,6 +6,7 @@ import '../../services/firestore_service.dart';
 import '../../state/org_notifier.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_toast.dart';
+import '../../theme/app_radius.dart';
 
 const _providerName = {
   'google_drive': 'Google Drive',
@@ -152,7 +153,7 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           color: on ? primary : surface,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.controlR(28),
           border: Border.all(color: on ? primary : border),
         ),
         child: Text(label,
@@ -262,7 +263,7 @@ class _FolderRowState extends State<_FolderRow> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           border: Border.all(color: border),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.mdR,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -352,7 +353,7 @@ class _FolderRowState extends State<_FolderRow> {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: AppRadius.controlR(20),
       ),
       child: Text('README $status',
           style: TextStyle(fontFamily: 'Geist', fontSize: 10, color: color)),

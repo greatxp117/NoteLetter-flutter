@@ -8,6 +8,8 @@ import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import '../state/activation_message.dart';
 import '../state/schedule.dart';
+import 'settings/summaries_section.dart';
+import '../theme/app_radius.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -412,6 +414,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ),
+              // Summaries (4.3.0 + 4.4.0, ADR-040)
+              const SummariesSection(),
               // Data sources card
               Padding(
                 padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
@@ -642,7 +646,7 @@ class _IntegrationTileState extends State<_IntegrationTile> {
           height: 40,
           decoration: BoxDecoration(
             color: widget.iconColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: AppRadius.controlR(40),
           ),
           child: Icon(widget.icon, color: widget.iconColor, size: 20),
         ),

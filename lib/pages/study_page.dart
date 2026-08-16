@@ -14,6 +14,7 @@ import '../services/firestore_service.dart';
 import '../state/activation_message.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
+import '../theme/app_radius.dart';
 
 /// Status copy for the OPEN vocabulary. An unrecognised value renders
 /// neutrally — never as an error, and never as the raw token.
@@ -172,7 +173,7 @@ class _ProgramCardState extends State<_ProgramCard> {
       decoration: BoxDecoration(
         border: Border.all(
             color: isDark ? AppColors.borderDark : AppColors.borderLight),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdR,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

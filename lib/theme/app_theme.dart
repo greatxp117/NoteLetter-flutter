@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import 'app_radius.dart';
 
 class AppTheme {
   AppTheme._();
@@ -60,7 +61,7 @@ class AppTheme {
         color: AppColors.cardLight,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.mdR,
           side: const BorderSide(color: AppColors.borderLight),
         ),
       ),
@@ -68,15 +69,15 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.cardLight,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.controlR(56),
           borderSide: const BorderSide(color: AppColors.borderLight),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.controlR(56),
           borderSide: const BorderSide(color: AppColors.borderLight),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.controlR(56),
           borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -111,7 +112,7 @@ class AppTheme {
         color: AppColors.cardDark,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.mdR,
           side: const BorderSide(color: AppColors.borderDark),
         ),
       ),
@@ -119,15 +120,15 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.cardDark,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.controlR(56),
           borderSide: const BorderSide(color: AppColors.borderDark),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.controlR(56),
           borderSide: const BorderSide(color: AppColors.borderDark),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.controlR(56),
           borderSide: const BorderSide(color: AppColors.primaryDark, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

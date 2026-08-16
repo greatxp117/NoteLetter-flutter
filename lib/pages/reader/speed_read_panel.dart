@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'reader_ui.dart';
+import '../../theme/app_radius.dart';
 
 /// Reader → Speed read panel: RSVP (one word at a time, pinned to a fixed
 /// optical-recognition point), with a follow-along transcript. Contract data is
@@ -123,7 +124,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
         padding: const EdgeInsets.symmetric(vertical: 40),
         decoration: BoxDecoration(
           color: ui.card,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.mdR,
           border: Border.all(color: ui.border),
         ),
         child: Column(children: [
@@ -158,7 +159,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
       const SizedBox(height: 16),
       // Progress.
       ClipRRect(
-        borderRadius: BorderRadius.circular(3),
+        borderRadius: AppRadius.pillR(6),
         child: LinearProgressIndicator(
           value: frac,
           minHeight: 4,
@@ -225,7 +226,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: on ? ui.primary : ui.surface,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: AppRadius.controlR(24),
                       border: Border.all(color: on ? ui.primary : ui.border),
                     ),
                     child: Text('$p',

@@ -9,6 +9,7 @@ import '../widgets/app_toast.dart';
 import '../state/settings_notifier.dart';
 import 'letters/pinned_sources.dart';
 import 'letters/readings_letter.dart';
+import '../theme/app_radius.dart';
 
 /// Letters — newsletter history (INV-09) + "send now". See
 /// spec/screens/letters.md.
@@ -149,7 +150,7 @@ class _LettersPageState extends State<LettersPage> {
                                               color: badge.color
                                                   .withValues(alpha: 0.12),
                                               borderRadius:
-                                                  BorderRadius.circular(6),
+                                                  AppRadius.controlR(20),
                                             ),
                                             child: Text(badge.label,
                                                 style: theme.textTheme.labelSmall

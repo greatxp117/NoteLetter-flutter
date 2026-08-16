@@ -179,6 +179,12 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   'fn_suggest_tags': (b) => Api.instance.suggestTags(b['purposeText']),
   'fn_approve_tags': (b) => Api.instance.approveTags(_maps(b['tags'])),
   'fn_newsletter_settings': (b) => Api.instance.updateNewsletterSettings(b),
+  // Closed key set: the builder can only express `summaryPrompt`, which is why
+  // the unknown-key case can only be pinned as a server rejection here.
+  'fn_summary_settings': (b) =>
+      Api.instance.updateSummarySettings(b['summaryPrompt'] as String?),
+  'fn_regenerate_summary': (b) =>
+      Api.instance.regenerateSummary(b['documentId'] as String),
   'fn_request_newsletter': (b) => Api.instance.requestNewsletter(),
   'fn_connect_cloud_storage': (b) =>
       Api.instance.connectCloudStorage(b['provider']),
@@ -238,6 +244,8 @@ const _suites = [
   'api/study-units',
   'api/scripture-lookup',
   'api/scripture-newsletter',
+  // 4.3.0 (ADR-040).
+  'api/summary-settings',
 ];
 
 // Endpoints whose builder needs the request METHOD (and possibly query) — the

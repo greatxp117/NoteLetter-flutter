@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 
 enum ToastType { success, error, info }
 
@@ -50,7 +51,7 @@ class AppToast {
             decoration: BoxDecoration(
               color: isDark ? AppColors.cardDark : Colors.white,
               border: Border.all(color: borderColor, width: 1.5),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: AppRadius.mdR,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),

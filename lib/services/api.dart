@@ -268,6 +268,25 @@ class Api {
   Future<Map<String, dynamic>> requestNewsletter() =>
       _http.post('/fn_request_newsletter', data: const {});
 
+  // ── Summaries (4.3.0, ADR-040) ────────────────────────────────────────────
+
+  /// Closed key set — `summaryPrompt` only. `null` RESETS to the default (the
+  /// field is deleted server-side); the empty string is a 400, so a caller that
+  /// wants the default sends null, never `''`. GET is 410 — clients read the
+  /// settings doc directly (INV-02), see [FirestoreService.subscribeSummarySettings].
+  Future<Map<String, dynamic>> updateSummarySettings(String? summaryPrompt) =>
+      _http.put('/fn_summary_settings', data: {'summaryPrompt': summaryPrompt});
+
+  /// Re-run `summary`/`key_points`/`themes` for one complete document under the
+  /// current prompt. **The response body is the client's update path**: the
+  /// reader doc is a one-shot fetch with no subscription to deliver the new
+  /// fields, so the caller updates its in-memory document from this response and
+  /// must never re-fetch to learn what it was just told. `title`, passages and
+  /// shelves never move. 429 is the 60s per-document cooldown — calm copy, not
+  /// an error state.
+  Future<Map<String, dynamic>> regenerateSummary(String documentId) =>
+      _http.post('/fn_regenerate_summary', data: {'documentId': documentId});
+
   // ── Notification channels (2.5.0, ADR-014) + push devices (2.6.0, ADR-015) ──
 
   /// Create a channel. Only provided keys are sent (mirrors web/backend closed

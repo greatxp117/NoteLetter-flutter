@@ -5,6 +5,7 @@ import '../../models/cloud_integration.dart';
 import '../../state/cloud_notifier.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_toast.dart';
+import '../../theme/app_radius.dart';
 
 /// Tier-C sync-settings panel (sources.md §Sync settings, 1.4.0/ADR-007).
 /// Collapsible per provider: auto-sync toggle, frequency, preferred-hour (UTC),
@@ -215,7 +216,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: on ? primary : surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.pillR(28),
           border: Border.all(color: on ? primary : border),
         ),
         child: Text(label,

@@ -21,6 +21,12 @@ class ReaderUi {
       dark ? AppColors.primaryForegroundDark : AppColors.primaryForeground;
   // `critical` is token-identical to brick in both themes (design-tokens.md).
   Color get critical => dark ? AppColors.primaryDark : AppColors.critical;
+  Color get rule => dark ? AppColors.ruleDark : AppColors.ruleLight;
+  Color get subtle =>
+      dark ? AppColors.subtleForegroundDark : AppColors.subtleForegroundLight;
+  Color get sunken =>
+      dark ? AppColors.surfaceSunkenDark : AppColors.surfaceSunkenLight;
+  Color get positive => AppColors.positive;
 
   /// Small uppercase section label (web `.eyebrow`).
   Widget eyebrow(String text) => Text(

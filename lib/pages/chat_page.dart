@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import '../widgets/chat_interface.dart';
+import '../theme/app_radius.dart';
 
 class ChatPage extends StatelessWidget {
   const ChatPage({super.key});
@@ -45,7 +46,7 @@ class ChatPage extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppRadius.controlR(28),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,

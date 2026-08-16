@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/auth_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
+import '../theme/app_radius.dart';
 
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});
@@ -34,7 +35,7 @@ class LandingPage extends StatelessWidget {
                           height: 36,
                           decoration: BoxDecoration(
                             color: primary,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: AppRadius.controlR(36),
                           ),
                           child: const Icon(Icons.edit_note, color: Colors.white, size: 20),
                         ),
@@ -79,7 +80,7 @@ class LandingPage extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: AppRadius.pillR(28),
                         border: Border.all(color: primary.withValues(alpha: 0.3)),
                       ),
                       child: Text(
@@ -240,7 +241,7 @@ class _FeatureCard extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: isDark ? AppColors.cardDark : AppColors.cardLight,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.nestR(AppRadius.control(44), 24),
         border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
       ),
       child: Column(
@@ -251,7 +252,7 @@ class _FeatureCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: AppRadius.controlR(44),
             ),
             child: Icon(icon, color: color, size: 22),
           ),
@@ -316,7 +317,7 @@ class _AuthDialogState extends State<_AuthDialog> {
     final authNotifier = context.watch<AuthNotifier>();
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.xlR),
       child: Container(
         width: 400,
         padding: const EdgeInsets.all(32),
@@ -354,7 +355,7 @@ class _AuthDialogState extends State<_AuthDialog> {
                 decoration: InputDecoration(
                   labelText: 'Email',
                   prefixIcon: const Icon(Icons.mail_outline),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(borderRadius: AppRadius.controlR(56)),
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) return 'Email is required';
@@ -376,7 +377,7 @@ class _AuthDialogState extends State<_AuthDialog> {
                     icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(borderRadius: AppRadius.controlR(56)),
                 ),
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Password is required';

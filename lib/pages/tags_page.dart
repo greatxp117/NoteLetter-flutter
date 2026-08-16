@@ -6,6 +6,7 @@ import '../state/tags_notifier.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import 'tags/split_shelf_sheet.dart';
+import '../theme/app_radius.dart';
 
 /// Tags — list/create/edit/delete over the live tags subscription. Mutations go
 /// through `fn_*` (INV-04). See spec/api/tags.md.
@@ -152,7 +153,7 @@ class _TagRow extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.mdR,
       ),
       child: Row(
         children: [

@@ -5,6 +5,7 @@ import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import 'reader_ui.dart';
+import '../../theme/app_radius.dart';
 
 /// Reader → Listen panel. A podcast/video carries its real source audio
 /// (`source_audio_url`, 2.7.0/ADR-016) + real per-line transcript timestamps
@@ -198,7 +199,7 @@ class _ListenPanelState extends State<ListenPanel> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: ui.card,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.mdR,
           border: Border.all(color: ui.border),
         ),
         child: Column(children: [

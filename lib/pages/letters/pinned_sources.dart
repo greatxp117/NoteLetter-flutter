@@ -13,6 +13,7 @@ import '../../models/newsletter_settings.dart';
 import '../../services/api.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
 
 class PinnedSources extends StatefulWidget {
   const PinnedSources({super.key, required this.settings});
@@ -72,7 +73,7 @@ class _PinnedSourcesState extends State<PinnedSources> {
           decoration: BoxDecoration(
             border: Border.all(
                 color: isDark ? AppColors.borderDark : AppColors.borderLight),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppRadius.mdR,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

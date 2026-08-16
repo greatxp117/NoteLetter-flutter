@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../state/chat_notifier.dart';
 import '../models/chat_message.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 
 class ChatInterface extends StatefulWidget {
   const ChatInterface({super.key});
@@ -156,7 +157,7 @@ class _MessageBubble extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: isDark ? AppColors.secondaryDark : AppColors.secondaryLight,
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: AppRadius.controlR(20),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -252,7 +253,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
               color: isDark ? AppColors.cardDark : AppColors.cardLight,
               border:
                   Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: AppRadius.controlR(44),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
