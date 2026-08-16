@@ -8,6 +8,7 @@ import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import '../state/settings_notifier.dart';
 import 'letters/pinned_sources.dart';
+import 'letters/readings_letter.dart';
 
 /// Letters — newsletter history (INV-09) + "send now". See
 /// spec/screens/letters.md.
@@ -80,6 +81,9 @@ class _LettersPageState extends State<LettersPage> {
                         // the NEXT letter will carry.
                         PinnedSources(
                             settings: context.watch<SettingsNotifier>().newsletter),
+                        // The second, opt-in letter (2.24.0). No send action:
+                        // its builder is an OIDC-only worker.
+                        const ReadingsLetterPanel(),
                         FilledButton.icon(
                           onPressed: notifier.isSending ? null : _sendNow,
                           style: FilledButton.styleFrom(backgroundColor: primary),
