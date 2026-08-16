@@ -38,7 +38,12 @@ lib/
 ```
 
 Pattern is `pages/` + `state/` + `services/` — **not** feature-first. Keep it.
-The live theme is inline in `app.dart`; `app_theme.dart` is dead code.
+
+The live theme is `theme/app_theme.dart` (`app.dart` only passes it on).
+**Never reintroduce `ColorScheme.fromSeed`** — it generates a palette from one
+token, so most widgets draw colours in no token file, and since a generated
+palette is self-consistent nothing looks broken and no test fails. Guard:
+`test/contract/theme_tokens_test.dart`.
 
 **Every builder routes through `lib/services/api.dart`**, which all the notifiers
 call — that is what makes the app's live requests exactly what the harness

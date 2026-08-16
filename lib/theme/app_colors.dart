@@ -74,6 +74,48 @@ class AppColors {
   static const subtleForegroundLight = _ink300; // --fg-subtle
   static const subtleForegroundDark = Color(0x73FFFFFF); // --fg-subtle rgba(255,255,255,.45)
 
+  // ── The rest of the semantic layer (needed to build a real ColorScheme) ──
+  // Every one of these is a token that FLIPS with the theme, which is why each
+  // is a light/dark pair rather than one value used twice.
+  static const surfaceRaisedLight = _paper100; // --surface-raised
+  static const surfaceRaisedDark = _ink500; // --surface-raised (dark)
+  static const borderStrongLight = Color(0x2E14171F); // --border-strong rgba(20,23,31,.18)
+  static const borderStrongDark = Color(0x2EFFFFFF); // --border-strong rgba(255,255,255,.18)
+  static const hoverLight = Color(0x0A14171F); // --hover rgba(20,23,31,.04)
+  static const hoverDark = Color(0x0FFFFFFF); // --hover rgba(255,255,255,.06)
+  static const hoverStrongLight = Color(0x1414171F); // --hover-strong rgba(20,23,31,.08)
+  static const hoverStrongDark = Color(0x1FFFFFFF); // --hover-strong rgba(255,255,255,.12)
+  static const accentHoverLight = _brick700; // --accent-hover
+  static const accentHoverDark = Color(0xFFD16A28); // --accent-hover (dark)
+  static const accentSoftLight = Color(0x1A9D352D); // --accent-soft rgba(157,53,45,.10)
+  static const accentSoftDark = Color(0x29E97D39); // --accent-soft rgba(233,125,57,.16)
+  static const fgLedeLight = _ink400; // --fg-lede
+  static const fgLedeDark = Color(0xB8FFFFFF); // --fg-lede rgba(255,255,255,.72)
+
+  /// `--secondary` is the secondary BUTTON FILL, and it is one of the few
+  /// tokens whose two themes are not the same kind of colour at all: solid plum
+  /// on paper, a white wash on ink. Distinct from [secondaryLight], which this
+  /// file has always used for `--surface-raised` — the two names predate the
+  /// semantic layer and are deliberately left alone, because widgets reference
+  /// them.
+  static const secondaryFillLight = _plum600; // --secondary
+  static const secondaryFillDark = Color(0x14FFFFFF); // --secondary rgba(255,255,255,.08)
+  static const secondaryFg = _paper50; // --secondary-fg (both themes)
+
+  /// `--solid` — the neutral control. Inverts between themes.
+  static const solidLight = _ink700;
+  static const solidDark = _paper50;
+  static const solidFgLight = _paper50;
+  static const solidFgDark = _ink700;
+
+  // Decorative.
+  static const highlightLight = Color(0x269D352D); // --highlight rgba(157,53,45,.15)
+  static const highlightDark = Color(0x3DE97D39); // --highlight rgba(233,125,57,.24)
+  static const sealLight = _brick700; // --seal
+  static const sealDark = _brick400; // --seal (dark)
+  static const linkDecorLight = _brick500; // --link-decor
+  static const linkDecorDark = _brick400; // --link-decor (dark)
+
   // ── Shelf colours (2.15.0, ADR-022) ──────────────────────────────────────
   // `/tags.color` stores a design-token NAME, not a colour value — the one
   // place a token name crosses the wire as data. A hex literal cannot be
