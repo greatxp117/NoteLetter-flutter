@@ -147,6 +147,17 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   'fn_update_document': (b) => Api.instance
       .updateDocument(b['docId'], Map<String, dynamic>.of(b)..remove('docId')),
   'fn_delete_document': (b) => Api.instance.deleteDocument(b['docId']),
+  'fn_request_study_session': (b) =>
+      Api.instance.requestStudySession(b['programId']),
+  'fn_submit_study_answer': (b) => Api.instance.submitStudyAnswer(
+      b['sessionId'], b['qid'], b['grade'],
+      answerText: b['answerText']),
+  'fn_study_advance_unit': (b) => Api.instance.advanceStudyUnit(b['programId'],
+      positions: (b['positions'] as Map?)?.cast<String, dynamic>()),
+  'fn_suggest_syllabus_plan': (b) =>
+      Api.instance.suggestSyllabusPlan(b['programId'], b['documentId']),
+  'fn_scripture_lookup': (b) =>
+      Api.instance.scriptureLookup(b['reference'], translation: b['translation']),
   'fn_set_read_state': (b) =>
       Api.instance.setReadState(b['docId'], b['finished'] as bool),
   'fn_update_chunk_tags': (b) =>
@@ -220,6 +231,13 @@ const _suites = [
   // 4.0.0 realignment — the suites this client now implements.
   'api/read-state',
   'api/chunk-tags',
+  // The two verticals, built 2026-08-15.
+  'api/study-programs',
+  'api/study-review',
+  'api/study-syllabus',
+  'api/study-units',
+  'api/scripture-lookup',
+  'api/scripture-newsletter',
 ];
 
 // Endpoints whose builder needs the request METHOD (and possibly query) — the
@@ -228,6 +246,9 @@ const _methodAware = {
   'fn_notification_channels',
   'fn_register_device',
   'fn_unregister_device',
+  'fn_study_programs',
+  'fn_apply_syllabus_plan',
+  'fn_scripture_newsletter_settings',
 };
 
 Future<dynamic> _invokeMethodAware(
@@ -252,6 +273,32 @@ Future<dynamic> _invokeMethodAware(
       return Api.instance.registerDevice(b['token'], b['platform'] ?? 'web');
     case 'fn_unregister_device':
       return Api.instance.unregisterDevice(b['token']);
+    case 'fn_study_programs':
+      if (method == 'PUT') {
+        final rest = Map<String, dynamic>.of(b)..remove('programId');
+        return Api.instance.updateStudyProgram(b['programId'], rest);
+      }
+      if (method == 'DELETE') {
+        return Api.instance.deleteStudyProgram(b['programId']);
+      }
+      return Api.instance.createStudyProgram(b);
+    case 'fn_apply_syllabus_plan':
+      // DELETE detaches; POST applies. 3.0.0 sends `assessments`, never
+      // `exams`, and there is no `unitIndexes` any more.
+      if (method == 'DELETE') {
+        return Api.instance.detachSyllabusPlan(b['programId']);
+      }
+      return Api.instance.applySyllabusPlan(
+        b['programId'],
+        b['documentId'],
+        _maps(b['units']) ?? const [],
+        _maps(b['assessments']) ?? const [],
+      );
+    case 'fn_scripture_newsletter_settings':
+      if (method == 'GET') {
+        return Api.instance.getScriptureNewsletterSettings();
+      }
+      return Api.instance.updateScriptureNewsletterSettings(b);
   }
   throw StateError('no method-aware dispatch for $endpoint');
 }
