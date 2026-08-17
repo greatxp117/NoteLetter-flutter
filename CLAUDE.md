@@ -1,22 +1,22 @@
 # CLAUDE.md — NoteLetter Flutter
 
-Flutter client for NoteLetter. Part of the multi-repo workspace — read the
-umbrella `../CLAUDE.md` (especially "Traps that have bitten us") and
+Flutter client. Part of the multi-repo workspace — read the umbrella
+`../CLAUDE.md` (especially "Traps that have bitten us") and
 `../NoteLetter-contracts/spec/overview.md` before any data-layer work.
 
 **Contract version: 4.4.0** (pin — advanced only with a green `/conformance`
-run; `test/contract/pin_check_test.dart` parses this exact line and fails loudly
-while it differs from `../NoteLetter-contracts/VERSION`).
+run; `test/contract/pin_check_test.dart` parses this exact line and fails while
+it differs from `../NoteLetter-contracts/VERSION`).
 
 At **full feature parity with the web reference**, Study and Scripture included.
 Defaults to **real prod** `noteletter-7a111`. Registered as
-`xp.NoteLetter.Flutter` — its own bundle id, because `xp.NoteLetter` belongs to
-the Swift app and the Android slot is reserved for a native client.
+`xp.NoteLetter.Flutter` — its own bundle id: `xp.NoteLetter` belongs to the
+Swift app, and the Android slot is reserved for a native client.
 
 What changed and when: `../NoteLetter-contracts/CHANGELOG.md`. Why:
-`spec/decisions/`. What is still open here: `../TODO.md`. The live per-file
-execution checklist is [`REALIGNMENT.md`](REALIGNMENT.md) — regenerate it with
-`/parity flutter` rather than narrating progress in this file.
+`spec/decisions/`. What is open: `../TODO.md`. Per-file execution checklist:
+[`REALIGNMENT.md`](REALIGNMENT.md) — regenerate with `/parity flutter` rather
+than narrating progress here.
 
 ## Layout
 
@@ -36,17 +36,21 @@ lib/
 └── theme/     app_colors.dart            # semantic tokens from design-tokens.md
 ```
 
-Pattern is `pages/` + `state/` + `services/` — **not** feature-first. Keep it.
+Pattern is `pages/` + `state/` + `services/` — **not** feature-first.
+
+**Route names follow the web reference and are not the obvious ones:** `/` is
+the **Library** (the greeting home, the rail's *Home*); the rail's *Library* is
+`/sources`, which owns the volume list and the uploader.
 
 The live theme is `theme/app_theme.dart` (`app.dart` only passes it on).
-**Never reintroduce `ColorScheme.fromSeed`** — it generates a palette from one
-token, so most widgets draw colours in no token file, and since a generated
-palette is self-consistent nothing looks broken and no test fails. Guard:
-`test/contract/theme_tokens_test.dart`.
+**Never reintroduce `ColorScheme.fromSeed`** — a generated palette is
+self-consistent, so nothing looks broken while most widgets draw colours in no
+token file. Guard: `test/contract/theme_tokens_test.dart`.
 
-**Every builder routes through `lib/services/api.dart`**, which all the notifiers
-call — that is what makes the app's live requests exactly what the harness
-asserts. A notifier that builds its own request is untested by construction.
+**Every builder routes through `lib/services/api.dart`**, which all the
+notifiers call — that is what makes the app's live requests exactly what the
+harness asserts. A notifier building its own request is untested by
+construction.
 
 ## Build & run
 
@@ -68,15 +72,14 @@ needs `--timeout none` (the iOS build outlasts the per-test timeout).
   cosmetic: this client points at **real prod**, so a wrong bump re-inflates the
   same counters a backfill has already corrected.
 - **`fake_cloud_firestore` cannot resolve against this SDK**, so the transaction
-  itself is not harness-provable. The *rule* is extracted as a pure function and
-  asserted; the Firestore plumbing is not. Stated rather than implied — the web
-  reference has the same blind spot.
+  is not harness-provable: the *rule* is extracted as a pure function and
+  asserted, the Firestore plumbing is not. The web reference is equally blind.
 - **Dart will not compare against null.** The web parser reaches the right answer
   for a chapter-crossing citation range via a loose `null > n`; the direct port
   crashed on the middle whole chapter. Any logic ported from `api.js` that leans
   on JS coercion needs an explicit null branch.
 - **The reading-speed constant is 220 wpm**, normatively — this client shipped
-  200 and silently disagreed with the web reference on every document.
+  200 and silently disagreed with the reference on every document.
 - **Never end a status/label switch with `default: return status`.** That is how
   users get shown the literal token `pending_upload`.
 - **Newsletters filter `kind != "scripture"`, never `== "daily"`** — the field is

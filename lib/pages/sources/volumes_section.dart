@@ -1,0 +1,499 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../models/activity_item.dart';
+import '../../state/activity_notifier.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/file_uploader.dart';
+import '../library/document_detail_sheet.dart';
+
+/// The volume list and the uploader — **Sources**, per `screens/sources.md`
+/// ("Browse-and-manage view over ingestion sources, plus the add flows";
+/// per-source `fn_update_document` / `fn_delete_document` / `fn_retry_document`
+/// / `fn_cancel_document` are listed under its §Endpoints used).
+///
+/// This is a **move, not a rewrite**: it is the old `library_page.dart` body,
+/// which had drifted onto the wrong screen — the contract's Library is the
+/// greeting home (`screens/library.md`), and the web reference puts the volume
+/// table on Sources. Everything here still composes inline and is therefore
+/// still pre-kit; it gets recomposed with the rest of this screen (ADR-041).
+/// Moving it unchanged keeps every per-document affordance reachable in the
+/// meantime, which recomposing it in the same commit would have risked.
+class VolumesSection extends StatefulWidget {
+  const VolumesSection({super.key});
+
+  @override
+  State<VolumesSection> createState() => _VolumesSectionState();
+}
+
+class _VolumesSectionState extends State<VolumesSection> {
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ActivityNotifier>().load();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Consumer<ActivityNotifier>(
+      builder: (context, activity, _) {
+        final docs = activity.documents
+            .where((d) =>
+                d.title.toLowerCase().contains(_search.toLowerCase()))
+            .toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Upload Documents',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    FileUploader(
+                      onUploadComplete: () {
+                        activity.refresh();
+                        AppToast.show(
+                          context,
+                          'Document queued for processing.',
+                          type: ToastType.success,
+                        );
+                      },
+                      onUploadError: (msg) =>
+                          AppToast.show(context, msg, type: ToastType.error),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                      border: Border.all(
+                          color: isDark
+                              ? AppColors.borderDark
+                              : AppColors.borderLight),
+                      borderRadius: AppRadius.mdR,
+                    ),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 10),
+                        Icon(Icons.search,
+                            size: 16,
+                            color: isDark
+                                ? AppColors.mutedForegroundDark
+                                : AppColors.mutedForeground),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            style: theme.textTheme.bodyMedium,
+                            decoration: InputDecoration(
+                              hintText: 'Filter files...',
+                              hintStyle: theme.textTheme.bodySmall?.copyWith(
+                                color: isDark
+                                    ? AppColors.mutedForegroundDark
+                                    : AppColors.mutedForeground,
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                              fillColor: Colors.transparent,
+                              filled: false,
+                            ),
+                            onChanged: (v) => setState(() => _search = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => activity.refresh(),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Refresh'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: Text('Name',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: isDark
+                                    ? AppColors.mutedForegroundDark
+                                    : AppColors.mutedForeground,
+                              )),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text('Added',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: isDark
+                                    ? AppColors.mutedForegroundDark
+                                    : AppColors.mutedForeground,
+                              )),
+                        ),
+                        Expanded(
+                          child: Text('Words',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: isDark
+                                    ? AppColors.mutedForegroundDark
+                                    : AppColors.mutedForeground,
+                              )),
+                        ),
+                        Expanded(
+                          child: Text('Status',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: isDark
+                                    ? AppColors.mutedForegroundDark
+                                    : AppColors.mutedForeground,
+                              )),
+                        ),
+                        const SizedBox(width: 32),
+                      ],
+                    ),
+                  ),
+                  Divider(
+                      height: 1,
+                      color: isDark
+                          ? AppColors.borderDark
+                          : AppColors.borderLight),
+                  if (activity.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (activity.error != null)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        activity.error!,
+                        style: TextStyle(color: AppColors.critical),
+                      ),
+                    )
+                  else ...[
+                    ...docs.map((d) => _DocumentRow(item: d)),
+                    if (docs.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Center(
+                          child: Text(
+                            activity.documents.isEmpty
+                                ? 'No documents yet. Upload some files to get started.'
+                                : 'No files match your search.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: isDark
+                                  ? AppColors.mutedForegroundDark
+                                  : AppColors.mutedForeground,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DocumentRow extends StatefulWidget {
+  final ActivityItem item;
+
+  const _DocumentRow({required this.item});
+
+  @override
+  State<_DocumentRow> createState() => _DocumentRowState();
+}
+
+class _DocumentRowState extends State<_DocumentRow> {
+  bool _hovered = false;
+
+  IconData get _icon {
+    switch (widget.item.type) {
+      case 'pdf':
+        return Icons.picture_as_pdf_outlined;
+      case 'docx':
+        return Icons.description_outlined;
+      case 'youtube':
+        return Icons.play_circle_outline;
+      case 'podcast':
+        return Icons.podcasts_outlined;
+      case 'url':
+        return Icons.link;
+      case 'image':
+      case 'image_set':
+        return Icons.image_outlined;
+      default:
+        return Icons.article_outlined;
+    }
+  }
+
+  Color get _iconColor {
+    switch (widget.item.type) {
+      case 'pdf':
+        return Colors.red;
+      case 'docx':
+        return Colors.blue;
+      case 'youtube':
+        return Colors.red.shade700;
+      case 'podcast':
+        return Colors.deepPurple.shade400;
+      case 'url':
+        return Colors.teal;
+      case 'image':
+      case 'image_set':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final item = widget.item;
+
+    Color statusColor;
+    String statusLabel;
+    switch (item.status) {
+      case 'complete':
+        statusColor = Colors.green;
+        statusLabel = 'Indexed';
+        break;
+      case 'error':
+        statusColor = Colors.red;
+        statusLabel = 'Error';
+        break;
+      case 'skipped':
+        statusColor = Colors.grey;
+        statusLabel = 'Skipped';
+        break;
+      default:
+        statusColor = Colors.orange;
+        statusLabel = item.statusLabel;
+    }
+
+    final wordCount = item.wordCount;
+    final wordLabel = wordCount != null && wordCount > 0
+        ? wordCount >= 1000
+            ? '${(wordCount / 1000).toStringAsFixed(1)}k'
+            : '$wordCount'
+        : '—';
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        color: _hovered
+            ? (isDark
+                ? Colors.white.withValues(alpha: 0.03)
+                : Colors.black.withValues(alpha: 0.02))
+            : Colors.transparent,
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: Row(
+                  children: [
+                    Icon(_icon, size: 18, color: _iconColor),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        item.title,
+                        style: theme.textTheme.bodyMedium,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  item.formattedDate,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? AppColors.mutedForegroundDark
+                        : AppColors.mutedForeground,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  wordLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? AppColors.mutedForegroundDark
+                        : AppColors.mutedForeground,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: AppRadius.controlR(20),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: statusColor),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 32,
+                child: AnimatedOpacity(
+                  opacity: _hovered ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 150),
+                  child: PopupMenuButton<String>(
+                    icon: Icon(Icons.more_horiz,
+                        size: 16,
+                        color: isDark
+                            ? AppColors.mutedForegroundDark
+                            : AppColors.mutedForeground),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'open',
+                        enabled: item.status == 'complete',
+                        child: const Text('Open'),
+                      ),
+                      const PopupMenuItem(
+                          value: 'details', child: Text('Priority & tags…')),
+                      if (item.status == 'error')
+                        const PopupMenuItem(
+                            value: 'retry', child: Text('Retry')),
+                      if (item.status == 'queued' ||
+                          item.status == 'processing')
+                        const PopupMenuItem(
+                            value: 'cancel', child: Text('Cancel')),
+                      const PopupMenuItem(
+                          value: 'delete', child: Text('Delete')),
+                    ],
+                    onSelected: (action) => _handleAction(context, action),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleAction(BuildContext context, String? action) async {
+    final item = widget.item;
+    final activity = context.read<ActivityNotifier>();
+
+    if (action == 'open') {
+      context.push('/reader/${item.id}');
+      return;
+    }
+
+    if (action == 'details') {
+      final saved = await DocumentDetailSheet.show(context, item.id);
+      if (saved == true && context.mounted) {
+        AppToast.show(context, 'Saved.', type: ToastType.info);
+      }
+      return;
+    }
+
+    if (action == 'retry') {
+      final error = await activity.retryDocument(item.id);
+      if (!context.mounted) return;
+      if (error != null) {
+        AppToast.show(context, error, type: ToastType.error);
+      } else {
+        AppToast.show(context, 'Retrying document.', type: ToastType.info);
+      }
+      return;
+    }
+
+    if (action == 'cancel') {
+      final error = await activity.cancelDocument(item.id);
+      if (!context.mounted) return;
+      if (error != null) {
+        AppToast.show(context, error, type: ToastType.error);
+      } else {
+        AppToast.show(context, 'Cancelled.', type: ToastType.info);
+      }
+      return;
+    }
+
+    if (action == 'delete') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Delete document?'),
+          content: Text(
+              'This permanently deletes "${item.title}" and its indexed content. '
+              'This cannot be undone.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.critical),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+
+      final error = await activity.deleteDocument(item.id);
+      if (!context.mounted) return;
+      if (error != null) {
+        AppToast.show(context, error, type: ToastType.error);
+      } else {
+        AppToast.show(context, 'Document deleted.', type: ToastType.info);
+      }
+    }
+  }
+}

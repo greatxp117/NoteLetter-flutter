@@ -12,6 +12,7 @@ import 'state/upload_notifier.dart';
 import 'state/search_notifier.dart';
 import 'state/chat_notifier.dart';
 import 'state/activity_notifier.dart';
+import 'state/documents_notifier.dart';
 import 'state/settings_notifier.dart';
 import 'state/newsletter_notifier.dart';
 import 'state/cloud_notifier.dart';
@@ -51,6 +52,7 @@ void main() async {
         ChangeNotifierProvider<SearchNotifier>(create: (_) => SearchNotifier()),
         ChangeNotifierProvider<ChatNotifier>(create: (_) => ChatNotifier()),
         ChangeNotifierProvider<ActivityNotifier>(create: (_) => ActivityNotifier()),
+        ChangeNotifierProvider<DocumentsNotifier>(create: (_) => DocumentsNotifier()),
         ChangeNotifierProvider<SettingsNotifier>(create: (_) => SettingsNotifier()),
         ChangeNotifierProvider<NewsletterNotifier>(create: (_) => NewsletterNotifier()),
         ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),

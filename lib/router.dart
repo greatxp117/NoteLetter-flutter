@@ -2,8 +2,9 @@ import 'package:go_router/go_router.dart';
 import 'state/auth_notifier.dart';
 import 'widgets/app_layout.dart';
 import 'pages/landing_page.dart';
-import 'pages/dashboard_page.dart';
 import 'pages/library_page.dart';
+import 'pages/search_page.dart';
+import 'pages/activity_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/notification_settings_page.dart';
@@ -42,13 +43,25 @@ GoRouter createRouter(AuthNotifier authNotifier) {
       ShellRoute(
         builder: (context, state, child) => AppLayout(child: child),
         routes: [
+          // `/` IS the library (spec/screens/library.md) — the web reference's
+          // default view and the rail's Home. `/library` is kept as a redirect
+          // because it was this client's route for the volume table, which now
+          // lives on Sources.
           GoRoute(
             path: '/',
-            builder: (context, state) => const DashboardPage(),
+            builder: (context, state) => const LibraryPage(),
           ),
           GoRoute(
             path: '/library',
-            builder: (context, state) => const LibraryPage(),
+            redirect: (context, state) => '/',
+          ),
+          GoRoute(
+            path: '/search',
+            builder: (context, state) => const SearchPage(),
+          ),
+          GoRoute(
+            path: '/activity',
+            builder: (context, state) => const ActivityPage(),
           ),
           GoRoute(
             path: '/chat',

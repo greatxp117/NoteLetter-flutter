@@ -171,3 +171,133 @@ class _KitSuggestionState extends State<KitSuggestion> {
     );
   }
 }
+
+/// The **drop zone** — the library's empty state leads with this rather than
+/// with suggestion rows (`screens/library.md` §Composition).
+///
+/// Dashed `--border-strong` on `--bg`, `--r-md`, a centred feather, and the
+/// accepted formats as source pills. The offer is the zone itself: a reader
+/// with an empty library is not told their library is empty, they are shown
+/// where to put the first thing in it.
+///
+/// Flutter has no dashed border primitive, so the dashes are painted
+/// ([_DashedBorderPainter]) — a solid border here would read as a card and stop
+/// looking like a target.
+class KitDropZone extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String help;
+
+  /// Format pills, rendered as source tags.
+  final List<Widget> formats;
+  final VoidCallback? onTap;
+
+  const KitDropZone({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.help,
+    this.formats = const [],
+    this.onTap,
+  });
+
+  @override
+  State<KitDropZone> createState() => _KitDropZoneState();
+}
+
+class _KitDropZoneState extends State<KitDropZone> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return MouseRegion(
+      cursor: widget.onTap == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: CustomPaint(
+          painter: _DashedBorderPainter(
+            color: _hover ? t.accent : t.borderStrong,
+            radius: AppRadius.md,
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.s8),
+            decoration: BoxDecoration(
+              color: t.bg,
+              borderRadius: AppRadius.mdR,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(widget.icon, size: 40, color: t.seal),
+                const SizedBox(height: AppSpacing.s4),
+                Text(
+                  widget.title,
+                  textAlign: TextAlign.center,
+                  style: AppTheme.serif(
+                    fontSize: 20,
+                    height: 1.2,
+                    fontWeight: FontWeight.w600,
+                    color: t.fg,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s2),
+                Text(
+                  widget.help,
+                  textAlign: TextAlign.center,
+                  style: KitText.lede(context, fontSize: 15, height: 22),
+                ),
+                if (widget.formats.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.s4),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: AppSpacing.s2,
+                    runSpacing: AppSpacing.s2,
+                    children: widget.formats,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Offset.zero & size,
+        Radius.circular(radius),
+      ));
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = (distance + 6).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, next), paint);
+        distance = next + 5;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter old) =>
+      old.color != color || old.radius != radius;
+}

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../state/activity_notifier.dart';
+import '../state/documents_notifier.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_colors.dart';
 import 'kit/kit.dart';
@@ -24,27 +24,47 @@ import 'kit/kit.dart';
 /// * **Welcome** and **Branding** were primary nav entries. Neither exists in
 ///   the web reference; Branding is a development page. The routes still work,
 ///   they are simply not destinations in the rail.
-class Sidebar extends StatelessWidget {
+class Sidebar extends StatefulWidget {
   const Sidebar({super.key});
+
+  @override
+  State<Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends State<Sidebar> {
+  @override
+  void initState() {
+    super.initState();
+    // The rail is on every screen, so it opens the documents subscription
+    // itself rather than depending on whichever screen happens to be mounted:
+    // the card's figures would otherwise read zero everywhere except Library.
+    // `start()` is idempotent.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<DocumentsNotifier>().start();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final route = GoRouterState.of(context).uri.path;
     void go(String path) => context.go(path);
 
-    return Consumer<ActivityNotifier>(
-      builder: (context, activity, _) {
-        // The web card shows three figures — Volumes · Passages · Unread.
-        // Only the first has a backing signal in this client: `documents`
-        // here is a list of `ActivityItem`, which carries no `chunk_count` or
-        // `view_count`, and nothing in state holds a `List<Document>`.
+    return Consumer<DocumentsNotifier>(
+      builder: (context, docs, _) {
+        // The corpus at a glance, derived from the documents subscription that
+        // is already open (INV-02) — no extra read. All three figures are
+        // measured: volumes and passages from the indexed documents, unread
+        // from `view_count`, which INV-03a bumps on an open and nothing else.
         //
-        // So it shows one figure. Rendering "0 Passages / 0 Unread" would be
-        // three measurements presented alike where two are placeholders — the
-        // same defect as the storage meter this replaced. Wiring
-        // `subscribeDocuments()` would supply the other two; that is a
-        // data-layer task, recorded in ../TODO.md, not something to fake here.
-        final volumes = activity.documents.length;
+        // Until 4.5.1 the rail read the activity merge, whose `ActivityItem`
+        // carries no `tag_ids` and no `view_count`, so two of the three cells
+        // had no signal and the card showed one figure. `DocumentsNotifier`
+        // supplies them.
+        final done = docs.complete;
+        final volumes = done.length;
+        final passages =
+            done.fold<int>(0, (n, d) => n + (d.chunkCount ?? 0));
+        final unread = done.where((d) => d.viewCount == 0).length;
 
         return KitChromeRail(
           brand: const KitBrand(mark: Icon(Icons.edit_note, size: 22, color: AppColors.chromeForeground)),
@@ -59,11 +79,13 @@ class Sidebar extends StatelessWidget {
             KitRailCard(
               icon: Icons.menu_book_outlined,
               label: 'Library',
-              active: route == '/sources' || route == '/library',
+              active: route == '/sources',
               onTap: () => go('/sources'),
               figures: [
                 KitRailFigure('$volumes',
                     volumes == 1 ? 'Volume' : 'Volumes'),
+                KitRailFigure('$passages', 'Passages'),
+                KitRailFigure('$unread', 'Unread', highlight: unread > 0),
               ],
             ),
             KitNavItem(
@@ -104,6 +126,13 @@ class Sidebar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
+              KitNavItem(
+                icon: Icons.timeline_outlined,
+                label: 'Activity',
+                active: route == '/activity',
+                onTap: () => go('/activity'),
+              ),
+              const SizedBox(height: 4),
               KitNavItem(
                 icon: Icons.settings_outlined,
                 label: 'Settings',

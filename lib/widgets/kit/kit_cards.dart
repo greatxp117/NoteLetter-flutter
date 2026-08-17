@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
@@ -319,6 +320,163 @@ class KitStatCluster extends StatelessWidget {
         ),
       ),
       child: row,
+    );
+  }
+}
+
+/// A shelf, as a card in the library's shelves grid
+/// (`screens/library.md` §Composition): a **spine stack** over the shelf name
+/// in serif and a mono count.
+///
+/// The spines are the shelf's stored token colour at stepped opacities — the
+/// one place in the app where a shelf's colour is the subject rather than a
+/// marker, which is why they carry the same hairline every swatch and dot does:
+/// `plum-600` and `ink-500` sit close to the dark page and vanish without it.
+class KitShelfCard extends StatelessWidget {
+  final String title;
+
+  /// The shelf's `/tags.color` token name. An unrecognised value (or a legacy
+  /// hex) falls back to muted rather than failing — never fail on a colour.
+  final String? colorToken;
+
+  /// Rendered under the title, e.g. `4 volumes · 213 passages`. Mono.
+  final String meta;
+
+  /// How many volumes the shelf holds — the spine count, clamped 1..9 so a
+  /// large shelf stays a shelf rather than a barcode.
+  final int volumes;
+  final VoidCallback? onTap;
+
+  const KitShelfCard({
+    super.key,
+    required this.title,
+    required this.meta,
+    required this.volumes,
+    this.colorToken,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final spineColor = AppColors.shelfColor(colorToken) ?? t.fgSubtle;
+    final n = volumes.clamp(1, 9);
+
+    return KitCard(
+      onTap: onTap,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 52,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (var i = 0; i < n; i++) ...[
+                    if (i > 0) const SizedBox(width: 3),
+                    Container(
+                      width: 6,
+                      height: 40 * (0.62 + ((i * 23) % 38) / 100),
+                      decoration: BoxDecoration(
+                        color: spineColor.withValues(
+                            alpha: 0.32 + ((i * 7) % 5) * 0.14),
+                        borderRadius: BorderRadius.circular(1),
+                        border: Border.all(color: t.border, width: 0.5),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: spineColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: t.border, width: 0.5),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.s2),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.serif(
+                          fontSize: 17,
+                          height: 22 / 17,
+                          fontWeight: FontWeight.w500,
+                          color: t.fg,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  meta,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.mono(fontSize: 11, color: t.fgSubtle),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The shelves grid — four columns at the Index frame, two when compact.
+///
+/// A fixed column count rather than a `childAspectRatio` grid: the cards size to
+/// their content, and a ratio-driven grid clips a two-line shelf name at exactly
+/// the widths nobody tests.
+class KitCardGrid extends StatelessWidget {
+  final List<Widget> children;
+  final int columns;
+  final int compactColumns;
+  final double gap;
+
+  const KitCardGrid({
+    super.key,
+    required this.children,
+    this.columns = 4,
+    this.compactColumns = 2,
+    this.gap = AppSpacing.s3,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cols = constraints.maxWidth < 560 ? compactColumns : columns;
+        final width =
+            (constraints.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final child in children)
+              SizedBox(width: width, child: child),
+          ],
+        );
+      },
     );
   }
 }

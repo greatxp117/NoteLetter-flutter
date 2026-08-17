@@ -11,6 +11,7 @@ import '../theme/app_colors.dart';
 import '../widgets/app_toast.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sync_settings_panel.dart';
+import 'sources/volumes_section.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
 
@@ -164,6 +165,12 @@ class _SourcesPageState extends State<SourcesPage> {
               Text('Connect cloud storage and import documents.',
                   style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
               const SizedBox(height: 20),
+
+              // The volume list and uploader. `screens/sources.md` owns them —
+              // they were on Library, which the contract defines as the
+              // greeting home.
+              const VolumesSection(),
+              const SizedBox(height: 32),
 
               if (_errorBanner != null)
                 _Banner(

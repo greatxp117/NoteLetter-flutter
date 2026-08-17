@@ -283,11 +283,24 @@ enum KitBadgeSize {
 }
 
 class KitFileBadge extends StatelessWidget {
-  /// `pdf` · `epub` · `web` · `note` — anything else renders neutral.
+  /// `pdf` · `epub` · `web` · `podcast` · `note` — anything else renders
+  /// neutral. Build it from a document's `type` with [kitDocKind].
   final String kind;
   final KitBadgeSize size;
 
   const KitFileBadge(this.kind, {super.key, this.size = KitBadgeSize.row});
+
+  /// The plate's own word, which is **not** the kind: an audio source's plate
+  /// reads AUDIO, and an unknown kind reads DOC rather than printing whatever
+  /// token was passed in. Printing the raw value is the same class of defect as
+  /// showing a user the literal status `pending_upload`.
+  static const _labels = <String, String>{
+    'pdf': 'PDF',
+    'epub': 'EPUB',
+    'web': 'WEB',
+    'podcast': 'AUDIO',
+    'note': 'NOTE',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -307,6 +320,12 @@ class KitFileBadge extends StatelessWidget {
         bg = t.isDark ? const Color(0x1F6F8159) : const Color(0xFFE2E8DC);
         fg = t.isDark ? const Color(0xFFA8B894) : const Color(0xFF495936);
         border = const Color(0x336F8159);
+      case 'web':
+      case 'note':
+      case 'podcast':
+        bg = t.surfaceSunken;
+        fg = t.fgMuted;
+        border = t.border;
       default:
         bg = t.surfaceSunken;
         fg = t.fgMuted;
@@ -323,7 +342,7 @@ class KitFileBadge extends StatelessWidget {
         border: Border.all(color: border),
       ),
       child: Text(
-        k.toUpperCase(),
+        _labels[k] ?? 'DOC',
         style: AppTheme.mono(
           fontSize: size.fontSize,
           height: 1,
@@ -383,5 +402,29 @@ class _KitIconButtonState extends State<KitIconButton> {
         ),
       ),
     );
+  }
+}
+
+/// A document `type` → the plate kind ([KitFileBadge]).
+///
+/// Mirrors the web reference's `docKind` exactly, including that every web-ish
+/// source (article, YouTube, Instagram, TikTok) shares one plate: the plate says
+/// where a source came from, not which service it came through.
+String kitDocKind(String type) {
+  switch (type) {
+    case 'pdf':
+      return 'pdf';
+    case 'epub':
+      return 'epub';
+    case 'podcast':
+      return 'podcast';
+    case 'url':
+    case 'article':
+    case 'youtube':
+    case 'instagram':
+    case 'tiktok':
+      return 'web';
+    default:
+      return 'note';
   }
 }
