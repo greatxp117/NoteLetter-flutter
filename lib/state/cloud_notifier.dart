@@ -71,7 +71,7 @@ class CloudNotifier extends ChangeNotifier {
         .listen((list) {
       _jobs = list;
       _evaluateSession();
-      notifyListeners();
+      _notify();
     });
     loadIntegrations();
   }
@@ -118,7 +118,7 @@ class CloudNotifier extends ChangeNotifier {
 
   Future<void> loadIntegrations() async {
     _loadingIntegrations = true;
-    notifyListeners();
+    _notify();
     try {
       final data = await Api.instance.getCloudIntegrations();
       final raw = (data['integrations'] as List?) ?? const [];
@@ -131,7 +131,7 @@ class CloudNotifier extends ChangeNotifier {
       // Non-fatal — leave the prior list.
     } finally {
       _loadingIntegrations = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -160,7 +160,7 @@ class CloudNotifier extends ChangeNotifier {
       await Api.instance.disconnectCloudStorage(provider);
       _integrations.removeWhere((i) => i.provider == provider);
       if (_browseProvider == provider) closePicker();
-      notifyListeners();
+      _notify();
       return null;
     } on UnauthorizedException {
       await AuthService.instance.signOut();
@@ -191,7 +191,7 @@ class CloudNotifier extends ChangeNotifier {
     _browseError = null;
     _selectedFolders.clear();
     _selectedFiles.clear();
-    notifyListeners();
+    _notify();
   }
 
   Future<void> enterFolder(CloudFile folder) async {
@@ -212,7 +212,7 @@ class CloudNotifier extends ChangeNotifier {
     _browsing = true;
     _browseError = null;
     _listing = null;
-    notifyListeners();
+    _notify();
     try {
       final params = <String, dynamic>{'provider': provider};
       if (folderId != 'root') params['folderId'] = folderId;
@@ -224,7 +224,7 @@ class CloudNotifier extends ChangeNotifier {
       _browseError = 'Could not list files.';
     } finally {
       _browsing = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -233,7 +233,7 @@ class CloudNotifier extends ChangeNotifier {
     final token = _listing?.nextPageToken;
     if (provider == null || token == null || _loadingMore) return;
     _loadingMore = true;
-    notifyListeners();
+    _notify();
     try {
       final params = <String, dynamic>{'provider': provider, 'pageToken': token};
       final folderId = _crumbs.isNotEmpty ? _crumbs.last.id : 'root';
@@ -252,7 +252,7 @@ class CloudNotifier extends ChangeNotifier {
       _browseError = 'Could not load more files.';
     } finally {
       _loadingMore = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -266,7 +266,7 @@ class CloudNotifier extends ChangeNotifier {
       }
       _selectedFolders.add(id);
     }
-    notifyListeners();
+    _notify();
     return null;
   }
 
@@ -279,7 +279,7 @@ class CloudNotifier extends ChangeNotifier {
       }
       _selectedFiles.add(id);
     }
-    notifyListeners();
+    _notify();
     return null;
   }
 
@@ -365,7 +365,7 @@ class CloudNotifier extends ChangeNotifier {
       } else {
         _integrations.add(updated);
       }
-      notifyListeners();
+      _notify();
       return null;
     } on ApiException catch (e) {
       return e.message; // 400 validation copy is user-facing
@@ -398,8 +398,24 @@ class CloudNotifier extends ChangeNotifier {
     }
   }
 
+  /// Every notify here goes through [_notify], which is silent after dispose.
+  ///
+  /// This notifier's work is asynchronous by construction — an integrations
+  /// fetch, a jobs subscription, an OAuth round trip — so a request in flight
+  /// routinely outlives the screen that started it, and `notifyListeners()` on
+  /// a disposed notifier throws. It surfaced as a device run that failed in a
+  /// test that had already passed, which is the least legible failure a gate
+  /// can produce.
+  bool _disposed = false;
+
+  void _notify() {
+    if (_disposed) return;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _jobsSub?.cancel();
     completionMessage.dispose();
     super.dispose();

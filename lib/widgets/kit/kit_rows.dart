@@ -230,11 +230,19 @@ class KitTimelineRow extends StatefulWidget {
   /// Mono caps, e.g. `INDEXED`.
   final String chip;
   final String subject;
+
+  /// The optional third part of the line — a [KitFileBadge] naming what kind
+  /// of thing the subject is. `[chip · subject · badge]` is the whole anatomy;
+  /// the badge is optional, its **position** is not.
+  final Widget? badge;
   final String? detail;
   final String time;
   final VoidCallback? onTap;
 
-  /// Adds the pulsing ring. Suppressed under `prefers-reduced-motion`.
+  /// A running event: adds the pulsing ring **and the running label**.
+  /// Both are suppressed under `prefers-reduced-motion`; the label stays, it
+  /// just stops animating — the fact that something is in progress is
+  /// information, not decoration.
   final bool live;
 
   const KitTimelineRow({
@@ -243,6 +251,7 @@ class KitTimelineRow extends StatefulWidget {
     this.tone = KitNodeTone.ink,
     required this.chip,
     required this.subject,
+    this.badge,
     this.detail,
     required this.time,
     this.onTap,
@@ -277,14 +286,24 @@ class _KitTimelineRowState extends State<KitTimelineRow>
   Color _toneColor(Tokens t) => switch (widget.tone) {
         KitNodeTone.accent => t.accent,
         KitNodeTone.sage => t.positive,
-        KitNodeTone.plum => t.isDark ? const Color(0xFFB99BB6) : t.chrome,
+        KitNodeTone.plum => _plum(t),
         KitNodeTone.ink => t.fgMuted,
       };
+
+  /// Plum reads as near-black on the dark ground, so the dark theme takes the
+  /// lifted step — the same substitution the tone table makes.
+  static Color _plum(Tokens t) =>
+      t.isDark ? const Color(0xFFB99BB6) : t.chrome;
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    // A live node is plum whatever family it belongs to, and borders in plum
+    // too: "running" outranks the family for as long as it lasts.
+    final nodeColor = widget.live ? _plum(t) : _toneColor(t);
 
     Widget node = Container(
       width: 32,
@@ -293,10 +312,10 @@ class _KitTimelineRowState extends State<KitTimelineRow>
       decoration: BoxDecoration(
         color: t.surface,
         shape: BoxShape.circle,
-        border: Border.all(color: t.border),
+        border: Border.all(color: widget.live ? nodeColor : t.border),
         boxShadow: AppShadows.s1,
       ),
-      child: Icon(widget.icon, size: 15, color: _toneColor(t)),
+      child: Icon(widget.icon, size: 15, color: nodeColor),
     );
 
     if (widget.live && !reduceMotion && _pulse != null) {
@@ -317,8 +336,7 @@ class _KitTimelineRowState extends State<KitTimelineRow>
                     height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(
-                          color: _toneColor(t), width: 1.5),
+                      border: Border.all(color: nodeColor, width: 1.5),
                     ),
                   ),
                 ),
@@ -380,6 +398,12 @@ class _KitTimelineRowState extends State<KitTimelineRow>
                               decorationColor: t.linkDecor,
                             ),
                           ),
+                          if (widget.badge != null) widget.badge!,
+                          if (widget.live)
+                            _RunningLabel(
+                              color: nodeColor,
+                              animate: !reduceMotion,
+                            ),
                         ],
                       ),
                       if (widget.detail != null) ...[
@@ -391,21 +415,113 @@ class _KitTimelineRowState extends State<KitTimelineRow>
                               color: t.fgMuted,
                             )),
                       ],
+                      // Below the compact width the time drops to its own line
+                      // in column 2. The inset and the divider width do not
+                      // change with it.
+                      if (compact) ...[
+                        const SizedBox(height: 2),
+                        Text(widget.time,
+                            style: AppTheme.mono(
+                                fontSize: 12, color: t.fgSubtle)),
+                      ],
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.s4),
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(widget.time,
-                    style:
-                        AppTheme.mono(fontSize: 12, color: t.fgSubtle)),
-              ),
+              if (!compact) ...[
+                const SizedBox(width: AppSpacing.s4),
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(widget.time,
+                      style:
+                          AppTheme.mono(fontSize: 12, color: t.fgSubtle)),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// The running label beside a live event's subject: three pulsing dots and the
+/// word, in the mono caps of a chip at the node's plum.
+///
+/// It is a **required part** of a running row (`component-kit.md` §4.2), not an
+/// animation for its own sake: the pulsing node says *something* is live, and
+/// only this label says which row it is.
+class _RunningLabel extends StatefulWidget {
+  final Color color;
+  final bool animate;
+
+  const _RunningLabel({required this.color, required this.animate});
+
+  @override
+  State<_RunningLabel> createState() => _RunningLabelState();
+}
+
+class _RunningLabelState extends State<_RunningLabel>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _c;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.animate) {
+      _c = AnimationController(
+          vsync: this, duration: const Duration(milliseconds: 1200))
+        ..repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c?.dispose();
+    super.dispose();
+  }
+
+  /// The web's `act-dot`: 0.25 → 1 → 0.25 over the cycle, each dot 0.2s behind
+  /// the one before it.
+  double _opacity(int i) {
+    if (_c == null) return 0.35;
+    final phase = (_c!.value - i * (0.2 / 1.2)) % 1.0;
+    final wave = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+    return 0.25 + 0.75 * wave;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dots = _c == null
+        ? _dots()
+        : AnimatedBuilder(animation: _c!, builder: (context, _) => _dots());
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        dots,
+        const SizedBox(width: 6),
+        Text('IN PROGRESS',
+            style: KitText.capsLabel(context,
+                fontSize: 10, letterSpacing: 0.08, color: widget.color)),
+      ],
+    );
+  }
+
+  Widget _dots() => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < 3; i++) ...[
+            if (i > 0) const SizedBox(width: 3),
+            Opacity(
+              opacity: _opacity(i),
+              child: Container(
+                width: 4,
+                height: 4,
+                decoration:
+                    BoxDecoration(color: widget.color, shape: BoxShape.circle),
+              ),
+            ),
+          ],
+        ],
+      );
 }

@@ -315,6 +315,72 @@ void main() {
     }
   });
 
+  testWidgets('activity composes from the kit and is the MERGED feed',
+      (tester) async {
+    // Activity is screen 4/11 of the kit rebuild. Two things are under test and
+    // only one of them is composition: this screen previously rendered the
+    // DOCUMENTS half of the merge as a card grid, so an event with no document
+    // behind it — a letter sent, a service connected, an organization move —
+    // could not appear on the activity screen at all, while `subscribeActivity`
+    // merged it correctly the whole time and every gate stayed green.
+    final router = await pumpApp(tester);
+    router.go('/activity');
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitTimeline).evaluate().isNotEmpty ||
+          find.byType(KitEmptyState).evaluate().isNotEmpty) {
+        break;
+      }
+    }
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    // The chapter opening — title and standfirst, and NO folio: this screen
+    // counts nothing, and a folio here would be a figure with no signal.
+    expect(find.byType(ChapterOpening), findsOneWidget);
+    expect(find.text('Activity'), findsWidgets);
+
+    final seeded = find.byType(KitTimeline).evaluate().isNotEmpty;
+    if (!seeded) {
+      // The empty feed is an offer, not an apology (§7).
+      expect(find.byType(KitEmptyState), findsOneWidget);
+      expect(find.byType(KitSuggestion), findsWidgets);
+      return;
+    }
+
+    // The control bar (§6.6) carries one chip per family, and the empty ones
+    // are DISABLED, not dropped — the set of chips is a vocabulary.
+    expect(find.byType(KitControlBar), findsOneWidget);
+    expect(find.byType(KitFilterChip), findsNWidgets(5));
+
+    // Date buckets are section headers (§3); the eyebrow renders uppercased.
+    expect(
+        find.textContaining(RegExp('TODAY|YESTERDAY|THIS WEEK|EARLIER')),
+        findsWidgets,
+        reason: 'the feed is bucketed by day, each bucket opened by an eyebrow');
+
+    // The timeline, not a grid of cards. The spine and the 32px nodes are what
+    // make it a record rather than a dashboard.
+    expect(find.byType(KitTimelineRow), findsWidgets);
+    expect(find.byType(GridView), findsNothing,
+        reason: 'the feed is the §4.2 timeline; there is no card-grid pattern');
+
+    // Filtering narrows the feed rather than reordering it: pick a family chip
+    // that is enabled and check the row count does not grow.
+    final before = find.byType(KitTimelineRow).evaluate().length;
+    final chips = find.byType(KitFilterChip);
+    for (var i = 1; i < chips.evaluate().length; i++) {
+      final chip = tester.widget<KitFilterChip>(chips.at(i));
+      if (chip.onPressed == null) continue;
+      await tester.tap(chips.at(i));
+      await tester.pumpAndSettle();
+      expect(find.byType(KitTimelineRow).evaluate().length,
+          lessThanOrEqualTo(before));
+      break;
+    }
+  });
+
   testWidgets('settings shows the Summaries section', (tester) async {
     final router = await pumpApp(tester);
     router.go('/settings');
