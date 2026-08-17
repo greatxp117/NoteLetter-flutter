@@ -5,6 +5,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_controls.dart';
 import 'kit_text.dart';
 
 /// §5.1 — the base card: `--surface`, 1px `--border`, `--r-md`, and **shadow on
@@ -59,6 +60,114 @@ class _KitCardState extends State<KitCard> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(onTap: widget.onTap, child: card),
+    );
+  }
+}
+
+/// §5.1 variant — the **connect card** (contract 4.5.2).
+///
+/// A surface card whose contents are fixed: **iconbox → title → subtitle →
+/// status pill**. One per cloud provider on Sources, in a four-column grid.
+///
+/// The whole card is the affordance — a connect card with a trailing button is
+/// a row wearing a card's border.
+class KitConnectCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+
+  /// The account when connected, the invitation when not.
+  final String subtitle;
+
+  /// Rendered as the card's [KitStatusPill].
+  final String status;
+  final bool connected;
+  final VoidCallback? onTap;
+
+  /// Actions that only exist once a provider is connected (browse, sync,
+  /// disconnect). They sit under the pill, inside the card.
+  final List<Widget> actions;
+
+  /// A warning rendered between the subtitle and the pill — the
+  /// `reconnect_required` banner (`screens/sources.md` §Trust & feedback).
+  final Widget? notice;
+
+  const KitConnectCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.status,
+    this.connected = false,
+    this.onTap,
+    this.actions = const [],
+    this.notice,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return KitCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              // The kit's one sanctioned raw colour: the iconbox is a plate
+              // holding a VENDOR's mark, and vendor artwork is tuned for light
+              // surfaces. A `--surface` fill flips near-black in dark mode and
+              // swallows half of them (component-kit.md §5.1).
+              color: const Color(0xFFFFFFFF),
+              borderRadius: AppRadius.smR,
+              border: Border.all(color: t.border),
+            ),
+            child: Icon(icon, size: 19, color: AppColors.chrome),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: AppTheme.fontSans,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: t.fg,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: AppTheme.fontSans,
+              fontSize: 12,
+              height: 1.35,
+              color: t.fgMuted,
+            ),
+          ),
+          if (notice != null) ...[
+            const SizedBox(height: 10),
+            notice!,
+          ],
+          const SizedBox(height: 10),
+          KitStatusPill(status, positive: connected),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: AppSpacing.s2,
+              runSpacing: AppSpacing.s2,
+              children: actions,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

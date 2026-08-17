@@ -119,14 +119,22 @@ class _KitButtonState extends State<KitButton> {
                   Icon(widget.icon, size: 14, color: fg),
                   const SizedBox(width: AppSpacing.s2),
                 ],
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 14,
-                    height: 1,
-                    fontWeight: FontWeight.w500,
-                    color: fg,
+                // Flexible, not a bare Text: a button in a card that is a
+                // quarter of the grid gets a bounded width, and a label one
+                // hundredth of a pixel too wide is a striped overflow banner
+                // rather than a slightly tight button.
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: AppTheme.fontSans,
+                      fontSize: 14,
+                      height: 1,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
+                    ),
                   ),
                 ),
               ],
@@ -403,6 +411,298 @@ class _KitIconButtonState extends State<KitIconButton> {
       ),
     );
   }
+}
+
+/// §6.6 — the control bar (contract 4.5.2): the row of filters between a
+/// screen's header and its list, **closed by a 1px `--rule`**.
+///
+/// The chips wrap and the trailing controls do not. A bar that lets its sort
+/// control wrap puts the least important element on a line of its own.
+class KitControlBar extends StatelessWidget {
+  /// Filter chips. They take the leading side and wrap.
+  final List<Widget> filters;
+
+  /// Sort / view controls. They neither wrap nor shrink.
+  final List<Widget> trailing;
+
+  const KitControlBar({
+    super.key,
+    this.filters = const [],
+    this.trailing = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+
+    final chips = Wrap(
+      spacing: AppSpacing.s2,
+      runSpacing: AppSpacing.s2,
+      children: filters,
+    );
+    final tail = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < trailing.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          trailing[i],
+        ],
+      ],
+    );
+
+    return Container(
+      padding: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: t.rule)),
+      ),
+      child: compact
+          // Below the compact width the bar stacks, chips first — the same
+          // rule the web reference applies at 680px.
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                chips,
+                if (trailing.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.s3),
+                  Align(alignment: Alignment.centerLeft, child: tail),
+                ],
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: chips),
+                if (trailing.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.s4),
+                  tail,
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+/// §6.7 — a filter chip. **Not a tag pill**: §6.2 labels an object, this
+/// narrows a list and answers to a click.
+///
+/// Selection changes **fill, border and foreground together**, never colour
+/// alone. A chip whose count is zero renders **disabled, not hidden** — the
+/// chip set is a vocabulary (the document `type` enum, the event families), and
+/// dropping the empty ones reshapes the bar per library, so the same filter
+/// sits somewhere different for every user.
+class KitFilterChip extends StatefulWidget {
+  final String label;
+
+  /// The trailing count, in the mono face. Null renders no count at all —
+  /// which is not the same as `0`, and `0` is what disables the chip.
+  final int? count;
+  final bool selected;
+  final VoidCallback? onPressed;
+
+  const KitFilterChip(
+    this.label, {
+    super.key,
+    this.count,
+    this.selected = false,
+    this.onPressed,
+  });
+
+  @override
+  State<KitFilterChip> createState() => _KitFilterChipState();
+}
+
+class _KitFilterChipState extends State<KitFilterChip> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final disabled = widget.onPressed == null;
+
+    final Color bg = widget.selected ? t.accentSoft : t.surface;
+    final Color borderColor = widget.selected
+        ? t.accentChipBorder
+        : (_hover ? t.borderStrong : t.border);
+    final Color fg = widget.selected
+        ? t.accentChipFg
+        : (_hover ? t.fg : t.fgMuted);
+
+    return MouseRegion(
+      cursor:
+          disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: Opacity(
+          opacity: disabled ? 0.4 : 1,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: fg,
+                  ),
+                ),
+                if (widget.count != null) ...[
+                  const SizedBox(width: 7),
+                  Text(
+                    '${widget.count}',
+                    style: AppTheme.mono(
+                      fontSize: 10.5,
+                      color: fg.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One position of a [KitSegmented].
+class KitSegment {
+  final String label;
+  final IconData? icon;
+
+  const KitSegment(this.label, {this.icon});
+}
+
+/// §6.8 — the segmented control: letter tabs, summary style, sort order.
+///
+/// **The selection is a raise, not a tint.** The selected segment lifts onto
+/// `--surface` with `--shadow-1`, the same way the rail marks its active item.
+/// Recolouring in place leaves two flat labels that differ only in shade — and
+/// in dark mode, barely.
+class KitSegmented extends StatelessWidget {
+  final List<KitSegment> segments;
+  final int selected;
+  final ValueChanged<int>? onChanged;
+
+  /// Fill the available width, segments flexing equally — what the reference
+  /// does below 680px, and what a phone always wants.
+  final bool expand;
+
+  const KitSegmented({
+    super.key,
+    required this.segments,
+    required this.selected,
+    this.onChanged,
+    this.expand = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+          // Filling needs a width to fill. A segmented control also sits inside
+          // a `Wrap`, an `Align` or a shrink-wrapping row — all unbounded — and
+          // `Expanded` there is not a layout that looks wrong, it is an
+          // assertion that takes the whole screen down. The device run caught
+          // exactly this on the organization panel.
+          return _build(context,
+              fill: (expand || compact) && constraints.hasBoundedWidth);
+        },
+      );
+
+  Widget _build(BuildContext context, {required bool fill}) {
+    final t = Tokens.of(context);
+
+    Widget segment(int i) {
+      final s = segments[i];
+      final on = i == selected;
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onChanged == null ? null : () => onChanged!(i),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.symmetric(
+                horizontal: fill ? 8 : 14, vertical: 7),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: on ? t.surface : const Color(0x00000000),
+              borderRadius: AppRadius.xsR,
+              boxShadow: on ? AppShadows.s1 : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (s.icon != null) ...[
+                  Icon(s.icon,
+                      size: 14, color: on ? t.fg : t.fgMuted),
+                  const SizedBox(width: 7),
+                ],
+                Text(
+                  s.label,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: on ? t.fg : t.fgMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: t.surfaceSunken,
+        borderRadius: AppRadius.smR,
+      ),
+      child: Row(
+        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          for (var i = 0; i < segments.length; i++) ...[
+            if (i > 0) const SizedBox(width: 2),
+            fill ? Expanded(child: segment(i)) : segment(i),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The mono caps label that names a trailing control in a [KitControlBar]
+/// ("Order by"). Sits beside the control, not above it.
+class KitControlLabel extends StatelessWidget {
+  final String text;
+
+  const KitControlLabel(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Text(
+        text.toUpperCase(),
+        style: KitText.capsLabel(context,
+            fontSize: 10,
+            letterSpacing: 0.1,
+            color: Tokens.of(context).fgSubtle),
+      );
 }
 
 /// A document `type` → the plate kind ([KitFileBadge]).

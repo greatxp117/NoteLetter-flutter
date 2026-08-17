@@ -48,6 +48,15 @@ class KitSourceRow extends StatefulWidget {
   final String? date;
   final VoidCallback? onTap;
 
+  /// The unread dot beside the title. Unread is **`view_count == 0`** and
+  /// nothing else (`screens/sources.md` §Unread) — never chunk coverage, which
+  /// is a per-row query and a different claim besides.
+  final bool unread;
+
+  /// Per-source affordances, after the date. The row keeps its anatomy: this
+  /// is the overflow that hangs off it, not a fifth column of content.
+  final Widget? trailing;
+
   const KitSourceRow({
     super.key,
     this.leading,
@@ -56,6 +65,8 @@ class KitSourceRow extends StatefulWidget {
     this.count,
     this.date,
     this.onTap,
+    this.unread = false,
+    this.trailing,
   });
 
   @override
@@ -93,16 +104,33 @@ class _KitSourceRowState extends State<KitSourceRow> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      widget.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.serif(
-                        fontSize: 17,
-                        height: 22 / 17,
-                        fontWeight: FontWeight.w500,
-                        color: t.fg,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.serif(
+                              fontSize: 17,
+                              height: 22 / 17,
+                              fontWeight: FontWeight.w500,
+                              color: t.fg,
+                            ),
+                          ),
+                        ),
+                        if (widget.unread) ...[
+                          const SizedBox(width: 7),
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: t.accent,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     if (widget.subtitle != null) ...[
                       const SizedBox(height: 2),
@@ -137,6 +165,10 @@ class _KitSourceRowState extends State<KitSourceRow> {
                         AppTheme.mono(fontSize: 11, color: t.fgSubtle),
                   ),
                 ),
+              ],
+              if (widget.trailing != null) ...[
+                const SizedBox(width: 6),
+                widget.trailing!,
               ],
             ],
           ),

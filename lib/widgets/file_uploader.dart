@@ -3,11 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:mime/mime.dart';
-import '../state/upload_notifier.dart';
 import '../models/upload_file.dart';
-import '../theme/app_colors.dart';
+import '../state/upload_notifier.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_theme.dart';
+import '../theme/tokens.dart';
+import 'kit/kit.dart';
 
+/// The add flows (`screens/sources.md` §Composition body 1): the **drop zone**,
+/// the link row, and the files currently in flight.
+///
+/// Composed from the kit (ADR-041): the zone is [KitDropZone], the actions are
+/// [KitButton]s and an in-flight file is a §4.1 row. It previously drew its own
+/// dashed container, its own Material progress bar and its own status chips in
+/// `Colors.green`/`Colors.orange` — palette steps that belong to no token file
+/// and do not flip with the theme.
+///
+/// The zone **opens** the Sources screen (contract 4.5.3): a dropped source
+/// lands where the reader is already looking.
 class FileUploader extends StatefulWidget {
   final VoidCallback? onUploadComplete;
   final void Function(String message)? onUploadError;
@@ -19,19 +32,32 @@ class FileUploader extends StatefulWidget {
   });
 
   @override
-  State<FileUploader> createState() => _FileUploaderState();
+  State<FileUploader> createState() => FileUploaderState();
 }
 
-class _FileUploaderState extends State<FileUploader> {
-  bool _isDragOver = false;
+/// Public so the screen can drive it from elsewhere — the browse section's
+/// empty state offers "Add your first file", and an offer that does nothing is
+/// an apology wearing the pattern.
+class FileUploaderState extends State<FileUploader> {
   bool _showUrlInput = false;
   final _urlCtrl = TextEditingController();
+  final _urlFocus = FocusNode();
   bool _urlSubmitting = false;
 
   @override
   void dispose() {
     _urlCtrl.dispose();
+    _urlFocus.dispose();
     super.dispose();
+  }
+
+  /// Open the system file picker.
+  Future<void> pickFiles() => _pickFiles(context.read<UploadNotifier>());
+
+  /// Reveal the link field and put the cursor in it.
+  void revealLinkField() {
+    setState(() => _showUrlInput = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _urlFocus.requestFocus());
   }
 
   Future<void> _pickFiles(UploadNotifier notifier) async {
@@ -120,142 +146,64 @@ class _FileUploaderState extends State<FileUploader> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
-
     return Consumer<UploadNotifier>(
       builder: (context, notifier, _) {
+        final uploading = notifier.files
+            .any((f) => f.status == UploadStatus.uploading);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DragTarget<Object>(
-              onWillAcceptWithDetails: (_) {
-                setState(() => _isDragOver = true);
-                return true;
-              },
-              onLeave: (_) => setState(() => _isDragOver = false),
-              onAcceptWithDetails: (_) {
-                setState(() => _isDragOver = false);
-              },
-              builder: (context, _, __) => GestureDetector(
-                onTap: () => _pickFiles(notifier),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  decoration: BoxDecoration(
-                    color: _isDragOver
-                        ? primary.withValues(alpha: 0.08)
-                        : (isDark
-                            ? AppColors.backgroundDark
-                            : AppColors.backgroundLight),
-                    borderRadius: AppRadius.mdR,
-                    border: Border.all(
-                      color: _isDragOver
-                          ? primary
-                          : (isDark
-                              ? AppColors.borderDark
-                              : AppColors.borderLight),
-                      width: _isDragOver ? 2 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.cloud_upload_outlined,
-                          size: 36, color: primary),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Drop files here or click to upload',
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'PDF, DOCX, images supported · max 100 MB',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: isDark
-                              ? AppColors.mutedForegroundDark
-                              : AppColors.mutedForeground,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            KitDropZone(
+              icon: Icons.upload_outlined,
+              title: uploading
+                  ? 'Uploading…'
+                  : 'Drop files, or tap to add a few',
+              help: 'PDF, Word, Markdown, plain text, images — '
+                  'up to 100 MB each',
+              formats: const [
+                KitTag('PDF'),
+                KitTag('DOCX'),
+                KitTag('EPUB'),
+                KitTag('Markdown'),
+                KitTag('PNG / JPG'),
+              ],
+              onTap: () => _pickFiles(notifier),
             ),
-            const SizedBox(height: 8),
-            // URL input toggle
-            if (!_showUrlInput) ...[
-              TextButton.icon(
-                onPressed: () => setState(() => _showUrlInput = true),
-                icon: const Icon(Icons.link, size: 16),
-                label: const Text('Paste a URL or YouTube link'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  alignment: Alignment.centerLeft,
-                ),
-              ),
-              // Multi-image note (≤20 images → one image_set doc).
-              TextButton.icon(
-                onPressed: () => _pickImageSet(notifier),
-                icon: const Icon(Icons.photo_library_outlined, size: 16),
-                label: const Text('Add an image set (up to 20)'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  alignment: Alignment.centerLeft,
-                ),
-              ),
-            ] else
-              Row(
+            const SizedBox(height: 12),
+
+            if (!_showUrlInput)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _urlCtrl,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        hintText:
-                            'Paste a link — article, video, or podcast…',
-                        prefixIcon:
-                            const Icon(Icons.link, size: 18),
-                        suffixIcon: _urlSubmitting
-                            ? const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2),
-                                ),
-                              )
-                            : null,
-                      ),
-                      onSubmitted: (_) => _submitUrl(notifier),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _urlSubmitting
-                        ? null
-                        : () => _submitUrl(notifier),
-                    style:
-                        FilledButton.styleFrom(backgroundColor: primary),
-                    child: const Text('Add'),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: () {
-                      _urlCtrl.clear();
-                      setState(() => _showUrlInput = false);
-                    },
-                  ),
+                  KitButton.ghost('Paste a link or YouTube URL',
+                      icon: Icons.link, onPressed: revealLinkField),
+                  KitButton.ghost('Add an image set (up to 20)',
+                      icon: Icons.photo_library_outlined,
+                      onPressed: () => _pickImageSet(notifier)),
+                ],
+              )
+            else
+              _LinkRow(
+                controller: _urlCtrl,
+                focusNode: _urlFocus,
+                submitting: _urlSubmitting,
+                onSubmit: () => _submitUrl(notifier),
+                onCancel: () {
+                  _urlCtrl.clear();
+                  setState(() => _showUrlInput = false);
+                },
+              ),
+
+            if (notifier.files.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              KitRowList(
+                rows: [
+                  for (final f in notifier.files)
+                    _InFlightRow(file: f, notifier: notifier),
                 ],
               ),
-            if (notifier.files.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              ...notifier.files
-                  .map((file) => _FileItem(file: file, notifier: notifier)),
             ],
           ],
         );
@@ -264,120 +212,126 @@ class _FileUploaderState extends State<FileUploader> {
   }
 }
 
-class _FileItem extends StatelessWidget {
-  final UploadFile file;
-  final UploadNotifier notifier;
+/// The link row: a field and an Add-link button. `fn_ingest_url` (INV-07).
+class _LinkRow extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool submitting;
+  final VoidCallback onSubmit;
+  final VoidCallback onCancel;
 
-  const _FileItem({required this.file, required this.notifier});
+  const _LinkRow({
+    required this.controller,
+    required this.focusNode,
+    required this.submitting,
+    required this.onSubmit,
+    required this.onCancel,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
-
-    Color statusColor;
-    String statusLabel;
-    switch (file.status) {
-      case UploadStatus.completed:
-        statusColor = Colors.green;
-        statusLabel = 'Queued';
-        break;
-      case UploadStatus.uploading:
-        statusColor = Colors.orange;
-        statusLabel = 'Uploading';
-        break;
-      case UploadStatus.error:
-        statusColor = Colors.red;
-        statusLabel = 'Error';
-        break;
-      default:
-        statusColor =
-            isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
-        statusLabel = 'Pending';
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.cardDark : AppColors.cardLight,
-        border: Border.all(
-            color: isDark ? AppColors.borderDark : AppColors.borderLight),
-        borderRadius: AppRadius.mdR,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.description_outlined, size: 20, color: primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  file.name,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (file.sizeLabel.isNotEmpty) ...[
-                Text(
-                  file.sizeLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark
-                        ? AppColors.mutedForegroundDark
-                        : AppColors.mutedForeground,
+    final t = Tokens.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: t.surface,
+              borderRadius: AppRadius.controlR(38),
+              border: Border.all(color: t.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.link, size: 15, color: t.fgSubtle),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    style: TextStyle(
+                      fontFamily: AppTheme.fontSans,
+                      fontSize: 14,
+                      color: t.fg,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: 'Paste a link — article, video, or podcast…',
+                      hintStyle: TextStyle(
+                        fontFamily: AppTheme.fontSans,
+                        fontSize: 14,
+                        color: t.fgSubtle,
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    onSubmitted: (_) => onSubmit(),
                   ),
                 ),
-                const SizedBox(width: 8),
               ],
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: AppRadius.controlR(20),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: statusColor),
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(Icons.close, size: 16),
-                onPressed: () => notifier.removeFile(file.id),
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(4),
-                color: isDark
-                    ? AppColors.mutedForegroundDark
-                    : AppColors.mutedForeground,
-              ),
-            ],
+            ),
           ),
-          if (file.status == UploadStatus.uploading) ...[
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: file.progress,
-              backgroundColor:
-                  isDark ? AppColors.borderDark : AppColors.borderLight,
-              color: primary,
+        ),
+        const SizedBox(width: 8),
+        KitButton.secondary(submitting ? 'Adding…' : 'Add link',
+            icon: Icons.add, onPressed: submitting ? null : onSubmit),
+        const SizedBox(width: 4),
+        KitIconButton(Icons.close, tooltip: 'Cancel', onPressed: onCancel),
+      ],
+    );
+  }
+}
+
+/// A file mid-upload. The §4.1 row, carrying its state in the subtitle slot and
+/// the **only determinate progress this screen has**: the client's own PUT.
+/// Both server phases are indeterminate by contract (ADR-024) — a synthesised
+/// percentage there would be a number with no measurement behind it.
+class _InFlightRow extends StatelessWidget {
+  final UploadFile file;
+  final UploadNotifier notifier;
+
+  const _InFlightRow({required this.file, required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final (label, failed) = switch (file.status) {
+      UploadStatus.completed => ('Queued for processing', false),
+      UploadStatus.uploading => ('Uploading', false),
+      UploadStatus.error => (file.errorMessage ?? 'Upload failed', true),
+      _ => ('Waiting', false),
+    };
+
+    return Column(
+      children: [
+        KitSourceRow(
+          leading: const KitFileBadge('note'),
+          title: file.name.isEmpty ? 'Untitled' : file.name,
+          subtitle: file.sizeLabel.isEmpty
+              ? label
+              : '$label · ${file.sizeLabel}',
+          trailing: KitIconButton(
+            Icons.close,
+            tooltip: 'Remove',
+            color: failed ? t.critical : null,
+            onPressed: () => notifier.removeFile(file.id),
+          ),
+        ),
+        if (file.status == UploadStatus.uploading)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+            child: ClipRRect(
               borderRadius: AppRadius.pillR(4),
+              child: LinearProgressIndicator(
+                value: file.progress,
+                minHeight: 4,
+                backgroundColor: t.surfaceSunken,
+                color: t.accent,
+              ),
             ),
-          ],
-          if (file.status == UploadStatus.error &&
-              file.errorMessage != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              file.errorMessage!,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: Colors.red.shade400),
-            ),
-          ],
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

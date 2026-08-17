@@ -65,6 +65,17 @@ Emulator: `--dart-define=USE_EMULATOR=true` (+ `EMULATOR_*_PORT`), per `/emu`.
 Device run: `integration_test/device_run_test.dart` — invocation in its header;
 needs `--timeout none` (the iOS build outlasts the per-test timeout).
 
+## Composition deviations
+
+The kit's reference metrics are web's numbers and this client's **starting**
+values; each scale factor is recorded here (component-kit.md) and applied
+**once, inside the kit**, never per screen. All are viewport adaptations below
+768pt, roles and proportions unchanged:
+
+- §1.5 gutter 56 → 20 · §2.1 title 44 → 32
+- §2.1 header actions and §5.3 hero actions stack under their content
+- §6.6/§6.8 stack at 768, not web's 680 — one compact breakpoint, not two
+
 ## Rules that are easy to break here
 
 - **`logReadEvent` decides which counter moves from the event type**, never from

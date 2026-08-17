@@ -247,6 +247,74 @@ void main() {
     }
   });
 
+  testWidgets('sources composes from the kit, in the contract order',
+      (tester) async {
+    // Sources is the rail's *Library* (`/sources`) and screen 3/11 of the kit
+    // rebuild. Same reasoning as the library test: these assertions are about
+    // PARTS BEING PRESENT in the roles the kit gives them, which is the one
+    // layer no other gate here looks at.
+    final router = await pumpApp(tester);
+    router.go('/sources');
+    // Fixed pumps, not `pumpAndSettle`: this screen holds live subscriptions
+    // (documents, cloud jobs, folders) and a settle waits for a quiet frame
+    // that a screen with a spinner in it never has.
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitConnectCard).evaluate().isNotEmpty) break;
+    }
+    // The route transition keeps the previous screen mounted for its duration,
+    // so a screen that has appeared is not yet a screen that is alone.
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    // The chapter opening, with its folio and its two-bar rule.
+    expect(find.byType(ChapterOpening), findsOneWidget);
+    expect(find.byType(ChapterRule), findsWidgets);
+    expect(find.textContaining(RegExp('VOLUMES?')), findsWidgets,
+        reason: 'the folio carries the screen count');
+
+    // The drop zone OPENS the screen (contract 4.5.3) — it is the first thing
+    // under the header, not the last thing on the page. A reader with an empty
+    // library must not have to scroll past a library they do not have.
+    expect(find.byType(KitDropZone), findsOneWidget);
+    final headerY = tester.getTopLeft(find.byType(ChapterOpening)).dy;
+    final dropY = tester.getTopLeft(find.byType(KitDropZone)).dy;
+    expect(dropY, greaterThan(headerY));
+
+    // The three sections, in order.
+    expect(find.textContaining('ADD TO YOUR LIBRARY'), findsOneWidget);
+    expect(find.textContaining('CONNECT A SERVICE'), findsOneWidget);
+
+    // Connect cards: the grid is the §5.1 variant, one per canonical provider.
+    expect(find.byType(KitConnectCard), findsNWidgets(4));
+
+    // Scroll to the browse section — the control bar and the row list are
+    // below the fold on a phone, which is exactly why the drop zone is not.
+    final scrollable = find.byType(Scrollable);
+    for (var i = 0; i < 8; i++) {
+      if (find.byType(KitControlBar).evaluate().isNotEmpty) break;
+      await tester.drag(scrollable.first, const Offset(0, -400));
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+    expect(find.byType(KitControlBar), findsOneWidget,
+        reason: 'browse opens with the control bar (§6.6)');
+    expect(find.byType(KitFilterChip), findsWidgets);
+    expect(find.byType(KitSegmented), findsWidgets,
+        reason: 'the sort control is a segmented control (§6.8), not a menu');
+
+    // Either there are volumes, and they are §4.1 rows — never a table — or
+    // the library is empty and the offer leads.
+    final rows = find.byType(KitSourceRow).evaluate().isNotEmpty;
+    if (rows) {
+      expect(find.byType(KitRowList), findsWidgets);
+      expect(find.byType(DataTable), findsNothing,
+          reason: 'the volume list is the row list; there is no table pattern');
+    } else {
+      expect(find.byType(KitEmptyState), findsOneWidget);
+    }
+  });
+
   testWidgets('settings shows the Summaries section', (tester) async {
     final router = await pumpApp(tester);
     router.go('/settings');

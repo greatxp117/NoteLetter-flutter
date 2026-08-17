@@ -6,7 +6,8 @@ an undeployed index is — a ritual whose only output is prose in a task summary
 cannot be shown to have run.
 
 Captured from the real app on the iOS simulator (iPhone 17) against the emulator
-suite, per `integration_test/device_run_test.dart`'s header. **Both themes,
+suite, per `integration_test/device_run_test.dart`'s header — the app held on the
+screen in each theme while `xcrun simctl io booted screenshot` caught it. **Both themes,
 always**: the ground tile rendered as a solid white veil in dark mode for the
 whole life of the shell commit, and light-only verification could never have
 seen it.
