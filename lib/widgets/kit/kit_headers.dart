@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
@@ -5,104 +6,36 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_text.dart';
 
-/// The three page-header forms (`component-kit.md` §2).
+/// The page header (`component-kit.md` §2.1) — **one pattern with optional
+/// parts**, used by nine of the eleven screens.
 ///
-/// All three share one anatomy — **eyebrow → serif display title → italic serif
-/// standfirst → optional rule** — and differ in weight and in which optional
-/// parts appear. **Every screen uses exactly one.** They are separate widgets
-/// rather than one configurable header precisely so a screen has to choose,
-/// instead of assembling a fourth form by accident.
+/// Anatomy: `lead` (badge/seal) → `folio` (mono caps at `--seal`) → **title**
+/// (the one required part; serif, letterpressed, with an italic `--accent`
+/// clause written as `*clause*`) → `standfirst` (italic serif, never the UI
+/// sans) → `actions` → the **chapter rule**.
 ///
-/// Common to all three: the title is serif and **letterpressed**, with negative
-/// tracking and an `opsz` matched to its size, and an emphasised clause inside
-/// it is **italic `--accent`** (write it as `*clause*` — see [AccentTitle]).
-
-/// §2.1 — the home screen. Greeting + standfirst. No eyebrow, no rule.
-class GreetingHeader extends StatelessWidget {
-  /// Wrap the accent clause in asterisks: `'Good evening, *Xavier*'`.
-  final String title;
-  final String standfirst;
-
-  const GreetingHeader(
-      {super.key, required this.title, required this.standfirst});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AccentTitle(
-          title,
-          style: AppTheme.serif(
-            fontSize: 36,
-            height: 1.1,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.02 * 36,
-            color: Tokens.of(context).fg,
-          ).copyWith(shadows: AppShadows.letterpress),
-        ),
-        const SizedBox(height: 6),
-        Lede(standfirst, fontSize: 17, height: 26),
-      ],
-    );
-  }
-}
-
-/// §2.2 — index and settings screens. Title + standfirst.
-class PageHeader extends StatelessWidget {
-  final String title;
-  final String? standfirst;
-  final Widget? trailing;
-
-  const PageHeader(
-      {super.key, required this.title, this.standfirst, this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    final heading = AccentTitle(
-      title,
-      style: AppTheme.serif(
-        fontSize: 32,
-        height: 1.1,
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.02 * 32,
-        color: Tokens.of(context).fg,
-      ).copyWith(shadows: AppShadows.letterpress),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (trailing == null)
-          heading
-        else
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(child: heading),
-              const SizedBox(width: AppSpacing.s4),
-              trailing!,
-            ],
-          ),
-        if (standfirst != null) ...[
-          const SizedBox(height: 6),
-          Lede(standfirst!, fontSize: 16, height: 24),
-        ],
-        const SizedBox(height: AppSpacing.s8 - 4),
-      ],
-    );
-  }
-}
-
-/// §2.3 — the full editorial opener: a document or section presented as a
-/// chapter. Folio row → title → standfirst → **chapter rule**.
+/// 4.5.0 shipped three header widgets here — a greeting header and a page
+/// header alongside this one — because the kit was transcribed from
+/// `app-kit.css` without reading the call sites. `.lib-greeting`, `.lib-sub`,
+/// `.sources-h1` and `.sources-sub` are dead CSS that no web component
+/// renders. Corrected at contract 4.5.1; a stylesheet records what was once
+/// true, only the components say what renders now.
 class ChapterOpening extends StatelessWidget {
-  /// The badge or seal that opens the folio row.
+  /// Opens the folio row — a [KitFileBadge] or a seal.
   final Widget? mark;
 
-  /// Mono caps, at `--seal`.
+  /// Mono caps at `--seal`. Carries the screen's count.
   final String? folio;
+
+  /// Accent clause written as `*clause*`.
   final String title;
   final String? standfirst;
+
+  /// Top-aligned with the title block.
+  final List<Widget> actions;
+
+  /// Suppressible where the header runs straight into a control bar.
+  final bool rule;
 
   const ChapterOpening({
     super.key,
@@ -110,11 +43,60 @@ class ChapterOpening extends StatelessWidget {
     this.folio,
     required this.title,
     this.standfirst,
+    this.actions = const [],
+    this.rule = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (mark != null || folio != null) ...[
+          Row(
+            children: [
+              if (mark != null) ...[
+                mark!,
+                const SizedBox(width: AppSpacing.s3),
+              ],
+              if (folio != null)
+                Expanded(
+                  child: Text(
+                    folio!.toUpperCase(),
+                    overflow: TextOverflow.ellipsis,
+                    style: KitText.capsLabel(context,
+                        color: t.seal, letterSpacing: 0.18),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ],
+        AccentTitle(
+          title,
+          style: AppTheme.serif(
+            // The reference is 44px; a 44px display line does not fit a phone,
+            // so narrow viewports take 32. Recorded in CLAUDE.md §Composition
+            // deviations — the proportions and roles are unchanged.
+            fontSize: compact ? 32 : 44,
+            height: 1.03,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.024 * (compact ? 32 : 44),
+            color: t.fg,
+          ).copyWith(shadows: AppShadows.letterpress),
+        ),
+        if (standfirst != null) ...[
+          const SizedBox(height: 14),
+          Lede(standfirst!, fontSize: 18, height: 28),
+        ],
+      ],
+    );
+
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.s2, bottom: 30),
       child: ConstrainedBox(
@@ -122,44 +104,103 @@ class ChapterOpening extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (mark != null || folio != null)
+            if (actions.isEmpty)
+              titleBlock
+            else
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (mark != null) ...[
-                    mark!,
-                    const SizedBox(width: AppSpacing.s3),
-                  ],
-                  if (folio != null)
-                    Expanded(
-                      child: Text(
-                        folio!.toUpperCase(),
-                        overflow: TextOverflow.ellipsis,
-                        style: KitText.capsLabel(context,
-                            color: t.seal, letterSpacing: 0.18),
-                      ),
+                  Expanded(child: titleBlock),
+                  const SizedBox(width: AppSpacing.s4),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < actions.length; i++) ...[
+                          if (i > 0) const SizedBox(width: AppSpacing.s2),
+                          actions[i],
+                        ],
+                      ],
                     ),
+                  ),
                 ],
               ),
-            const SizedBox(height: 14),
-            AccentTitle(
-              title,
-              style: AppTheme.serif(
-                fontSize: 44,
-                height: 1.03,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.024 * 44,
-                color: t.fg,
-              ).copyWith(shadows: AppShadows.letterpress),
-            ),
-            if (standfirst != null) ...[
-              const SizedBox(height: 14),
-              Lede(standfirst!, fontSize: 18, height: 28),
+            if (rule) ...[
+              const SizedBox(height: 22),
+              const ChapterRule(),
             ],
-            const SizedBox(height: 22),
-            const ChapterRule(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// §2.2 — the header for a screen reached *from* another one. Back control →
+/// eyebrow → **plain sans** standfirst.
+///
+/// Deliberately not the editorial voice: this is a utility screen, and the
+/// italic serif lede belongs to chapter openings.
+class SubScreenHeader extends StatelessWidget {
+  final String parentLabel;
+  final VoidCallback? onBack;
+  final String eyebrow;
+  final String? standfirst;
+
+  const SubScreenHeader({
+    super.key,
+    required this.parentLabel,
+    this.onBack,
+    required this.eyebrow,
+    this.standfirst,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: onBack,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.chevron_left, size: 15, color: t.fgMuted),
+                const SizedBox(width: 2),
+                Text(
+                  parentLabel,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 13,
+                    color: t.fgMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.s4),
+        Eyebrow(eyebrow),
+        if (standfirst != null) ...[
+          const SizedBox(height: AppSpacing.s1),
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.s5),
+            child: Text(
+              standfirst!,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 14,
+                height: 1.45,
+                color: t.fgMuted,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

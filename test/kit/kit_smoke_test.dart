@@ -79,20 +79,29 @@ void main() {
   });
 
   group('headers', () {
-    testWidgets('all three forms', (tester) async {
+    testWidgets('the one header pattern, with and without its optional parts', (tester) async {
       await pumpBoth(
         tester,
-        const Column(
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GreetingHeader(
-                title: 'Good evening, *Xavier*',
-                standfirst: 'Three new sources since Tuesday.'),
-            PageHeader(title: 'Sources', standfirst: 'Everything you have added.'),
+            // Title only — the one required part.
+            const ChapterOpening(title: 'Activity'),
+            // Every optional part at once.
             ChapterOpening(
-              folio: 'Chapter I · Systematic Theology',
+              mark: const KitFileBadge('pdf', size: KitBadgeSize.header),
+              folio: 'Deep study · 3 programs',
               title: 'On the *nature* of doctrine',
               standfirst: 'A reading drawn from your library.',
+              actions: [KitButton.primary('New program', onPressed: () {})],
+            ),
+            // Rule suppressed, where a header runs into a control bar.
+            const ChapterOpening(title: 'Library', rule: false),
+            SubScreenHeader(
+              parentLabel: 'Settings',
+              eyebrow: 'Notifications',
+              standfirst: 'Choose how you hear about what NoteLetter does.',
+              onBack: () {},
             ),
           ],
         ),
