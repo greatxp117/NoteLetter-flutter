@@ -1,201 +1,127 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
+import '../state/activity_notifier.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_colors.dart';
-import '../theme/app_radius.dart';
-import '../theme/app_theme.dart';
+import 'kit/kit.dart';
 
-class _NavItem {
-  final IconData icon;
-  final String label;
-  final String route;
-
-  const _NavItem(this.icon, this.label, this.route);
-}
-
-const _navItems = [
-  _NavItem(Icons.dashboard_outlined, 'Daily Digest', '/'),
-  _NavItem(Icons.menu_book_outlined, 'Knowledge Base', '/library'),
-  _NavItem(Icons.label_outline, 'Tags', '/tags'),
-  _NavItem(Icons.chat_bubble_outline, 'Chat', '/chat'),
-  _NavItem(Icons.mail_outline, 'Letters', '/letters'),
-  _NavItem(Icons.school_outlined, 'Study', '/study'),
-  _NavItem(Icons.cloud_outlined, 'Sources', '/sources'),
-  _NavItem(Icons.auto_awesome_outlined, 'Welcome', '/landing'),
-  _NavItem(Icons.palette_outlined, 'Branding', '/branding'),
-  _NavItem(Icons.settings_outlined, 'Settings', '/settings'),
-];
-
+/// The chrome rail (`component-kit.md` §1.2), composed from the kit.
+///
+/// Structure mirrors the web reference (`shell/AppShell.jsx`): **Home leads the
+/// rail unlabelled** — a group label above a single destination names a
+/// category the user is not choosing between — then Knowledge, Study and
+/// Letters as labelled groups, with Activity and Settings pinned to the bottom
+/// above the identity footer.
+///
+/// Two things that were here and are deliberately gone:
+///
+/// * The **storage meter** (`2.1 GB / 6 GB used`, `value: 0.35`) was **mock
+///   data**. There is no storage-quota signal anywhere in the contract, so it
+///   was a hardcoded figure presented as a measurement. A stat needs a real
+///   backing signal before it gets a slot.
+/// * **Welcome** and **Branding** were primary nav entries. Neither exists in
+///   the web reference; Branding is a development page. The routes still work,
+///   they are simply not destinations in the rail.
 class Sidebar extends StatelessWidget {
   const Sidebar({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Plum chrome — identical in light & dark (web app-kit.css `.sb`):
-    // background --chrome (plum-600), foreground --paper-50. Never keyed off
-    // Theme.brightness; the chrome "stays warm either way".
-    final currentRoute = GoRouterState.of(context).uri.path;
+    final route = GoRouterState.of(context).uri.path;
+    void go(String path) => context.go(path);
 
-    return Container(
-      width: 256,
-      decoration: const BoxDecoration(
-        color: AppColors.chrome,
-        border: Border(right: BorderSide(color: AppColors.chromeBorder)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Logo
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.primary,
-                  child: const Icon(Icons.edit_note, color: Colors.white, size: 18),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'NoteLetter',
-                  style: AppTheme.serif(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.chromeForeground,
-                  ),
-                ),
+    return Consumer<ActivityNotifier>(
+      builder: (context, activity, _) {
+        // The web card shows three figures — Volumes · Passages · Unread.
+        // Only the first has a backing signal in this client: `documents`
+        // here is a list of `ActivityItem`, which carries no `chunk_count` or
+        // `view_count`, and nothing in state holds a `List<Document>`.
+        //
+        // So it shows one figure. Rendering "0 Passages / 0 Unread" would be
+        // three measurements presented alike where two are placeholders — the
+        // same defect as the storage meter this replaced. Wiring
+        // `subscribeDocuments()` would supply the other two; that is a
+        // data-layer task, recorded in ../TODO.md, not something to fake here.
+        final volumes = activity.documents.length;
+
+        return KitChromeRail(
+          brand: const KitBrand(mark: Icon(Icons.edit_note, size: 22, color: AppColors.chromeForeground)),
+          items: [
+            KitNavItem(
+              icon: Icons.home_outlined,
+              label: 'Home',
+              active: route == '/',
+              onTap: () => go('/'),
+            ),
+            const KitRailGroupLabel('Knowledge'),
+            KitRailCard(
+              icon: Icons.menu_book_outlined,
+              label: 'Library',
+              active: route == '/sources' || route == '/library',
+              onTap: () => go('/sources'),
+              figures: [
+                KitRailFigure('$volumes',
+                    volumes == 1 ? 'Volume' : 'Volumes'),
               ],
             ),
-          ),
-          const Divider(height: 1, color: AppColors.chromeBorder),
-          const SizedBox(height: 8),
-          // Nav items
-          ...(_navItems.map((item) {
-            final isActive = currentRoute == item.route;
-            return _SidebarNavItem(item: item, isActive: isActive);
-          })),
-          const Spacer(),
-          const Divider(height: 1, color: AppColors.chromeBorder),
-          // Storage
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '2.1 GB / 6 GB used',
-                  style: TextStyle(
-                    fontFamily: 'Geist',
-                    fontSize: 12,
-                    color: AppColors.chromeSubtle,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                LinearProgressIndicator(
-                  value: 0.35,
-                  backgroundColor: AppColors.chromeBorder,
-                  color: AppColors.primary,
-                  borderRadius: AppRadius.pillR(4),
-                ),
-              ],
+            KitNavItem(
+              icon: Icons.search,
+              label: 'Search',
+              active: route == '/search',
+              onTap: () => go('/search'),
             ),
-          ),
-          // Theme toggle
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-            child: Consumer<ThemeNotifier>(
-              builder: (ctx, notifier, _) => IconButton(
-                onPressed: notifier.toggle,
-                icon: Icon(notifier.modeIcon, color: AppColors.chromeMuted),
-                tooltip: '${notifier.modeLabel} — tap to change',
-              ),
+            KitNavItem(
+              icon: Icons.chat_bubble_outline,
+              label: 'Ask',
+              active: route == '/chat',
+              onTap: () => go('/chat'),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SidebarNavItem extends StatefulWidget {
-  final _NavItem item;
-  final bool isActive;
-
-  const _SidebarNavItem({required this.item, required this.isActive});
-
-  @override
-  State<_SidebarNavItem> createState() => _SidebarNavItemState();
-}
-
-class _SidebarNavItemState extends State<_SidebarNavItem> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    // On plum chrome the foreground is always paper-toned (web `.sb-item`):
-    // idle rgba(255,255,255,.62); hover/active promote to paper-50 with a
-    // white-alpha fill; the active item also carries a brick-400 left bar.
-    Color bgColor = Colors.transparent;
-    if (widget.isActive) {
-      bgColor = AppColors.chromeActive;
-    } else if (_hovered) {
-      bgColor = AppColors.chromeHover;
-    }
-    final fg = (widget.isActive || _hovered)
-        ? AppColors.chromeForeground
-        : AppColors.chromeMuted;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () => context.go(widget.item.route),
-        child: Stack(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: AppRadius.controlR(36),
-              ),
-              child: Row(
-                children: [
-                  Icon(widget.item.icon, size: 18, color: fg),
-                  const SizedBox(width: 10),
-                  Text(
-                    widget.item.label,
-                    style: TextStyle(
-                      fontFamily: 'Geist',
-                      fontSize: 14,
-                      color: fg,
-                      fontWeight:
-                          widget.isActive ? FontWeight.w600 : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+            const KitRailGroupLabel('Study'),
+            KitNavItem(
+              icon: Icons.school_outlined,
+              label: 'Study',
+              active: route.startsWith('/study'),
+              onTap: () => go('/study'),
             ),
-            // Active accent bar — brick-400, mirrors web `.sb-item.active::before`.
-            if (widget.isActive)
-              Positioned(
-                left: 0,
-                top: 10,
-                bottom: 10,
-                child: Container(
-                  width: 2,
-                  decoration: BoxDecoration(
-                    color: AppColors.chromeAccentBar,
-                    borderRadius: AppRadius.pillR(2),
-                  ),
-                ),
-              ),
+            const KitRailGroupLabel('Letters'),
+            KitNavItem(
+              icon: Icons.mail_outlined,
+              label: 'Letters',
+              active: route == '/letters',
+              onTap: () => go('/letters'),
+            ),
+            const KitRailGroupLabel('Shelves'),
+            KitNavItem(
+              icon: Icons.label_outline,
+              label: 'All shelves',
+              active: route == '/tags',
+              onTap: () => go('/tags'),
+            ),
           ],
-        ),
-      ),
+          footer: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              KitNavItem(
+                icon: Icons.settings_outlined,
+                label: 'Settings',
+                active: route.startsWith('/settings'),
+                onTap: () => go('/settings'),
+              ),
+              const SizedBox(height: 4),
+              Consumer<ThemeNotifier>(
+                builder: (context, notifier, _) => KitNavItem(
+                  icon: notifier.modeIcon,
+                  label: notifier.modeLabel,
+                  onTap: notifier.toggle,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

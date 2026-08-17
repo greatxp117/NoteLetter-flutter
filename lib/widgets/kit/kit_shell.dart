@@ -270,6 +270,223 @@ class _KitNavItemState extends State<KitNavItem> {
   }
 }
 
+/// The rail's **library card** (web `.sb-libcard`): the corpus at a glance, and
+/// the place a newly added source visibly lands.
+///
+/// A card, not a row, because it carries figures. Same active treatment as
+/// [KitNavItem] — 2px accent bar plus a raised fill.
+///
+/// NOTE: this pattern is in the web reference but was **missing from
+/// `component-kit.md` §1.2** when the kit was transcribed. Recorded as owed
+/// spec text (a `/contract-change` PATCH), not invented here — the figures,
+/// alphas and metrics below are read off `app-kit.css`.
+class KitRailCard extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final List<KitRailFigure> figures;
+  final bool active;
+  final VoidCallback? onTap;
+
+  const KitRailCard({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.figures,
+    this.active = false,
+    this.onTap,
+  });
+
+  @override
+  State<KitRailCard> createState() => _KitRailCardState();
+}
+
+class _KitRailCardState extends State<KitRailCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 2, bottom: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+              decoration: BoxDecoration(
+                color: widget.active
+                    ? const Color(0x1AFFFFFF)
+                    : (_hover
+                        ? const Color(0x17FFFFFF)
+                        : const Color(0x0DFFFFFF)),
+                borderRadius: AppRadius.mdR,
+                border: Border.all(
+                    color: _hover
+                        ? const Color(0x29FFFFFF)
+                        : t.chromeBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(widget.icon, size: 15, color: t.chromeFg),
+                      const SizedBox(width: 10),
+                      Text(
+                        widget.label,
+                        style: TextStyle(
+                          fontFamily: AppTheme.fontSans,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                          color: t.chromeFg,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      for (final f in widget.figures)
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                f.value,
+                                style: AppTheme.mono(
+                                  fontSize: 16,
+                                  height: 1,
+                                  color: f.highlight
+                                      ? t.chromeAccentBar
+                                      : t.chromeFg,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                f.label.toUpperCase(),
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.mono(
+                                  fontSize: 9,
+                                  letterSpacing: 0.1 * 9,
+                                  color: const Color(0x61FFFFFF),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (widget.active)
+              Positioned(
+                left: -9,
+                top: 12,
+                bottom: 16,
+                child: Container(
+                  width: 2,
+                  decoration: BoxDecoration(
+                    color: t.chromeAccentBar,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One figure in a [KitRailCard]. [highlight] paints the numeral in
+/// `--brick-400` — used for a non-zero unread count.
+class KitRailFigure {
+  final String value;
+  final String label;
+  final bool highlight;
+
+  const KitRailFigure(this.value, this.label, {this.highlight = false});
+}
+
+/// The rail's footer identity block: initials avatar, name, secondary line.
+class KitRailFooter extends StatelessWidget {
+  final String initials;
+  final String name;
+  final String? secondary;
+
+  const KitRailFooter(
+      {super.key,
+      required this.initials,
+      required this.name,
+      this.secondary});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: t.accent,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              initials,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: t.chromeFg,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: t.chromeFg,
+                  ),
+                ),
+                if (secondary != null && secondary!.isNotEmpty)
+                  Text(
+                    secondary!,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.mono(
+                      fontSize: 10,
+                      letterSpacing: 0.06 * 10,
+                      color: t.chromeSubtle,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// §1.3 — the utility rail at the top of the main pane: a mono caps breadcrumb,
 /// a flexible gap, then trailing controls. 48px, closed by a `--rule`.
 class KitUtilityBar extends StatelessWidget {
