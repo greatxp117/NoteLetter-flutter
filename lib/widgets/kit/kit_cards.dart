@@ -173,17 +173,27 @@ class KitHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+      padding: EdgeInsets.symmetric(
+          horizontal: compact ? AppSpacing.s5 : 32, vertical: 28),
       decoration: BoxDecoration(
         color: t.bg,
         borderRadius: AppRadius.lgR,
         border: Border.all(color: t.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Flex(
+        // The actions column sits BESIDE the content at full width and BELOW it
+        // on a phone: side by side there, it squeezed the masthead until "A
+        // Letter" broke across two lines and the standfirst ran four words wide.
+        direction: compact ? Axis.vertical : Axis.horizontal,
+        crossAxisAlignment:
+            compact ? CrossAxisAlignment.stretch : CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
+          _flexible(
+            compact,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -222,9 +232,13 @@ class KitHeroCard extends StatelessWidget {
             ),
           ),
           if (actions.isNotEmpty) ...[
-            const SizedBox(width: AppSpacing.s6),
+            SizedBox(
+                width: compact ? 0 : AppSpacing.s6,
+                height: compact ? AppSpacing.s5 : 0),
             Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: compact
+                  ? CrossAxisAlignment.stretch
+                  : CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (var i = 0; i < actions.length; i++) ...[
@@ -239,6 +253,12 @@ class KitHeroCard extends StatelessWidget {
     );
   }
 }
+
+/// `Expanded` is only valid along the flex's own axis, and the hero flips axis
+/// on a phone — so the content column is expanded when the card is a row and
+/// left to size itself when it is a column.
+Widget _flexible(bool compact, {required Widget child}) =>
+    compact ? child : Expanded(child: child);
 
 /// One figure in a [KitStatCluster].
 class KitStat {

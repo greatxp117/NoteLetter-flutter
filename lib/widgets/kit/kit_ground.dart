@@ -66,14 +66,16 @@ class _KitGroundState extends State<KitGround> {
     // reason nothing in the diff would explain.
     if (grain) {
       final rng = math.Random(0x4E4C7231);
-      final tint = isDark ? 255 : 20;
+      final r = isDark ? 255 : 20;
+      final g = isDark ? 255 : 23;
+      final b = isDark ? 255 : 31;
       for (var i = 0; i < n * n; i++) {
         // opacity 0.04 in the reference, modulated per pixel.
         final a = (rng.nextDouble() * 0.08 * 255).round();
         final o = i * 4;
-        pixels[o] = tint;
-        pixels[o + 1] = isDark ? 255 : 23;
-        pixels[o + 2] = isDark ? 255 : 31;
+        pixels[o] = _pm(r, a);
+        pixels[o + 1] = _pm(g, a);
+        pixels[o + 2] = _pm(b, a);
         pixels[o + 3] = a;
       }
     }
@@ -84,9 +86,9 @@ class _KitGroundState extends State<KitGround> {
     for (var y = 0; y < n; y += _latticeStep) {
       for (var x = 0; x < n; x += _latticeStep) {
         final o = (y * n + x) * 4;
-        pixels[o] = isDark ? 255 : 20;
-        pixels[o + 1] = isDark ? 255 : 23;
-        pixels[o + 2] = isDark ? 255 : 31;
+        pixels[o] = _pm(isDark ? 255 : 20, dotA);
+        pixels[o + 1] = _pm(isDark ? 255 : 23, dotA);
+        pixels[o + 2] = _pm(isDark ? 255 : 31, dotA);
         pixels[o + 3] = dotA;
       }
     }
@@ -108,6 +110,17 @@ class _KitGroundState extends State<KitGround> {
     );
   }
 }
+
+/// **`decodeImageFromPixels` takes PREMULTIPLIED colour.** Passing straight
+/// rgba — white at alpha 18 — hands the compositor a channel value far above
+/// its own alpha, and the result paints as an almost solid veil rather than a
+/// 7% dot.
+///
+/// In light mode the tint is near-black, so `rgb <= a` roughly held and the
+/// ground looked right; in dark mode the tint is white, and the whole page
+/// rendered as a white sheet under dark cards and light text. The screen was
+/// verified in light. **A screen verified only in light is not verified.**
+int _pm(int channel, int alpha) => (channel * alpha / 255).round();
 
 class _GroundPainter extends CustomPainter {
   final ui.Image tile;

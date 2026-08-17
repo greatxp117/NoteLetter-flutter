@@ -94,7 +94,7 @@ class _LibraryHome extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ChapterOpening(
-          folio: '${_today()} · $total ${total == 1 ? 'source' : 'sources'}',
+          folio: '${_today()} · ${_plural(total, 'source')}',
           title: '${_greeting()}, *reader*',
           standfirst: letter != null
               ? "Today's letter is ready — "
@@ -144,7 +144,7 @@ class _LibraryHome extends StatelessWidget {
 
         // ── Recently read ────────────────────────────────────────────────
         SectionHeader(
-          'Recently read · $total ${total == 1 ? 'source' : 'sources'}',
+          'Recently read · ${_plural(total, 'source')}',
           actionLabel: 'View all →',
           onAction: () => context.go('/sources'),
           first: letter == null,
@@ -156,7 +156,7 @@ class _LibraryHome extends StatelessWidget {
                 leading: KitFileBadge(kitDocKind(d.type)),
                 title: d.title.isEmpty ? 'Untitled' : d.title,
                 subtitle: '${_shelfLabel(d, shelves)} · '
-                    '${d.chunkCount ?? 0} passages',
+                    '${_plural(d.chunkCount ?? 0, 'passage')}',
                 count: '${d.chunkCount ?? 0}',
                 date: _rowDate(d.createdAt),
                 onTap: () => context.push('/reader/${d.id}'),
@@ -191,9 +191,8 @@ class _LibraryHome extends StatelessWidget {
                     title: s.title,
                     colorToken: s.color,
                     volumes: vols.length,
-                    meta: '${vols.length} '
-                        '${vols.length == 1 ? 'volume' : 'volumes'}'
-                        '${passages > 0 ? ' · $passages passages' : ''}',
+                    meta: '${_plural(vols.length, 'volume')}'
+                        '${passages > 0 ? ' · ${_plural(passages, 'passage')}' : ''}',
                     onTap: () => context.go('/tags'),
                   );
                 }),
@@ -277,9 +276,12 @@ String _greeting() {
 
 String _passages(Newsletter letter) {
   final n = letter.passagesSent;
-  if (n == null) return 'passages';
-  return '$n passage${n == 1 ? '' : 's'}';
+  return n == null ? 'passages' : _plural(n, 'passage');
 }
+
+/// English plurals, in one place. Written out because "1 passages" shipped to a
+/// real screen the first time each of these was inlined.
+String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
 
 /// The row date: minutes-ago, then a clock time within the day, then a calendar
 /// date — the web's `formatDate`.

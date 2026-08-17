@@ -68,6 +68,10 @@ class ChapterOpening extends StatelessWidget {
                 Expanded(
                   child: Text(
                     folio!.toUpperCase(),
+                    // Two lines on a phone rather than an ellipsis: the folio
+                    // carries the screen's COUNT, and the count is at the end
+                    // of the line — truncating drops the only figure in it.
+                    maxLines: compact ? 2 : 1,
                     overflow: TextOverflow.ellipsis,
                     style: KitText.capsLabel(context,
                         color: t.seal, letterSpacing: 0.18),
@@ -106,7 +110,18 @@ class ChapterOpening extends StatelessWidget {
           children: [
             if (actions.isEmpty)
               titleBlock
-            else
+            // On a phone the actions go BELOW the title. Beside it they take
+            // half the width, and a 32px display line in the other half wraps
+            // mid-word — the greeting rendered as "Good mornin / g, / reader".
+            else if (compact) ...[
+              titleBlock,
+              const SizedBox(height: AppSpacing.s4),
+              Wrap(
+                spacing: AppSpacing.s2,
+                runSpacing: AppSpacing.s2,
+                children: actions,
+              ),
+            ] else
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

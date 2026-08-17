@@ -15,6 +15,7 @@ import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
 import 'package:flutter_app/state/chat_notifier.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
+import 'package:flutter_app/state/documents_notifier.dart';
 import 'package:flutter_app/state/newsletter_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/state/search_notifier.dart';
@@ -23,6 +24,7 @@ import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
 import 'package:flutter_app/pages/reader/passage_mark.dart';
+import 'package:flutter_app/widgets/kit/kit.dart';
 
 /// The device run (../TODO.md). Drives the real app on a real renderer against
 /// the emulator suite, because a whole class of this client's work is invisible
@@ -79,6 +81,7 @@ void main() {
         ChangeNotifierProvider<SearchNotifier>(create: (_) => SearchNotifier()),
         ChangeNotifierProvider<ChatNotifier>(create: (_) => ChatNotifier()),
         ChangeNotifierProvider<ActivityNotifier>(create: (_) => ActivityNotifier()),
+        ChangeNotifierProvider<DocumentsNotifier>(create: (_) => DocumentsNotifier()),
         ChangeNotifierProvider<SettingsNotifier>(create: (_) => SettingsNotifier()),
         ChangeNotifierProvider<NewsletterNotifier>(create: (_) => NewsletterNotifier()),
         ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
@@ -97,6 +100,60 @@ void main() {
     expect(FirebaseAuth.instance.currentUser, isNotNull);
     // Landing must NOT be showing — the redirect sends a signed-in user to '/'.
     expect(find.text('Your Knowledge Base, Automatically Curated'), findsNothing);
+  });
+
+  testWidgets('the library home composes from the kit and really scrolls',
+      (tester) async {
+    // `/` is the Library (screens/library.md). Composition is what no other
+    // gate here looks at: tokens, data and behaviour were all green while this
+    // screen was a different design (ADR-041), so the assertions below are
+    // about PARTS BEING PRESENT, in the roles the kit gives them.
+    await pumpApp(tester);
+    await tester.pumpAndSettle(const Duration(seconds: 3));
+
+    // The chapter opening: folio, the greeting title with its accent clause,
+    // and the chapter rule. The dropped folio and the dropped accent clause are
+    // two of the four commonest ways a screen stops looking like this app.
+    expect(find.byType(ChapterOpening), findsOneWidget);
+    expect(find.byType(ChapterRule), findsWidgets);
+    expect(find.textContaining(RegExp('Good (morning|afternoon|evening)')),
+        findsOneWidget);
+
+    // Either the library has volumes — three sections, each opened by a
+    // section header — or it is empty, and then the DROP ZONE leads. An empty
+    // state that is a centred apology is a failed composition, not a state.
+    final seeded = find.byType(SectionHeader).evaluate().isNotEmpty;
+    if (seeded) {
+      expect(find.byType(KitRowList), findsWidgets,
+          reason: 'recently-read renders as source rows (kit §4.1)');
+      // The eyebrow renders its text UPPERCASED, so that is what is in the
+      // tree — matching the sentence-case source string finds nothing.
+      expect(find.textContaining('RECENTLY READ'), findsOneWidget);
+      expect(find.textContaining('SHELVES'), findsWidgets);
+    } else {
+      expect(find.byType(KitDropZone), findsOneWidget,
+          reason: 'the empty library leads with the drop zone, not a message');
+    }
+
+    // Only a REAL gesture proves a pane scrolls — a programmatic offset moves
+    // even one the user cannot drag. Four web pages shipped unscrollable for
+    // their whole lives that way (4.3.1).
+    final scrollable = find.byType(Scrollable);
+    expect(scrollable, findsWidgets);
+    final position = tester.widget<Scrollable>(scrollable.first).controller;
+    final before = position?.offset ?? 0;
+    await tester.drag(scrollable.first, const Offset(0, -400));
+    await tester.pumpAndSettle();
+    final after = tester
+        .state<ScrollableState>(scrollable.first)
+        .position;
+    // A page shorter than the viewport cannot scroll and must not be failed
+    // for it; what would be a defect is a page with overflow that does not
+    // move under a drag.
+    if (after.maxScrollExtent > 0) {
+      expect(after.pixels, greaterThan(before),
+          reason: 'the library body did not move under a real drag');
+    }
   });
 
   testWidgets('the reader renders and the passage mark tracks a REAL drag',

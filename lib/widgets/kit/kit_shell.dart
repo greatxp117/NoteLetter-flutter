@@ -54,13 +54,22 @@ class KitShell extends StatelessWidget {
 
 /// The compact (phone) form of the shell: the rail becomes a drawer and the
 /// pane goes full-bleed, but **the ground and the chrome surface stay**.
+///
+/// The pane paints `--surface` under the ground exactly as the wide one does.
+/// [KitGround] draws only the texture — it is transparent by design, since it
+/// also overlays surfaces that bring their own colour — so a compact pane that
+/// omitted the fill let the Scaffold's chrome plum through the whole body:
+/// every screen rendered its page text, at correct `--fg`, on the desk colour.
 class KitShellCompact extends StatelessWidget {
   final Widget child;
 
   const KitShellCompact({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) => KitGround(child: child);
+  Widget build(BuildContext context) => ColoredBox(
+        color: Tokens.of(context).surface,
+        child: KitGround(child: child),
+      );
 }
 
 /// §1.2 — the chrome rail's scaffolding: brand lockup, scrollable nav region,
