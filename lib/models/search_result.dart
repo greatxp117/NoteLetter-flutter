@@ -1,6 +1,24 @@
 import 'chunk.dart';
 export 'chunk.dart' show Chunk;
 
+/// Epoch ms from an **HTTP** timestamp (INV-06 at the `fn_*` boundary).
+///
+/// Not [tsMs], which is the *Firestore* read boundary: it converts a
+/// `Timestamp` and returns null for anything else, exactly as the web
+/// reference's does. An endpoint serializes through `_firestore_safe`, so the
+/// same field arrives as an **ISO 8601 string** — and this model used to read
+/// it with `as int?`, which threw on every response that carried one (all of
+/// them). `SearchNotifier` catches everything into "Search failed. Please try
+/// again.", so a healthy backend and a 200 response read to the user as an
+/// outage: **search had never returned a single result on this client.**
+/// Found by the 4.5.4 device run; gated by `test/contract/search_response_test.dart`.
+int? _httpTsMs(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is String) return DateTime.tryParse(value)?.millisecondsSinceEpoch;
+  return null;
+}
+
 /// `document.summary` is stripped server-side in search responses.
 class SearchResultDocument {
   final String userId;
@@ -45,7 +63,7 @@ class SearchResultDocument {
       type: json['type'] as String? ?? 'unknown',
       status: json['status'] as String? ?? '',
       sourceUrl: json['source_url'] as String?,
-      createdAt: json['created_at'] as int?,
+      createdAt: _httpTsMs(json['created_at']),
       chunkCount: json['chunk_count'] as int?,
       wordCount: json['word_count'] as int?,
       themes: (json['themes'] as List?)?.cast<String>() ?? [],

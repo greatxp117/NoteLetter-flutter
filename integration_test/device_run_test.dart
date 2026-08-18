@@ -112,7 +112,13 @@ void main() {
     // screen was a different design (ADR-041), so the assertions below are
     // about PARTS BEING PRESENT, in the roles the kit gives them.
     await pumpApp(tester);
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    // Bounded pumps rather than a settle: the library home lists live
+    // documents, and a processing one carries a looping indicator. With one in
+    // the feed a settle waits for a frame that never comes — this test hung for
+    // the full ten-minute settle timeout on exactly that.
+    for (var i = 0; i < 16; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
 
     // The chapter opening: folio, the greeting title with its accent clause,
     // and the chapter rule. The dropped folio and the dropped accent clause are
@@ -146,7 +152,9 @@ void main() {
     final position = tester.widget<Scrollable>(scrollable.first).controller;
     final before = position?.offset ?? 0;
     await tester.drag(scrollable.first, const Offset(0, -400));
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
     final after = tester
         .state<ScrollableState>(scrollable.first)
         .position;
@@ -412,7 +420,11 @@ void main() {
     // Submit a query the seed can answer.
     await tester.enterText(find.byType(TextField).first, 'pasta');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    for (var i = 0; i < 40; i++) {
+    // Wait generously: this is an embedding call plus a vector query, and a
+    // cold first request runs to several seconds. A short wait does not fail —
+    // it asserts the loading state and takes the no-results branch, which is
+    // green for the wrong reason.
+    for (var i = 0; i < 160; i++) {
       await tester.pump(const Duration(milliseconds: 250));
       if (find.byType(SearchResultCard).evaluate().isNotEmpty ||
           find.byType(KitEmptyState).evaluate().isNotEmpty) {
@@ -430,6 +442,19 @@ void main() {
     // The control bar appears with the query, carrying the type vocabulary.
     expect(find.byType(KitControlBar), findsOneWidget);
     expect(find.byType(KitFilterChip), findsNWidgets(4));
+
+    // Say which branch this run took. Without it a green run is ambiguous —
+    // the failure branch below returns early and passes too, which is exactly
+    // what happened while the shim carried a dummy embedding key: the cards,
+    // the split pane and the context read had never rendered and the test was
+    // green anyway.
+    final searchState = Provider.of<SearchNotifier>(
+        tester.element(find.byType(SearchBigField)),
+        listen: false);
+    debugPrint('DEVICE-RUN search: '
+        '${find.byType(SearchResultCard).evaluate().length} result cards, '
+        'notifier=${searchState.results.length} results, '
+        'error=${searchState.error}');
 
     if (find.byType(SearchResultCard).evaluate().isEmpty) {
       // Either nothing matched — which is the offer pattern (§7), not a bare
