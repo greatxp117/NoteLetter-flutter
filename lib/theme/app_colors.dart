@@ -111,6 +111,14 @@ class AppColors {
   // Decorative.
   static const highlightLight = Color(0x269D352D); // --highlight rgba(157,53,45,.15)
   static const highlightDark = Color(0x3DE97D39); // --highlight rgba(233,125,57,.24)
+  // `--highlight-strong` — the mark on a passage the reader is *reading*, as
+  // opposed to one being listed. Contracted since the token file's first
+  // version and absent from this client until 4.5.4, which is why the search
+  // reading pane had nothing to mark the matched chunk with.
+  static const highlightStrongLight =
+      Color(0x429D352D); // --highlight-strong rgba(157,53,45,.26)
+  static const highlightStrongDark =
+      Color(0x66E97D39); // --highlight-strong rgba(233,125,57,.40)
   static const sealLight = _brick700; // --seal
   static const sealDark = _brick400; // --seal (dark)
   static const linkDecorLight = _brick500; // --link-decor

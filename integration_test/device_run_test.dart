@@ -24,6 +24,9 @@ import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
 import 'package:flutter_app/pages/reader/passage_mark.dart';
+import 'package:flutter_app/pages/search/reading_pane.dart';
+import 'package:flutter_app/pages/search/result_card.dart';
+import 'package:flutter_app/pages/search/search_field.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
 /// The device run (../TODO.md). Drives the real app on a real renderer against
@@ -374,10 +377,94 @@ void main() {
       final chip = tester.widget<KitFilterChip>(chips.at(i));
       if (chip.onPressed == null) continue;
       await tester.tap(chips.at(i));
-      await tester.pumpAndSettle();
+      // Bounded pumps, never `pumpAndSettle`: a **live** node carries a pulsing
+      // ring (§4.2) that loops forever, so a settle here waits for a frame that
+      // never comes. It hangs rather than fails, and only when the feed happens
+      // to hold a processing document — which is why this test read as green.
+      for (var j = 0; j < 8; j++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
       expect(find.byType(KitTimelineRow).evaluate().length,
           lessThanOrEqualTo(before));
       break;
+    }
+  });
+
+  testWidgets('search composes from the kit and opens a reading pane',
+      (tester) async {
+    // Search is screen 5/11. Three specified parts did not exist here before
+    // the rebuild — the big field, the control bar, and the reading pane — and
+    // the pane is the whole reason this screen has a two-pane frame. None of
+    // that is visible to Tier-1, which asserts request construction.
+    final router = await pumpApp(tester);
+    router.go('/search');
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+
+    // Idle: the bespoke header, and an offer rather than a blank page (§7).
+    expect(find.byType(SearchBigField), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsNothing,
+        reason: 'search has a bespoke header; the field IS the title (§2)');
+    expect(find.byType(KitEmptyState), findsOneWidget);
+    expect(find.byType(KitSuggestion), findsWidgets);
+
+    // Submit a query the seed can answer.
+    await tester.enterText(find.byType(TextField).first, 'pasta');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+      if (find.byType(SearchResultCard).evaluate().isNotEmpty ||
+          find.byType(KitEmptyState).evaluate().isNotEmpty) {
+        break;
+      }
+    }
+    // **Never `pumpAndSettle` on this screen.** Both loading states here are a
+    // `CircularProgressIndicator`, which animates forever, so a settle waits
+    // for a frame that never comes and the run hangs rather than failing.
+    // Bounded pumps throughout.
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+
+    // The control bar appears with the query, carrying the type vocabulary.
+    expect(find.byType(KitControlBar), findsOneWidget);
+    expect(find.byType(KitFilterChip), findsNWidgets(4));
+
+    if (find.byType(SearchResultCard).evaluate().isEmpty) {
+      // Either nothing matched — which is the offer pattern (§7), not a bare
+      // sentence — or the call failed and the screen says so. Under the `fn_*`
+      // shim the failure is the expected one: the shim carries a dummy OpenAI
+      // key, so the query cannot be embedded. What is NOT allowed is a blank
+      // body: a search that answers with nothing at all.
+      expect(
+        find.byType(KitEmptyState).evaluate().isNotEmpty ||
+            find.byType(KitCard).evaluate().isNotEmpty,
+        isTrue,
+        reason: 'no results still renders a state, never an empty page',
+      );
+      return;
+    }
+
+    // The second pane renders beside (or under) the results, and it opens on
+    // the top result rather than waiting to be clicked.
+    expect(find.byType(SearchReadingPane), findsOneWidget);
+    expect(find.textContaining('similarity'), findsWidgets,
+        reason: 'the pane names the measured score of what it is showing');
+
+    // Selecting a different result moves the pane to it.
+    final cards = find.byType(SearchResultCard);
+    if (cards.evaluate().length > 1) {
+      await tester.tap(cards.at(1));
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      final selected = tester
+          .widgetList<SearchResultCard>(cards)
+          .where((c) => c.selected)
+          .length;
+      expect(selected, 1,
+          reason: 'exactly one result is open at a time');
     }
   });
 

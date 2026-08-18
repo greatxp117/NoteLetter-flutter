@@ -90,6 +90,9 @@ class Tokens {
   // ── Decorative ───────────────────────────────────────────────────────────
   Color get highlight =>
       _p(AppColors.highlightLight, AppColors.highlightDark);
+  /// The stronger mark: the passage being read, not one being listed.
+  Color get highlightStrong =>
+      _p(AppColors.highlightStrongLight, AppColors.highlightStrongDark);
   Color get seal => _p(AppColors.sealLight, AppColors.sealDark);
   Color get linkDecor =>
       _p(AppColors.linkDecorLight, AppColors.linkDecorDark);
