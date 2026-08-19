@@ -84,7 +84,12 @@ class _ReaderPageState extends State<ReaderPage> {
   List<String> get _paras => _chunks.map((c) => c.text).toList();
 
   /// Real per-line start times for audio/video transcripts (youtube/tiktok/
-  /// instagram/podcast): each transcript chunk's HTML is a single `<p data-start="…">`.
+  /// instagram/podcast). A transcript chunk's HTML holds **one `<p data-start>`
+  /// per sentence** (4.11.0, ADR-047) — pre-4.11.0 chunks hold a single one with
+  /// the chunk's aggregate span, and are never backfilled. `firstMatch` is the
+  /// chunk's own start under both shapes, so this stays correct; what it gives up
+  /// is sentence-level seek, which the web reference now offers and this client
+  /// does not yet (tandem task, CHANGELOG 4.11.0).
   /// `null` per chunk when absent (non-transcript sources) → ListenPanel falls back
   /// to word-count-proportional timing. Mirrors the web ReaderView.
   List<double?> get _lineStarts => _chunks.map((c) {
