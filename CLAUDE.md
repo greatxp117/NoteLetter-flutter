@@ -32,7 +32,7 @@ lib/
 ├── models/    document, chunk, tag, newsletter, activity_item, …
 ├── pages/     one per screen (+ pages/study/, pages/reader/)
 ├── scripture/ parse.dart                 # citation parser
-├── widgets/   app_layout, sidebar, nav_drawer, …
+├── widgets/   support_shell, app_layout, sidebar, nav_drawer, kit/
 └── theme/     app_colors.dart            # semantic tokens from design-tokens.md
 ```
 
@@ -99,6 +99,8 @@ values; each scale factor is recorded here (component-kit.md) and applied
 - **`aliases_douay_rheims` is never merged** into the citation lookup: DR
   "1 Kings" is 1 Samuel, so merging resolves citations to the wrong book while
   looking complete. A bare book name is not a citation.
+- **INV-22's footer wraps the whole authenticated surface, not `AppLayout`** —
+  the reader is outside `AppLayout`. `widgets/support_shell.dart`, nowhere else.
 - **`flutterfire configure` does not rename the native projects.** A mismatch
   between `applicationId`/`PRODUCT_BUNDLE_IDENTIFIER` and the generated config
   fails at **Firebase init**, not at build — so a green build proves nothing here.
