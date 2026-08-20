@@ -9,9 +9,14 @@ the fill pins at 1.0 from the first frame.
 Writes through the emulator REST with `Bearer owner`, which bypasses rules — a
 client cannot write /documents directly (INV-04).
 """
-import json, urllib.request
+import json, os, urllib.request
 
-BASE = "http://localhost:8580/v1/projects/noteletter-7a111/databases/(default)/documents"
+# The suite's host, from the same env var every other tool here reads (/emu).
+# It was hardcoded to the alt-port 8580, which silently wrote nothing useful
+# when the suite came up on the defaults — the device run then failed with
+# "run tool/seed_long_doc.py first", having just been run.
+HOST = os.environ.get("FIRESTORE_EMULATOR_HOST", "localhost:8580")
+BASE = f"http://{HOST}/v1/projects/noteletter-7a111/databases/(default)/documents"
 UID = "seed-user-1"
 DOC = "device-run-long-doc"
 
