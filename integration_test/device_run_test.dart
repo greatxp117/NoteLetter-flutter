@@ -42,6 +42,13 @@ import 'package:flutter_app/widgets/kit/kit.dart';
 ///    result renders;
 ///  - a bundled font that fails to load falls back SILENTLY.
 ///
+/// Seed the scroll-length fixture FIRST, and again after every emulator
+/// restart — the seed import does not carry it and no client may write it
+/// (INV-04):
+/// ```
+/// FIRESTORE_EMULATOR_HOST=localhost:8580 python3 tool/seed_long_doc.py
+/// ```
+///
 /// Run (ports per /emu, beside another workspace's suite on the defaults):
 /// ```
 /// flutter test integration_test/device_run_test.dart \
@@ -242,14 +249,28 @@ void main() {
     // With either one, this test passes or fails for reasons that have nothing
     // to do with whether the mark works.
     const docId = 'device-run-long-doc';
-    final doc = await FirebaseFirestore.instance
-        .collection('documents')
-        .doc(docId)
-        .get();
+    // The catch is the whole point: rules L65 reads `resource.data.user_id`,
+    // and `resource` is NULL for a document that does not exist, so a missing
+    // fixture comes back as permission-denied rather than as an absent
+    // document. Uncaught, that throws here and the reason below — the one that
+    // names the fix — is never reached. Every emulator restart re-imports the
+    // seed and drops this fixture, so it is the common case, not the rare one.
+    DocumentSnapshot<Map<String, dynamic>>? doc;
+    try {
+      doc = await FirebaseFirestore.instance
+          .collection('documents')
+          .doc(docId)
+          .get();
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') rethrow;
+    }
     expect(
-      doc.exists,
+      doc?.exists ?? false,
       isTrue,
-      reason: 'run tool/seed_long_doc.py against the emulator first',
+      reason:
+          'run tool/seed_long_doc.py against the emulator first '
+          '(a denied read here means the document is absent, not that the '
+          'rules changed)',
     );
     final chunks = await FirebaseFirestore.instance
         .collection('chunks')
@@ -677,8 +698,14 @@ void main() {
       contains('activity'),
     );
 
+    // A marker unique to this run. The probe STAYS in the thread — nothing a
+    // client may do deletes it (INV-04) — so a fixed string is findsOneWidget
+    // on the first run against a seed import and findsNWidgets(2) on the
+    // second, a red that describes the run before it rather than the code.
+    final probe =
+        'Device-run probe ${DateTime.now().millisecondsSinceEpoch}: ignore.';
     final composer = find.byType(TextField).last;
-    await tester.enterText(composer, 'Device-run probe: ignore.');
+    await tester.enterText(composer, probe);
     await pumpFor(tester, total: const Duration(seconds: 1));
     await tester.tap(find.bySemanticsLabel('Send'));
     // The send control spins while the request is in flight — another widget a
@@ -690,7 +717,7 @@ void main() {
     // report on the one path where they most need it kept — and the failure is
     // invisible, because the screen looks identical either way.
     expect(
-      find.text('Device-run probe: ignore.'),
+      find.text(probe),
       findsOneWidget,
       reason: 'the sent message is in the transcript',
     );
