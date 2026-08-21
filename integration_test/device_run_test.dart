@@ -83,6 +83,24 @@ void main() {
     );
   });
 
+  /// Bounded pumps, never `pumpAndSettle`.
+  ///
+  /// Two reasons, and the second is the one that bites. A screen listing live
+  /// documents carries a looping indicator whenever one is processing, so a
+  /// settle waits for a frame that never comes. And `pumpAndSettle`'s Duration
+  /// is the **interval between pumps, not a timeout** — the default deadline is
+  /// ten minutes, so the hang does not look like a hang, it looks like a slow
+  /// test. Both cost this file a run each.
+  Future<void> pumpFor(
+    WidgetTester tester, {
+    Duration total = const Duration(seconds: 4),
+  }) async {
+    final ticks = total.inMilliseconds ~/ 250;
+    for (var i = 0; i < ticks; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+  }
+
   Future<GoRouter> pumpApp(WidgetTester tester) async {
     final auth = AuthNotifier();
     final router = createRouter(auth);
@@ -120,26 +138,13 @@ void main() {
         child: NoteLetterApp(router: router),
       ),
     );
-    await tester.pumpAndSettle(const Duration(seconds: 2));
+    // Four seconds, not the two the settle here named: a settle's Duration is
+    // the interval it advances the clock by on each pump, so `pumpAndSettle(2s)`
+    // drained far more than two seconds of pending work. Startup loads still in
+    // flight when a test ends resurface a test or two later as a notifier used
+    // after disposal.
+    await pumpFor(tester, total: const Duration(seconds: 4));
     return router;
-  }
-
-  /// Bounded pumps, never `pumpAndSettle`.
-  ///
-  /// Two reasons, and the second is the one that bites. A screen listing live
-  /// documents carries a looping indicator whenever one is processing, so a
-  /// settle waits for a frame that never comes. And `pumpAndSettle`'s Duration
-  /// is the **interval between pumps, not a timeout** — the default deadline is
-  /// ten minutes, so the hang does not look like a hang, it looks like a slow
-  /// test. Both cost this file a run each.
-  Future<void> pumpFor(
-    WidgetTester tester, {
-    Duration total = const Duration(seconds: 4),
-  }) async {
-    final ticks = total.inMilliseconds ~/ 250;
-    for (var i = 0; i < ticks; i++) {
-      await tester.pump(const Duration(milliseconds: 250));
-    }
   }
 
   testWidgets('signs in and reaches the library', (tester) async {
@@ -262,12 +267,12 @@ void main() {
     // library: what is under test is the mark, not the navigation.
     final router = await pumpApp(tester);
     router.go('/reader/$docId');
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await pumpFor(tester, total: const Duration(seconds: 3));
 
     final manuscript = find.text('Manuscript');
     if (manuscript.evaluate().isNotEmpty) {
       await tester.tap(manuscript.first);
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await pumpFor(tester, total: const Duration(seconds: 2));
     }
 
     expect(
@@ -301,7 +306,7 @@ void main() {
     var everRose = false;
     for (var i = 0; i < 5; i++) {
       await tester.drag(scrollable.first, const Offset(0, -320));
-      await tester.pumpAndSettle();
+      await pumpFor(tester, total: const Duration(seconds: 1));
       final now = fills();
       // HIGH-WATER MARK: it may rise or hold, never retreat. A bar that went
       // down would say the reader had un-read something.
@@ -327,7 +332,7 @@ void main() {
     final atBottom = fills();
     for (var i = 0; i < 5; i++) {
       await tester.drag(scrollable.first, const Offset(0, 320));
-      await tester.pumpAndSettle();
+      await pumpFor(tester, total: const Duration(seconds: 1));
     }
     final backAtTop = fills();
     for (var j = 0; j < backAtTop.length && j < atBottom.length; j++) {
@@ -699,7 +704,7 @@ void main() {
   testWidgets('settings shows the Summaries section', (tester) async {
     final router = await pumpApp(tester);
     router.go('/settings');
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await pumpFor(tester, total: const Duration(seconds: 3));
 
     // Scroll to it — 4.3.1 was a settings page that could not scroll to its own
     // new section, and the same section is the one being checked here.
@@ -707,7 +712,7 @@ void main() {
     for (var i = 0; i < 6; i++) {
       if (find.text('Summaries').evaluate().isNotEmpty) break;
       await tester.drag(scrollable.first, const Offset(0, -400));
-      await tester.pumpAndSettle();
+      await pumpFor(tester, total: const Duration(seconds: 1));
     }
     expect(find.text('Summaries'), findsOneWidget);
     expect(find.text('Save style'), findsOneWidget);
