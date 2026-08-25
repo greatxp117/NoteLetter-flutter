@@ -20,6 +20,7 @@ class AppColors {
   static const _sage500 = Color(0xFF6F8159);
   static const _sage700 = Color(0xFF495936);
   static const _brick700 = Color(0xFF6E1F18);
+  static const _brick450 = Color(0xFFB4551A); // marigold darkened for paper
   static const _ink300 = Color(0xFF8A91A4);
   static const _ink400 = Color(0xFF4E5566);
   static const _plum500 = Color(0xFF3F2C3E);
@@ -36,7 +37,16 @@ class AppColors {
   static const sidebarLight = _paper100; // raised chrome area, light
   static const mutedForeground = _ink500; // --fg-muted
   static const positive = _sage500; // --positive
+  static const warning = _brick450; // --warning (4.21.0, ADR-057)
   static const critical = _brick500; // --critical
+
+  // ── Semantic — Dark (status) ─────────────────────────────────────────────
+  // Until 4.21.0 the three status colours were shared with light mode, so an
+  // error drew brick-500 on the near-black ground — about 2:1. theme.css now
+  // lifts all three for dark; these mirror it.
+  static const positiveDark = Color(0xFF93A87A);
+  static const warningDark = _brick400;
+  static const criticalDark = Color(0xFFE4695E);
   static const secondaryAccent = _plum500; // plum-500 — chrome + secondary CTA only
 
   // ── Chrome (sidebar/footer) — plum, identical in light & dark ────────────
@@ -121,6 +131,8 @@ class AppColors {
       Color(0x66E97D39); // --highlight-strong rgba(233,125,57,.40)
   static const sealLight = _brick700; // --seal
   static const sealDark = _brick400; // --seal (dark)
+  static const linkLight = _ink700; // --link (theme.css: var(--ink-700))
+  static const linkDark = _paper50; // --link (dark: var(--paper-50))
   static const linkDecorLight = _brick500; // --link-decor
   static const linkDecorDark = _brick400; // --link-decor (dark)
 

@@ -180,7 +180,10 @@ class _KitSourceRowState extends State<KitSourceRow> {
 
 /// The event families a timeline node can carry. The colour names the family;
 /// it is not decoration.
-enum KitNodeTone { accent, sage, plum, ink }
+/// The four family colours §4.2 names, plus the two severity tones that
+/// **override** a family (4.21.0, ADR-057): a feed whose job is to surface
+/// failures cannot draw one in its family's colour.
+enum KitNodeTone { accent, sage, plum, ink, warning, critical }
 
 /// §4.2 — the activity timeline.
 ///
@@ -288,6 +291,8 @@ class _KitTimelineRowState extends State<KitTimelineRow>
         KitNodeTone.sage => t.positive,
         KitNodeTone.plum => _plum(t),
         KitNodeTone.ink => t.fgMuted,
+        KitNodeTone.warning => t.warning,
+        KitNodeTone.critical => t.critical,
       };
 
   /// Plum reads as near-black on the dark ground, so the dark theme takes the
@@ -312,7 +317,16 @@ class _KitTimelineRowState extends State<KitTimelineRow>
       decoration: BoxDecoration(
         color: t.surface,
         shape: BoxShape.circle,
-        border: Border.all(color: widget.live ? nodeColor : t.border),
+        // A severity node borders in its own colour too, like a live one: the
+        // 15px glyph alone is a small target for the one thing on the row the
+        // reader most needs to catch (web `.act-node.critical`).
+        border: Border.all(
+          color: widget.live ||
+                  widget.tone == KitNodeTone.critical ||
+                  widget.tone == KitNodeTone.warning
+              ? nodeColor
+              : t.border,
+        ),
         boxShadow: AppShadows.s1,
       ),
       child: Icon(widget.icon, size: 15, color: nodeColor),

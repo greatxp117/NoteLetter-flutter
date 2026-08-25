@@ -103,18 +103,22 @@ class _ActivityPageState extends State<ActivityPage> {
               else ...[
                 KitControlBar(
                   filters: [
+                    // Disabled, not hidden: the families are a vocabulary, and
+                    // a bar that changes shape per account puts the same filter
+                    // in a different place for every reader. `other` is the one
+                    // exception — it is a bucket rather than a family, and its
+                    // chip appearing at all is the visible form of this build
+                    // being older than the backend.
                     for (final f in _families.entries)
-                      KitFilterChip(
-                        f.value,
-                        count: counts[f.key] ?? 0,
-                        selected: _filter == f.key,
-                        // Disabled, not hidden: the families are a vocabulary,
-                        // and a bar that changes shape per account puts the
-                        // same filter in a different place for every reader.
-                        onPressed: f.key == 'all' || (counts[f.key] ?? 0) > 0
-                            ? () => setState(() => _filter = f.key)
-                            : null,
-                      ),
+                      if (f.key != 'other' || (counts['other'] ?? 0) > 0)
+                        KitFilterChip(
+                          f.value,
+                          count: counts[f.key] ?? 0,
+                          selected: _filter == f.key,
+                          onPressed: f.key == 'all' || (counts[f.key] ?? 0) > 0
+                              ? () => setState(() => _filter = f.key)
+                              : null,
+                        ),
                   ],
                 ),
                 if (shown.isEmpty)
@@ -164,6 +168,10 @@ class _ActivityPageState extends State<ActivityPage> {
         context.push('/reader/${target.docId}');
       case 'letters':
         context.go('/letters');
+      case 'support':
+        context.go('/support');
+      case 'study':
+        context.go('/study');
       default:
         context.go('/sources');
     }
@@ -209,86 +217,112 @@ const _families = <String, String>{
   'sources': 'Sources',
   'processing': 'Processing',
   'letters': 'Letters',
+  'study': 'Study',
   'library': 'In the library',
+  // `other` is a bucket, not a family: its chip appears only when a row lands
+  // in it, and a count above zero there means this build is older than the
+  // backend. That is the visible form of client/contract skew.
+  'other': 'Other',
 };
 
 const _buckets = ['Today', 'Yesterday', 'This week', 'Earlier'];
 
 typedef _Kind = ({
-  IconData icon,
-  KitNodeTone tone,
   String family,
   String chip,
+  IconData icon,
 });
 
-/// Mirrors the web reference's `ACT_TYPES` — the icon, the node colour (which
-/// **names the event family**, it is not decoration), the filter family and the
-/// mono chip, per event type.
+/// The activity-event vocabulary (contract 4.21.0, ADR-057).
+///
+/// The client half of a contract whose other half is `_write_activity_event`;
+/// `spec/data-model.md` §The `type` vocabulary is normative and
+/// `harness/activity_vocab_check.py` compares the two in **both** directions.
+///
+/// It replaced a ten-token map copied from the web reference, which had itself
+/// taken it from the design prototype — `added`, `connected`, `indexed`,
+/// `letter`, `opened`, `search`, `ask`, `shelved` — none of which the backend
+/// has ever written. Every event fell through `_kinds[item.type] ??
+/// _kinds['added']!` and rendered as "Added", so a failed ingest and a
+/// successful one were the same row.
+///
+/// The node tone is NOT in this table any more: it is the family's colour,
+/// overridden by `level` (see [_toneFor]). Shape is load-bearing for the gate's
+/// parser — one entry per line, `family:` then `chip:`, single-quoted.
 const _kinds = <String, _Kind>{
-  'added': (
-    icon: Icons.file_upload_outlined,
-    tone: KitNodeTone.accent,
-    family: 'sources',
-    chip: 'Added'
-  ),
-  'connected': (
-    icon: Icons.link,
-    tone: KitNodeTone.sage,
-    family: 'sources',
-    chip: 'Connected'
-  ),
-  'processing': (
-    icon: Icons.schedule,
-    tone: KitNodeTone.plum,
-    family: 'processing',
-    chip: 'Processing'
-  ),
-  'indexed': (
-    icon: Icons.check,
-    tone: KitNodeTone.sage,
-    family: 'processing',
-    chip: 'Indexed'
-  ),
-  'error': (
-    icon: Icons.file_upload_outlined,
-    tone: KitNodeTone.accent,
-    family: 'processing',
-    chip: 'Error'
-  ),
-  'letter': (
-    icon: Icons.mail_outlined,
-    tone: KitNodeTone.plum,
-    family: 'letters',
-    chip: 'Sent'
-  ),
-  'opened': (
-    icon: Icons.visibility_outlined,
-    tone: KitNodeTone.ink,
-    family: 'letters',
-    chip: 'Opened'
-  ),
-  'search': (
-    icon: Icons.search,
-    tone: KitNodeTone.ink,
-    family: 'library',
-    chip: 'Search'
-  ),
-  'ask': (
-    icon: Icons.chat_bubble_outline,
-    tone: KitNodeTone.ink,
-    family: 'library',
-    chip: 'Asked'
-  ),
-  'shelved': (
-    icon: Icons.sell_outlined,
-    tone: KitNodeTone.sage,
-    family: 'library',
-    chip: 'Shelved'
-  ),
+  // ── processing — the document pipeline ─────────────────────────────────────
+  'doc_indexed': (family: 'processing', chip: 'Indexed', icon: Icons.check),
+  'doc_processing_note': (family: 'processing', chip: 'Note', icon: Icons.notes_outlined),
+  'doc_processing_failed': (family: 'processing', chip: 'Failed', icon: Icons.error_outline),
+  'doc_indexing_failed': (family: 'processing', chip: 'Failed', icon: Icons.error_outline),
+  'doc_skipped': (family: 'processing', chip: 'Skipped', icon: Icons.close),
+  'doc_cancelled': (family: 'processing', chip: 'Cancelled', icon: Icons.close),
+  'article_resolved': (family: 'processing', chip: 'Article found', icon: Icons.article_outlined),
+
+  // ── sources — services, imports, cloud organization ────────────────────────
+  'service_connected': (family: 'sources', chip: 'Connected', icon: Icons.link),
+  'service_disconnected': (family: 'sources', chip: 'Disconnected', icon: Icons.link_off),
+  'sync_session': (family: 'sources', chip: 'Synced', icon: Icons.sync),
+  'integration_reconnect_required': (family: 'sources', chip: 'Reconnect', icon: Icons.error_outline),
+  'organization_move': (family: 'sources', chip: 'Moved', icon: Icons.drive_file_move_outlined),
+  'organization_placement': (family: 'sources', chip: 'Filed', icon: Icons.drive_file_move_outlined),
+  'organization_error': (family: 'sources', chip: 'Organizing', icon: Icons.error_outline),
+  'organization_scope_denied': (family: 'sources', chip: 'Permission', icon: Icons.error_outline),
+  'readme_written': (family: 'sources', chip: 'README', icon: Icons.description_outlined),
+  'reorg_executed': (family: 'sources', chip: 'Reorganized', icon: Icons.folder_open_outlined),
+
+  // ── letters — everything outbound ──────────────────────────────────────────
+  'newsletter_sent': (family: 'letters', chip: 'Letter', icon: Icons.mail_outlined),
+  'newsletter_unsubscribed': (family: 'letters', chip: 'Unsubscribed', icon: Icons.unsubscribe_outlined),
+  'scripture_newsletter_sent': (family: 'letters', chip: 'Readings', icon: Icons.menu_book_outlined),
+  'scripture_newsletter_empty': (family: 'letters', chip: 'Readings', icon: Icons.menu_book_outlined),
+
+  // ── study ──────────────────────────────────────────────────────────────────
+  'study_session_sent': (family: 'study', chip: 'Study', icon: Icons.style_outlined),
+  'study_session_empty': (family: 'study', chip: 'Study empty', icon: Icons.style_outlined),
+  'study_session_failed': (family: 'study', chip: 'Study failed', icon: Icons.error_outline),
+  'study_session_email_failed': (family: 'study', chip: 'Study email', icon: Icons.send_outlined),
+  'study_material_low': (family: 'study', chip: 'Material low', icon: Icons.speed_outlined),
+  'study_items_retired': (family: 'study', chip: 'Retired', icon: Icons.history),
+
+  // ── library ────────────────────────────────────────────────────────────────
+  'shelf_split': (family: 'library', chip: 'Split', icon: Icons.call_split),
+  'support_reply': (family: 'library', chip: 'Support', icon: Icons.support_agent_outlined),
 };
 
+/// Node tone per family, **overridden by severity** (component-kit §4.2).
+/// `level` is the axis (2.5.0, ADR-014), not `status`; an absent or unknown
+/// level reads as `info`, never as an error.
+KitNodeTone _toneFor(String family, String? level) {
+  if (level == 'error') return KitNodeTone.critical;
+  if (level == 'warning') return KitNodeTone.warning;
+  return switch (family) {
+    'sources' => KitNodeTone.sage,
+    'processing' => KitNodeTone.plum,
+    'letters' => KitNodeTone.plum,
+    'study' => KitNodeTone.sage,
+    _ => KitNodeTone.ink,
+  };
+}
+
+/// `doc_processing_note` → `Processing note`. Only ever reached for a type this
+/// build has not heard of, which means it is older than the backend.
+String _humanizeType(String type) {
+  final words = type.replaceAll('_', ' ').trim();
+  if (words.isEmpty) return 'Event';
+  return words[0].toUpperCase() + words.substring(1);
+}
+
+/// An unlisted type renders NEUTRALLY — it never borrows a listed type's chip,
+/// icon or family. Resolving to a specific wrong meaning is worse than
+/// resolving to none: nothing about the row then says the client did not
+/// understand it.
+_Kind _kindFor(String type) =>
+    _kinds[type] ??
+    (family: 'other', chip: _humanizeType(type), icon: Icons.help_outline);
+
 class _Target {
-  final String route; // 'reader' | 'sources' | 'letters'
+  final String route; // 'reader' | 'sources' | 'letters' | 'support' | 'study'
   final String? docId;
 
   const _Target(this.route, [this.docId]);
@@ -338,12 +372,20 @@ class _ActivityRow {
 
     if (item.kind == 'document') {
       if (item.status == 'complete') {
-        kind = _kinds['indexed']!;
+        kind = (family: 'processing', chip: 'Indexed', icon: Icons.check);
       } else if (item.status == 'error' || item.status == 'skipped') {
-        kind = _kinds['error']!;
+        kind = (
+          family: 'processing',
+          chip: item.status == 'skipped' ? 'Skipped' : 'Failed',
+          icon: Icons.error_outline
+        );
         detail = item.errorMessage;
       } else {
-        kind = _kinds['processing']!;
+        kind = (
+          family: 'processing',
+          chip: 'Processing',
+          icon: Icons.schedule
+        );
         // 2.19.0 (ADR-024): name WHICH half of the pipeline is running. Both
         // take minutes, and while they shared one label a reader could not
         // tell an advancing document from a stuck one. Only when there IS a
@@ -355,13 +397,30 @@ class _ActivityRow {
       subject = item.title.isEmpty ? 'Untitled' : item.title;
       badgeKind = item.type;
     } else {
-      kind = _kinds[item.type] ?? _kinds['added']!;
+      kind = _kindFor(item.type);
       subject = item.title.isEmpty ? item.type : item.title;
+      // The sentence that says what happened. `metadata.note` carries the
+      // pipeline note, the skip reason and the support answer (INV-22);
+      // `metadata.error` the failure text. Hardcoding this `null` for events is
+      // what dropped every message the backend has ever written.
+      final meta = item.metadata ?? const <String, dynamic>{};
+      detail = (meta['note'] ?? meta['error']) as String?;
     }
 
     return _ActivityRow(
       icon: kind.icon,
-      tone: kind.tone,
+      tone: _toneFor(
+        kind.family,
+        // A document row has no `level` of its own — its severity is its
+        // status, the way the merge already derives it.
+        item.kind == 'document'
+            ? (item.status == 'error'
+                ? 'error'
+                : item.status == 'skipped'
+                    ? 'warning'
+                    : null)
+            : item.level,
+      ),
       family: kind.family,
       chip: kind.chip,
       subject: subject,
@@ -400,7 +459,9 @@ _Target? _targetOf(ActivityItem item, Map<String, Document> docsById) {
         ? _Target('reader', docId)
         : const _Target('sources');
   }
+  if (meta['thread_id'] != null) return const _Target('support');
   if (meta['newsletter_id'] != null) return const _Target('letters');
+  if (meta['program_id'] != null) return const _Target('study');
   // Cloud and organization events (connect/disconnect, moves, README writes,
   // scope denials) all resolve to the provider's card on Sources.
   if (item.provider != null || meta['provider'] != null) {

@@ -94,6 +94,11 @@ class Tokens {
   Color get highlightStrong =>
       _p(AppColors.highlightStrongLight, AppColors.highlightStrongDark);
   Color get seal => _p(AppColors.sealLight, AppColors.sealDark);
+  /// `--link` — near-black ink in light, paper in dark. It is deliberately
+  /// NOT the accent: a link in this design is distinguished by its
+  /// **underline** ([linkDecor]), which is why a control that drops the
+  /// underline is invisible as a control (component-kit.md §13).
+  Color get link => _p(AppColors.linkLight, AppColors.linkDark);
   Color get linkDecor =>
       _p(AppColors.linkDecorLight, AppColors.linkDecorDark);
 
@@ -107,12 +112,20 @@ class Tokens {
       );
 
   // ── Status ───────────────────────────────────────────────────────────────
-  Color get positive => AppColors.positive;
+  // The three severities `level` carries (data-model.md /activity_events). All
+  // three now FLIP (4.21.0, ADR-057): they used to be shared with light mode,
+  // so an error node drew brick-500 on the near-black dark ground at about 2:1
+  // — the severity a feed exists to surface was the least legible thing on it.
+  Color get positive => _p(AppColors.positive, AppColors.positiveDark);
 
-  /// `--critical` stays brick-500 in BOTH themes, which is why anything on it
-  /// is labelled `paper-50` and never [accentFg] — that flips dark and would
-  /// fail contrast.
-  Color get critical => AppColors.critical;
+  /// `warning` had no token at all until 4.21.0. It has been a `level` value
+  /// since 2.5.0 (ADR-014); the web asked for `var(--gold-600, var(--accent))`
+  /// and every warning has been drawing in the accent colour ever since.
+  Color get warning => _p(AppColors.warning, AppColors.warningDark);
+
+  /// Anything ON critical is labelled `paper-50` and never [accentFg] — that
+  /// flips dark and would fail contrast.
+  Color get critical => _p(AppColors.critical, AppColors.criticalDark);
   Color get criticalFg => const Color(0xFFFAFAF7);
 
   // ── Chrome — identical in both themes ────────────────────────────────────
