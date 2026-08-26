@@ -315,13 +315,44 @@ class Api {
       _http.delete('/fn_notification_channels',
           queryParameters: {'channelId': channelId});
 
-  Future<Map<String, dynamic>> registerDevice(String token,
-          [String platform = 'web']) =>
-      _http.post('/fn_register_device',
-          data: {'token': token, 'platform': platform});
+  /// Register (upsert) a push target — `spec/api/notifications.md`
+  /// §fn_register_device (2.6.0 ADR-015; `fid` 4.8.0 ADR-044).
+  ///
+  /// **`fid` and `token` are each optional and at least one is required.** The
+  /// device is keyed by the `fid` when there is one, else by the `token`, and
+  /// sending BOTH is what collapses a device's pre-migration record into one
+  /// document (ADR-044 §3) — two documents for one device means dispatch sends
+  /// the reader everything twice.
+  ///
+  /// Both were absent here until 4.25.1: this builder sent `token`/`platform`
+  /// only, so `device:register-fid-only` (an iOS install with an installation
+  /// id and no FCM token yet) built **no request at all**, and `register-fid`
+  /// built one missing the key that keys the record. A `fid` is an ADDRESS, not
+  /// a subscription — it does not replace `getToken()`.
+  Future<Map<String, dynamic>> registerDevice({
+    String? token,
+    String? fid,
+    String platform = 'web',
+  }) =>
+      _http.post('/fn_register_device', data: {
+        if (fid != null && fid.isNotEmpty) 'fid': fid,
+        if (token != null && token.isNotEmpty) 'token': token,
+        'platform': platform,
+      });
 
-  Future<Map<String, dynamic>> unregisterDevice(String token) =>
-      _http.delete('/fn_unregister_device', queryParameters: {'token': token});
+  /// Remove a push target by `fid` **or** `token`
+  /// (`spec/api/notifications.md` §fn_unregister_device). DELETE carries the
+  /// identifier as a query parameter — a DELETE body is not portable.
+  ///
+  /// Neither is a `400`, and that is the contract rather than an oversight: a
+  /// request naming no target would otherwise be a silent no-op that reads as
+  /// success. Removing an *unknown* target IS a success — the desired end state
+  /// already holds.
+  Future<Map<String, dynamic>> unregisterDevice({String? token, String? fid}) =>
+      _http.delete('/fn_unregister_device', queryParameters: {
+        if (fid != null && fid.isNotEmpty) 'fid': fid,
+        if (token != null && token.isNotEmpty) 'token': token,
+      });
 
   // ── Cloud storage (INV-01) ────────────────────────────────────────────────
 

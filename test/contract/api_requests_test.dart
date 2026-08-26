@@ -296,10 +296,20 @@ Future<dynamic> _invokeMethodAware(
         destination: b['destination'],
         enabled: b['enabled'],
       );
+    // `b` is the body merged with the query, so a DELETE's identifier arrives
+    // here too. Both builders take fid and token as NAMED optionals because
+    // each is optional and at least one is required (ADR-044): the positional
+    // `registerDevice(b['token'], …)` this replaces could not express an
+    // install that has a fid and no token yet, so `device:register-fid-only`
+    // built no request at all rather than the wrong one.
     case 'fn_register_device':
-      return Api.instance.registerDevice(b['token'], b['platform'] ?? 'web');
+      return Api.instance.registerDevice(
+        token: b['token'],
+        fid: b['fid'],
+        platform: b['platform'] ?? 'web',
+      );
     case 'fn_unregister_device':
-      return Api.instance.unregisterDevice(b['token']);
+      return Api.instance.unregisterDevice(token: b['token'], fid: b['fid']);
     case 'fn_study_programs':
       if (method == 'PUT') {
         final rest = Map<String, dynamic>.of(b)..remove('programId');
