@@ -273,6 +273,8 @@ const _kinds = <String, _Kind>{
 
   // ── letters — everything outbound ──────────────────────────────────────────
   'newsletter_sent': (family: 'letters', chip: 'Letter', icon: Icons.mail_outlined),
+  'newsletter_delivery_failed': (family: 'letters', chip: 'Not delivered', icon: Icons.error_outline),
+  'newsletter_delivery_delayed': (family: 'letters', chip: 'Still sending', icon: Icons.send_outlined),
   'newsletter_unsubscribed': (family: 'letters', chip: 'Unsubscribed', icon: Icons.unsubscribe_outlined),
   'scripture_newsletter_sent': (family: 'letters', chip: 'Readings', icon: Icons.menu_book_outlined),
   'scripture_newsletter_empty': (family: 'letters', chip: 'Readings', icon: Icons.menu_book_outlined),
@@ -284,6 +286,8 @@ const _kinds = <String, _Kind>{
   'study_session_email_failed': (family: 'study', chip: 'Study email', icon: Icons.send_outlined),
   'study_material_low': (family: 'study', chip: 'Material low', icon: Icons.speed_outlined),
   'study_items_retired': (family: 'study', chip: 'Retired', icon: Icons.history),
+  'study_delivery_failed': (family: 'study', chip: 'Not delivered', icon: Icons.error_outline),
+  'study_delivery_delayed': (family: 'study', chip: 'Still sending', icon: Icons.send_outlined),
 
   // ── library ────────────────────────────────────────────────────────────────
   'shelf_split': (family: 'library', chip: 'Split', icon: Icons.call_split),
