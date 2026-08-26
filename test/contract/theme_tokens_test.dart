@@ -87,6 +87,20 @@ void main() {
       expect(AppTheme.dark.scaffoldBackgroundColor,
           isNot(AppTheme.darkScheme.surface));
     });
+
+    test('--link is a SEMANTIC token and flips; --link-decor is the accent', () {
+      // theme.css: --link is ink-700 in light and paper-50 in dark. It is
+      // deliberately near-black rather than coloured, which is exactly why the
+      // support footer's control must carry an underline (component-kit.md
+      // §13) — a link distinguished only by this colour is invisible as a
+      // control. A raw palette step used in its place would not flip, and the
+      // footer would render paper-on-paper in one theme while every element in
+      // it stayed individually correct.
+      expect(AppColors.linkLight, isNot(AppColors.linkDark));
+      expect(AppColors.linkLight, AppColors.foregroundLight);
+      expect(AppColors.linkDark, AppColors.foregroundDark);
+      expect(AppColors.linkDecorLight, AppColors.primary);
+    });
   });
 
   group('type tokens', () {

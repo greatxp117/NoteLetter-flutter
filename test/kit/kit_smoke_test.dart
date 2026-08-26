@@ -24,15 +24,12 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          theme: brightness == Brightness.dark
-              ? AppTheme.dark
-              : AppTheme.light,
+          theme: brightness == Brightness.dark ? AppTheme.dark : AppTheme.light,
           home: Scaffold(body: SingleChildScrollView(child: child)),
         ),
       );
       await tester.pump(const Duration(milliseconds: 50));
-      expect(tester.takeException(), isNull,
-          reason: 'threw in $brightness');
+      expect(tester.takeException(), isNull, reason: 'threw in $brightness');
     }
   }
 
@@ -51,15 +48,12 @@ void main() {
       expect(find.text('RECENTLY READ · 12 SOURCES'), findsOneWidget);
     });
 
-    testWidgets('AccentTitle splits on a single asterisk pair',
-        (tester) async {
+    testWidgets('AccentTitle splits on a single asterisk pair', (tester) async {
       await pumpBoth(
         tester,
         Builder(
-          builder: (context) => AccentTitle(
-            'Good evening, *Xavier*',
-            style: KitText.h2(context),
-          ),
+          builder: (context) =>
+              AccentTitle('Good evening, *Xavier*', style: KitText.h2(context)),
         ),
       );
       final rich = tester.widget<Text>(find.byType(Text).first);
@@ -79,7 +73,9 @@ void main() {
   });
 
   group('headers', () {
-    testWidgets('the one header pattern, with and without its optional parts', (tester) async {
+    testWidgets('the one header pattern, with and without its optional parts', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         Column(
@@ -111,8 +107,12 @@ void main() {
     testWidgets('section header carries an action', (tester) async {
       await pumpBoth(
         tester,
-        SectionHeader('Shelves · 4',
-            actionLabel: 'View all', onAction: () {}, first: true),
+        SectionHeader(
+          'Shelves · 4',
+          actionLabel: 'View all',
+          onAction: () {},
+          first: true,
+        ),
       );
       expect(find.text('View all'), findsOneWidget);
     });
@@ -125,7 +125,11 @@ void main() {
         Wrap(
           spacing: 8,
           children: [
-            KitButton.primary('Add a source', icon: Icons.add, onPressed: () {}),
+            KitButton.primary(
+              'Add a source',
+              icon: Icons.add,
+              onPressed: () {},
+            ),
             KitButton.secondary('Preview', onPressed: () {}),
             KitButton.danger('Delete', onPressed: () {}),
             KitButton.ghost('Cancel', onPressed: () {}),
@@ -142,8 +146,11 @@ void main() {
         Wrap(
           spacing: 8,
           children: const [
-            KitTag('Theology',
-                variant: KitTagVariant.shelf, colorToken: 'sage-500'),
+            KitTag(
+              'Theology',
+              variant: KitTagVariant.shelf,
+              colorToken: 'sage-500',
+            ),
             KitTag('PDF'),
             KitTag('New', variant: KitTagVariant.accent),
             KitTag('Filter', variant: KitTagVariant.ghost),
@@ -157,15 +164,18 @@ void main() {
       );
     });
 
-    testWidgets('an unknown shelf token falls back, never throws',
-        (tester) async {
+    testWidgets('an unknown shelf token falls back, never throws', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
-        const Wrap(children: [
-          KitTag('Legacy', colorToken: '#6B7280'),
-          KitTag('Nonsense', colorToken: 'not-a-token'),
-          KitTag('Absent'),
-        ]),
+        const Wrap(
+          children: [
+            KitTag('Legacy', colorToken: '#6B7280'),
+            KitTag('Nonsense', colorToken: 'not-a-token'),
+            KitTag('Absent'),
+          ],
+        ),
       );
     });
   });
@@ -180,8 +190,10 @@ void main() {
             Builder(
               builder: (context) => KitPassageCard(
                 meta: const ['p. 41', 'Chapter 3'],
-                quote: Text('The passage text.',
-                    style: KitText.bodyReading(context)),
+                quote: Text(
+                  'The passage text.',
+                  style: KitText.bodyReading(context),
+                ),
                 actions: [KitButton.ghost('Copy', onPressed: () {})],
               ),
             ),
@@ -197,38 +209,44 @@ void main() {
       );
     });
 
-    testWidgets('row list and timeline, including a live node',
-        (tester) async {
+    testWidgets('row list and timeline, including a live node', (tester) async {
       await pumpBoth(
         tester,
         Column(
           children: [
-            KitRowList(rows: [
-              const KitSourceRow(
+            KitRowList(
+              rows: [
+                const KitSourceRow(
                   leading: KitFileBadge('pdf'),
                   title: 'Church Dogmatics',
                   subtitle: 'Karl Barth',
                   count: '412',
-                  date: 'Aug 14'),
-              KitSourceRow(title: 'A second row', onTap: () {}),
-            ]),
-            KitTimeline(rows: [
-              KitTimelineRow(
+                  date: 'Aug 14',
+                ),
+                KitSourceRow(title: 'A second row', onTap: () {}),
+              ],
+            ),
+            KitTimeline(
+              rows: [
+                KitTimelineRow(
                   icon: Icons.check_circle_outline,
                   tone: KitNodeTone.sage,
                   chip: 'Indexed',
                   subject: 'Church Dogmatics',
                   detail: '412 chunks embedded',
                   time: '2h',
-                  onTap: () {}),
-              const KitTimelineRow(
+                  onTap: () {},
+                ),
+                const KitTimelineRow(
                   icon: Icons.sync,
                   tone: KitNodeTone.plum,
                   chip: 'Processing',
                   subject: 'A new upload',
                   time: 'now',
-                  live: true),
-            ]),
+                  live: true,
+                ),
+              ],
+            ),
           ],
         ),
       );
@@ -236,8 +254,9 @@ void main() {
   });
 
   group('empty state', () {
-    testWidgets('renders its suggestions, which are a required part',
-        (tester) async {
+    testWidgets('renders its suggestions, which are a required part', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         KitEmptyState(
@@ -246,13 +265,15 @@ void main() {
           standfirst: 'Add a source and the library builds itself.',
           suggestions: [
             KitSuggestion(
-                icon: Icons.upload_file_outlined,
-                label: 'Upload a PDF',
-                onTap: () {}),
+              icon: Icons.upload_file_outlined,
+              label: 'Upload a PDF',
+              onTap: () {},
+            ),
             KitSuggestion(
-                icon: Icons.link_outlined,
-                label: 'Paste a link',
-                onTap: () {}),
+              icon: Icons.link_outlined,
+              label: 'Paste a link',
+              onTap: () {},
+            ),
           ],
         ),
       );
@@ -263,10 +284,7 @@ void main() {
   group('frame', () {
     testWidgets('all four widths, and the compact gutter', (tester) async {
       for (final w in KitFrameWidth.values) {
-        await pumpBoth(
-          tester,
-          KitFrame(width: w, child: const Text('framed')),
-        );
+        await pumpBoth(tester, KitFrame(width: w, child: const Text('framed')));
       }
       await pumpBoth(
         tester,
@@ -288,13 +306,13 @@ void main() {
               items: [
                 const KitRailGroupLabel('Library'),
                 KitNavItem(
-                    icon: Icons.menu_book_outlined,
-                    label: 'Library',
-                    active: true,
-                    count: '128',
-                    onTap: () {}),
-                KitNavItem(
-                    icon: Icons.search, label: 'Search', onTap: () {}),
+                  icon: Icons.menu_book_outlined,
+                  label: 'Library',
+                  active: true,
+                  count: '128',
+                  onTap: () {},
+                ),
+                KitNavItem(icon: Icons.search, label: 'Search', onTap: () {}),
               ],
             ),
             child: const Column(
@@ -311,13 +329,76 @@ void main() {
   });
 
   group('ground', () {
-    testWidgets('paints without a tile on first frame, then with one',
-        (tester) async {
+    testWidgets('paints without a tile on first frame, then with one', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         const SizedBox(
-            height: 200, width: 200, child: KitGround(child: SizedBox())),
+          height: 200,
+          width: 200,
+          child: KitGround(child: SizedBox()),
+        ),
       );
+    });
+  });
+  group('composer dock (§10)', () {
+    testWidgets('scrim, italic serif input and the filled send control', (
+      tester,
+    ) async {
+      final controller = TextEditingController(text: 'a written prompt');
+      addTearDown(controller.dispose);
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 220,
+          child: KitComposerDock(
+            controller: controller,
+            placeholder: 'What happened?',
+            onSend: () {},
+          ),
+        ),
+      );
+      expect(find.bySemanticsLabel('Send'), findsOneWidget);
+    });
+
+    testWidgets('the busy state disables send and KEEPS the text', (
+      tester,
+    ) async {
+      // ADR-022: the composer clears only once the endpoint has accepted. A
+      // dock that emptied itself on tap would look identical until the send
+      // failed.
+      final controller = TextEditingController(text: 'in flight');
+      addTearDown(controller.dispose);
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 220,
+          child: KitComposerDock(
+            controller: controller,
+            placeholder: 'What happened?',
+            busy: true,
+            error: 'Wait a moment before sending again.',
+            onSend: () {},
+          ),
+        ),
+      );
+      expect(controller.text, 'in flight');
+      expect(find.text('Wait a moment before sending again.'), findsOneWidget);
+    });
+  });
+
+  group('support footer (§13, INV-22)', () {
+    testWidgets('the two required parts, and the optional count', (
+      tester,
+    ) async {
+      await pumpBoth(tester, KitSupportFooter(unread: 2, onOpen: () {}));
+      expect(
+        find.textContaining('Bugs? Feature Requests?', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.text('Chat with support…'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
     });
   });
 }

@@ -218,6 +218,23 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       .resolveOrganizationSuggestions(_strs(b['suggestion_ids'])!, b['action']),
   'fn_analyze_reorganization': (b) =>
       Api.instance.analyzeReorganization(b['document_id']),
+  // Support (4.18.0, ADR-054). `platform` is passed through from the fixture —
+  // the captures were taken from the web reference, so they carry
+  // `platform: "web"`; the live app defaults to `flutter`. Both are members of
+  // the endpoint's closed vocabulary.
+  //
+  // There is no `fn_reply_support_message` adapter: replying is the support
+  // console's endpoint and this client has no console (CHANGELOG 4.19.0 —
+  // "Flutter · iOS — pending: no console"). Its four fixture cases are skipped
+  // by the loop below, which is the same treatment every not-yet-implemented
+  // endpoint gets.
+  'fn_send_support_message': (b) => Api.instance.sendSupportMessage(
+        body: b['body'],
+        route: b['route'],
+        clientVersion: b['clientVersion'],
+        platform: b['platform'] ?? 'flutter',
+      ),
+  'fn_mark_support_read': (b) => Api.instance.markSupportRead(),
   'fn_execute_reorganization': (b) => Api.instance
       .executeReorganization(b['plan_id'], b['operations'] as List),
 };
@@ -246,6 +263,8 @@ const _suites = [
   'api/scripture-newsletter',
   // 4.3.0 (ADR-040).
   'api/summary-settings',
+  // 4.18.0 (ADR-054) — the support thread.
+  'api/support',
 ];
 
 // Endpoints whose builder needs the request METHOD (and possibly query) — the

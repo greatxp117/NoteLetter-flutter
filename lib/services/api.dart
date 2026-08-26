@@ -436,4 +436,45 @@ class Api {
           String planId, List<dynamic> operations) =>
       _http.post('/fn_execute_reorganization',
           data: {'plan_id': planId, 'operations': operations});
+  // ── Support (4.18.0, ADR-054; spec/api/support.md) ────────────────────────
+
+  /// The user sends a message; the thread is created on first use.
+  ///
+  /// Closed key set (ADR-009) — `{body, route, platform, clientVersion}`. Any
+  /// key outside it is a `400` and **nothing is written**, so a client that
+  /// invents a field is told so rather than having it silently dropped.
+  ///
+  /// [route] is the screen the user was on when they opened support. The
+  /// **shell** supplies it, not this screen — which is the practical reason
+  /// INV-22 puts the footer in the shell: only the shell knows where the user
+  /// was. "It broke" and "it broke on the reader" are different bug reports.
+  ///
+  /// [platform] is a closed vocabulary (`web | ios | android | flutter |
+  /// extension`) and defaults to this client's own value; it is a parameter
+  /// only so the captured fixtures — which were taken from the web reference —
+  /// can drive this builder.
+  ///
+  /// **Never swallows the rejection.** A `400` or `429` propagates as an
+  /// [ApiException] so the composer can keep the user's text and render the
+  /// message beneath it (ADR-022, write-before-you-move).
+  Future<Map<String, dynamic>> sendSupportMessage({
+    required String body,
+    String? route,
+    String? clientVersion,
+    String platform = 'flutter',
+  }) =>
+      _http.post('/fn_send_support_message', data: {
+        'body': body,
+        'platform': platform,
+        if (route != null && route.isNotEmpty) 'route': route,
+        if (clientVersion != null && clientVersion.isNotEmpty)
+          'clientVersion': clientVersion,
+      });
+
+  /// The user has seen the thread. **The key set is closed at zero keys** — the
+  /// body is `{}` and adding anything to it is a `400`.
+  ///
+  /// Idempotent; marking an absent thread is a `200` no-op.
+  Future<Map<String, dynamic>> markSupportRead() =>
+      _http.post('/fn_mark_support_read', data: const <String, dynamic>{});
 }

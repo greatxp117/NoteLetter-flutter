@@ -18,6 +18,7 @@ import 'state/newsletter_notifier.dart';
 import 'state/cloud_notifier.dart';
 import 'state/org_notifier.dart';
 import 'state/tags_notifier.dart';
+import 'state/support_notifier.dart';
 import 'state/theme_notifier.dart';
 
 void main() async {
@@ -31,15 +32,19 @@ void main() async {
   // runtime by accident.
   if (ApiService.useEmulator) {
     final host = ApiService.emulatorHost;
-    FirebaseFirestore.instance
-        .useFirestoreEmulator(host, ApiService.firestorePort);
+    FirebaseFirestore.instance.useFirestoreEmulator(
+      host,
+      ApiService.firestorePort,
+    );
     await FirebaseAuth.instance.useAuthEmulator(host, ApiService.authPort);
     // No Storage redirect: this client has no firebase_storage dependency —
     // uploads go through signed GCS URLs minted by fn_create_upload_session
     // (INV-08), so there is no Storage SDK here to point anywhere.
-    debugPrint('NoteLetter: EMULATOR mode — $host (functions '
-        '${ApiService.functionsPort}, firestore ${ApiService.firestorePort}, '
-        'auth ${ApiService.authPort})');
+    debugPrint(
+      'NoteLetter: EMULATOR mode — $host (functions '
+      '${ApiService.functionsPort}, firestore ${ApiService.firestorePort}, '
+      'auth ${ApiService.authPort})',
+    );
   }
 
   final authNotifier = AuthNotifier();
@@ -51,13 +56,24 @@ void main() async {
         ChangeNotifierProvider<UploadNotifier>(create: (_) => UploadNotifier()),
         ChangeNotifierProvider<SearchNotifier>(create: (_) => SearchNotifier()),
         ChangeNotifierProvider<ChatNotifier>(create: (_) => ChatNotifier()),
-        ChangeNotifierProvider<ActivityNotifier>(create: (_) => ActivityNotifier()),
-        ChangeNotifierProvider<DocumentsNotifier>(create: (_) => DocumentsNotifier()),
-        ChangeNotifierProvider<SettingsNotifier>(create: (_) => SettingsNotifier()),
-        ChangeNotifierProvider<NewsletterNotifier>(create: (_) => NewsletterNotifier()),
+        ChangeNotifierProvider<ActivityNotifier>(
+          create: (_) => ActivityNotifier(),
+        ),
+        ChangeNotifierProvider<DocumentsNotifier>(
+          create: (_) => DocumentsNotifier(),
+        ),
+        ChangeNotifierProvider<SettingsNotifier>(
+          create: (_) => SettingsNotifier(),
+        ),
+        ChangeNotifierProvider<NewsletterNotifier>(
+          create: (_) => NewsletterNotifier(),
+        ),
         ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
         ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
         ChangeNotifierProvider<TagsNotifier>(create: (_) => TagsNotifier()),
+        ChangeNotifierProvider<SupportNotifier>(
+          create: (_) => SupportNotifier(),
+        ),
         ChangeNotifierProvider<ThemeNotifier>(create: (_) => ThemeNotifier()),
       ],
       child: NoteLetterApp(router: createRouter(authNotifier)),

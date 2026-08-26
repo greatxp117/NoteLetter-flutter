@@ -17,6 +17,7 @@
 library;
 
 export 'kit_cards.dart';
+export 'kit_composer.dart';
 export 'kit_controls.dart';
 export 'kit_empty.dart';
 export 'kit_frame.dart';
@@ -24,4 +25,5 @@ export 'kit_ground.dart';
 export 'kit_headers.dart';
 export 'kit_rows.dart';
 export 'kit_shell.dart';
+export 'kit_support_footer.dart';
 export 'kit_text.dart';

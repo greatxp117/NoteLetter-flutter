@@ -11,6 +11,7 @@ import '../models/organization_settings.dart';
 import '../models/organization_suggestion.dart';
 import '../models/newsletter_settings.dart';
 import '../models/study.dart';
+import '../models/support.dart';
 import '../models/tag.dart';
 import 'activity_merge.dart';
 import 'read_counters.dart';
@@ -624,5 +625,50 @@ class FirestoreService {
     } catch (_) {
       // Fire-and-forget — never block the UI on a failed read-tracking write.
     }
+  }
+  // ── Support thread (4.18.0, ADR-054; spec/api/support.md §Reads) ──────────
+
+  /// The caller's own thread, at the fixed path `/support_threads/{uid}`.
+  ///
+  /// A **document, not a query** (INV-02): one thread per user is
+  /// unrepresentable any other way, and keying by uid is what lets the client
+  /// read a known path instead of filtering a collection.
+  ///
+  /// **Absent is a normal state, not an error** — it means no conversation has
+  /// started. It arrives as `null` and the screen renders its empty composer.
+  /// An error is also reported as `null` rather than thrown: this stream feeds
+  /// the shell's footer badge on every screen, and a badge is cosmetic — it may
+  /// never take a screen down with it.
+  Stream<SupportThread?> subscribeSupportThread() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(null);
+    return _db
+        .collection('support_threads')
+        .doc(uid)
+        .snapshots()
+        .map((snap) => snap.exists
+            ? SupportThread.fromJson(
+                snap.id, Map<String, dynamic>.from(snap.data()!))
+            : null)
+        .handleError((_) {})
+        .cast<SupportThread?>();
+  }
+
+  /// The transcript, oldest first. Single-field `orderBy`, so no composite
+  /// index — which is worth stating, because a declared-but-uncreated index is
+  /// a query that throws for the first user who reaches it.
+  Stream<List<SupportMessage>> subscribeSupportMessages() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('support_threads')
+        .doc(uid)
+        .collection('messages')
+        .orderBy('created_at')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => SupportMessage.fromJson(
+                d.id, Map<String, dynamic>.from(d.data())))
+            .toList());
   }
 }
