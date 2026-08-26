@@ -278,6 +278,9 @@ const _kinds = <String, _Kind>{
   'newsletter_unsubscribed': (family: 'letters', chip: 'Unsubscribed', icon: Icons.unsubscribe_outlined),
   'scripture_newsletter_sent': (family: 'letters', chip: 'Readings', icon: Icons.menu_book_outlined),
   'scripture_newsletter_empty': (family: 'letters', chip: 'Readings', icon: Icons.menu_book_outlined),
+  'scripture_newsletter_email_failed': (family: 'letters', chip: 'Readings email', icon: Icons.error_outline),
+  'scripture_delivery_failed': (family: 'letters', chip: 'Not delivered', icon: Icons.error_outline),
+  'scripture_delivery_delayed': (family: 'letters', chip: 'Still sending', icon: Icons.send_outlined),
 
   // ── study ──────────────────────────────────────────────────────────────────
   'study_session_sent': (family: 'study', chip: 'Study', icon: Icons.style_outlined),
