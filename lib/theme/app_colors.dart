@@ -15,12 +15,15 @@ class AppColors {
   static const _ink600 = Color(0xFF1F2330);
   static const _ink700 = Color(0xFF14171F);
   static const _ink800 = Color(0xFF0B0D13);
-  static const _brick400 = Color(0xFFE97D39);
+  static const _brick400 = Color(0xFFD9482F); // vermilion (4.29.0, ADR-066)
+  /// Ochre — --warning only. Its own family because a warning drawn from
+  /// brick sits beside --critical and reads as a dimmer error (ADR-066).
+  static const _ochre400 = Color(0xFFF2A63B); // dark-mode warning
+  static const _ochre600 = Color(0xFF8A5A12); // light-mode warning
   static const _brick500 = Color(0xFF9D352D);
   static const _sage500 = Color(0xFF6F8159);
   static const _sage700 = Color(0xFF495936);
   static const _brick700 = Color(0xFF6E1F18);
-  static const _brick450 = Color(0xFFB4551A); // marigold darkened for paper
   static const _ink300 = Color(0xFF8A91A4);
   static const _ink400 = Color(0xFF4E5566);
   static const _plum500 = Color(0xFF3F2C3E);
@@ -37,7 +40,7 @@ class AppColors {
   static const sidebarLight = _paper100; // raised chrome area, light
   static const mutedForeground = _ink500; // --fg-muted
   static const positive = _sage500; // --positive
-  static const warning = _brick450; // --warning (4.21.0, ADR-057)
+  static const warning = _ochre600; // --warning (4.29.0, ADR-066)
   static const critical = _brick500; // --critical
 
   // ── Semantic — Dark (status) ─────────────────────────────────────────────
@@ -45,7 +48,7 @@ class AppColors {
   // error drew brick-500 on the near-black ground — about 2:1. theme.css now
   // lifts all three for dark; these mirror it.
   static const positiveDark = Color(0xFF93A87A);
-  static const warningDark = _brick400;
+  static const warningDark = _ochre400;
   static const criticalDark = Color(0xFFE4695E);
   static const secondaryAccent = _plum500; // plum-500 — chrome + secondary CTA only
 
@@ -96,9 +99,9 @@ class AppColors {
   static const hoverStrongLight = Color(0x1414171F); // --hover-strong rgba(20,23,31,.08)
   static const hoverStrongDark = Color(0x1FFFFFFF); // --hover-strong rgba(255,255,255,.12)
   static const accentHoverLight = _brick700; // --accent-hover
-  static const accentHoverDark = Color(0xFFD16A28); // --accent-hover (dark)
+  static const accentHoverDark = Color(0xFFE85940); // --accent-hover (dark)
   static const accentSoftLight = Color(0x1A9D352D); // --accent-soft rgba(157,53,45,.10)
-  static const accentSoftDark = Color(0x29E97D39); // --accent-soft rgba(233,125,57,.16)
+  static const accentSoftDark = Color(0x29D9482F); // --accent-soft rgba(217,72,47,.16)
   static const fgLedeLight = _ink400; // --fg-lede
   static const fgLedeDark = Color(0xB8FFFFFF); // --fg-lede rgba(255,255,255,.72)
 
@@ -120,7 +123,7 @@ class AppColors {
 
   // Decorative.
   static const highlightLight = Color(0x269D352D); // --highlight rgba(157,53,45,.15)
-  static const highlightDark = Color(0x3DE97D39); // --highlight rgba(233,125,57,.24)
+  static const highlightDark = Color(0x3DD9482F); // --highlight rgba(217,72,47,.24)
   // `--highlight-strong` — the mark on a passage the reader is *reading*, as
   // opposed to one being listed. Contracted since the token file's first
   // version and absent from this client until 4.5.4, which is why the search
@@ -128,7 +131,7 @@ class AppColors {
   static const highlightStrongLight =
       Color(0x429D352D); // --highlight-strong rgba(157,53,45,.26)
   static const highlightStrongDark =
-      Color(0x66E97D39); // --highlight-strong rgba(233,125,57,.40)
+      Color(0x66D9482F); // --highlight-strong rgba(217,72,47,.40)
   static const sealLight = _brick700; // --seal
   static const sealDark = _brick400; // --seal (dark)
   static const linkLight = _ink700; // --link (theme.css: var(--ink-700))

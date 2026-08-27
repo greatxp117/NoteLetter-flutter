@@ -108,7 +108,7 @@ class Tokens {
   Color get accentChipFg => _p(AppColors.sealLight, AppColors.sealDark);
   Color get accentChipBorder => _p(
         const Color(0x389D352D), // rgba(157,53,45,.22)
-        const Color(0x52E97D39), // rgba(233,125,57,.32)
+        const Color(0x52D9482F), // rgba(217,72,47,.32)
       );
 
   // ── Status ───────────────────────────────────────────────────────────────

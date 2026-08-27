@@ -322,7 +322,7 @@ class KitFileBadge extends StatelessWidget {
     switch (k) {
       case 'pdf':
         bg = const Color(0x1F9D352D);
-        fg = t.isDark ? const Color(0xFFE97D39) : const Color(0xFF6E1F18);
+        fg = t.isDark ? const Color(0xFFD9482F) : const Color(0xFF6E1F18);
         border = const Color(0x339D352D);
       case 'epub':
         bg = t.isDark ? const Color(0x1F6F8159) : const Color(0xFFE2E8DC);

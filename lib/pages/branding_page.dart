@@ -178,7 +178,7 @@ class BrandingPage extends StatelessWidget {
                       childAspectRatio: 1.0,
                       children: [
                         _ColorSwatch(color: AppColors.primary, label: 'Primary', hex: '#9D352D'),
-                        _ColorSwatch(color: AppColors.primaryDark, label: 'Primary Dark', hex: '#E97D39'),
+                        _ColorSwatch(color: AppColors.primaryDark, label: 'Primary Dark', hex: '#D9482F'),
                         _ColorSwatch(color: AppColors.backgroundLight, label: 'BG Light', hex: '#FAFAF7'),
                         _ColorSwatch(color: AppColors.backgroundDark, label: 'BG Dark', hex: '#14171F'),
                         _ColorSwatch(color: AppColors.foregroundLight, label: 'FG Light', hex: '#14171F'),
