@@ -318,11 +318,17 @@ class _SearchPageState extends State<SearchPage> {
 /// The reference's four filters, in its order. `all` leads and is never
 /// disabled. The labels are the reader's words for the kinds, not the `type`
 /// enum's — `Books & PDFs` covers `pdf` and `epub` together.
+// component-kit §6.4.1/§6.7 — the chip set IS the kind vocabulary. `podcast`
+// and `video` were absent, so both buckets were reachable from "All sources"
+// and nowhere else. An absent chip is not a DISABLED chip; it is a bucket that
+// looks like it does not exist.
 const _filters = <String, String>{
   'all': 'All sources',
   'pdf': 'Books & PDFs',
   'note': 'My notes',
   'web': 'Web',
+  'podcast': 'Audio',
+  'video': 'Video',
 };
 
 const _suggestions = <String>[

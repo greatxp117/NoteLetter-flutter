@@ -716,8 +716,18 @@ String kitDocKind(String type) {
       return 'pdf';
     case 'epub':
       return 'epub';
+    // `audio` (4.10.0) shares the podcast kind: both are timestamped
+    // transcripts with real audio behind them, and the badge already reads
+    // AUDIO. Missing here since 4.10.0, so every uploaded voice memo badged
+    // NOTE on this client while web badged it AUDIO.
     case 'podcast':
+    case 'audio':
       return 'podcast';
+    // `video` (4.13.0, ADR-049) gets its OWN kind rather than joining audio:
+    // it is indexed from its audio track alone but it is not a recording, and
+    // labelling a lecture video AUDIO is the conflation ADR-049 refused.
+    case 'video':
+      return 'video';
     case 'url':
     case 'article':
     case 'youtube':
