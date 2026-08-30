@@ -9,7 +9,7 @@ import 'kit_text.dart';
 /// The page header (`component-kit.md` §2.1) — **one pattern with optional
 /// parts**, used by nine of the eleven screens.
 ///
-/// Anatomy: `lead` (badge/seal) → `folio` (mono caps at `--seal`) → **title**
+/// Anatomy: `lead` (badge/seal) → `folio` (mono caps at `--accent-text`) → **title**
 /// (the one required part; serif, letterpressed, with an italic `--accent`
 /// clause written as `*clause*`) → `standfirst` (italic serif, never the UI
 /// sans) → `actions` → the **chapter rule**.
@@ -24,7 +24,7 @@ class ChapterOpening extends StatelessWidget {
   /// Opens the folio row — a [KitFileBadge] or a seal.
   final Widget? mark;
 
-  /// Mono caps at `--seal`. Carries the screen's count.
+  /// Mono caps at `--accent-text` (ADR-069). Carries the screen's count.
   final String? folio;
 
   /// Accent clause written as `*clause*`.
@@ -74,7 +74,7 @@ class ChapterOpening extends StatelessWidget {
                     maxLines: compact ? 2 : 1,
                     overflow: TextOverflow.ellipsis,
                     style: KitText.capsLabel(context,
-                        color: t.seal, letterSpacing: 0.18),
+                        color: t.accentText, letterSpacing: 0.18),
                   ),
                 ),
             ],

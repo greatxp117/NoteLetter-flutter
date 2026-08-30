@@ -253,9 +253,7 @@ class KitStatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s2, vertical: 2),
       decoration: BoxDecoration(
-        color: positive
-            ? (t.isDark ? const Color(0x1F6F8159) : const Color(0xFFE2E8DC))
-            : t.surfaceSunken,
+        color: positive ? t.positiveChipBg : t.surfaceSunken,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -264,9 +262,7 @@ class KitStatusPill extends StatelessWidget {
           context,
           fontSize: 10,
           letterSpacing: 0.1,
-          color: positive
-              ? (t.isDark ? const Color(0xFFA8B894) : const Color(0xFF495936))
-              : t.fgMuted,
+          color: positive ? t.positiveChipFg : t.fgMuted,
         ),
       ),
     );

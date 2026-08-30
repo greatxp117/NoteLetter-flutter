@@ -20,7 +20,7 @@ import '../../widgets/kit/kit.dart';
 /// being a vocabulary. The rule it still obeys is the one that matters — the
 /// page file does not style its own type; this file does, once.
 ///
-/// Required parts, in order: a mono `--seal` eyebrow · the field, a 16/20
+/// Required parts, in order: a mono `--accent-text` eyebrow · the field, a 16/20
 /// padded `--surface` bar at `--r-lg` with a 1px `--border-strong`, a 22px
 /// icon, a **serif 22/28 input with an italic placeholder**, and a mono caps
 /// mode pill on `--accent-soft`. Focus raises the border to `--accent` and the
@@ -73,7 +73,7 @@ class _SearchBigFieldState extends State<SearchBigField> {
         Text(
           'Semantic search across your library',
           style: KitText.capsLabel(context,
-              fontSize: 10, letterSpacing: 0.16, color: t.seal),
+              fontSize: 10, letterSpacing: 0.16, color: t.accentText),
         ),
         const SizedBox(height: 10),
         AnimatedContainer(
@@ -140,7 +140,7 @@ class _SearchBigFieldState extends State<SearchBigField> {
                   child: Text(
                     widget.mode.toUpperCase(),
                     style: KitText.capsLabel(context,
-                        fontSize: 10, letterSpacing: 0.08, color: t.seal),
+                        fontSize: 10, letterSpacing: 0.08, color: t.accentText),
                   ),
                 ),
               ],

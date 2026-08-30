@@ -94,6 +94,26 @@ class Tokens {
   Color get highlightStrong =>
       _p(AppColors.highlightStrongLight, AppColors.highlightStrongDark);
   Color get seal => _p(AppColors.sealLight, AppColors.sealDark);
+
+  /// The family TEXT steps (ADR-069). [seal] is the wax seal and its siblings
+  /// — decorative, floored at the 3:1 a graphic gets — and copy written in it
+  /// is the misuse that ADR split out: 56 rules to 9 on the web. The gate's
+  /// ROLE direction reads this client's WIDGETS for the same claim, so a
+  /// `TextStyle(color: t.seal)` fails now instead of merely being wrong.
+  Color get accentText =>
+      _p(AppColors.accentTextLight, AppColors.accentTextDark);
+  Color get positiveText =>
+      _p(AppColors.positiveTextLight, AppColors.positiveTextDark);
+
+  /// The positive chip triple (`--positive-chip-*`) — the shelf chip, the
+  /// status pill. Three widgets drew this pair from hand-written literals, one
+  /// of which (`0xFFA8B894`) is not any step in the palette.
+  Color get positiveChipBg =>
+      _p(AppColors.positiveChipBgLight, AppColors.positiveChipBgDark);
+  Color get positiveChipFg =>
+      _p(AppColors.positiveChipFgLight, AppColors.positiveChipFgDark);
+  Color get positiveChipBorder =>
+      _p(AppColors.positiveChipBorderLight, AppColors.positiveChipBorderDark);
   /// `--link` — near-black ink in light, paper in dark. It is deliberately
   /// NOT the accent: a link in this design is distinguished by its
   /// **underline** ([linkDecor]), which is why a control that drops the

@@ -13,6 +13,7 @@ import '../../services/api.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/tokens.dart';
 
 /// Grades in SM-2 order, with the promise each one makes.
 const _gradeLabels = {
@@ -204,6 +205,9 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
   Widget _itemCard(ThemeData theme, Color muted, StudySession session,
       StudySessionItem item) {
     final isDark = theme.brightness == Brightness.dark;
+    // Tokens.light/dark are const: the chip pair resolves from the theme the
+    // card is being built in, without a BuildContext.
+    final t = isDark ? Tokens.dark : Tokens.light;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -224,9 +228,9 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
                     style: theme.textTheme.labelLarge?.copyWith(color: muted)),
               ),
               if (item.kind == 'new')
-                _chip(theme, 'New', AppColors.positive),
+                _chip(theme, 'New', t.positive, t.positiveText),
               // Present only when true — absence means an ordinary due review.
-              if (item.ramp) _chip(theme, 'Exam prep', AppColors.primary),
+              if (item.ramp) _chip(theme, 'Exam prep', t.accent, t.accentText),
             ],
           ),
           const SizedBox(height: 10),
@@ -237,14 +241,19 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
     );
   }
 
-  Widget _chip(ThemeData theme, String label, Color color) => Container(
+  /// A fill and a TEXT step, never one colour doing both: the label used to be
+  /// drawn in the same token as the 14% wash behind it — the accent and
+  /// positive steps are sized to be a fill, and set as 11px type they measure
+  /// 3.16–4.23:1 (ADR-069). Both were also the LIGHT step in both themes.
+  Widget _chip(ThemeData theme, String label, Color fill, Color fg) =>
+      Container(
         margin: const EdgeInsets.only(left: 6),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.14),
+            color: fill.withValues(alpha: 0.14),
             borderRadius: AppRadius.pillR(20)),
         child: Text(label,
-            style: theme.textTheme.labelSmall?.copyWith(color: color)),
+            style: theme.textTheme.labelSmall?.copyWith(color: fg)),
       );
 
   Widget _question(ThemeData theme, Color muted, StudySession session,

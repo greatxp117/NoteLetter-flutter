@@ -26,6 +26,12 @@ class AppColors {
   static const _ochre400 = Color(0xFFF2A63B); // dark-mode warning
   static const _ochre600 = Color(0xFF8A5A12); // light-mode warning
   static const _brick500 = Color(0xFF9D352D);
+  static const _sage100 = Color(0xFFE2E8DC); // light-mode chip fill
+  /// Dark-mode chip TEXT — the positive family's answer to --brick-300
+  /// (4.31.0, ADR-068). Three widgets had invented `0xFFA8B894` for this by
+  /// hand, which is not this colour.
+  static const _sage300 = Color(0xFFA8BC8F);
+  static const _sage400 = Color(0xFF93A87A); // dark-mode positive + sage tone
   static const _sage500 = Color(0xFF6F8159);
   static const _sage700 = Color(0xFF495936);
   static const _brick700 = Color(0xFF6E1F18);
@@ -56,7 +62,7 @@ class AppColors {
   // Until 4.21.0 the three status colours were shared with light mode, so an
   // error drew brick-500 on the near-black ground — about 2:1. theme.css now
   // lifts all three for dark; these mirror it.
-  static const positiveDark = Color(0xFF93A87A);
+  static const positiveDark = _sage400;
   static const warningDark = _ochre400;
   static const criticalDark = Color(0xFFE4695E);
   static const secondaryAccent = _plum500; // plum-500 — chrome + secondary CTA only
@@ -145,6 +151,28 @@ class AppColors {
   // the 3:1 a graphic gets. It is NOT the chip text and NOT accent copy: ADR-069
   // split those roles out precisely because a token named for a seal had come
   // to carry every eyebrow, folio and verse number in the app.
+  /// The family TEXT steps (4.32.0, ADR-069). Every hue the app writes copy in
+  /// needs one, and it is NOT the fill: the accent and positive steps are sized
+  /// to be a button, a dot or a rule, and set as 9–13px type they measure
+  /// 3.16–4.23:1. No value moves — this is the dictionary catching up with what
+  /// was already drawn.
+  static const accentTextLight = _brick700; // --accent-text
+  static const accentTextDark = _brick300; // --accent-text (dark)
+  static const positiveTextLight = _sage700; // --positive-text
+  static const positiveTextDark = _sage300; // --positive-text (dark)
+
+  /// The positive chip (4.31.0, ADR-068). Structurally identical to the accent
+  /// chip: a solid tint in light, a translucent wash of the page in dark. The
+  /// raw steps do NOT flip, so a chip built from sage-100/sage-700 is a
+  /// light-mode chip that never got a dark mode — legible in both and still
+  /// wrong, which is a composition defect no contrast gate can see.
+  static const positiveChipBgLight = _sage100;
+  static const positiveChipBgDark = Color(0x2993A87A); // rgba(147,168,122,.16)
+  static const positiveChipFgLight = _sage700;
+  static const positiveChipFgDark = _sage300;
+  static const positiveChipBorderLight = Color(0x386F8159); // rgba(111,129,89,.22)
+  static const positiveChipBorderDark = Color(0x5293A87A); // rgba(147,168,122,.32)
+
   static const sealLight = _brick700; // --seal
   static const sealDark = _brick300; // --seal (dark)
   static const accentChipFgLight = _brick700; // --accent-chip-fg
