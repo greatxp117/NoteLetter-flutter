@@ -15,6 +15,11 @@ class AppColors {
   static const _ink600 = Color(0xFF1F2330);
   static const _ink700 = Color(0xFF14171F);
   static const _ink800 = Color(0xFF0B0D13);
+  static const _brick50 = Color(0xFFF6E1DC); // accent-chip fill, light
+  /// Dark-mode CHIP TEXT. The accent step is a fill and a glyph colour; set as
+  /// 12px copy inside its own tinted chip it is 3.16:1, so the chip text needed
+  /// a lighter step of its own (4.30.0, ADR-067).
+  static const _brick300 = Color(0xFFEE7B62);
   static const _brick400 = Color(0xFFD9482F); // vermilion (4.29.0, ADR-066)
   /// Ochre — --warning only. Its own family because a warning drawn from
   /// brick sits beside --critical and reads as a dimmer error (ADR-066).
@@ -25,6 +30,10 @@ class AppColors {
   static const _sage700 = Color(0xFF495936);
   static const _brick700 = Color(0xFF6E1F18);
   static const _ink300 = Color(0xFF8A91A4);
+  /// `--ink-350` — the subtle-metadata step. `--fg-subtle` drew the 300 until
+  /// 4.31.0 (ADR-068): 170 rules set it as 9–18px COPY, and a 3.15:1 step is a
+  /// dot, not text. The 300 stays, for the dots and dashes it is.
+  static const _ink350 = Color(0xFF686E7D);
   static const _ink400 = Color(0xFF4E5566);
   static const _plum500 = Color(0xFF3F2C3E);
   static const _plum600 = Color(0xFF2D1F2E);
@@ -84,8 +93,8 @@ class AppColors {
   static const surfaceSunkenDark = _ink800; // --surface-sunken (dark)
   static const ruleLight = Color(0x0F14171F); // --rule rgba(20,23,31,.06)
   static const ruleDark = Color(0x0FFFFFFF); // --rule rgba(255,255,255,.06)
-  static const subtleForegroundLight = _ink300; // --fg-subtle
-  static const subtleForegroundDark = Color(0x73FFFFFF); // --fg-subtle rgba(255,255,255,.45)
+  static const subtleForegroundLight = _ink350; // --fg-subtle
+  static const subtleForegroundDark = Color(0x85FFFFFF); // --fg-subtle rgba(255,255,255,.52)
 
   // ── The rest of the semantic layer (needed to build a real ColorScheme) ──
   // Every one of these is a token that FLIPS with the theme, which is why each
@@ -132,8 +141,19 @@ class AppColors {
       Color(0x429D352D); // --highlight-strong rgba(157,53,45,.26)
   static const highlightStrongDark =
       Color(0x66D9482F); // --highlight-strong rgba(217,72,47,.40)
+  // `--seal` is the wax seal and its eight siblings — decorative, floored at
+  // the 3:1 a graphic gets. It is NOT the chip text and NOT accent copy: ADR-069
+  // split those roles out precisely because a token named for a seal had come
+  // to carry every eyebrow, folio and verse number in the app.
   static const sealLight = _brick700; // --seal
-  static const sealDark = _brick400; // --seal (dark)
+  static const sealDark = _brick300; // --seal (dark)
+  static const accentChipFgLight = _brick700; // --accent-chip-fg
+  static const accentChipFgDark = _brick300; // --accent-chip-fg (dark)
+  static const accentChipBgLight = _brick50; // --accent-chip-bg
+  static const criticalFgLight = _paper50; // --critical-fg
+  // `--critical-fg` (dark). paper-50 on the dark #E4695E fill is 3.10:1; ink-800
+  // is 5.99 (4.30.0, ADR-067).
+  static const criticalFgDark = _ink800;
   static const linkLight = _ink700; // --link (theme.css: var(--ink-700))
   static const linkDark = _paper50; // --link (dark: var(--paper-50))
   static const linkDecorLight = _brick500; // --link-decor

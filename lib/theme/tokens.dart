@@ -104,8 +104,14 @@ class Tokens {
 
   /// The accent chip triple (`--accent-chip-*`) — eyebrow chips, cite pills,
   /// the folio seal.
-  Color get accentChipBg => accentSoft;
-  Color get accentChipFg => _p(AppColors.sealLight, AppColors.sealDark);
+  Color get accentChipBg =>
+      _p(AppColors.accentChipBgLight, AppColors.accentSoftDark);
+  /// Its own step, not [seal]: the accent fill set as 12px copy inside its own
+  /// tinted chip is 3.16:1 in dark, which is what ADR-067 split it for. A
+  /// mirror that resolves the chip text to the seal is the shape of drift
+  /// `token_contrast_check.py`'s MIRROR direction exists to name.
+  Color get accentChipFg =>
+      _p(AppColors.accentChipFgLight, AppColors.accentChipFgDark);
   Color get accentChipBorder => _p(
         const Color(0x389D352D), // rgba(157,53,45,.22)
         const Color(0x52D9482F), // rgba(217,72,47,.32)
@@ -123,10 +129,15 @@ class Tokens {
   /// and every warning has been drawing in the accent colour ever since.
   Color get warning => _p(AppColors.warning, AppColors.warningDark);
 
-  /// Anything ON critical is labelled `paper-50` and never [accentFg] — that
-  /// flips dark and would fail contrast.
   Color get critical => _p(AppColors.critical, AppColors.criticalDark);
-  Color get criticalFg => const Color(0xFFFAFAF7);
+
+  /// A filled destructive control needs the same fg/hover pair [accent] has.
+  /// This was `paper-50` in BOTH themes, under a comment saying anything on
+  /// critical is labelled paper-50 — true until 4.21.0 made `--critical` flip,
+  /// after which the label measured 3.10:1 on the dark #E4695E fill (4.30.0,
+  /// ADR-067). ink-800 on that fill is 5.99.
+  Color get criticalFg =>
+      _p(AppColors.criticalFgLight, AppColors.criticalFgDark);
 
   // ── Chrome — identical in both themes ────────────────────────────────────
   Color get chrome => AppColors.chrome;

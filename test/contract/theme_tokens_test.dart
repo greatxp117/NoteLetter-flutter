@@ -51,12 +51,17 @@ void main() {
       expect(cs.outlineVariant, AppColors.borderDark);
     });
 
-    test('status tokens do NOT flip between themes', () {
-      // theme.css leaves --positive and --critical at sage-500 / brick-500 in
-      // dark. Flipping them here would be inventing a token.
-      expect(AppTheme.lightScheme.tertiary, AppTheme.darkScheme.tertiary);
-      expect(AppTheme.lightScheme.error, AppTheme.darkScheme.error);
+    test('status tokens DO flip between themes', () {
+      // They did not until 4.21.0 (ADR-057), and this test asserted that they
+      // must not — theme.css had left --positive and --critical at sage-500 /
+      // brick-500 in dark, so an error node drew #9D352D on #14171F, about
+      // 2:1. Both steps have been in app_colors.dart ever since; the scheme
+      // kept handing out the light ones, and this assertion kept saying that
+      // was correct.
+      expect(AppTheme.lightScheme.tertiary, AppColors.positive);
+      expect(AppTheme.darkScheme.tertiary, AppColors.positiveDark);
       expect(AppTheme.lightScheme.error, AppColors.critical);
+      expect(AppTheme.darkScheme.error, AppColors.criticalDark);
     });
 
     test('surfaces and text DO flip between themes', () {

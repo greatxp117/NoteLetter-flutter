@@ -250,9 +250,14 @@ class AppTheme {
     onSecondary: AppColors.secondaryFg, // --secondary-fg
     secondaryContainer: AppColors.surfaceRaisedDark, // --surface-raised (dark)
     onSecondaryContainer: AppColors.foregroundDark,
-    tertiary: AppColors.positive, // --positive (does not flip)
+    // Both DO flip, since 4.21.0 (ADR-057): the three severities were shared
+    // with light mode, so an error drew brick-500 on the near-black ground at
+    // about 2:1 — the severity a feed exists to surface was the least legible
+    // thing on it. app_colors.dart has carried the dark steps since; this is
+    // the ColorScheme catching up with its own token file.
+    tertiary: AppColors.positiveDark, // --positive (dark)
     onTertiary: AppColors.foregroundDark,
-    error: AppColors.critical, // --critical (does not flip)
+    error: AppColors.criticalDark, // --critical (dark)
     onError: AppColors.foregroundDark,
     surface: AppColors.cardDark, // --surface (dark)
     onSurface: AppColors.foregroundDark, // --fg (dark)
