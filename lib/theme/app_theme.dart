@@ -1,8 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'tokens.dart';
 import 'app_colors.dart';
 import 'app_radius.dart';
 
 class AppTheme {
+  /// The style map every `Html()` in the app passes.
+  ///
+  /// It exists for `<hr>`. The section break has been in the extraction
+  /// vocabulary since 1.1.0 and reached a stored chunk for the first time at
+  /// contract 4.26.0 (ADR-063) — and flutter_html's default for it is
+  /// `border: Border.all()`, a **black box on all four sides**: a hard
+  /// rectangle in light mode where the web draws a 6%-ink hairline, and on the
+  /// dark `--surface` a black line on near-black, invisible. A package default
+  /// is a raw literal like any other, and it does not flip.
+  ///
+  /// Body text is left to `DefaultTextStyle`, which resolves through the
+  /// ThemeData — the two call sites that pass nothing are correct about that
+  /// and were only ever wrong about the rule.
+  static Map<String, Style> htmlStyles(Tokens t, {Style? body}) => {
+        if (body != null) 'body': body,
+        'hr': Style(
+          border: Border(top: BorderSide(color: t.rule)),
+          margin: Margins.symmetric(vertical: 18),
+        ),
+      };
+
   AppTheme._();
 
   // Per design-tokens.md: serif `Source Serif 4` for display/headings/reading,

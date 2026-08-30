@@ -539,14 +539,15 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     }
     return Html(
       data: html,
-      style: {
-        'body': Style(
+      style: AppTheme.htmlStyles(
+        ui.tokens,
+        body: Style(
           margin: Margins.zero,
           fontSize: FontSize(16),
           lineHeight: LineHeight.number(1.6),
           color: ui.fg,
         ),
-      },
+      ),
     );
   }
 }

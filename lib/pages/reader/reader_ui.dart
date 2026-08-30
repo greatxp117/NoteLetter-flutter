@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/tokens.dart';
 
 /// Shared reader-panel chrome — the Flutter mirror of the web reader's
 /// `.panel-intro` / `.eyebrow` / `.panel-note` / `.browse-empty` primitives,
@@ -9,6 +10,10 @@ class ReaderUi {
   final bool dark;
   ReaderUi(BuildContext context)
       : dark = Theme.of(context).brightness == Brightness.dark;
+
+  /// The token object for this brightness, so a caller that needs a token this
+  /// facade does not name (the Html style map) does not add a third copy.
+  Tokens get tokens => dark ? Tokens.dark : Tokens.light;
 
   Color get muted =>
       dark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
@@ -19,14 +24,18 @@ class ReaderUi {
   Color get primary => dark ? AppColors.primaryDark : AppColors.primary;
   Color get accentFg =>
       dark ? AppColors.primaryForegroundDark : AppColors.primaryForeground;
-  // `critical` is token-identical to brick in both themes (design-tokens.md).
-  Color get critical => dark ? AppColors.primaryDark : AppColors.critical;
+  // Both of these used to be pinned to their light steps — `critical` under a
+  // comment claiming it is "token-identical to brick in both themes", true
+  // until 4.21.0 (ADR-057) made all three severities flip. In dark it resolved
+  // to the ACCENT, so the five rules that draw error text in the reader drew it
+  // in the same vermilion as a primary button.
+  Color get critical => dark ? AppColors.criticalDark : AppColors.critical;
   Color get rule => dark ? AppColors.ruleDark : AppColors.ruleLight;
   Color get subtle =>
       dark ? AppColors.subtleForegroundDark : AppColors.subtleForegroundLight;
   Color get sunken =>
       dark ? AppColors.surfaceSunkenDark : AppColors.surfaceSunkenLight;
-  Color get positive => AppColors.positive;
+  Color get positive => dark ? AppColors.positiveDark : AppColors.positive;
 
   /// Small uppercase section label (web `.eyebrow`).
   Widget eyebrow(String text) => Text(

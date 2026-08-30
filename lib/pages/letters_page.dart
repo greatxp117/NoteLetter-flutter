@@ -10,6 +10,7 @@ import 'letters/pinned_sources.dart';
 import 'letters/readings_letter.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
+import '../theme/tokens.dart';
 
 /// Letters — newsletter history (INV-09) + "send now". See
 /// spec/screens/letters.md.
@@ -218,7 +219,10 @@ class _LettersPageState extends State<LettersPage> {
                         )
                       : SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(32, 28, 32, 48),
-                          child: Html(data: selected.html),
+                          child: Html(
+                            data: selected.html,
+                            style: AppTheme.htmlStyles(Tokens.of(context)),
+                          ),
                         ),
             ),
           ],

@@ -13,6 +13,7 @@ import '../../services/api.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 
 /// Grades in SM-2 order, with the promise each one makes.
@@ -288,7 +289,9 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
             if (item.excerptHtml.isNotEmpty) ...[
               const SizedBox(height: 8),
               // The chunk's own sanitized html (INV-10 vocabulary).
-              Html(data: item.excerptHtml),
+              Html(
+                  data: item.excerptHtml,
+                  style: AppTheme.htmlStyles(Tokens.of(context))),
             ],
             const SizedBox(height: 10),
             if (already && outcome == null)
