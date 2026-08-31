@@ -20,6 +20,7 @@ export 'kit_cards.dart';
 export 'kit_composer.dart';
 export 'kit_controls.dart';
 export 'kit_empty.dart';
+export 'kit_failure.dart';
 export 'kit_frame.dart';
 export 'kit_ground.dart';
 export 'kit_headers.dart';

@@ -208,15 +208,15 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
+    // §14.1, ADR-070 — and it goes BEFORE the empty check for a reason: a
+    // request that failed is not a library with nothing in it, and rendering
+    // the empty state for one is the defect that pattern exists to prevent.
     if (search.error != null) {
-      return KitCard(
-        child: Row(
-          children: [
-            Expanded(child: Text(search.error!, style: KitText.meta(context))),
-            const SizedBox(width: AppSpacing.s4),
-            KitButton.ghost('Try again', onPressed: () => _submit(_submitted)),
-          ],
-        ),
+      return KitFailureBlock(
+        sentence: 'Search is unavailable right now.',
+        detail: search.error!,
+        requestId: search.requestId,
+        onRetry: () => _submit(_submitted),
       );
     }
 
