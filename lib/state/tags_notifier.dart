@@ -62,19 +62,6 @@ class TagsNotifier extends ChangeNotifier {
     }
   }
 
-  /// LLM tag suggestions from the user's purpose text (5–8). Returns the raw
-  /// suggestion maps for a review sheet, or null on failure.
-  Future<List<Map<String, dynamic>>?> suggestTags(String purposeText) async {
-    try {
-      final data = await Api.instance.suggestTags(purposeText);
-      return ((data['tags'] as List?) ?? const [])
-          .map((e) => (e as Map).cast<String, dynamic>())
-          .toList();
-    } catch (_) {
-      return null;
-    }
-  }
-
   /// Persist accepted suggestions in one batch.
   Future<String?> approveTags(List<Map<String, dynamic>> tags) async {
     try {

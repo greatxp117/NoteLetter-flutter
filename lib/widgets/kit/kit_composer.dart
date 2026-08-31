@@ -5,6 +5,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_failure.dart';
 
 /// §10 — the composer dock: a persistent input anchored to the bottom of a
 /// scrolling pane.
@@ -95,18 +96,14 @@ class KitComposerDock extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (error != null) ...[
+                    // §14.2 — the rejection at the control that refused. This
+                    // was the same three declarations written out again; a kit
+                    // file re-spelling a pattern is the drift the kit exists
+                    // to make land once (ADR-070).
                     Padding(
                       padding: const EdgeInsets.only(
                           bottom: AppSpacing.s2, left: AppSpacing.s2),
-                      child: Text(
-                        error!,
-                        style: TextStyle(
-                          fontFamily: AppTheme.fontSans,
-                          fontSize: 13,
-                          height: 1.45,
-                          color: t.critical,
-                        ),
-                      ),
+                      child: KitFailureInline(error!),
                     ),
                   ],
                   DecoratedBox(

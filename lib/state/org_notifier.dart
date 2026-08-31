@@ -132,15 +132,6 @@ class OrgNotifier extends ChangeNotifier {
     }
   }
 
-  /// Build a reorganization plan for a document (1.2.0). Returns the raw plan
-  /// map, or null on failure. Execution is a separate explicit step.
-  Future<Map<String, dynamic>?> analyzeReorganization(String documentId) async {
-    try {
-      return await Api.instance.analyzeReorganization(documentId);
-    } catch (_) {
-      return null;
-    }
-  }
 
   Future<String?> executeReorganization(
       String planId, List<dynamic> operations) async {

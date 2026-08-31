@@ -18,10 +18,12 @@ import 'package:flutter/material.dart';
 import '../../models/newsletter.dart';
 import '../../models/scripture_newsletter_settings.dart';
 import '../../services/api.dart';
+import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../state/schedule.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/kit/kit.dart';
 import '../../theme/app_radius.dart';
 
 class ReadingsLetterPanel extends StatefulWidget {
@@ -35,6 +37,11 @@ class _ReadingsLetterPanelState extends State<ReadingsLetterPanel> {
   ScriptureNewsletterSettings? _settings;
   List<Newsletter> _letters = const [];
   bool _loading = true;
+  /// §14 (ADR-070). Without this the catch set `_loading = false` and nothing
+  /// else, so a failed read rendered `const ScriptureNewsletterSettings()` —
+  /// the DEFAULTS — as if they were the reader's own: a card stating the
+  /// readings letter is off, to a reader who has it on.
+  String? _error;
   bool _saving = false;
 
   @override
@@ -55,8 +62,10 @@ class _ReadingsLetterPanelState extends State<ReadingsLetterPanel> {
         _letters = letters;
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } on ApiException catch (e) {
+      if (mounted) setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = '$e'; _loading = false; });
     }
   }
 
@@ -91,6 +100,16 @@ class _ReadingsLetterPanelState extends State<ReadingsLetterPanel> {
     final muted =
         isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
     if (_loading) return const SizedBox.shrink();
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 20),
+        child: KitFailureBlock(
+          sentence: 'Your readings letter settings could not be read.',
+          detail: _error!,
+          onRetry: _load,
+        ),
+      );
+    }
     final s = _settings ?? const ScriptureNewsletterSettings();
 
     return Container(

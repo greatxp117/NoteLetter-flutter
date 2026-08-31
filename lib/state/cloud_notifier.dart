@@ -374,16 +374,6 @@ class CloudNotifier extends ChangeNotifier {
     }
   }
 
-  /// On-demand freshness check for a cloud-imported document (1.4.0). Returns
-  /// the raw comparison map, or null on failure / non-cloud docs. Call at most
-  /// once per reader open — never poll (INV-02).
-  Future<Map<String, dynamic>?> checkSourceFreshness(String docId) async {
-    try {
-      return await Api.instance.checkSourceFreshness(docId);
-    } catch (_) {
-      return null;
-    }
-  }
 
   /// Re-import the provider's current version into the same document (1.4.0).
   /// Progress rides the document's own subscription + the jobs subscription.

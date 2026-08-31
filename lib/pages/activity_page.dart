@@ -84,19 +84,14 @@ class _ActivityPageState extends State<ActivityPage> {
                   padding: EdgeInsets.symmetric(vertical: 48),
                   child: Center(child: CircularProgressIndicator()),
                 )
+              // §14.1 (ADR-070). It was a KitCard with the message in meta
+              // and a ghost button — the app's ninth failure shape, and the
+              // reason the pattern is now in the kit.
               else if (activity.error != null && rows.isEmpty)
-                KitCard(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(activity.error!,
-                            style: KitText.meta(context)),
-                      ),
-                      KitButton.ghost('Try again',
-                          onPressed: () =>
-                              context.read<ActivityNotifier>().refresh()),
-                    ],
-                  ),
+                KitFailureBlock(
+                  sentence: 'Your activity could not be loaded.',
+                  detail: activity.error!,
+                  onRetry: () => context.read<ActivityNotifier>().refresh(),
                 )
               else if (rows.isEmpty)
                 const _ActivityEmpty()
