@@ -96,7 +96,11 @@ class Tokens {
   // accent and the ink tone IS --fg-muted, in the reference too. The other two
   // are their own pair, because a raw step does not flip and the feed is the
   // screen that proves it.
-  Color get toneAccent => accent;
+  /// The accent tone is the family's TEXT step, like the other three — not the
+  /// fill. It was `accent` here and `var(--accent)` on the reference, which is
+  /// 3.67:1 on --surface in dark: under the floor its siblings clear, on the
+  /// one screen whose job is to be read (4.34.9).
+  Color get toneAccent => accentText;
   Color get toneSage => _p(AppColors.toneSageLight, AppColors.toneSageDark);
   Color get tonePlum => _p(AppColors.tonePlumLight, AppColors.tonePlumDark);
   Color get toneInk => fgMuted;
