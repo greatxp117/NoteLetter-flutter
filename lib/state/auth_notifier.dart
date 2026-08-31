@@ -12,6 +12,13 @@ class AuthNotifier extends ChangeNotifier {
     AuthService.instance.authStateChanges.listen((user) {
       _user = user;
       notifyListeners();
+    // Deliberately quiet (INV-24 asks why): this is the AUTH stream, not a
+    // Firestore query. Its error means the SDK could not determine a session,
+    // and `_user` staying null is the correct reading of that — the app shows
+    // the sign-in screen, which is the only useful thing it could do.
+    }, onError: (_) {
+      _user = null;
+      notifyListeners();
     });
   }
 

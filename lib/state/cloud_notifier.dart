@@ -23,6 +23,10 @@ class CloudCrumb {
 /// Drives the Sources cloud section: integrations, the live import-jobs
 /// subscription (INV-02), the file picker, and the import/retry/sync actions.
 class CloudNotifier extends ChangeNotifier {
+  /// The import-jobs subscription's failure (INV-24).
+  String? _jobsError;
+  String? get jobsError => _jobsError;
+
   List<CloudIntegration> _integrations = [];
   bool _loadingIntegrations = false;
 
@@ -70,7 +74,14 @@ class CloudNotifier extends ChangeNotifier {
         .subscribeCloudImportJobs()
         .listen((list) {
       _jobs = list;
+      _jobsError = null;
       _evaluateSession();
+      _notify();
+    // INV-24 (ADR-071): an unread job list renders as "no imports running",
+    // which is exactly what a reader watching an import wants to know is
+    // false.
+    }, onError: (e) {
+      _jobsError = '$e';
       _notify();
     });
     loadIntegrations();

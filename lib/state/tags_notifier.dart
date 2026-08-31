@@ -11,13 +11,24 @@ class TagsNotifier extends ChangeNotifier {
   List<Tag> _tags = [];
   StreamSubscription<List<Tag>>? _sub;
   bool _loading = true;
+  /// The subscription's failure (INV-24), beside the data it replaces.
+  String? _error;
+  String? get error => _error;
 
   List<Tag> get tags => List.unmodifiable(_tags);
   bool get loading => _loading;
 
   void start() {
+    // INV-24 (ADR-071): without onError a stream failure goes to the zone and
+    // this notifier keeps its last value — an empty list, on first load — so
+    // every shelf surface renders as a reader with no shelves.
     _sub ??= FirestoreService.instance.subscribeTags().listen((list) {
       _tags = list;
+      _error = null;
+      _loading = false;
+      notifyListeners();
+    }, onError: (e) {
+      _error = '$e';
       _loading = false;
       notifyListeners();
     });

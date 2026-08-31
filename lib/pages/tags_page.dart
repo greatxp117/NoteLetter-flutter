@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/tag.dart';
 import '../state/tags_notifier.dart';
 import '../theme/app_colors.dart';
+import '../widgets/kit/kit.dart';
 import '../widgets/app_toast.dart';
 import 'tags/split_shelf_sheet.dart';
 import '../theme/app_radius.dart';
@@ -108,6 +109,13 @@ class _TagsPageState extends State<TagsPage> {
                 const SizedBox(height: 20),
                 if (notifier.loading)
                   const Center(child: CircularProgressIndicator())
+                // INV-24 (ADR-071): "No tags yet. Create one to get started."
+                // is an instruction to duplicate tags the reader already has.
+                else if (notifier.error != null)
+                  KitFailureBlock(
+                    sentence: 'Your tags could not be read.',
+                    detail: notifier.error!,
+                  )
                 else if (notifier.tags.isEmpty)
                   Text('No tags yet. Create one to get started.',
                       style: theme.textTheme.bodyMedium?.copyWith(color: muted))

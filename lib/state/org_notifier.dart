@@ -13,6 +13,10 @@ import '../services/firestore_service.dart';
 /// Clients never execute a reorg by approving a suggestion — the backend owns
 /// write-backs (ADR-005).
 class OrgNotifier extends ChangeNotifier {
+  /// The suggestions subscription's failure (INV-24).
+  String? _suggestionsError;
+  String? get suggestionsError => _suggestionsError;
+
   List<OrganizationSuggestion> _suggestions = [];
   StreamSubscription<List<OrganizationSuggestion>>? _sub;
   OrganizationSettings _settings = const OrganizationSettings();
@@ -28,6 +32,12 @@ class OrgNotifier extends ChangeNotifier {
         .subscribeOrganizationSuggestions()
         .listen((list) {
       _suggestions = list;
+      _suggestionsError = null;
+      notifyListeners();
+    // INV-24 (ADR-071): no suggestions and unreadable suggestions are the same
+    // empty list downstream.
+    }, onError: (e) {
+      _suggestionsError = '$e';
       notifyListeners();
     });
     loadSettings();

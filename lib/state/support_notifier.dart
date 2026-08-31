@@ -22,7 +22,11 @@ class SupportNotifier extends ChangeNotifier {
   List<SupportMessage> _messages = const [];
   bool _loading = true;
   bool _sending = false;
-  String? _error;
+  String? _error;          // a send that was rejected
+  /// The subscription's failure (INV-24) — a different thing from a rejected
+  /// send, and rendered in a different place.
+  String? _subError;
+  String? get subError => _subError;
 
   StreamSubscription<SupportThread?>? _threadSub;
   StreamSubscription<List<SupportMessage>>? _messageSub;
@@ -45,15 +49,27 @@ class SupportNotifier extends ChangeNotifier {
   bool get awaitingAnswer => _thread?.awaitingAnswer ?? false;
 
   void start() {
+    // INV-24 (ADR-071): "Nothing sent yet" is the empty state a failed thread
+    // read used to produce — on the one screen whose whole purpose is that the
+    // reader can reach a person.
     _threadSub ??=
         FirestoreService.instance.subscribeSupportThread().listen((t) {
       _thread = t;
+      _subError = null;
+      _loading = false;
+      notifyListeners();
+    }, onError: (e) {
+      _subError = '$e';
       _loading = false;
       notifyListeners();
     });
     _messageSub ??=
         FirestoreService.instance.subscribeSupportMessages().listen((list) {
       _messages = list;
+      _subError = null;
+      notifyListeners();
+    }, onError: (e) {
+      _subError = '$e';
       notifyListeners();
     });
   }

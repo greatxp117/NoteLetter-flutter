@@ -117,6 +117,14 @@ class _SupportPageState extends State<SupportPage> {
                     ),
                   ),
                 )
+              // INV-24 (ADR-071): the empty state below is an OFFER — it
+              // invites the reader to write. A thread we failed to READ is not
+              // an invitation.
+              else if (support.subError != null)
+                KitFailureBlock(
+                  sentence: 'Your support thread could not be read.',
+                  detail: support.subError!,
+                )
               else if (messages.isEmpty)
                 // The empty state IS the offer: the composer below is the
                 // action, so this pattern carries no call-to-action button.
