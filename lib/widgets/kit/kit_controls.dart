@@ -77,16 +77,12 @@ class _KitButtonState extends State<KitButton> {
         fg = t.accentFg;
         shadow = AppShadows.s1;
       case KitButtonVariant.secondary:
-        bg = _hover
-            ? (t.isDark
-                ? const Color(0x24FFFFFF)
-                : AppColors.secondaryAccent)
-            : t.secondary;
+        bg = _hover ? t.secondaryHover : t.secondary;
         fg = t.secondaryFg;
       case KitButtonVariant.danger:
         // `--critical` stays brick-500 in both themes, so the label is
         // paper-50 — NOT accentFg, which flips dark and would fail contrast.
-        bg = _hover ? const Color(0xFF6E1F18) : t.critical;
+        bg = _hover ? t.criticalHover : t.critical;
         fg = t.criticalFg;
         shadow = AppShadows.s1;
       case KitButtonVariant.ghost:
@@ -180,8 +176,8 @@ class KitTag extends StatelessWidget {
 
     switch (variant) {
       case KitTagVariant.shelf:
-        bg = t.isDark ? const Color(0x1F6F8159) : const Color(0xFFE2E8DC);
-        fg = t.isDark ? const Color(0xFFA8B894) : const Color(0xFF495936);
+        bg = t.positiveChipBg;
+        fg = t.positiveChipFg;
       case KitTagVariant.source:
         bg = t.surfaceSunken;
         fg = t.fgMuted;
@@ -317,13 +313,13 @@ class KitFileBadge extends StatelessWidget {
 
     switch (k) {
       case 'pdf':
-        bg = const Color(0x1F9D352D);
-        fg = t.isDark ? const Color(0xFFD9482F) : const Color(0xFF6E1F18);
-        border = const Color(0x339D352D);
+        bg = t.accentChipBg;
+        fg = t.accentChipFg;
+        border = t.accentChipBorder;
       case 'epub':
-        bg = t.isDark ? const Color(0x1F6F8159) : const Color(0xFFE2E8DC);
-        fg = t.isDark ? const Color(0xFFA8B894) : const Color(0xFF495936);
-        border = const Color(0x336F8159);
+        bg = t.positiveChipBg;
+        fg = t.positiveChipFg;
+        border = t.positiveChipBorder;
       case 'web':
       case 'note':
       case 'podcast':

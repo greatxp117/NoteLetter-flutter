@@ -173,6 +173,34 @@ class AppColors {
   static const positiveChipBorderLight = Color(0x386F8159); // rgba(111,129,89,.22)
   static const positiveChipBorderDark = Color(0x5293A87A); // rgba(147,168,122,.32)
 
+  /// The seven reference tokens this mirror was missing. MIRROR printed them
+  /// for a day and failed nothing — absence is not drift, because a client
+  /// draws a subset of the app. What made them owed was the EIGHTH direction:
+  /// LITERAL found five of the seven already being drawn, spelled out by hand
+  /// one widget at a time, which is the same defect as a missing token with
+  /// none of the visibility.
+  static const criticalHoverLight = _brick700; // --critical-hover
+  /// NOT brick-700. `--critical` flips to #E4695E in dark, so the hover has to
+  /// LIFT (#EF8478); the raw step darkens it — a light button that gets darker
+  /// on hover, which is exactly the defect ADR-067 fixed on the web and which
+  /// `KitButton.danger` was still carrying here.
+  static const criticalHoverDark = Color(0xFFEF8478);
+  static const secondaryHoverLight = _plum500; // --secondary-hover
+  static const secondaryHoverDark = Color(0x24FFFFFF); // rgba(255,255,255,.14)
+  static const solidHoverLight = _ink800; // --solid-hover
+  static const solidHoverDark = _paper200;
+
+  /// The four event-family tones (`--tone-*`, component-kit §4.2). Semantic
+  /// because the raw steps do NOT flip: plum-600 on the near-black dark page is
+  /// the family colour being invisible on the one screen whose job is to be
+  /// read, which is why the dark theme takes a lifted plum that belongs to no
+  /// family. `KitActivityNode` had that lifted step as `0xFFB99BB6` — close to
+  /// #C9A6C6 and not it, so the feed's plum node was a different plum here.
+  static const toneSageLight = _sage700; // --tone-sage
+  static const toneSageDark = _sage400;
+  static const tonePlumLight = _plum600; // --tone-plum
+  static const tonePlumDark = Color(0xFFC9A6C6);
+
   static const sealLight = _brick700; // --seal
   static const sealDark = _brick300; // --seal (dark)
   static const accentChipFgLight = _brick700; // --accent-chip-fg

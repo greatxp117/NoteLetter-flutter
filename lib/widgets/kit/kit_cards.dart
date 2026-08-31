@@ -122,6 +122,8 @@ class KitConnectCard extends StatelessWidget {
               // holding a VENDOR's mark, and vendor artwork is tuned for light
               // surfaces. A `--surface` fill flips near-black in dark mode and
               // swallows half of them (component-kit.md §5.1).
+              // literal-ok: a vendor brand-mark plate, fixed white in both
+              // themes — the same class as `.connect-card .iconbox` on the web
               color: const Color(0xFFFFFFFF),
               borderRadius: AppRadius.smR,
               border: Border.all(color: t.border),

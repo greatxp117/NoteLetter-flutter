@@ -287,18 +287,14 @@ class _KitTimelineRowState extends State<KitTimelineRow>
   }
 
   Color _toneColor(Tokens t) => switch (widget.tone) {
-        KitNodeTone.accent => t.accent,
-        KitNodeTone.sage => t.positive,
-        KitNodeTone.plum => _plum(t),
-        KitNodeTone.ink => t.fgMuted,
+        KitNodeTone.accent => t.toneAccent,
+        KitNodeTone.sage => t.toneSage,
+        KitNodeTone.plum => t.tonePlum,
+        KitNodeTone.ink => t.toneInk,
         KitNodeTone.warning => t.warning,
         KitNodeTone.critical => t.critical,
       };
 
-  /// Plum reads as near-black on the dark ground, so the dark theme takes the
-  /// lifted step — the same substitution the tone table makes.
-  static Color _plum(Tokens t) =>
-      t.isDark ? const Color(0xFFB99BB6) : t.chrome;
 
   @override
   Widget build(BuildContext context) {
@@ -308,7 +304,7 @@ class _KitTimelineRowState extends State<KitTimelineRow>
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     // A live node is plum whatever family it belongs to, and borders in plum
     // too: "running" outranks the family for as long as it lasts.
-    final nodeColor = widget.live ? _plum(t) : _toneColor(t);
+    final nodeColor = widget.live ? t.tonePlum : _toneColor(t);
 
     Widget node = Container(
       width: 32,

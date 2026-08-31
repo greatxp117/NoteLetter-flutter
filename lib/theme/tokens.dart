@@ -82,10 +82,24 @@ class Tokens {
   Color get secondary =>
       _p(AppColors.secondaryFillLight, AppColors.secondaryFillDark);
   Color get secondaryFg => AppColors.secondaryFg;
+  Color get secondaryHover =>
+      _p(AppColors.secondaryHoverLight, AppColors.secondaryHoverDark);
 
   // ── Solid neutral control (inverts) ──────────────────────────────────────
   Color get solid => _p(AppColors.solidLight, AppColors.solidDark);
   Color get solidFg => _p(AppColors.solidFgLight, AppColors.solidFgDark);
+  Color get solidHover =>
+      _p(AppColors.solidHoverLight, AppColors.solidHoverDark);
+
+  // ── Event-family tones (--tone-*, component-kit §4.2) ────────────────────
+  // Two of the four are aliases and stay aliases: the accent tone IS the
+  // accent and the ink tone IS --fg-muted, in the reference too. The other two
+  // are their own pair, because a raw step does not flip and the feed is the
+  // screen that proves it.
+  Color get toneAccent => accent;
+  Color get toneSage => _p(AppColors.toneSageLight, AppColors.toneSageDark);
+  Color get tonePlum => _p(AppColors.tonePlumLight, AppColors.tonePlumDark);
+  Color get toneInk => fgMuted;
 
   // ── Decorative ───────────────────────────────────────────────────────────
   Color get highlight =>
@@ -158,6 +172,8 @@ class Tokens {
   /// ADR-067). ink-800 on that fill is 5.99.
   Color get criticalFg =>
       _p(AppColors.criticalFgLight, AppColors.criticalFgDark);
+  Color get criticalHover =>
+      _p(AppColors.criticalHoverLight, AppColors.criticalHoverDark);
 
   // ── Chrome — identical in both themes ────────────────────────────────────
   Color get chrome => AppColors.chrome;
