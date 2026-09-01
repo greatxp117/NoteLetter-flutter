@@ -14,6 +14,7 @@ import '../../services/api.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/tokens.dart';
 
 class PinnedSources extends StatefulWidget {
   const PinnedSources({super.key, required this.settings});
@@ -138,7 +139,7 @@ class _PinnedSourcesState extends State<PinnedSources> {
                 const SizedBox(height: 6),
                 Text(_error!,
                     style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.critical)),
+                        ?.copyWith(color: Tokens.of(context).criticalText)),
               ],
             ],
           ),

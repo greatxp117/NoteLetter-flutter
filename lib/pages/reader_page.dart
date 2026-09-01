@@ -145,7 +145,7 @@ class _ReaderPageState extends State<ReaderPage> {
           : _error != null
               ? Center(
                   child: Text(_error!,
-                      style: TextStyle(fontFamily: 'Geist', color: ui.critical)))
+                      style: TextStyle(fontFamily: 'Geist', color: ui.criticalText)))
               : SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 64),
                   child: Center(

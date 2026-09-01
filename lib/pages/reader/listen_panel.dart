@@ -179,7 +179,7 @@ class _ListenPanelState extends State<ListenPanel> {
             padding: const EdgeInsets.only(top: 12),
             child: Center(
               child: Text(_error!,
-                  style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical)),
+                  style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText)),
             ),
           ),
       ]);

@@ -8,6 +8,7 @@ import '../widgets/app_toast.dart';
 import 'tags/split_shelf_sheet.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
+import '../theme/tokens.dart';
 
 /// Tags — list/create/edit/delete over the live tags subscription. Mutations go
 /// through `fn_*` (INV-04). See spec/api/tags.md.
@@ -66,7 +67,7 @@ class _TagsPageState extends State<TagsPage> {
               child: const Text('Cancel')),
           FilledButton(
               style:
-                  FilledButton.styleFrom(backgroundColor: AppColors.critical),
+                  FilledButton.styleFrom(backgroundColor: Tokens.of(c).critical),
               onPressed: () => Navigator.pop(c, true),
               child: const Text('Delete')),
         ],
@@ -211,7 +212,7 @@ class _TagRow extends StatelessWidget {
               onPressed: onEdit),
           IconButton(
               icon: Icon(Icons.delete_outline,
-                  size: 18, color: AppColors.critical),
+                  size: 18, color: Tokens.of(context).critical),
               onPressed: onDelete),
         ],
       ),

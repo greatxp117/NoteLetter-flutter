@@ -402,7 +402,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                   visualDensity: VisualDensity.compact,
                   onPressed:
                       visible.length <= 1 ? null : () => _remove(i),
-                  icon: Icon(Icons.delete_outline, size: 16, color: ui.critical),
+                  icon: Icon(Icons.delete_outline, size: 16, color: ui.criticalText),
                 ),
               ],
             ]),
@@ -495,7 +495,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(_error!,
-              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical)),
+              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText)),
         ),
       if (_dirty)
         Padding(

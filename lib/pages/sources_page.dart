@@ -435,7 +435,7 @@ class _PickerPanel extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(cloud.browseError!,
-                  style: KitText.meta(context).copyWith(color: t.critical)),
+                  style: KitText.meta(context).copyWith(color: t.criticalText)),
             )
           else if (listing == null || listing.items.isEmpty)
             Padding(
@@ -642,7 +642,7 @@ class _JobRow extends StatelessWidget {
       case 'complete':
         return ('Imported', (Icons.check_circle_outline, t.positive));
       case 'error':
-        return ('Failed', (Icons.error_outline, t.critical));
+        return ('Failed', (Icons.error_outline, t.criticalText));
       case 'skipped':
         return (
           j.isDuplicate ? 'Already imported' : 'Skipped',
@@ -770,7 +770,9 @@ class _Banner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Tokens.of(context).critical;
+    // The banner's own tint is the ground its sentence lands on, which is
+    // the pair --critical does not clear (4.35.0, ADR-072).
+    final color = Tokens.of(context).criticalText;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),

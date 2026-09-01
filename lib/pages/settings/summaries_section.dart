@@ -5,6 +5,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import 'summary_prompt.dart';
+import '../../theme/tokens.dart';
 
 /// Settings → Summaries (spec/screens/settings.md 4.3.0 + 4.4.0, ADR-040):
 /// the summary-style prompt, in two modes over **one stored value**.
@@ -182,7 +183,7 @@ class _SummariesSectionState extends State<SummariesSection> {
         const SizedBox(height: 6),
         Text(_error!,
             style: theme.textTheme.bodySmall
-                ?.copyWith(color: AppColors.critical)),
+                ?.copyWith(color: Tokens.of(context).criticalText)),
       ],
       const SizedBox(height: 12),
       Wrap(
@@ -248,7 +249,7 @@ class _SummariesSectionState extends State<SummariesSection> {
         const SizedBox(height: 6),
         Text(_error!,
             style: theme.textTheme.bodySmall
-                ?.copyWith(color: AppColors.critical)),
+                ?.copyWith(color: Tokens.of(context).criticalText)),
       ],
       const SizedBox(height: 12),
       Wrap(

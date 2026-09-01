@@ -65,6 +65,13 @@ class AppColors {
   static const positiveDark = _sage400;
   static const warningDark = _ochre400;
   static const criticalDark = Color(0xFFE4695E);
+  /// `--critical-text`. The severity when it is DRAWN rather than filled: the
+  /// fill step is 3.99:1 on a raised card and 4.16:1 inside its own tint in
+  /// dark, under the small-text floor on both grounds a failure message lands
+  /// on. Light does not move — brick-500 is 4.90–6.74 on every ground it draws
+  /// on there — so this is one value under two names (4.35.0, ADR-072).
+  static const criticalTextLight = _brick500; // --critical-text
+  static const criticalTextDark = Color(0xFFF08C7E); // --critical-text (dark)
   static const secondaryAccent = _plum500; // plum-500 — chrome + secondary CTA only
 
   // ── Chrome (sidebar/footer) — plum, identical in light & dark ────────────

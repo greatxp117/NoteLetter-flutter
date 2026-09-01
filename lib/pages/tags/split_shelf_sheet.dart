@@ -14,6 +14,7 @@ library;
 import 'package:flutter/material.dart';
 import '../../services/api.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/tokens.dart';
 
 /// Offered only at >= 5 documents — ABSENT below that, not disabled, because
 /// the endpoint 400s there and a control that cannot work is worse than none.
@@ -201,7 +202,7 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
                 const SizedBox(height: 8),
                 Text(_error!,
                     style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.critical)),
+                        ?.copyWith(color: Tokens.of(context).criticalText)),
               ],
               const SizedBox(height: 12),
               Row(

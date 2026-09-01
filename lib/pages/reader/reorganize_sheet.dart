@@ -145,7 +145,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                   if (_error != null)
                     Text(_error!,
                         style:
-                            TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical)),
+                            TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText)),
                   if (_plan == null && _error == null)
                     ui.note('Reading the document and drafting a plan…'),
                   if (_live != null)
@@ -201,7 +201,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
               'Split removes those sections from this document. A snapshot of the original is kept, but the document itself will change. Continue?',
-              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical),
+              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText),
             ),
             const SizedBox(height: 12),
             Row(children: [

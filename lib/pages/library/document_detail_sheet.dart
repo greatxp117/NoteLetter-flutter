@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/tokens.dart';
 import '../../theme/app_theme.dart';
 
 /// Library document-detail affordances (library.md): edit `sourcePriority` and
@@ -202,7 +203,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                   const SizedBox(height: 16),
                   Text(_error!,
                       style: TextStyle(fontFamily: 'Geist', 
-                          fontSize: 13, color: AppColors.critical)),
+                          fontSize: 13, color: Tokens.of(context).criticalText)),
                 ],
                 const SizedBox(height: 24),
                 Row(children: [

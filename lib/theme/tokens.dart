@@ -169,6 +169,13 @@ class Tokens {
 
   Color get critical => _p(AppColors.critical, AppColors.criticalDark);
 
+  /// The severity when it is WORDS. [critical] is the fill of a destructive
+  /// control, a 16–18px icon and a node ring; set as 11–14px copy it is under
+  /// the small-text floor on a raised card and inside its own tint (4.35.0,
+  /// ADR-072) — the same split [accentText] and [positiveText] already have.
+  Color get criticalText =>
+      _p(AppColors.criticalTextLight, AppColors.criticalTextDark);
+
   /// A filled destructive control needs the same fg/hover pair [accent] has.
   /// This was `paper-50` in BOTH themes, under a comment saying anything on
   /// critical is labelled paper-50 — true until 4.21.0 made `--critical` flip,

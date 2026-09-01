@@ -81,7 +81,7 @@ class KitFailureBlock extends StatelessWidget {
               fontSize: 14,
               height: 20 / 14,
               fontWeight: FontWeight.w500,
-              color: t.critical,
+              color: t.criticalText,
             ),
           ),
           const SizedBox(height: 6),
@@ -149,7 +149,7 @@ class KitFailureInline extends StatelessWidget {
         fontFamily: AppTheme.fontSans,
         fontSize: dense ? 11 : 13,
         height: dense ? 16 / 11 : 19 / 13,
-        color: t.critical,
+        color: t.criticalText,
       ),
     );
   }

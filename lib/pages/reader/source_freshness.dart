@@ -112,7 +112,7 @@ class _SourceFreshnessState extends State<SourceFreshness> {
               : _error != null
                   ? Text(_error!,
                       style:
-                          TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.critical))
+                          TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText))
                   : Text('A newer version of this file exists in $provider.',
                       style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg)),
         ),

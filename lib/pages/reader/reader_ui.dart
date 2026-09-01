@@ -29,7 +29,8 @@ class ReaderUi {
   // until 4.21.0 (ADR-057) made all three severities flip. In dark it resolved
   // to the ACCENT, so the five rules that draw error text in the reader drew it
   // in the same vermilion as a primary button.
-  Color get critical => dark ? AppColors.criticalDark : AppColors.critical;
+  Color get criticalText =>
+      dark ? AppColors.criticalTextDark : AppColors.criticalTextLight;
   Color get rule => dark ? AppColors.ruleDark : AppColors.ruleLight;
   Color get subtle =>
       dark ? AppColors.subtleForegroundDark : AppColors.subtleForegroundLight;

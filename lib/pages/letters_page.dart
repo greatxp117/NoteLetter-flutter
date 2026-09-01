@@ -119,7 +119,7 @@ class _LettersPageState extends State<LettersPage> {
                                 itemBuilder: (context, i) {
                                   final n = notifier.history[i];
                                   final isSelected = n.id == selected?.id;
-                                  final badge = _statusBadge(n.status);
+                                  final badge = _statusBadge(n.status, Tokens.of(context));
                                   // empty/error rows carry no html to preview;
                                   // show their reason instead of the trigger.
                                   final sub = n.isReadable
@@ -202,7 +202,8 @@ class _LettersPageState extends State<LettersPage> {
                                     size: 32,
                                     color: muted),
                                 const SizedBox(height: 12),
-                                Text(_statusBadge(selected.status)?.label ??
+                                Text(_statusBadge(selected.status, Tokens.of(context))
+                                        ?.label ??
                                     'No content',
                                     style: theme.textTheme.titleMedium),
                                 const SizedBox(height: 8),
@@ -240,20 +241,25 @@ class _LettersPageState extends State<LettersPage> {
   /// Status → badge (contract 2.2.0, ADR-011). `sent` needs no badge; `empty`
   /// is informational ("Nothing new"), not a failure. Unknown statuses fall
   /// through to an informational badge — the vocabulary is open.
-  _Badge? _statusBadge(String status) {
+  /// The badge draws its colour twice — a 12% tint and the label ON it — so
+  /// every one of these has to be a token that FLIPS. All four were the light
+  /// constants, unconditionally: `Failed` was brick-500 on the near-black page
+  /// at about 2:1, and `Sending…` was raw plum-500, the exact pair 4.32.0
+  /// replaced with --tone-plum on the web (4.35.0, ADR-072).
+  _Badge? _statusBadge(String status, Tokens t) {
     switch (status) {
       case 'sent':
         return null;
       case 'error':
-        return const _Badge('Failed', AppColors.critical);
+        return _Badge('Failed', t.criticalText);
       case 'empty':
-        return const _Badge('Nothing new', AppColors.mutedForeground);
+        return _Badge('Nothing new', t.fgMuted);
       case 'generating':
-        return const _Badge('Sending…', AppColors.secondaryAccent);
+        return _Badge('Sending…', t.tonePlum);
       case '':
         return null;
       default:
-        return _Badge(status, AppColors.mutedForeground);
+        return _Badge(status, t.fgMuted);
     }
   }
 }
