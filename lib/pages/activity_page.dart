@@ -292,6 +292,7 @@ const _kinds = <String, _Kind>{
   // ── library ────────────────────────────────────────────────────────────────
   'shelf_split': (family: 'library', chip: 'Split', icon: Icons.call_split),
   'support_reply': (family: 'library', chip: 'Support', icon: Icons.support_agent_outlined),
+  'search_synthesized': (family: 'library', chip: 'Arranged', icon: Icons.auto_awesome_outlined),
 };
 
 /// Node tone per family, **overridden by severity** (component-kit §4.2).
