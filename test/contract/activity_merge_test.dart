@@ -9,12 +9,22 @@ import 'fixtures.dart';
 /// catch-up target; ordering + doc-coverage is the core INV-02 property.)
 ActivityItem _event(String id, Map<String, dynamic> d) => ActivityItem(
       kind: 'event', id: id, type: d['type'] ?? '', status: d['status'] ?? '',
+      // Through eventLevel, exactly as firestore_service does — NOT the model
+      // default. Until 4.42.0 this helper omitted `level` entirely, so every
+      // event in this test carried 'info' and the field was unasserted: the
+      // suite was green while the client drew 53 prod errors as ordinary rows.
+      level: ActivityItem.eventLevel(
+          d['level'] as String?, d['status'] as String?),
       title: d['title'] ?? '', provider: d['provider'],
       metadata: (d['metadata'] as Map?)?.cast<String, dynamic>(),
       createdAt: d['created_at'] is int ? d['created_at'] as int : null);
 
 ActivityItem _doc(String id, Map<String, dynamic> d) => ActivityItem(
       kind: 'document', id: id, type: d['type'] ?? '', status: d['status'] ?? '',
+      // Through docLevel, exactly as firestore_service does. Omitting it here
+      // took the model default and made a completed document read 'info' — the
+      // document half of the same unasserted-severity gap (4.42.0).
+      level: ActivityItem.docLevel(d['status'] as String? ?? ''),
       title: d['title'] ?? 'Untitled', createdAt:
           d['created_at'] is int ? d['created_at'] as int : null);
 
@@ -41,6 +51,14 @@ void main() {
       expect(merged.length, expectedItems.length);
       expect([for (final m in merged) m.id],
           [for (final e in expectedItems) e['id']]);
+
+      // Severity, against the captured expectation. The seed carries
+      // `seed-event-legacy-error` in the real pre-2.5.0 shape — no `level` key
+      // at all, `status: "error"` — which is what 279 of the 497 events in prod
+      // look like, 53 of them errors. A client that defaults to 'info' instead
+      // of deriving from `status` fails here (4.42.0, ADR-080).
+      expect([for (final m in merged) m.level],
+          [for (final e in expectedItems) e['level']]);
     });
   }
 }

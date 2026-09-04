@@ -260,7 +260,8 @@ class FirestoreService {
           id: d.id,
           type: data['type'] as String? ?? '',
           status: data['status'] as String? ?? '',
-          level: data['level'] as String? ?? 'info',
+          level: ActivityItem.eventLevel(
+              data['level'] as String?, data['status'] as String?),
           title: data['title'] as String? ?? '',
           provider: data['provider'] as String?,
           errorMessage: null,

@@ -31,7 +31,34 @@ class ActivityItem {
       ? (metadata?['processing_stage'] as String?)
       : null;
 
-  /// Feed level for a document row (2.5.0, ADR-014) — mirrors web docItemLevel.
+  /// main.py's `_LEVEL_BY_STATUS` (line 146), mirrored exactly — including its
+  /// `info` default for a status the table does not list. 4.42.0 (ADR-080);
+  /// `activity_vocab_check.py` direction LEVEL-MAP compares this to the source.
+  static const Map<String, String> levelByStatus = {
+    'error': 'error',
+    'complete': 'success',
+    'info': 'info',
+    'skipped': 'warning',
+    'cancelled': 'info',
+  };
+
+  /// Severity of one ACTIVITY EVENT. `level` arrived at 2.5.0 (ADR-014) with no
+  /// backfill, so 279 of the 497 events in prod carry no `level` key at all —
+  /// and **53 of them are `status: "error"`**. Reading `?? 'info'` (which this
+  /// client did until 4.42.0) drew every one of those failures in its family's
+  /// ordinary tone, indistinguishable from a success, in the reader's own feed.
+  ///
+  /// Derivation is a FALLBACK only: 11 prod events carry `status: "info"` with
+  /// an explicit `level: "warning"`, so deriving unconditionally would overwrite
+  /// eleven true warnings — the same loss pointing the other way.
+  static String eventLevel(String? level, String? status) {
+    if (level != null && level.isNotEmpty) return level;
+    return levelByStatus[status] ?? 'info';
+  }
+
+  /// Feed level for a DOCUMENT row (2.5.0, ADR-014) — mirrors web docItemLevel.
+  /// Deliberately not eventLevel: a document status and an event status are
+  /// different vocabularies that happen to share three words.
   static String docLevel(String status) {
     if (status == 'error') return 'error';
     if (status == 'complete') return 'success';
