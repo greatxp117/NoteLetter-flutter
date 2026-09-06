@@ -171,6 +171,14 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       Api.instance.updateContent(b['docId'], chunks: _maps(b['chunks'])),
   'fn_search_notes': (b) => Api.instance.searchNotes(b['query'],
       sourceTypes: _strs(b['sourceTypes']), limit: b['limit'] ?? 10),
+  // Closed key set (4.40.0, ADR-078). Every optional key is passed straight
+  // through from the fixture and OMITTED when absent — the endpoint rejects an
+  // unknown key by name, and a builder that sent `breadth: null` would be
+  // sending a key the capture never did.
+  'fn_synthesize_search': (b) => Api.instance.synthesizeSearch(b['query'],
+      sourceTypes: _strs(b['sourceTypes']),
+      breadth: b['breadth'] as String?,
+      limit: b['limit'] as int?),
   'fn_create_tag': (b) => Api.instance
       .createTag(b['title'], description: b['description'], color: b['color']),
   'fn_update_tag': (b) => Api.instance
@@ -245,6 +253,8 @@ const _suites = [
   'api/documents',
   'api/update-content',
   'api/search',
+  // 4.40.0 (ADR-078) — the cohesive reading.
+  'api/search-cohesive',
   'api/tags',
   'api/newsletter',
   'api/cloud-storage',

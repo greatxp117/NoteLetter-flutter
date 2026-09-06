@@ -697,36 +697,58 @@ class KitControlLabel extends StatelessWidget {
       );
 }
 
-/// A document `type` → the plate kind ([KitFileBadge]).
+/// The document-kind vocabulary (component-kit.md §6.4.1) — **one
+/// declaration, read in both directions**, exactly as the web reference
+/// declares it (`src/shared/FileBadge.jsx` `KIND_BY_TYPE`).
 ///
-/// Mirrors the web reference's `docKind` exactly, including that every web-ish
-/// source (article, YouTube, Instagram, TikTok) shares one plate: the plate says
-/// where a source came from, not which service it came through.
-String kitDocKind(String type) {
-  switch (type) {
-    case 'pdf':
-      return 'pdf';
-    case 'epub':
-      return 'epub';
-    // `audio` (4.10.0) shares the podcast kind: both are timestamped
-    // transcripts with real audio behind them, and the badge already reads
-    // AUDIO. Missing here since 4.10.0, so every uploaded voice memo badged
-    // NOTE on this client while web badged it AUDIO.
-    case 'podcast':
-    case 'audio':
-      return 'podcast';
-    // `video` (4.13.0, ADR-049) gets its OWN kind rather than joining audio:
-    // it is indexed from its audio track alone but it is not a recording, and
-    // labelling a lecture video AUDIO is the conflation ADR-049 refused.
-    case 'video':
-      return 'video';
-    case 'url':
-    case 'article':
-    case 'youtube':
-    case 'instagram':
-    case 'tiktok':
-      return 'web';
-    default:
-      return 'note';
-  }
-}
+/// [kitDocKind] maps a backend `type` to its coarse kind for the plate;
+/// [kitTypesForKind] inverts the same table into the `sourceTypes` a chip
+/// sends. It was a `switch` until 4.40.0, which cannot be inverted — and a
+/// hand-written inverse beside it would be a second copy of the vocabulary,
+/// which is how `podcast` and `video` came to have a chip on one screen of
+/// three (ADR-064). The table is what `doc_kind_check.py` reads.
+const Map<String, String> kKindByType = <String, String>{
+  'pdf': 'pdf',
+
+  // `epub` is a PENDING kind (§6.4.1 rule 3): rendered, never advertised, and
+  // no document can carry it until EPUB ingestion exists.
+  'epub': 'epub',
+
+  // The default bucket, named explicitly rather than left to the fallthrough —
+  // an exhaustive table is what the gate can check, and it is what makes the
+  // inverse able to answer for `note` at all.
+  'plain': 'note',
+  'docx': 'note',
+  'pptx': 'note',
+  'image': 'note',
+  'image_set': 'note',
+
+  // Every web-ish source shares one plate: it says where a source came from,
+  // not which service it came through.
+  'article': 'web',
+  'youtube': 'web',
+  'instagram': 'web',
+  'tiktok': 'web',
+  // Legacy alias of `article`, kept so pre-2.0 documents render (§6.4.1).
+  'url': 'web',
+
+  // `audio` (4.10.0) shares the podcast kind: both are timestamped transcripts
+  // with real audio behind them, and the badge already reads AUDIO.
+  'podcast': 'podcast',
+  'audio': 'podcast',
+
+  // `video` (4.13.0, ADR-049) gets its OWN kind rather than joining audio: it
+  // is indexed from its audio track alone but it is not a recording, and
+  // labelling a lecture video AUDIO is the conflation ADR-049 refused.
+  'video': 'video',
+};
+
+/// A document `type` → the plate kind ([KitFileBadge]).
+String kitDocKind(String type) => kKindByType[type] ?? 'note';
+
+/// Every backend `type` a kind renders — the `sourceTypes` a chip should send.
+///
+/// Empty for a kind no type maps to (a pending kind), which correctly sends no
+/// filter rather than a filter that can match nothing.
+List<String> kitTypesForKind(String kind) =>
+    kKindByType.keys.where((t) => kKindByType[t] == kind).toList();

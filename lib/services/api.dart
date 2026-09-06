@@ -217,6 +217,27 @@ class Api {
     return _http.post('/fn_search_notes', data: body);
   }
 
+  /// The cohesive reading of a query (`fn_synthesize_search`, 4.40.0, ADR-078).
+  ///
+  /// **Closed key set** `{query, sourceTypes, breadth, limit}` — an unknown key
+  /// is a 400 naming it, so this builder can express nothing else and an
+  /// optional key is OMITTED rather than sent null. `breadth` is the reader's
+  /// control (`tight | normal | broad`); the server defaults it to `normal`,
+  /// and the fractions behind it are the server's — nothing here recomputes a
+  /// floor or re-derives a link.
+  Future<Map<String, dynamic>> synthesizeSearch(
+    String query, {
+    List<String>? sourceTypes,
+    String? breadth,
+    int? limit,
+  }) {
+    final body = <String, dynamic>{'query': query};
+    if (sourceTypes != null) body['sourceTypes'] = sourceTypes;
+    if (breadth != null) body['breadth'] = breadth;
+    if (limit != null) body['limit'] = limit;
+    return _http.post('/fn_synthesize_search', data: body);
+  }
+
   // ── Tags (INV-04) ─────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> createTag(String title,

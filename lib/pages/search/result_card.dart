@@ -121,7 +121,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
               const SizedBox(height: AppSpacing.s3),
               Row(
                 children: [
-                  _PassageAction(
+                  SearchPassageAction(
                     icon: Icons.visibility_outlined,
                     label: 'Open source',
                     onTap: widget.onOpenSource,
@@ -186,22 +186,27 @@ class _ScoreMeter extends StatelessWidget {
 }
 
 /// A footer action on a passage card: sans 12 at `--fg-lede` with a 13px icon.
-class _PassageAction extends StatefulWidget {
+///
+/// Public because the cohesive column's passage card (4.40.0) has the same
+/// action bar. One spelling of a pattern, not two — the reference draws both
+/// from `.pact`.
+class SearchPassageAction extends StatefulWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
-  const _PassageAction({
+  const SearchPassageAction({
+    super.key,
     required this.icon,
     required this.label,
     required this.onTap,
   });
 
   @override
-  State<_PassageAction> createState() => _PassageActionState();
+  State<SearchPassageAction> createState() => _PassageActionState();
 }
 
-class _PassageActionState extends State<_PassageAction> {
+class _PassageActionState extends State<SearchPassageAction> {
   bool _hover = false;
 
   @override

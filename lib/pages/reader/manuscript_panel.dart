@@ -42,11 +42,23 @@ class ManuscriptPanel extends StatefulWidget {
   final String docId;
   final List<Chunk> chunks;
   final Future<void> Function() onSaved;
+
+  /// The passage a link asked for — `/reader/{docId}?p={chunkId}` (INV-21).
+  ///
+  /// This is what makes a passage link a passage link: the daily letter, the
+  /// cohesive reading and search all hand the reader a chunk id, and until
+  /// 4.40.0 this client dropped it and opened the document at the top.
+  /// Scrolled to once, after first layout; a chunk id that is not in this
+  /// document is simply not found, which leaves the reader at the top — the
+  /// same place the link used to land them.
+  final String? anchorChunkId;
+
   const ManuscriptPanel(
       {super.key,
       required this.docId,
       required this.chunks,
-      required this.onSaved});
+      required this.onSaved,
+      this.anchorChunkId});
 
   @override
   State<ManuscriptPanel> createState() => _ManuscriptPanelState();
@@ -59,10 +71,43 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   bool _saving = false;
   String? _error;
 
+  /// The anchored passage's element, for [Scrollable.ensureVisible]. One key,
+  /// not one per chunk: only the anchor is ever scrolled to.
+  final GlobalKey _anchorKey = GlobalKey();
+  bool _anchorScrolled = false;
+
   @override
   void initState() {
     super.initState();
     _chunks = _initFrom(widget.chunks);
+    _scheduleAnchor();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scheduleAnchor();
+  }
+
+  /// Scroll to the anchor once, after the frame that first laid it out.
+  ///
+  /// Scheduled from two places because the panel is built before its chunks
+  /// arrive as often as after: whichever frame first has both the id and the
+  /// element wins, and `_anchorScrolled` makes the other a no-op. Never
+  /// repeated — re-anchoring on a rebuild would yank a reader who has scrolled
+  /// away back to the passage they arrived at.
+  void _scheduleAnchor() {
+    if (_anchorScrolled || widget.anchorChunkId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _anchorScrolled) return;
+      final ctx = _anchorKey.currentContext;
+      if (ctx == null) return;
+      _anchorScrolled = true;
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOut,
+          alignment: 0.08);
+    });
   }
 
   @override
@@ -443,7 +488,13 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
               ),
           ]);
 
-        return VisibilityDetector(
+        // The anchor key rides the OUTERMOST element of the passage, so
+        // `ensureVisible` scrolls to the passage and not to a span inside it.
+        return KeyedSubtree(
+          key: c.chunkId != null && c.chunkId == widget.anchorChunkId
+              ? _anchorKey
+              : null,
+          child: VisibilityDetector(
           key: Key('dwell-${c.chunkId ?? 'new-$i'}'),
           onVisibilityChanged: (info) => _onVisibility(c, info.visibleFraction),
           child: Container(
@@ -488,6 +539,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                       ),
                     ],
                   ),
+          ),
           ),
         );
       }),

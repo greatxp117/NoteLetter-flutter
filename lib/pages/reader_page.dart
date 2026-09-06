@@ -23,7 +23,14 @@ import '../theme/app_theme.dart';
 /// History) + source-freshness banner + Reorganize action. See reader.md.
 class ReaderPage extends StatefulWidget {
   final String docId;
-  const ReaderPage({super.key, required this.docId});
+
+  /// `?p={chunkId}` — the passage the link pointed at (INV-21). It selects the
+  /// Manuscript panel rather than the Summary one, because a link to a passage
+  /// that opens a summary has not honoured the link; the panel then scrolls to
+  /// it.
+  final String? passageId;
+
+  const ReaderPage({super.key, required this.docId, this.passageId});
 
   @override
   State<ReaderPage> createState() => _ReaderPageState();
@@ -35,7 +42,7 @@ class _ReaderPageState extends State<ReaderPage> {
   String? _error;
   Document? _document;
   List<Chunk> _chunks = const [];
-  String _tab = 'summary';
+  late String _tab = widget.passageId == null ? 'summary' : 'manuscript';
 
   @override
   void initState() {
@@ -179,7 +186,10 @@ class _ReaderPageState extends State<ReaderPage> {
     switch (_tab) {
       case 'manuscript':
         return ManuscriptPanel(
-            docId: widget.docId, chunks: _chunks, onSaved: _reload);
+            docId: widget.docId,
+            chunks: _chunks,
+            onSaved: _reload,
+            anchorChunkId: widget.passageId);
       case 'speedread':
         return SpeedReadPanel(paras: _paras);
       case 'listen':

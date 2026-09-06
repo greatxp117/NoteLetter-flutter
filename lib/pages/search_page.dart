@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../models/cohesive_reading.dart';
 import '../models/search_result.dart';
 import '../models/tag.dart';
 import '../services/firestore_service.dart';
@@ -11,6 +14,7 @@ import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
+import 'search/cohesive_column.dart';
 import 'search/reading_pane.dart';
 import 'search/result_card.dart';
 import 'search/search_field.dart';
@@ -38,6 +42,10 @@ import 'search/search_field.dart';
 ///   the trailing control.
 /// * **Body** [SearchResultCard]s in the leading pane and [SearchReadingPane]
 ///   beside them; a phone stacks the two, it does not drop the pane.
+/// * **Cohesive** (4.40.0, ADR-078) — the control bar's trailing slot holds a
+///   segmented `Passages | Cohesive`, and while Cohesive a second
+///   `Tighter | Normal | Broader` beside it; the body becomes
+///   [CohesiveColumn], a single reading column in place of the split pane.
 ///
 /// **Not built here:** the citation path. The parser (`scripture/parse.dart`)
 /// and `fn_scripture_lookup` both exist on this client and nothing calls them,
@@ -58,6 +66,14 @@ class _SearchPageState extends State<SearchPage> {
   /// header must not describe results the reader has not asked for yet.
   String _submitted = '';
   String _filter = 'all';
+
+  /// Cohesive mode (4.40.0, ADR-078) is a **view mode**, so the control moves
+  /// at once — and the body does not. The passages list stays exactly as it
+  /// was until the reading lands (write-before-move applied to the frame,
+  /// `screens/search.md` §States); the count line is what says a request is in
+  /// flight, and it says so because a request IS in flight, not on a timer.
+  bool _cohesive = false;
+  String _breadth = 'normal';
 
   SearchResult? _selected;
   List<Chunk> _context = const [];
@@ -100,6 +116,10 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     final search = context.read<SearchNotifier>();
+    // Both modes ask the same query. The passages request always runs: it is
+    // what the list under a cohesive reading shows while the reading is being
+    // built, and what the reader falls back to on the way out of the mode.
+    if (_cohesive) unawaited(_runCohesive());
     await search.search(query, limit: 20);
     if (!mounted) return;
     // The reference opens the top result with the results, so the reading pane
@@ -107,6 +127,55 @@ class _SearchPageState extends State<SearchPage> {
     final first = search.results.isEmpty ? null : search.results.first;
     if (first != null) _select(first);
   }
+
+  /// Ask for the reading of what is currently submitted.
+  ///
+  /// `sourceTypes` comes off the same chip the list is filtered by, inverted
+  /// through the one kind vocabulary ([kitTypesForKind]) — the arrangement is
+  /// built server-side, so a chip narrowing only the list we already hold would
+  /// narrow the reading not at all.
+  Future<void> _runCohesive() {
+    final search = context.read<SearchNotifier>();
+    if (_submitted.isEmpty) {
+      search.clearCohesive();
+      return Future.value();
+    }
+    return search.synthesize(
+      _submitted,
+      sourceTypes: _filter == 'all' ? null : kitTypesForKind(_filter),
+      breadth: _breadth,
+    );
+  }
+
+  void _setCohesive(bool on) {
+    if (_cohesive == on) return;
+    setState(() => _cohesive = on);
+    if (on) {
+      _runCohesive();
+    } else {
+      context.read<SearchNotifier>().clearCohesive();
+    }
+  }
+
+  void _setBreadth(String breadth) {
+    if (_breadth == breadth) return;
+    setState(() => _breadth = breadth);
+    _runCohesive();
+  }
+
+  void _setFilter(String filter) {
+    if (_filter == filter) return;
+    setState(() => _filter = filter);
+    // The chip narrows the list on the client and the reading on the server;
+    // only the second needs a request.
+    if (_cohesive) _runCohesive();
+  }
+
+  /// The server's own `link` for a passage, followed inside the app. The route
+  /// is built from the ids the response carries — `document_id` and `chunk_id`
+  /// (INV-21) — never from anything reconstructed on screen.
+  void _openInContext(CohesivePassage p) =>
+      context.push('/reader/${p.documentId}?p=${p.chunkId}');
 
   Future<void> _select(SearchResult r) async {
     setState(() {
@@ -163,14 +232,40 @@ class _SearchPageState extends State<SearchPage> {
                             selected: _filter == f.key,
                             onPressed:
                                 f.key == 'all' || (counts[f.key] ?? 0) > 0
-                                    ? () => setState(() => _filter = f.key)
+                                    ? () => _setFilter(f.key)
                                     : null,
                           ),
                       ],
                       trailing: [
+                        // §6.8, non-wrapping: the view mode, then — only while
+                        // Cohesive — the breadth beside it. The count line
+                        // stays trailing.
+                        KitSegmented(
+                          segments: const [
+                            KitSegment('Passages'),
+                            KitSegment('Cohesive'),
+                          ],
+                          selected: _cohesive ? 1 : 0,
+                          onChanged: (i) => _setCohesive(i == 1),
+                        ),
+                        if (_cohesive)
+                          KitSegmented(
+                            segments: [
+                              for (final b in _breadths)
+                                KitSegment(b.$2),
+                            ],
+                            selected: _breadths
+                                .indexWhere((b) => b.$1 == _breadth),
+                            onChanged: (i) => _setBreadth(_breadths[i].$1),
+                          ),
                         _ResultCount(
                           loading: search.isLoading,
                           count: shown.length,
+                          cohesive: _cohesive,
+                          reading: _readingFor(search),
+                          cohesiveLoading: search.cohesiveLoading,
+                          cohesiveFailed: search.cohesiveError != null,
+                          breadth: _breadth,
                         ),
                       ],
                     ),
@@ -258,6 +353,22 @@ class _SearchPageState extends State<SearchPage> {
       ],
     );
 
+    // Write before you move, applied to the frame: the reading REPLACES the
+    // split pane only once it has landed (or failed). Until then the passages
+    // list is still what is on screen — switching the mode must not blank the
+    // body for a request that may yet fail.
+    final reading = _readingFor(search);
+    if (_cohesive && (reading != null || search.cohesiveError != null)) {
+      return CohesiveColumn(
+        reading: reading,
+        error: search.cohesiveError,
+        requestId: search.cohesiveRequestId,
+        onRetry: _runCohesive,
+        onOpenInContext: _openInContext,
+        onOpenSource: (docId) => context.push('/reader/$docId'),
+      );
+    }
+
     final pane = SearchReadingPane(
       result: _selected,
       context: _context,
@@ -292,6 +403,14 @@ class _SearchPageState extends State<SearchPage> {
         );
       },
     );
+  }
+
+  /// The reading, but only if it answers the query that is on screen. A
+  /// response for a previous query is not a stale rendering of this one — it is
+  /// an answer to a different question.
+  CohesiveReading? _readingFor(SearchNotifier search) {
+    final r = search.reading;
+    return (r != null && r.query == _submitted) ? r : null;
   }
 
   void _run(String query) {
@@ -331,6 +450,16 @@ const _filters = <String, String>{
   'video': 'Video',
 };
 
+/// The breadth control's positions (`spec/api/search.md` §Selection). The id is
+/// the request value; the label is the reader's word for it. **The fractions
+/// behind them live on the server** — a client copy of 0.20/0.40/0.65 would be
+/// a second threshold to keep in step, and this one is not even displayed.
+const _breadths = <(String, String)>[
+  ('tight', 'Tighter'),
+  ('normal', 'Normal'),
+  ('broad', 'Broader'),
+];
+
 const _suggestions = <String>[
   'What have I been reading about lately?',
   'Notes on habit formation',
@@ -359,15 +488,47 @@ class _ResultCount extends StatelessWidget {
   final bool loading;
   final int count;
 
-  const _ResultCount({required this.loading, required this.count});
+  /// Cohesive mode reports the READING: `Arranging…` while the request is in
+  /// flight, `{kept} of {pool} passages · {breadth}` when it lands, and
+  /// `Cohesive reading unavailable` when it does not. Every figure measured —
+  /// `kept` and `pool` are the server's own counts, not a length of a list this
+  /// widget can see.
+  final bool cohesive;
+  final CohesiveReading? reading;
+  final bool cohesiveLoading;
+  final bool cohesiveFailed;
+  final String breadth;
+
+  const _ResultCount({
+    required this.loading,
+    required this.count,
+    this.cohesive = false,
+    this.reading,
+    this.cohesiveLoading = false,
+    this.cohesiveFailed = false,
+    this.breadth = 'normal',
+  });
+
+  String _label() {
+    if (!cohesive) {
+      return loading
+          ? 'Searching…'
+          : '$count ${count == 1 ? 'passage' : 'passages'} · ranked by meaning';
+    }
+    if (cohesiveLoading) return 'Arranging…';
+    if (cohesiveFailed) return 'Cohesive reading unavailable';
+    final r = reading;
+    if (r == null) return 'Arranging…';
+    final word = _breadths.firstWhere((b) => b.$1 == r.breadth,
+        orElse: () => (r.breadth, r.breadth)).$2.toLowerCase();
+    return '${r.kept} of ${r.pool} passages · $word';
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     return Text(
-      loading
-          ? 'Searching…'
-          : '$count ${count == 1 ? 'passage' : 'passages'} · ranked by meaning',
+      _label(),
       style: AppTheme.mono(
           fontSize: 11, letterSpacing: 0.04 * 11, color: t.fgSubtle),
     );

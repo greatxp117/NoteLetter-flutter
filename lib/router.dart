@@ -58,8 +58,14 @@ List<RouteBase> appRoutes() {
       routes: [
         GoRoute(
           path: '/reader/:docId',
-          builder: (context, state) =>
-              ReaderPage(docId: state.pathParameters['docId']!),
+          // `?p=` is the passage a link asked for (INV-21) — the id-built
+          // target the daily letter, the cohesive reading and search all hand
+          // out. It was parsed by nothing on this client until 4.40.0, so
+          // every one of those links opened the document at its top.
+          builder: (context, state) => ReaderPage(
+            docId: state.pathParameters['docId']!,
+            passageId: state.uri.queryParameters['p'],
+          ),
         ),
         ShellRoute(
           builder: (context, state, child) => AppLayout(child: child),
