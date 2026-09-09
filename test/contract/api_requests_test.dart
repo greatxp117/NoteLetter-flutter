@@ -277,6 +277,47 @@ const _suites = [
   'api/support',
 ];
 
+// ── What this client does NOT drive, declared ───────────────────────────────
+// The loop below skips a case for four reasons and used to skip all four in
+// silence: the suite reported the cases it drove and said nothing about the
+// rest. On 2026-09-08 that was **64 of 335** — the TODO item that prompted this
+// knew about four of them, the `fn_reply_support_message` ones, because those
+// were the ones someone happened to look for.
+//
+// A suite that reports only what it did is the same shape as a gate that reads
+// nothing and passes. So every skip is now accounted for, and the accounting
+// runs BOTH ways: a case skipped for an endpoint not named here fails, so a new
+// endpoint's fixtures cannot arrive unnoticed; and an endpoint named here whose
+// cases are all driven fails too, so the list shrinks when this client catches
+// up instead of quietly describing an app that has moved on.
+//
+// This is debt, not permission. Each entry is an endpoint the Flutter client
+// has no builder for at all — the fixtures exist and nothing here exercises
+// them.
+const _noBuilder = <String, String>{
+  'fn_create_capture_session':
+      'the multi-image capture session (4.38.0) — no Flutter capture surface',
+  'fn_ingest_passage':
+      'passage capture is the browser extension\'s (ADR-032); no client but it '
+      'sends this',
+  'fn_get_raw_document_url':
+      'the source-file link (4.37.0, ADR-075) — Flutter opens no raw source',
+  'fn_get_cloud_integrations': 'cloud sync settings are unbuilt here',
+  'fn_list_cloud_files': 'the folder picker is unbuilt here',
+  'fn_check_source_freshness': 'freshness (Tier C) is unbuilt here',
+  'fn_review_import_jobs': 'the import review queue (4.45.0) is unbuilt here',
+  'fn_reply_support_message':
+      'there is no support console in this client (CHANGELOG 4.19.0)',
+};
+
+// A case with no `endpoint` at all asserts what the BACKEND stored, or that it
+// stored nothing — not what a client sent. A request-construction suite cannot
+// drive one by construction, so this is a category and never debt. It is
+// counted and printed rather than matched against a naming convention: a first
+// pass demanded a `-check` suffix and immediately fired on
+// `read-state:unfinish-writes-no-event`, which is correctly named and correctly
+// undriveable. A detector red on something correct is worse than none.
+
 // Endpoints whose builder needs the request METHOD (and possibly query) — the
 // single-arg [adapters] map can't express these, so they dispatch here.
 const _methodAware = {
@@ -358,10 +399,18 @@ void main() {
     ApiService.instance.httpClientAdapter = capture;
   });
 
+  // Every endpoint this run actually skipped for want of a builder, so the
+  // declaration above can be checked in the direction a hand-written list
+  // cannot check itself.
+  final skippedEndpoints = <String>{};
+
   for (final suiteId in _suites) {
     final suite = loadSuite(suiteId);
     group(suiteId, () {
       test('captured', () => expect(suite, isNotNull));
+      final undeclared = <String>[];
+      final skipped = <String, int>{};
+      var driven = 0;
       for (final c in (suite?['cases'] as List? ?? [])) {
         final req = (c['request'] as Map).cast<String, dynamic>();
         final endpoint = req['endpoint'] as String?;
@@ -370,9 +419,31 @@ void main() {
         final methodAware = endpoint != null && _methodAware.contains(endpoint);
         final id = c['id'] as String;
         // Only cases with a builder we can drive from the request body/query.
-        if (adapter == null && !methodAware) continue;
-        if (method == 'OPTIONS' || method == 'GET') continue;
-        if (id.contains('mismatch') || id.contains('missing-url')) continue;
+        // Each skip is recorded rather than dropped — see _noBuilder.
+        if (adapter == null && !methodAware) {
+          if (endpoint == null) {
+            skipped['no request in the fixture'] =
+                (skipped['no request in the fixture'] ?? 0) + 1;
+          } else {
+            skippedEndpoints.add(endpoint);
+            skipped['no builder'] = (skipped['no builder'] ?? 0) + 1;
+            if (!_noBuilder.containsKey(endpoint)) {
+              undeclared.add('$id ($endpoint) — no builder and not declared');
+            }
+          }
+          continue;
+        }
+        if (method == 'OPTIONS' || method == 'GET') {
+          skipped['a read or a preflight, not a builder call'] =
+              (skipped['a read or a preflight, not a builder call'] ?? 0) + 1;
+          continue;
+        }
+        if (id.contains('mismatch') || id.contains('missing-url')) {
+          skipped['a negative fixture pinning server validation'] =
+              (skipped['a negative fixture pinning server validation'] ?? 0) + 1;
+          continue;
+        }
+        driven++;
 
         test(id, () async {
           final resp = (c['response'] as Map).cast<String, dynamic>();
@@ -436,6 +507,38 @@ void main() {
           }
         });
       }
+
+      // An undriven case is a fact about this client, and it belongs in the
+      // report either way. Silence here is what let 64 of them accumulate.
+      test('every undriven case is accounted for', () {
+        final total = (suite?['cases'] as List? ?? []).length;
+        final n = skipped.values.fold(0, (a, b) => a + b);
+        // Printed on every run, pass or fail: the number is the finding.
+        // ignore: avoid_print
+        print('  $suiteId — $total case(s): $driven driven, $n undriven'
+            '${skipped.isEmpty ? '' : ' (${skipped.entries.map((e) => '${e.value} ${e.key}').join('; ')})'}');
+        expect(driven + n, total,
+            reason: 'every case is either driven or counted as undriven');
+        expect(undeclared, isEmpty,
+            reason: 'these cases are skipped by the loop and nothing declares '
+                'why:\n  ${undeclared.join('\n  ')}');
+      });
     });
   }
+
+  // The direction the list cannot supply about itself: an entry that has
+  // stopped being true. When this client grows a builder, the fixtures start
+  // driving and the declaration must shrink in the same commit — otherwise it
+  // becomes a list nobody re-derives, describing an app that has moved on.
+  group('undriven declaration', () {
+    test('no entry has stopped being true', () {
+      final stale = _noBuilder.keys
+          .where((e) => !skippedEndpoints.contains(e))
+          .toList();
+      expect(stale, isEmpty,
+          reason: 'these endpoints are declared as having no builder and every '
+              'fixture case for them is now driven — shrink _noBuilder in the '
+              'same commit: $stale');
+    });
+  });
 }
