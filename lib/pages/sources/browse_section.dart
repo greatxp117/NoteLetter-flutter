@@ -330,15 +330,17 @@ class _RowMenu extends StatelessWidget {
         if (complete)
           const PopupMenuItem(value: 'open', child: Text('Open')),
         const PopupMenuItem(value: 'details', child: Text('Priority & tags…')),
-        if (failed)
+        // Retry is offered on `error` ONLY (4.47.0, ADR-085). On a skipped
+        // document fn_retry_document refuses that status by name, so the item
+        // could never once have worked — a skipped row's answer is the next
+        // one instead, never both.
+        if (doc.status == DocumentStatus.error)
           const PopupMenuItem(value: 'retry', child: Text('Retry')),
-        // 4.47.0 (ADR-085) — the third answer on a skipped row: Retry re-runs a
-        // decision the backend makes identically and Remove accepts it, this
-        // overrules it. Gated on the STATUS, never on `image_classification ==
-        // 'faces'` — that vocabulary is open and clients may not switch
-        // exhaustively on it. Gone, not disabled, once the appeal has been
-        // heard: `forceProcess` is never cleared and `errorMessage` then says
-        // so in its own words.
+        // Gated on the STATUS, never on `image_classification == 'faces'` —
+        // that vocabulary is open and clients may not switch exhaustively on
+        // it. Gone, not disabled, once the appeal has been heard: `forceProcess`
+        // is never cleared and `errorMessage` then says so in its own words,
+        // and an unforced retry would still 409.
         if (doc.status == DocumentStatus.skipped && !doc.forceProcess)
           const PopupMenuItem(value: 'force', child: Text('Index it anyway')),
         if (active)
