@@ -268,7 +268,10 @@ class _Warning extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.warning_amber_rounded, size: 15, color: t.critical),
+          // ADR-066: a warning drawn from the critical family reads as an
+          // error. This state is auto-sync on with no folders chosen —
+          // nothing has failed, so it draws --warning, not --critical.
+          Icon(Icons.warning_amber_rounded, size: 15, color: t.warning),
           const SizedBox(width: 8),
           Expanded(child: Text(text, style: KitText.meta(context))),
         ],
