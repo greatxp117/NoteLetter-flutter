@@ -118,6 +118,14 @@ class Document {
   /// every document nobody has forced.
   final bool forceProcess;
 
+  /// 4.48.0 (ADR-085 §7) — why a `skipped` document was skipped. **Closed**
+  /// vocabulary, unlike `image_classification`, so a client may switch on it:
+  /// `no_text_content` · `unresolved_article`. `null` on every non-skipped
+  /// document. The distinction drives the row: `unresolved_article` can succeed
+  /// on a later attempt (a lookup that failed may come back), so the appeal
+  /// stays on offer there even after `force_process` is true.
+  final String? skipReason;
+
   final double sourcePriority;
 
   /// INV-03a — OPENED. Bumped by `doc_opened` and, since 4.0.0, by nothing
@@ -156,6 +164,7 @@ class Document {
     this.nextLetterRequestedAt,
     this.errorMessage,
     this.forceProcess = false,
+    this.skipReason,
     this.sourcePriority = 0.5,
     this.viewCount = 0,
     this.lastViewedAt,
@@ -198,6 +207,7 @@ class Document {
       nextLetterRequestedAt: nextLetterRequestedAt,
       errorMessage: errorMessage,
       forceProcess: forceProcess,
+      skipReason: skipReason,
       sourcePriority: sourcePriority,
       viewCount: viewCount,
       lastViewedAt: lastViewedAt,
@@ -234,6 +244,7 @@ class Document {
       nextLetterRequestedAt: tsMs(json['next_letter_requested_at']),
       errorMessage: json['error_message'] as String?,
       forceProcess: json['force_process'] as bool? ?? false,
+      skipReason: json['skip_reason'] as String?,
       sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,
       viewCount: json['view_count'] as int? ?? 0,
       lastViewedAt: tsMs(json['last_viewed_at']),

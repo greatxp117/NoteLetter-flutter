@@ -338,10 +338,13 @@ class _RowMenu extends StatelessWidget {
           const PopupMenuItem(value: 'retry', child: Text('Retry')),
         // Gated on the STATUS, never on `image_classification == 'faces'` —
         // that vocabulary is open and clients may not switch exhaustively on
-        // it. Gone, not disabled, once the appeal has been heard: `forceProcess`
-        // is never cleared and `errorMessage` then says so in its own words,
-        // and an unforced retry would still 409.
-        if (doc.status == DocumentStatus.skipped && !doc.forceProcess)
+        // it. Gone once the appeal has been heard, EXCEPT where the reason can
+        // change: `unresolved_article` means the card read correctly and the
+        // LOOKUP failed, and a lookup that failed may come back (4.48.0,
+        // ADR-085 §7). `skipReason` is a closed vocabulary and may be switched
+        // on.
+        if (doc.status == DocumentStatus.skipped &&
+            (doc.skipReason == 'unresolved_article' || !doc.forceProcess))
           const PopupMenuItem(value: 'force', child: Text('Index it anyway')),
         if (active)
           const PopupMenuItem(value: 'cancel', child: Text('Cancel')),
