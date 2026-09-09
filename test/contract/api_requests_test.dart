@@ -166,7 +166,12 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   'fn_split_shelf': (b) =>
       Api.instance.splitShelf(b['tagId'], _maps(b['parts'])),
   'fn_cancel_document': (b) => Api.instance.cancelDocument(b['docId']),
-  'fn_retry_document': (b) => Api.instance.retryDocument(b['docId']),
+  // `force` is passed through from the fixture rather than defaulted, so the
+  // forced and unforced cases drive DIFFERENT request bodies (4.47.0,
+  // ADR-085) — the builder omits the key entirely when it is false, which
+  // is the shape every pre-4.47.0 client sends.
+  'fn_retry_document': (b) =>
+      Api.instance.retryDocument(b['docId'], force: b['force'] == true),
   'fn_update_content': (b) =>
       Api.instance.updateContent(b['docId'], chunks: _maps(b['chunks'])),
   'fn_search_notes': (b) => Api.instance.searchNotes(b['query'],

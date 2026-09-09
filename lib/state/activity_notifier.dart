@@ -69,6 +69,21 @@ class ActivityNotifier extends ChangeNotifier {
     }
   }
 
+  /// Index a SKIPPED image anyway (4.47.0, ADR-085) — the owner overruling the
+  /// image classifier's skip verdict. Its own method rather than a flag on
+  /// [retryDocument]: the two are different requests, only one of them is
+  /// offered on a skipped row, and the fallback sentence differs.
+  Future<String?> forceProcessDocument(String docId) async {
+    try {
+      await Api.instance.retryDocument(docId, force: true);
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Failed to index this image.';
+    }
+  }
+
   /// Cancel mid-pipeline.
   Future<String?> cancelDocument(String docId) async {
     try {

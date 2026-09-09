@@ -332,6 +332,15 @@ class _RowMenu extends StatelessWidget {
         const PopupMenuItem(value: 'details', child: Text('Priority & tags…')),
         if (failed)
           const PopupMenuItem(value: 'retry', child: Text('Retry')),
+        // 4.47.0 (ADR-085) — the third answer on a skipped row: Retry re-runs a
+        // decision the backend makes identically and Remove accepts it, this
+        // overrules it. Gated on the STATUS, never on `image_classification ==
+        // 'faces'` — that vocabulary is open and clients may not switch
+        // exhaustively on it. Gone, not disabled, once the appeal has been
+        // heard: `forceProcess` is never cleared and `errorMessage` then says
+        // so in its own words.
+        if (doc.status == DocumentStatus.skipped && !doc.forceProcess)
+          const PopupMenuItem(value: 'force', child: Text('Index it anyway')),
         if (active)
           const PopupMenuItem(value: 'cancel', child: Text('Cancel')),
         const PopupMenuItem(value: 'delete', child: Text('Remove')),
@@ -355,6 +364,11 @@ class _RowMenu extends StatelessWidget {
         final err = await activity.retryDocument(doc.id);
         if (!context.mounted) return;
         AppToast.show(context, err ?? 'Retrying this source.',
+            type: err != null ? ToastType.error : ToastType.info);
+      case 'force':
+        final err = await activity.forceProcessDocument(doc.id);
+        if (!context.mounted) return;
+        AppToast.show(context, err ?? 'Indexing this image.',
             type: err != null ? ToastType.error : ToastType.info);
       case 'cancel':
         final confirmed = await _confirm(

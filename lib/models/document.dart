@@ -110,6 +110,14 @@ class Document {
   final int? nextLetterRequestedAt;
 
   final String? errorMessage;
+
+  /// 4.47.0 (ADR-085) — the owner's standing instruction to index this document
+  /// even where the image classifier would decline to. Written `true` only by
+  /// `fn_retry_document {force: true}` and never cleared, so a `skipped`
+  /// document carrying it has already had its appeal heard. Absent (→ false) on
+  /// every document nobody has forced.
+  final bool forceProcess;
+
   final double sourcePriority;
 
   /// INV-03a — OPENED. Bumped by `doc_opened` and, since 4.0.0, by nothing
@@ -147,6 +155,7 @@ class Document {
     this.finishedAt,
     this.nextLetterRequestedAt,
     this.errorMessage,
+    this.forceProcess = false,
     this.sourcePriority = 0.5,
     this.viewCount = 0,
     this.lastViewedAt,
@@ -188,6 +197,7 @@ class Document {
       finishedAt: finishedAt,
       nextLetterRequestedAt: nextLetterRequestedAt,
       errorMessage: errorMessage,
+      forceProcess: forceProcess,
       sourcePriority: sourcePriority,
       viewCount: viewCount,
       lastViewedAt: lastViewedAt,
@@ -223,6 +233,7 @@ class Document {
       finishedAt: tsMs(json['finished_at']),
       nextLetterRequestedAt: tsMs(json['next_letter_requested_at']),
       errorMessage: json['error_message'] as String?,
+      forceProcess: json['force_process'] as bool? ?? false,
       sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,
       viewCount: json['view_count'] as int? ?? 0,
       lastViewedAt: tsMs(json['last_viewed_at']),

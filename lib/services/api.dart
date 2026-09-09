@@ -173,8 +173,16 @@ class Api {
   Future<Map<String, dynamic>> cancelDocument(String docId) =>
       _http.post('/fn_cancel_document', data: {'docId': docId});
 
-  Future<Map<String, dynamic>> retryDocument(String docId) =>
-      _http.post('/fn_retry_document', data: {'docId': docId});
+  /// Retry from the failed stage — or, with [force], index a SKIPPED image
+  /// anyway (4.47.0, ADR-085). [force] widens the endpoint's callable statuses
+  /// to `error | skipped` and writes `force_process: true` onto the document,
+  /// which the next extraction reads: a would-be `faces`/`photo` image is
+  /// re-classed from its own OCR text instead of being thrown away. Same
+  /// ownership check, attempt cap and cooldown — a force is a retry and spends
+  /// the same budget. `force: false` on a skipped document still 409s.
+  Future<Map<String, dynamic>> retryDocument(String docId, {bool force = false}) =>
+      _http.post('/fn_retry_document',
+          data: {'docId': docId, if (force) 'force': true});
 
   /// Signed GET URL for the original uploaded file (Reader → Original panel).
   /// Response: `{ signed_url, mime_type, doc_type, display_html }`.
