@@ -47,7 +47,10 @@ class NavDrawer extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: AppColors.primary,
+                    // The chrome is one plum in both themes, so its accent is
+                    // the fixed one the active-nav bar draws — not the light
+                    // half of --accent, which froze this circle to #9D352D.
+                    backgroundColor: AppColors.chromeAccentBar,
                     child: const Icon(Icons.edit_note, color: Colors.white, size: 18),
                   ),
                   const SizedBox(width: 10),
@@ -106,7 +109,7 @@ class NavDrawer extends StatelessWidget {
                   LinearProgressIndicator(
                     value: 0.35,
                     backgroundColor: AppColors.chromeBorder,
-                    color: AppColors.primary,
+                    color: AppColors.chromeAccentBar,
                     borderRadius: AppRadius.pillR(4),
                   ),
                 ],

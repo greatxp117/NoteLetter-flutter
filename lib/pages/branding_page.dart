@@ -83,6 +83,7 @@ class BrandingPage extends StatelessWidget {
                       children: const [
                         _PrincipleCard(
                           icon: Icons.spa_outlined,
+                          // pair-ok: a principle card demonstrating the light step
                           color: AppColors.positive,
                           title: 'Clarity',
                           description:
@@ -97,6 +98,7 @@ class BrandingPage extends StatelessWidget {
                         ),
                         _PrincipleCard(
                           icon: Icons.speed_outlined,
+                          // pair-ok: a principle card demonstrating the light step
                           color: AppColors.primary,
                           title: 'Efficiency',
                           description:
@@ -177,12 +179,16 @@ class BrandingPage extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       childAspectRatio: 1.0,
                       children: [
-                        _ColorSwatch(color: AppColors.primary, label: 'Primary', hex: '#9D352D'),
-                        _ColorSwatch(color: AppColors.primaryDark, label: 'Primary Dark', hex: '#D9482F'),
-                        _ColorSwatch(color: AppColors.backgroundLight, label: 'BG Light', hex: '#FAFAF7'),
-                        _ColorSwatch(color: AppColors.backgroundDark, label: 'BG Dark', hex: '#14171F'),
-                        _ColorSwatch(color: AppColors.foregroundLight, label: 'FG Light', hex: '#14171F'),
-                        _ColorSwatch(color: AppColors.foregroundDark, label: 'FG Dark', hex: '#FAFAF7'),
+                        // This grid's subject IS the two halves, shown side by
+                        // side and labelled as such. Reaching them through the
+                        // theme would draw the same swatch twice and make the
+                        // page say something false — so each names its half.
+                        _ColorSwatch(color: AppColors.primary, label: 'Primary', hex: '#9D352D'), // pair-ok: labelled swatch
+                        _ColorSwatch(color: AppColors.primaryDark, label: 'Primary Dark', hex: '#D9482F'), // pair-ok: labelled swatch
+                        _ColorSwatch(color: AppColors.backgroundLight, label: 'BG Light', hex: '#FAFAF7'), // pair-ok: labelled swatch
+                        _ColorSwatch(color: AppColors.backgroundDark, label: 'BG Dark', hex: '#14171F'), // pair-ok: labelled swatch
+                        _ColorSwatch(color: AppColors.foregroundLight, label: 'FG Light', hex: '#14171F'), // pair-ok: labelled swatch
+                        _ColorSwatch(color: AppColors.foregroundDark, label: 'FG Dark', hex: '#FAFAF7'), // pair-ok: labelled swatch
                       ],
                     );
                   },
