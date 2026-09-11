@@ -1,5 +1,5 @@
 build/
-.dart_tool/flutter_build/
+.dart_tool/
 
 # macOS Finder metadata — never a repo's business.
 .DS_Store
