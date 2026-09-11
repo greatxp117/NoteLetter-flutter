@@ -57,8 +57,9 @@ flutter test test/contract test/kit -x pin    # pin excluded by policy
 tool/shots.sh <screen> <route> && tool/web_frames.sh <screen>
 ```
 
-Device run: `integration_test/device_run_test.dart` (header has the line;
-`--timeout none` — the iOS build outlasts the per-test timeout).
+Device run: `tool/device_test.sh ["<test name>"]` — always the script: zsh
+hands an unquoted define list to Flutter as one argument, and the app boots
+against prod's config and refuses.
 
 ## Composition deviations
 

@@ -27,7 +27,7 @@ the deliberate override. The emulator suite comes up per `/emu`; the functions s
 ```bash
 flutter analyze --no-fatal-infos --no-fatal-warnings
 flutter test test/contract test/kit -x pin      # queue mode; the pin is held by policy
-flutter test integration_test/device_run_test.dart -d <UDID> --timeout none <emulator defines>
+tool/device_test.sh ["<test name>"]             # the device run, or one test of it
 tool/shots.sh <screen> <route> && tool/web_frames.sh <screen>   # the screenshot pair
 ```
 
