@@ -8,15 +8,11 @@ Flutter client. Part of the multi-repo workspace — read the umbrella
 run; `test/contract/pin_check_test.dart` parses this exact line and fails while
 it differs from `../NoteLetter-contracts/VERSION`).
 
-At **full feature parity with the web reference**, Study and Scripture included.
-Defaults to **real prod** `noteletter-7a111`. Registered as
-`xp.NoteLetter.Flutter` — its own bundle id: `xp.NoteLetter` belongs to the
-Swift app, and the Android slot is reserved for a native client.
-
-What changed and when: `../NoteLetter-contracts/CHANGELOG.md`. Why:
-`spec/decisions/`. What is open: `../TODO.md`. Per-file execution checklist:
-[`REALIGNMENT.md`](REALIGNMENT.md) — regenerate with `/parity flutter` rather
-than narrating progress here.
+Behind the reference on every version [`QUEUE.md`](QUEUE.md) folds; the pin
+is **held** until that queue is empty (`spec/clients/flutter.md` §Pin).
+`/flutter-next` works the queue, `/parity flutter` refreshes it; never narrate
+progress here. Debug builds **refuse prod** — run through `tool/dev.sh`.
+Bundle id `xp.NoteLetter.Flutter` (`xp.NoteLetter` is the Swift app's).
 
 ## Layout
 
@@ -55,15 +51,14 @@ construction.
 ## Build & run
 
 ```bash
-flutter pub get
-flutter run                    # -d chrome / macos / simulator
-flutter analyze                # clean apart from two pre-existing landing_page lints
-flutter test test/contract/    # Tier-1 contract harness
+tool/dev.sh chrome|ios                        # emulator only, proven ours
+flutter analyze --no-fatal-infos --no-fatal-warnings
+flutter test test/contract test/kit -x pin    # pin excluded by policy
+tool/shots.sh <screen> <route> && tool/web_frames.sh <screen>
 ```
 
-Emulator: `--dart-define=USE_EMULATOR=true` (+ `EMULATOR_*_PORT`), per `/emu`.
-Device run: `integration_test/device_run_test.dart` — invocation in its header;
-needs `--timeout none` (the iOS build outlasts the per-test timeout).
+Device run: `integration_test/device_run_test.dart` (header has the line;
+`--timeout none` — the iOS build outlasts the per-test timeout).
 
 ## Composition deviations
 

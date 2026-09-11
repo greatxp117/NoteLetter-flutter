@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -30,6 +31,22 @@ void main() async {
   // default and writes real counters, so the switch is compile-time
   // (`--dart-define=USE_EMULATOR=true`, per /emu) and cannot be flipped at
   // runtime by accident.
+  //
+  // And a DEBUG build without that switch refuses to boot. A bare `flutter run`
+  // is the one command every newcomer reaches for, and it would land INV-03
+  // counter writes on the production library of whoever is signed in — the
+  // same counters a backfill has already corrected once. `tool/dev.sh` passes
+  // the defines; `--dart-define=ALLOW_PROD=true` is the deliberate override
+  // for the rare debug session that must see prod. Release builds are
+  // untouched: this is a guard on development, not on the app.
+  const allowProd = bool.fromEnvironment('ALLOW_PROD', defaultValue: false);
+  if (kDebugMode && !ApiService.useEmulator && !allowProd) {
+    throw StateError(
+      'NoteLetter: a debug build is pointed at PROD noteletter-7a111. '
+      'Run through tool/dev.sh (emulator, umbrella law 1), or pass '
+      '--dart-define=ALLOW_PROD=true on purpose.',
+    );
+  }
   if (ApiService.useEmulator) {
     final host = ApiService.emulatorHost;
     FirebaseFirestore.instance.useFirestoreEmulator(

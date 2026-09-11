@@ -1,0 +1,7 @@
+# Test tags. `pin` marks the contract-pin guard (test/contract/pin_check_test.dart)
+# so queue-mode /conformance can run `flutter test test/contract test/kit -x pin`
+# while NoteLetter-flutter/QUEUE.md has open items (spec/clients/flutter.md §Pin).
+# Excluding it is a POLICY, reported as its own row — never a pass.
+tags:
+  pin:
+    description: the contract version-pin guard; excluded only by the queue-mode policy

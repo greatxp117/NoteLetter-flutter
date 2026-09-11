@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -545,5 +546,70 @@ void main() {
               'fixture case for them is now driven — shrink _noBuilder in the '
               'same commit: $stale');
     });
+
+    // The direction the list cannot supply about its OWNER. An entry here is
+    // either a decision (spec/clients/flutter.md §Out of scope names it) or a
+    // debt somebody owns (an open QUEUE.md item names the endpoint it will
+    // land). An entry that is neither is a fixture nothing drives and nobody
+    // is going to — the 2026-09-08 shape, 64 of 335 cases skipped in silence.
+    // Read both ways: an out-of-scope row whose endpoint has a builder is a
+    // stale decision, and is reported too.
+    test('every entry is a decision or an owned debt', () {
+      final root = contractsRoot();
+      final spec = File('$root/spec/clients/flutter.md').readAsStringSync();
+      final outOfScope = _outOfScopeEndpoints(spec);
+      expect(outOfScope, isNotEmpty,
+          reason: 'flutter.md §Out of scope parsed to zero endpoints — the '
+              'reader is broken, not the spec (a gate that reads nothing '
+              'agrees with everything)');
+      final queue = File('QUEUE.md').readAsStringSync();
+      final owned = _openQueueEndpoints(queue);
+
+      final orphans = _noBuilder.keys
+          .where((e) => !outOfScope.contains(e) && !owned.contains(e))
+          .toList();
+      expect(orphans, isEmpty,
+          reason: 'declared as having no builder, named by no flutter.md '
+              '§Out of scope row and by no open QUEUE.md item: $orphans');
+
+      final staleRows = outOfScope
+          .where((e) => !_noBuilder.containsKey(e))
+          .toList();
+      expect(staleRows, isEmpty,
+          reason: 'flutter.md §Out of scope names these and this client has '
+              'a builder for them — the row is stale, or the builder should '
+              'not exist: $staleRows');
+    });
   });
+}
+
+/// `fn_*` names in the §Out of scope table rows of spec/clients/flutter.md.
+/// Only the table — an endpoint mentioned in prose elsewhere is not a
+/// decision about this client.
+Set<String> _outOfScopeEndpoints(String spec) {
+  final start = spec.indexOf('## Out of scope');
+  if (start < 0) return {};
+  final rest = spec.substring(start + 1);
+  final end = rest.indexOf('\n## ');
+  final section = end < 0 ? rest : rest.substring(0, end);
+  return section
+      .split('\n')
+      .where((l) => l.startsWith('|'))
+      .expand((l) => RegExp(r'`(fn_[a-z_]+)`').allMatches(l))
+      .map((m) => m.group(1)!)
+      .toSet();
+}
+
+/// `fn_*` names appearing anywhere in an OPEN (or in-progress / blocked)
+/// QUEUE.md item — a done item owns nothing any more.
+Set<String> _openQueueEndpoints(String queue) {
+  final out = <String>{};
+  for (final block in queue.split(RegExp(r'^## F-', multiLine: true)).skip(1)) {
+    final status = RegExp(r'^- status: *(\S+)', multiLine: true).firstMatch(block);
+    if (status == null || status.group(1)!.startsWith('done')) continue;
+    out.addAll(RegExp(r'`(fn_[a-z_]+)`')
+        .allMatches(block)
+        .map((m) => m.group(1)!));
+  }
+  return out;
 }

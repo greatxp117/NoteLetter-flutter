@@ -1,12 +1,20 @@
+@Tags(['pin'])
+library;
+
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_app/build_info.dart';
 import 'fixtures.dart';
 
-/// The /conformance version-pin guard. Flutter is caught up to the contracts
-/// VERSION (2.3.0 as of 2026-07-26), so this is GREEN; it FAILS LOUDLY the
-/// moment the pin and VERSION diverge — the standing skew guard for any future
-/// contract bump the client hasn't absorbed.
+/// The /conformance version-pin guard. It FAILS LOUDLY the moment the pin and
+/// VERSION diverge — the standing skew guard for any contract bump the client
+/// has not absorbed.
+///
+/// Tagged `pin` (dart_test.yaml): while `QUEUE.md` has open items the pin is
+/// HELD at 4.4.0 by policy (spec/clients/flutter.md §Pin) and queue-mode
+/// /conformance runs `-x pin`, reporting the exclusion as its own row. That is
+/// a policy, not a pass — the pin moves once, on the last queue item, with
+/// this test included and green.
 ///
 /// The target is the canonical `VERSION` file, matching the web reference's
 /// pin-check — NOT `manifest.contractVersion` (which tracks fixture capture and
@@ -26,7 +34,8 @@ void main() {
     final pin = _declaredPin();
     expect(pin, version,
         reason: 'Flutter pin $pin != contracts $version — '
-            'realign (Milestone 2) then advance the pin with a green run.');
+            'work QUEUE.md to empty (/flutter-next), then advance the pin with a '
+            'green FULL run — never by hand (spec/clients/flutter.md §Pin).');
   });
 
   test('the pin the app SENDS matches the pin it declares', () {

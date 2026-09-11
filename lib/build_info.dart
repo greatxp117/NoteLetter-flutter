@@ -8,9 +8,9 @@
 /// [contractPin] is a **second copy** of the pin declared in `CLAUDE.md`, and
 /// the workspace's standing lesson about second copies applies: a vocabulary
 /// written in two places with nothing comparing them drifts, silently, in the
-/// direction nothing renders. So it is compared — `test/contract/
-/// build_info_test.dart` parses the same line `pin_check_test.dart` does and
-/// fails the moment these disagree.
+/// direction nothing renders. So it is compared — the second test in
+/// `test/contract/pin_check_test.dart` parses the same CLAUDE.md line the
+/// first one does and fails the moment these disagree.
 class BuildInfo {
   BuildInfo._();
 
