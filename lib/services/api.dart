@@ -423,6 +423,13 @@ class Api {
       _http.post('/fn_request_cloud_sync', data: {'provider': provider});
 
   /// Validated partial auto-sync update (1.4.0) — only provided keys are sent.
+  ///
+  /// [reviewRules] (4.45.0, ADR-083) is a WHOLE-OBJECT replace, not a merge:
+  /// a rule is removed by sending a map without it, so a caller always sends
+  /// the complete desired map. Mirrors web `syncSettings`. This key was
+  /// missing here for four contract versions while the fixture carried it —
+  /// the suite was red on `cloud:review-rules-set` and nothing else could
+  /// see it, because the app never sent the key at all.
   Future<Map<String, dynamic>> syncSettings(
     String provider, {
     bool? autoSyncEnabled,
@@ -431,6 +438,7 @@ class Api {
     List<String>? folderIds,
     List<String>? includeTypes,
     List<String>? excludePatterns,
+    Map<String, dynamic>? reviewRules,
   }) {
     final body = <String, dynamic>{'provider': provider};
     if (autoSyncEnabled != null) body['auto_sync_enabled'] = autoSyncEnabled;
@@ -439,6 +447,7 @@ class Api {
     if (folderIds != null) body['folder_ids'] = folderIds;
     if (includeTypes != null) body['include_types'] = includeTypes;
     if (excludePatterns != null) body['exclude_patterns'] = excludePatterns;
+    if (reviewRules != null) body['review_rules'] = reviewRules;
     return _http.post('/fn_sync_settings', data: body);
   }
 

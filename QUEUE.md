@@ -13,7 +13,7 @@ widget an item builds is what the next one composes with. A `done` item is never
 a new obligation on a finished screen is a new item.
 
 ## F-00 · Red items, and a number nothing measured
-- status: open
+- status: done 2026-09-11
 - screen: none
 - route: none
 - spec: spec/api/cloud-storage.md; spec/clients/flutter.md §Out of scope

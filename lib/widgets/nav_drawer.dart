@@ -91,30 +91,12 @@ class NavDrawer extends StatelessWidget {
               );
             })),
             const Spacer(),
+            // No storage figure here. One was drawn ("2.1 GB / 6 GB used", a
+            // 0.35 bar) from the day the drawer was written and no endpoint
+            // reports storage, so it was the design prototype's mock number
+            // on a real screen — the umbrella trap "show only measured
+            // numbers". The web rail draws none either.
             const Divider(height: 1, color: AppColors.chromeBorder),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '2.1 GB / 6 GB used',
-                    style: TextStyle(
-                      fontFamily: 'Geist',
-                      fontSize: 12,
-                      color: AppColors.chromeSubtle,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  LinearProgressIndicator(
-                    value: 0.35,
-                    backgroundColor: AppColors.chromeBorder,
-                    color: AppColors.chromeAccentBar,
-                    borderRadius: AppRadius.pillR(4),
-                  ),
-                ],
-              ),
-            ),
             Consumer<ThemeNotifier>(
               builder: (ctx, notifier, _) => ListTile(
                 leading: Icon(notifier.modeIcon, color: AppColors.chromeMuted),

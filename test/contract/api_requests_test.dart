@@ -217,7 +217,8 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       syncPreferredHour: b['sync_preferred_hour'],
       folderIds: _strs(b['folder_ids']),
       includeTypes: _strs(b['include_types']),
-      excludePatterns: _strs(b['exclude_patterns'])),
+      excludePatterns: _strs(b['exclude_patterns']),
+      reviewRules: (b['review_rules'] as Map?)?.cast<String, dynamic>()),
   'fn_update_from_source': (b) =>
       Api.instance.updateFromSource(b['document_id']),
   'fn_organization_settings': (b) =>
