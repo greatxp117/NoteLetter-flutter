@@ -52,7 +52,7 @@ a new obligation on a finished screen is a new item.
   F-09 and F-12 wire the widgets into their screens.
 
 ## F-02 · Notifications — recompose
-- status: open
+- status: done 2026-09-11
 - screen: notifications
 - route: /settings/notifications
 - spec: spec/screens/notifications.md §Composition §States §The editor; spec/component-kit.md §1.5 §2.2 §6.8 §14.1

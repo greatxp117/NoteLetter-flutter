@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart'
+    show InputDecoration, TextField, TextInputType;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
@@ -616,37 +618,97 @@ class KitSegmented extends StatelessWidget {
         },
       );
 
-  Widget _build(BuildContext context, {required bool fill}) {
-    final t = Tokens.of(context);
+  Widget _build(BuildContext context, {required bool fill}) => _segTrack(
+        context,
+        segments: segments,
+        fill: fill,
+        isOn: (i) => i == selected,
+        onTap: onChanged,
+      );
+}
 
-    Widget segment(int i) {
-      final s = segments[i];
-      final on = i == selected;
-      return MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onChanged == null ? null : () => onChanged!(i),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
-            padding: EdgeInsets.symmetric(
-                horizontal: fill ? 8 : 14, vertical: 7),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: on ? t.surface : const Color(0x00000000),
-              borderRadius: AppRadius.xsR,
-              boxShadow: on ? AppShadows.s1 : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (s.icon != null) ...[
-                  Icon(s.icon,
-                      size: 14, color: on ? t.fg : t.fgMuted),
-                  const SizedBox(width: 7),
-                ],
-                Text(
+/// §6.8 — the same track, holding a **set** of raised segments.
+///
+/// The notifications editor's level picker (`screens/notifications.md` §The
+/// editor — "a multiselect over error · warning · success · info") is drawn
+/// by the reference with the segmented control's own class: one sunken track,
+/// every chosen level raised. Same anatomy, same raise, same metrics — only
+/// the arity of the selection differs, so it shares the track rather than
+/// re-deriving it (the `Wrap` of `FilterChip`s it replaced was inline
+/// composition by definition).
+class KitSegmentedMulti extends StatelessWidget {
+  final List<KitSegment> segments;
+  final Set<int> selected;
+  final ValueChanged<int>? onToggle;
+  final bool expand;
+
+  const KitSegmentedMulti({
+    super.key,
+    required this.segments,
+    required this.selected,
+    this.onToggle,
+    this.expand = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+          return _segTrack(
+            context,
+            segments: segments,
+            fill: (expand || compact) && constraints.hasBoundedWidth,
+            isOn: selected.contains,
+            onTap: onToggle,
+          );
+        },
+      );
+}
+
+/// The §6.8 track, drawn once for both arities.
+Widget _segTrack(
+  BuildContext context, {
+  required List<KitSegment> segments,
+  required bool fill,
+  required bool Function(int) isOn,
+  required ValueChanged<int>? onTap,
+}) {
+  final t = Tokens.of(context);
+
+  Widget segment(int i) {
+    final s = segments[i];
+    final on = isOn(i);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap == null ? null : () => onTap(i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          // Filling, the segments share the track equally, so the inset is
+          // what decides whether four labels fit a phone: at 8 the longest
+          // level label ("Successes") ellipsised on a 390pt viewport.
+          padding:
+              EdgeInsets.symmetric(horizontal: fill ? 6 : 14, vertical: 7),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? t.surface : const Color(0x00000000),
+            borderRadius: AppRadius.xsR,
+            boxShadow: on ? AppShadows.s1 : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (s.icon != null) ...[
+                Icon(s.icon, size: 14, color: on ? t.fg : t.fgMuted),
+                const SizedBox(width: 7),
+              ],
+              Flexible(
+                child: Text(
                   s.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: AppTheme.fontSans,
                     fontSize: 13,
@@ -654,26 +716,213 @@ class KitSegmented extends StatelessWidget {
                     color: on ? t.fg : t.fgMuted,
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  return Container(
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: t.surfaceSunken,
+      borderRadius: AppRadius.smR,
+    ),
+    child: Row(
+      mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        for (var i = 0; i < segments.length; i++) ...[
+          if (i > 0) const SizedBox(width: 2),
+          fill ? Expanded(child: segment(i)) : segment(i),
+        ],
+      ],
+    ),
+  );
+}
+
+/// The switch (`.switch`, app-responsive.css): a 38×22 pill, `--surface-sunken`
+/// with a 1px `--border` at rest and the accent fill when on, a 16px knob that
+/// travels 2 → 18. Used by every setting row that is a yes/no.
+///
+/// **Write before move.** This widget has no state of its own: it draws
+/// [value] and reports [onChanged]. The screen awaits its request and only
+/// then re-renders with the new value — a switch that flips first hides the
+/// failure until reload (component-kit.md §Rules, ADR-022).
+class KitSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final String? tooltip;
+
+  const KitSwitch({
+    super.key,
+    required this.value,
+    this.onChanged,
+    this.tooltip,
+  });
+
+  static const double _w = 38;
+  static const double _h = 22;
+  static const double _knob = 16;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      toggled: value,
+      label: tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onChanged == null ? null : () => onChanged!(!value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            width: _w,
+            height: _h,
+            decoration: BoxDecoration(
+              color: value ? t.accent : t.surfaceSunken,
+              borderRadius: AppRadius.pillR(_h),
+              border: Border.all(
+                color: value ? const Color(0x00000000) : t.border,
+              ),
+            ),
+            child: Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  top: 2,
+                  left: value ? _w - _knob - 4 : 2,
+                  child: Container(
+                    width: _knob,
+                    height: _knob,
+                    decoration: const BoxDecoration(
+                      // literal-ok: a switch knob is white on both of its
+                      // grounds — the accent fill when on, --surface-sunken
+                      // when off — which is the control's convention, not a
+                      // surface that flips (`.switch i` on the web).
+                      color: Color(0xFFFFFFFF),
+                      shape: BoxShape.circle,
+                      boxShadow: AppShadows.s1,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+}
 
+/// The bordered text field (`.timefield`): 1px `--border`, `--r-sm`,
+/// `--surface`, padding `10px 14px`, an optional 16px leading icon at
+/// `--fg-muted`, and the value in the **mono** face at 15 — an address, a time,
+/// a label are all data the reader typed, and the reference sets them mono.
+class KitTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String? placeholder;
+  final IconData? icon;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
+
+  const KitTextField({
+    super.key,
+    required this.controller,
+    this.placeholder,
+    this.icon,
+    this.keyboardType,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
     return Container(
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: t.surfaceSunken,
+        color: t.surface,
         borderRadius: AppRadius.smR,
+        border: Border.all(color: t.border),
       ),
       child: Row(
-        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          for (var i = 0; i < segments.length; i++) ...[
-            if (i > 0) const SizedBox(width: 2),
-            fill ? Expanded(child: segment(i)) : segment(i),
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: t.fgMuted),
+            const SizedBox(width: 10),
           ],
+          Expanded(
+            child: TextField(
+              controller: controller,
+              keyboardType: keyboardType,
+              onChanged: onChanged,
+              style: AppTheme.mono(fontSize: 15, color: t.fg),
+              cursorColor: t.accent,
+              // Collapsed: the frame above IS the field; Material's own
+              // underline and padding would draw a second one inside it.
+              decoration: InputDecoration.collapsed(
+                hintText: placeholder,
+                hintStyle: AppTheme.mono(fontSize: 15, color: t.fgSubtle),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A labelled field group (`.cfg-group` + `.cfg-label`): a mono caps label,
+/// with an optional trailing note in the accent text role ("optional"), over
+/// the control; groups stack with a 1px `--rule` between them, none above the
+/// first. The settings-form rhythm — the same block letter settings uses.
+class KitFieldGroup extends StatelessWidget {
+  final String label;
+  final String? note;
+  final Widget child;
+  final bool first;
+
+  const KitFieldGroup({
+    super.key,
+    required this.label,
+    this.note,
+    required this.child,
+    this.first = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        border: first
+            ? null
+            : Border(top: BorderSide(color: t.rule, width: 1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label.toUpperCase(),
+                style: KitText.capsLabel(context,
+                    fontSize: 10, letterSpacing: 0.12),
+              ),
+              if (note != null)
+                Text(
+                  note!,
+                  style: AppTheme.mono(fontSize: 11, color: t.accentText),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s3),
+          child,
         ],
       ),
     );

@@ -23,6 +23,7 @@ dependencies:
   audioplayers: ^6.1.0
   shared_preferences: ^2.3.2
   visibility_detector: ^0.4.0+2
+  firebase_app_installations: ^0.4.2+7
 
 dev_dependencies:
   flutter_test:

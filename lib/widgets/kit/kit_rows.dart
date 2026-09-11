@@ -13,7 +13,11 @@ import 'kit_text.dart';
 class KitRowList extends StatelessWidget {
   final List<Widget> rows;
 
-  const KitRowList({super.key, required this.rows});
+  /// The settings form's list (`.set-rows`) carries `--shadow-1`; the §4.1
+  /// source list sits flat. Same container otherwise.
+  final bool raised;
+
+  const KitRowList({super.key, required this.rows, this.raised = false});
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +29,7 @@ class KitRowList extends StatelessWidget {
           color: t.surface,
           borderRadius: AppRadius.mdR,
           border: Border.all(color: t.border),
+          boxShadow: raised ? AppShadows.s1 : null,
         ),
         child: Column(
           children: [
@@ -533,5 +538,138 @@ class _RunningLabelState extends State<_RunningLabel>
             ),
           ],
         ],
+      );
+}
+
+/// The setting row (`screens/notifications.md` §Composition, `.set-row`):
+/// **icon plate · title + description · trailing control**, inside a
+/// [KitRowList]. Padding `18px 20px`, gap 18; the plate is 38px on
+/// `--accent-soft` with the icon at `--accent`; title sans 14.5/600, description
+/// sans 13 `--fg-muted` 3px below; [below] is the row's own control strip
+/// (a level picker), 8px under the description and aligned with the title.
+///
+/// The description slot is where a channel that **cannot deliver says so**
+/// (no permission, no key) — never a silent enabled row.
+class KitSettingRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+
+  /// Beside the title, in the description role — "(paused)".
+  final String? titleNote;
+  final String? description;
+  final Widget? below;
+  final List<Widget> trailing;
+
+  const KitSettingRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.titleNote,
+    this.description,
+    this.below,
+    this.trailing = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    // Below 768 the control strip takes the WHOLE row width under the plate
+    // — the web wraps `.set-row` at 640 for the same reason: four segments
+    // beside a switch and a delete do not fit a phone. Recorded in CLAUDE.md
+    // §Composition deviations with the other stacks at this breakpoint.
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final descStyle = TextStyle(
+      fontFamily: AppTheme.fontSans,
+      fontSize: 13,
+      height: 1.45,
+      color: t.fgMuted,
+    );
+    final main = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: title,
+            style: TextStyle(
+              fontFamily: AppTheme.fontSans,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w600,
+              color: t.fg,
+            ),
+            children: [
+              if (titleNote != null)
+                TextSpan(text: '  $titleNote', style: descStyle),
+            ],
+          ),
+        ),
+        if (description != null) ...[
+          const SizedBox(height: 3),
+          Text(description!, style: descStyle),
+        ],
+        if (below != null && !compact) ...[
+          const SizedBox(height: AppSpacing.s2),
+          below!,
+        ],
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: t.accentSoft,
+                  borderRadius: AppRadius.smR,
+                ),
+                child: Icon(icon, size: 18, color: t.accent),
+              ),
+              const SizedBox(width: 18),
+              Expanded(child: main),
+              if (trailing.isNotEmpty) ...[
+                const SizedBox(width: 18),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < trailing.length; i++) ...[
+                      if (i > 0) const SizedBox(width: AppSpacing.s2),
+                      trailing[i],
+                    ],
+                  ],
+                ),
+              ],
+            ],
+          ),
+          if (below != null && compact) ...[
+            const SizedBox(height: AppSpacing.s3),
+            below!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A row cell that is not a setting — the "Loading…" line, or a §14.2
+/// rejection standing in for the list (INV-24). Same `18px 20px` inset as
+/// [KitSettingRow], so the list keeps its rhythm whatever it holds.
+class KitRowSlot extends StatelessWidget {
+  final Widget child;
+
+  const KitRowSlot({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        child: child,
       );
 }

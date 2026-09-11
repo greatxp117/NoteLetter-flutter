@@ -119,6 +119,61 @@ void main() {
   });
 
   group('controls', () {
+    testWidgets('switch, text field, field group and the multi track', (
+      tester,
+    ) async {
+      final ctrl = TextEditingController(text: 'you@example.com');
+      addTearDown(ctrl.dispose);
+      await pumpBoth(
+        tester,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KitFieldGroup(
+              label: 'Type',
+              first: true,
+              child: KitSegmented(
+                expand: true,
+                segments: const [KitSegment('On-screen'), KitSegment('Email')],
+                selected: 0,
+                onChanged: (_) {},
+              ),
+            ),
+            KitFieldGroup(
+              label: 'Send to',
+              child: KitTextField(
+                controller: ctrl,
+                icon: Icons.mail_outline,
+                placeholder: 'you@example.com',
+              ),
+            ),
+            KitFieldGroup(
+              label: 'Label',
+              note: 'optional',
+              child: KitSegmentedMulti(
+                segments: const [
+                  KitSegment('Errors'),
+                  KitSegment('Warnings'),
+                  KitSegment('Info'),
+                ],
+                selected: const {0, 1},
+                onToggle: (_) {},
+              ),
+            ),
+            Row(
+              children: [
+                KitSwitch(value: false, onChanged: (_) {}),
+                const KitSwitch(value: true),
+              ],
+            ),
+          ],
+        ),
+      );
+      expect(find.text('SEND TO'), findsOneWidget);
+      expect(find.text('optional'), findsOneWidget);
+      expect(find.byType(KitSwitch), findsNWidgets(2));
+    });
+
     testWidgets('every button variant', (tester) async {
       await pumpBoth(
         tester,
@@ -207,6 +262,43 @@ void main() {
           ],
         ),
       );
+    });
+
+    testWidgets('setting rows, the raised list and the row slot', (
+      tester,
+    ) async {
+      await pumpBoth(
+        tester,
+        KitRowList(
+          raised: true,
+          rows: [
+            KitSettingRow(
+              icon: Icons.mail_outline,
+              title: 'Work inbox',
+              description: 'seed@noteletter.test',
+              below: KitSegmentedMulti(
+                expand: true,
+                segments: const [KitSegment('Errors'), KitSegment('Info')],
+                selected: const {0},
+                onToggle: (_) {},
+              ),
+              trailing: [
+                KitSwitch(value: true, onChanged: (_) {}),
+                KitIconButton(Icons.delete_outline, onPressed: () {}),
+              ],
+            ),
+            const KitSettingRow(
+              icon: Icons.notifications_none,
+              title: 'Push channel',
+              titleNote: '(paused)',
+              description: 'Pushed to your devices',
+            ),
+            const KitRowSlot(child: KitFailureInline('Could not be read.')),
+          ],
+        ),
+      );
+      expect(find.text('Work inbox'), findsOneWidget);
+      expect(find.textContaining('(paused)'), findsOneWidget);
     });
 
     testWidgets('row list and timeline, including a live node', (tester) async {

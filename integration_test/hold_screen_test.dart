@@ -36,6 +36,7 @@ import 'package:flutter_app/state/newsletter_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
+import 'package:flutter_app/state/support_notifier.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
@@ -82,6 +83,11 @@ void main() {
         ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
         ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
         ChangeNotifierProvider<TagsNotifier>(create: (_) => TagsNotifier()),
+        // INV-22: every authenticated screen sits inside SupportShell, which
+        // reads this. Without it the hold renders a ProviderNotFoundError
+        // wall — in both themes, for every screen — instead of the screen.
+        ChangeNotifierProvider<SupportNotifier>(
+            create: (_) => SupportNotifier()),
         ChangeNotifierProvider<ThemeNotifier>.value(value: theme),
       ],
       child: NoteLetterApp(router: router),

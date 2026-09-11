@@ -1,18 +1,33 @@
+import 'dart:convert';
+
+import 'package:firebase_app_installations/firebase_app_installations.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/notification_channel.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
+import '../theme/app_spacing.dart';
+import '../theme/tokens.dart';
+import '../widgets/kit/kit.dart';
 
-/// Notification channels editor (contract 2.5.0 ADR-014; push 2.6.0 ADR-015).
-/// A user adds any number of channels, each a type + a chosen subset of
-/// severity levels. Writes go through [Api] (fn_notification_channels); the list
-/// is a live subscription (INV-02).
+/// Notification channels editor (`screens/notifications.md`; contract 2.5.0
+/// ADR-014, push 2.6.0 ADR-015). A user adds any number of channels, each a
+/// type + a chosen subset of severity levels. Writes go through [Api]
+/// (`fn_notification_channels`, INV-04); the list is a live subscription
+/// (INV-02).
 ///
-/// Note: live push token registration needs `firebase_messaging` + a registered
-/// native Firebase app (this app is web-target-only today). A push channel can
-/// be created now; the FCM token/`fn_register_device` wiring lands with native
-/// Firebase registration (the same deferral as the web VAPID-key prerequisite).
+/// Composition (§Composition, 4.5.0/ADR-041): the Reading frame, a §2.2
+/// sub-screen header, one raised row list of setting rows, then the "Add a
+/// channel" form as labelled field groups with §6.8 segmented controls.
+///
+/// Push (4.8.0, ADR-044): creating a push channel registers this install by
+/// its Firebase installation id (`fid`) — an ADDRESS, not a subscription.
+/// This app carries no FCM token (no `firebase_messaging`), so a push
+/// channel is saved but cannot reach this device yet, and the row says so in
+/// its description slot rather than rendering as a silently enabled channel.
 class NotificationSettingsPage extends StatefulWidget {
   const NotificationSettingsPage({super.key});
 
@@ -20,6 +35,11 @@ class NotificationSettingsPage extends StatefulWidget {
   State<NotificationSettingsPage> createState() =>
       _NotificationSettingsPageState();
 }
+
+/// Client-local: what was registered for this device, so the last push
+/// channel's deletion can unregister it under the same keying (web:
+/// `nl-fcm-token`).
+const _deviceKey = 'nl-fcm-token';
 
 const _levels = ['error', 'warning', 'success', 'info'];
 const _levelLabel = {
@@ -31,13 +51,30 @@ const _levelLabel = {
 const _types = ['onscreen', 'email', 'push'];
 const _typeLabel = {'onscreen': 'On-screen', 'email': 'Email', 'push': 'Push'};
 final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+const _draftLevels = {'error', 'warning'};
+
+/// The description slot of a push channel that cannot deliver here. Same
+/// sentence shape as the web's `PUSH_ERR_COPY.unsupported`: the channel is
+/// saved, and the reader is told it will not reach this device.
+const _pushUnreachable =
+    'This app can’t receive push notifications yet; the channel is saved but '
+    'won’t reach this device.';
+const _pushRegisterFailed =
+    'Saved, but this device couldn’t be registered for push right now.';
 
 class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   String _type = 'onscreen';
-  final Set<String> _draftLevels = {'error', 'warning'};
+  final Set<String> _levelsDraft = {..._draftLevels};
   final _destCtrl = TextEditingController();
   final _labelCtrl = TextEditingController();
   bool _busy = false;
+
+  /// §14.2 — the rejection beside the control that refused it, verbatim.
+  String? _error;
+
+  /// What the last push registration attempt reported; shown in every push
+  /// row's description while set, per §Composition's last rule.
+  String? _pushNote;
 
   @override
   void dispose() {
@@ -46,253 +83,313 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     super.dispose();
   }
 
-  void _snack(String msg) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  Future<Map<String, String>?> _readDeviceIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_deviceKey);
+    if (raw == null) return null;
+    try {
+      final v = jsonDecode(raw);
+      if (v is Map) return v.map((k, val) => MapEntry('$k', '$val'));
+    } catch (_) {
+      // An older build wrote a bare token string — keep it, dropping it would
+      // strand a registered device that push then keeps reaching.
     }
+    return {'token': raw};
+  }
+
+  /// Register this install for push by its `fid` (ADR-044). Returns the note
+  /// for the row: null only when the device can actually be reached.
+  Future<String?> _registerThisDevice() async {
+    try {
+      final fid = await FirebaseInstallations.instance.getId();
+      final platform =
+          defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'web';
+      await Api.instance.registerDevice(fid: fid, platform: platform);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_deviceKey, jsonEncode({'fid': fid}));
+    } catch (_) {
+      return _pushRegisterFailed;
+    }
+    // A fid is an address, not a subscription: with no FCM token there is
+    // still nothing for the sender to deliver to.
+    return _pushUnreachable;
   }
 
   Future<void> _add() async {
-    if (_draftLevels.isEmpty) {
-      _snack('Pick at least one level.');
+    if (_levelsDraft.isEmpty) {
+      setState(() => _error = 'Pick at least one level.');
       return;
     }
     if (_type == 'email' && !_emailRe.hasMatch(_destCtrl.text.trim())) {
-      _snack('Enter a valid email address for an email channel.');
+      setState(() =>
+          _error = 'Enter a valid email address for an email channel.');
       return;
     }
-    final wasPush = _type == 'push';
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
+      String? pushNote;
+      if (_type == 'push') pushNote = await _registerThisDevice();
       await Api.instance.createNotificationChannel(
         type: _type,
-        levels: _draftLevels.toList(),
+        levels: _levelsDraft.toList(),
         label: _labelCtrl.text.trim().isEmpty ? null : _labelCtrl.text.trim(),
         destination: _type == 'email' ? _destCtrl.text.trim() : null,
       );
       _destCtrl.clear();
       _labelCtrl.clear();
+      if (!mounted) return;
       setState(() {
         _type = 'onscreen';
-        _draftLevels
+        _levelsDraft
           ..clear()
-          ..addAll({'error', 'warning'});
+          ..addAll(_draftLevels);
+        _pushNote = pushNote;
       });
-      if (wasPush) {
-        _snack('Push channel saved. Delivery needs native FCM setup on this app.');
-      }
     } on ApiException catch (e) {
-      _snack(e.message);
+      if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  // Write before move: the row re-renders from the subscription once the
+  // PUT lands; nothing flips locally first.
   Future<void> _patch(NotificationChannel c, Map<String, dynamic> partial) async {
     try {
       await Api.instance.updateNotificationChannel(c.id, partial);
+      if (mounted && _error != null) setState(() => _error = null);
     } on ApiException catch (e) {
-      _snack(e.message);
+      if (mounted) setState(() => _error = e.message);
     }
   }
 
-  Future<void> _remove(NotificationChannel c) async {
+  Future<void> _remove(
+      NotificationChannel c, List<NotificationChannel> all) async {
     try {
       await Api.instance.deleteNotificationChannel(c.id);
+      // Unregister this device once the last push channel is gone.
+      if (c.type == 'push' &&
+          !all.any((o) => o.id != c.id && o.type == 'push')) {
+        final ids = await _readDeviceIds();
+        if (ids != null) {
+          try {
+            await Api.instance
+                .unregisterDevice(token: ids['token'], fid: ids['fid']);
+          } catch (_) {
+            // best-effort
+          }
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove(_deviceKey);
+        }
+      }
     } on ApiException catch (e) {
-      _snack(e.message);
+      if (mounted) setState(() => _error = e.message);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Channels', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text(
-              'Choose how you hear about what NoteLetter does — and at what severity.',
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            StreamBuilder<List<NotificationChannel>>(
+    return KitPage(
+      width: KitFrameWidth.reading,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SubScreenHeader(
+            parentLabel: 'Settings',
+            onBack: () => context.go('/settings'),
+            eyebrow: 'Notifications',
+            standfirst:
+                'Choose how you hear about what NoteLetter does — and at what '
+                'severity. Add as many channels as you like.',
+          ),
+          // `.set-section` opens 34 under the header, which has paid 20 of it.
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: StreamBuilder<List<NotificationChannel>>(
               stream: FirestoreService.instance.subscribeNotificationChannels(),
-              builder: (context, snap) {
-                final channels = snap.data ?? const [];
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
+              builder: (context, snap) => _channelList(snap),
+            ),
+          ),
+          // 34 again; the section header's own 32 collapses into it.
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: _addForm(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _channelList(AsyncSnapshot<List<NotificationChannel>> snap) {
+    final t = Tokens.of(context);
+    if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+      return KitRowList(raised: true, rows: [
+        KitRowSlot(child: Text('Loading…', style: KitText.meta(context))),
+      ]);
+    }
+    // INV-24 (ADR-071): an unread channel list renders as "no channels",
+    // which is the state a reader acts on by creating one they already have.
+    if (snap.hasError) {
+      return KitRowList(raised: true, rows: [
+        KitRowSlot(
+          child: KitFailureInline(
+              'Your channels could not be read — ${snap.error}'),
+        ),
+      ]);
+    }
+    final channels = snap.data ?? const <NotificationChannel>[];
+    if (channels.isEmpty) {
+      return const KitRowList(raised: true, rows: [
+        KitSettingRow(
+          icon: Icons.notifications_none,
+          title: 'No channels yet',
+          description:
+              'Add one below. An on-screen channel powers the Activity toasts '
+              'and unread badge; email reaches you when you’re away.',
+        ),
+      ]);
+    }
+    return KitRowList(
+      raised: true,
+      rows: [
+        for (final c in channels)
+          KitSettingRow(
+            icon: c.type == 'email' ? Icons.mail_outline : Icons.notifications_none,
+            title: (c.label?.isNotEmpty ?? false)
+                ? c.label!
+                : (_typeLabel[c.type] ?? c.type),
+            titleNote: c.enabled ? null : '(paused)',
+            description: switch (c.type) {
+              'email' => c.destination ?? '',
+              'push' => _pushNote ?? 'Pushed to your devices',
+              _ => 'Shown in the app',
+            },
+            below: KitSegmentedMulti(
+              expand: true,
+              segments: [for (final l in _levels) KitSegment(_levelLabel[l]!)],
+              selected: {
+                for (var i = 0; i < _levels.length; i++)
+                  if (c.levels.contains(_levels[i])) i,
+              },
+              onToggle: (i) {
+                final next = {...c.levels};
+                next.contains(_levels[i])
+                    ? next.remove(_levels[i])
+                    : next.add(_levels[i]);
+                if (next.isEmpty) {
+                  setState(
+                      () => _error = 'A channel needs at least one level.');
+                  return;
                 }
-                if (channels.isEmpty) {
-                  return const Card(
-                    child: ListTile(
-                      leading: Icon(Icons.notifications_none),
-                      title: Text('No channels yet'),
-                      subtitle: Text(
-                          'Add one below. On-screen powers in-app alerts; email reaches you when away.'),
-                    ),
-                  );
-                }
-                return Column(
-                  children: [for (final c in channels) _channelCard(c)],
-                );
+                _patch(c, {'levels': next.toList()});
               },
             ),
-            const SizedBox(height: 24),
-            _addCard(theme),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _channelCard(NotificationChannel c) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(c.type == 'email' ? Icons.mail_outline : Icons.notifications_none),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(c.label?.isNotEmpty == true
-                          ? c.label!
-                          : (_typeLabel[c.type] ?? c.type)),
-                      Text(
-                        c.type == 'email'
-                            ? (c.destination ?? '')
-                            : c.type == 'push'
-                                ? 'Pushed to your devices'
-                                : 'Shown in the app',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: c.enabled,
-                  onChanged: (v) => _patch(c, {'enabled': v}),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Delete channel',
-                  onPressed: () => _remove(c),
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 6,
-              children: [
-                for (final l in _levels)
-                  FilterChip(
-                    label: Text(_levelLabel[l]!),
-                    selected: c.levels.contains(l),
-                    onSelected: (sel) {
-                      final next = {...c.levels};
-                      sel ? next.add(l) : next.remove(l);
-                      if (next.isEmpty) {
-                        _snack('A channel needs at least one level.');
-                        return;
-                      }
-                      _patch(c, {'levels': next.toList()});
-                    },
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _addCard(ThemeData theme) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Add a channel', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
-            const Text('Type'),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final t in _types)
-                  ChoiceChip(
-                    label: Text(_typeLabel[t]!),
-                    selected: _type == t,
-                    onSelected: (_) => setState(() => _type = t),
-                  ),
-              ],
-            ),
-            if (_type == 'email') ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _destCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Send to',
-                  hintText: 'you@example.com',
-                ),
+            trailing: [
+              KitSwitch(
+                value: c.enabled,
+                tooltip: c.enabled ? 'Enabled' : 'Paused',
+                onChanged: (v) => _patch(c, {'enabled': v}),
+              ),
+              KitIconButton(
+                Icons.delete_outline,
+                tooltip: 'Delete channel',
+                color: t.fgMuted,
+                onPressed: () => _remove(c, channels),
               ),
             ],
-            const SizedBox(height: 12),
-            const Text('Notify me about'),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              children: [
-                for (final l in _levels)
-                  FilterChip(
-                    label: Text(_levelLabel[l]!),
-                    selected: _draftLevels.contains(l),
-                    onSelected: (sel) => setState(() {
-                      sel ? _draftLevels.add(l) : _draftLevels.remove(l);
-                    }),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _labelCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Label (optional)',
-              ),
-            ),
-            if (_type == 'push')
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: Text(
-                  'Push delivery needs native FCM setup on this app; the channel '
-                  'saves either way.',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _busy ? null : _add,
-              icon: const Icon(Icons.add),
-              label: Text(_busy ? 'Adding…' : 'Add channel'),
-            ),
-          ],
+          ),
+      ],
+    );
+  }
+
+  Widget _addForm() {
+    final t = Tokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('Add a channel'),
+        KitFieldGroup(
+          label: 'Type',
+          first: true,
+          child: KitSegmented(
+            expand: true,
+            segments: [for (final ty in _types) KitSegment(_typeLabel[ty]!)],
+            selected: _types.indexOf(_type),
+            onChanged: (i) => setState(() {
+              _type = _types[i];
+              _error = null;
+              _pushNote = null;
+            }),
+          ),
         ),
-      ),
+        if (_type == 'email')
+          KitFieldGroup(
+            label: 'Send to',
+            child: KitTextField(
+              controller: _destCtrl,
+              icon: Icons.mail_outline,
+              placeholder: 'you@example.com',
+              keyboardType: TextInputType.emailAddress,
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
+            ),
+          ),
+        KitFieldGroup(
+          label: 'Notify me about',
+          child: KitSegmentedMulti(
+            expand: true,
+            segments: [for (final l in _levels) KitSegment(_levelLabel[l]!)],
+            selected: {
+              for (var i = 0; i < _levels.length; i++)
+                if (_levelsDraft.contains(_levels[i])) i,
+            },
+            onToggle: (i) => setState(() {
+              _levelsDraft.contains(_levels[i])
+                  ? _levelsDraft.remove(_levels[i])
+                  : _levelsDraft.add(_levels[i]);
+              _error = null;
+            }),
+          ),
+        ),
+        KitFieldGroup(
+          label: 'Label',
+          note: 'optional',
+          child: KitTextField(
+            controller: _labelCtrl,
+            placeholder: _type == 'email' ? 'Work inbox' : 'In-app',
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.s4),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: AppSpacing.s2,
+            children: [
+              KitButton.primary(
+                _busy ? 'Adding…' : 'Add channel',
+                icon: _busy ? null : Icons.add,
+                onPressed: _busy ? null : _add,
+              ),
+              // §14.2 takes no icon: the line is the rejection.
+              if (_error != null) KitFailureInline(_error!),
+            ],
+          ),
+        ),
+        if (_type == 'push')
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.s2),
+            child: Text(
+              'Adding a push channel registers this device by its '
+              'installation id.',
+              style: KitText.meta(context).copyWith(color: t.fgMuted),
+            ),
+          ),
+      ],
     );
   }
 }

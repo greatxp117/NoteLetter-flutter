@@ -728,6 +728,74 @@ void main() {
     );
   });
 
+  testWidgets('notifications composes from the kit', (tester) async {
+    // Screen 5/11 (QUEUE F-02). The assertions are about the REQUIRED PARTS
+    // being present, in the roles the kit gives them and in the order the
+    // spec lists them (`screens/notifications.md` §Composition) — the one
+    // layer no other gate looks at.
+    final router = await pumpApp(tester);
+    router.go('/settings/notifications');
+    // Bounded pumps: the channel list is a live subscription.
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitSettingRow).evaluate().isNotEmpty) break;
+    }
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    // §2.2 — back control naming the parent · eyebrow · sans standfirst.
+    expect(find.byType(SubScreenHeader), findsOneWidget);
+    expect(find.text('Settings'), findsWidgets);
+    expect(find.text('NOTIFICATIONS'), findsOneWidget);
+    expect(
+      find.byType(ChapterOpening),
+      findsNothing,
+      reason: 'a sub-screen does not open a chapter',
+    );
+
+    // The channel list: one raised row list of setting rows — the seed holds
+    // three channels, one per type, and the push one is DISABLED and says so.
+    expect(find.byType(KitRowList), findsOneWidget);
+    expect(find.byType(KitSettingRow), findsNWidgets(3));
+    expect(find.textContaining('(paused)'), findsOneWidget);
+    expect(find.byType(KitSwitch), findsNWidgets(3));
+    expect(
+      find.byType(KitSegmentedMulti),
+      findsWidgets,
+      reason: 'each row carries its level picker as a §6.8 track',
+    );
+    expect(
+      find.byType(FilterChip),
+      findsNothing,
+      reason: 'levels are the segmented control, not Material chips',
+    );
+    final headerY = tester.getTopLeft(find.byType(SubScreenHeader)).dy;
+    final listY = tester.getTopLeft(find.byType(KitRowList)).dy;
+    expect(listY, greaterThan(headerY));
+
+    // Scroll to the form — below the fold on a phone.
+    final scrollable = find.byType(Scrollable);
+    for (var i = 0; i < 8; i++) {
+      if (find.byType(KitButton).evaluate().isNotEmpty) break;
+      await tester.drag(scrollable.first, const Offset(0, -400));
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+    expect(find.text('ADD A CHANNEL'), findsOneWidget);
+    expect(find.byType(KitFieldGroup), findsWidgets);
+    expect(
+      find.byType(KitSegmented),
+      findsOneWidget,
+      reason: 'the type choice is a §6.8 segmented control',
+    );
+    expect(find.text('Add channel'), findsOneWidget);
+    expect(
+      find.byType(SnackBar),
+      findsNothing,
+      reason: 'a rejection is a §14.2 line beside the control, never a toast',
+    );
+  });
+
   testWidgets('settings shows the Summaries section', (tester) async {
     final router = await pumpApp(tester);
     router.go('/settings');

@@ -185,7 +185,8 @@ class SubScreenHeader extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.chevron_left, size: 15, color: t.fgMuted),
-                const SizedBox(width: 2),
+                // `.src-back` gap 6 — the reference's, not a guess.
+                const SizedBox(width: 6),
                 Text(
                   parentLabel,
                   style: TextStyle(
