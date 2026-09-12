@@ -24,6 +24,7 @@ export 'kit_failure.dart';
 export 'kit_frame.dart';
 export 'kit_ground.dart';
 export 'kit_headers.dart';
+export 'kit_markers.dart';
 export 'kit_rows.dart';
 export 'kit_shell.dart';
 export 'kit_support_footer.dart';

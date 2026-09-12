@@ -33,7 +33,7 @@ a new obligation on a finished screen is a new item.
   Gate: `flutter test test/contract test/kit -x pin` goes to zero failures.
 
 ## F-01 · Extraction markers — shared splitter + §17 kit widgets
-- status: open
+- status: done 2026-09-12
 - screen: none
 - route: none
 - spec: spec/extraction-contract.md; spec/component-kit.md §17; spec/decisions/ADR-089-a-marker-is-an-annotation-not-a-sentence.md

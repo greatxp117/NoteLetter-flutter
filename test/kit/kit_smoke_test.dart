@@ -33,6 +33,32 @@ void main() {
     }
   }
 
+  group('§17 extraction marker', () {
+    testWidgets('aside and inline render in both themes, no brackets',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const KitMarkerAside(
+                label: 'On screen', body: '10 habits of well-spoken people'),
+            const KitMarkerInline(label: 'Image', body: 'a laptop', hostFontSize: 16),
+            Builder(
+              builder: (context) => KitMarkedText(
+                'said [Video: a person typing]. and then',
+                style: KitText.body(context),
+              ),
+            ),
+          ],
+        ),
+      );
+      // The label replaces the brackets; a rendered `[` is the defect.
+      expect(find.text('ON SCREEN'), findsOneWidget);
+      expect(find.textContaining('['), findsNothing);
+    });
+  });
+
   group('type roles', () {
     testWidgets('eyebrow, lede and the accent clause render', (tester) async {
       await pumpBoth(
