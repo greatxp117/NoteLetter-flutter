@@ -60,16 +60,41 @@ List<String> timezoneOptions(String? current) {
   return out;
 }
 
-/// States the schedule from what was READ, never from an assumption. The web
-/// reference hardcoded "Arrives tomorrow morning" under a live pulse for every
-/// reader, including accounts that had no schedule at all.
+/// The cadences the reference offers, in its order and wording.
+const cadenceLabels = <String, String>{
+  'daily': 'every day',
+  'weekdays': 'on weekdays',
+  'weekly': 'every Monday',
+};
+
+/// The trailing city of an IANA zone, spaced: `America/New_York` → `New York`.
+String zoneCity(String? timezone) =>
+    (timezone ?? '').split('/').last.replaceAll('_', ' ');
+
+/// States the schedule from what was READ, never from an assumption. Mirrors
+/// `scheduleSentence` in the reference: before it existed the Letters screen
+/// read "Arrives tomorrow morning" for everyone, including accounts with no
+/// schedule at all.
 String scheduleSentence({
   required bool enabled,
   required String deliveryTime,
   required String timezone,
   required String frequency,
 }) {
-  if (!enabled) return 'Scheduled delivery is off. You can still send a letter yourself.';
-  final when = frequency == 'weekly' ? 'Every week' : 'Every day';
-  return '$when at $deliveryTime ($timezone).';
+  if (!enabled) return 'Scheduled delivery is off — “Send now” still works.';
+  final when = cadenceLabels[frequency] ?? 'every day';
+  final at = deliveryTime.isEmpty ? '07:00' : deliveryTime;
+  final zone = zoneCity(timezone);
+  return 'Arrives $when at $at${zone.isEmpty ? '' : ' · $zone'}';
+}
+
+/// The unit line beside the rest-days stepper (4.39.0, ADR-077). The number is
+/// a FLOOR, not the whole rule: past it a used passage comes back gradually,
+/// weighted up over about a month, so the copy must never read as "eligible
+/// again".
+String restDaysLabel(int days) {
+  if (days == 0) {
+    return 'days — a used passage can return at once, weighted back up over a month';
+  }
+  return '${days == 1 ? 'day' : 'days'} before a used passage can return, then back gradually';
 }

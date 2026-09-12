@@ -15,7 +15,8 @@ library;
 /// Shown BEFORE the switch is touched. Unannounced mail seconds after a
 /// settings change reads as a bug, so the reader is told first.
 const activationHint =
-    'Turning this on sends a letter now, unless one is already coming today.';
+    'Turning this on sends a letter right away — unless one already went out '
+    'today, or one is due later today — and then keeps to your schedule.';
 
 /// Renders the outcome from the response's `activationSend`, never from an
 /// assumption about what the backend decided.
@@ -26,21 +27,26 @@ String? activationMessage(Map<String, dynamic>? response) {
   final send = response?['activationSend'];
   if (send is! Map) return null;
 
-  if (send['queued'] == true) return 'Scheduled delivery is on — a letter is on its way now.';
+  if (send['queued'] == true) {
+    // Same rule as the manual send: this screen may promise what it can see
+    // (the letter arriving on the live subscription) and not what it cannot
+    // (a receiver's inbox). INV-23.
+    return 'A letter is on its way — it shows up here in a few minutes. The '
+        'email leaves with it; the letter’s row shows what happened to it.';
+  }
 
   switch (send['reason']) {
     case 'scheduled_today':
-      return "Scheduled delivery is on — today's letter is already on its way.";
+      return 'Scheduled. Today’s letter is already due later today, so nothing '
+          'was sent now.';
     case 'already_sent_today':
-      return "Scheduled delivery is on — today's letter has already been sent.";
+      return 'Scheduled. Today’s letter has already gone out — the next one '
+          'follows your schedule.';
     case 'empty_library':
-      return 'Scheduled delivery is on. Your first letter arrives once you have '
-          'added a source or two.';
-    case 'enqueue_failed':
-      // The save is never failed by the send, so this is informational.
-      return 'Scheduled delivery is on. A letter could not be started just now; '
-          'the next scheduled one is unaffected.';
+      return 'Scheduled. There is nothing to put in a letter yet — add a '
+          'source, and the next one follows your schedule.';
     default:
-      return 'Scheduled delivery is on. Nothing was sent just now.';
+      return 'Scheduled. Nothing was sent just now; the next letter follows '
+          'your schedule.';
   }
 }

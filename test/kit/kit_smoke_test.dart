@@ -84,6 +84,48 @@ void main() {
     });
   });
 
+  group('settings rows', () {
+    testWidgets('setting link, avatar, notes, stepper, select and stamp',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KitRowList(raised: true, rows: [
+              KitSettingRow(
+                icon: Icons.person_outline,
+                leading: KitAvatarPlate(KitAvatarPlate.initialsOf('Ada Lovelace')),
+                title: 'Ada Lovelace',
+                description: 'ada@example.test',
+                trailing: [KitSettingLink('Sign out', icon: Icons.logout)],
+              ),
+              KitSettingRow(
+                icon: Icons.schedule_outlined,
+                title: 'Rest a passage for',
+                below: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    KitStepper(value: 7, min: 0, max: 90, unit: 'days', onChanged: (_) {}),
+                    KitSelect<String>(
+                        value: 'a', options: const ['a', 'b'], label: (s) => s),
+                    const KitSunkenNote('a composed instruction'),
+                    const KitRowNote('Letter settings saved.'),
+                  ],
+                ),
+              ),
+            ]),
+            const KitBuildStamp(contract: '4.4.0', platform: 'flutter'),
+          ],
+        ),
+      );
+      expect(find.text('AL'), findsOneWidget);
+      expect(KitAvatarPlate.initialsOf('ada@example.test'), 'AD');
+      expect(KitAvatarPlate.initialsOf(''), '?');
+      expect(find.text('Sign out'), findsOneWidget);
+    });
+  });
+
   group('type roles', () {
     testWidgets('eyebrow, lede and the accent clause render', (tester) async {
       await pumpBoth(

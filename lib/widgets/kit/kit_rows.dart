@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
@@ -552,6 +553,9 @@ class _RunningLabelState extends State<_RunningLabel>
 /// (no permission, no key) — never a silent enabled row.
 class KitSettingRow extends StatelessWidget {
   final IconData icon;
+
+  /// Replaces the icon plate — the account row's avatar.
+  final Widget? leading;
   final String title;
 
   /// Beside the title, in the description role — "(paused)".
@@ -560,14 +564,22 @@ class KitSettingRow extends StatelessWidget {
   final Widget? below;
   final List<Widget> trailing;
 
+  /// A trailing control too wide to share a phone's row with the text — a
+  /// three-way segmented control. Below the compact width it drops under
+  /// the main column on the trailing edge, the reference's `.set-row`
+  /// wrap at 640; a switch or a link stays beside the text.
+  final bool wideControl;
+
   const KitSettingRow({
     super.key,
     required this.icon,
+    this.leading,
     required this.title,
     this.titleNote,
     this.description,
     this.below,
     this.trailing = const [],
+    this.wideControl = false,
   });
 
   @override
@@ -614,6 +626,16 @@ class KitSettingRow extends StatelessWidget {
         ],
       ],
     );
+    final stackTrailing = compact && wideControl && trailing.isNotEmpty;
+    final controls = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < trailing.length; i++) ...[
+          if (i > 0) const SizedBox(width: AppSpacing.s2),
+          trailing[i],
+        ],
+      ],
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: Column(
@@ -623,32 +645,29 @@ class KitSettingRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: t.accentSoft,
-                  borderRadius: AppRadius.smR,
-                ),
-                child: Icon(icon, size: 18, color: t.accent),
-              ),
+              leading ??
+                  Container(
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: t.accentSoft,
+                      borderRadius: AppRadius.smR,
+                    ),
+                    child: Icon(icon, size: 18, color: t.accent),
+                  ),
               const SizedBox(width: 18),
               Expanded(child: main),
-              if (trailing.isNotEmpty) ...[
+              if (trailing.isNotEmpty && !stackTrailing) ...[
                 const SizedBox(width: 18),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < trailing.length; i++) ...[
-                      if (i > 0) const SizedBox(width: AppSpacing.s2),
-                      trailing[i],
-                    ],
-                  ],
-                ),
+                controls,
               ],
             ],
           ),
+          if (stackTrailing) ...[
+            const SizedBox(height: AppSpacing.s3),
+            Align(alignment: Alignment.centerRight, child: controls),
+          ],
           if (below != null && compact) ...[
             const SizedBox(height: AppSpacing.s3),
             below!,
@@ -672,4 +691,173 @@ class KitRowSlot extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         child: child,
       );
+}
+
+
+/// The setting row's trailing link (`.set-link`): sans 13.5 at `--fg-muted`,
+/// underlined in `--link-decor`, with a 14px trailing chevron. It leads to the
+/// screen that owns the setting; a row whose control is a whole screen takes
+/// this rather than a button.
+class KitSettingLink extends StatefulWidget {
+  final String label;
+  final VoidCallback? onTap;
+  final IconData icon;
+
+  const KitSettingLink(this.label,
+      {super.key, this.onTap, this.icon = Icons.chevron_right});
+
+  @override
+  State<KitSettingLink> createState() => _KitSettingLinkState();
+}
+
+class _KitSettingLinkState extends State<KitSettingLink> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final color = _hover ? t.accentText : t.fgMuted;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.label,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 13.5,
+                  color: color,
+                  decoration: TextDecoration.underline,
+                  decorationColor: t.linkDecor,
+                )),
+            const SizedBox(width: 5),
+            Icon(widget.icon, size: 14, color: color),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The account row's avatar (`.set-avatar`): a 40px chrome disc carrying the
+/// reader's initials in mono 14/600 at `--chrome-fg`.
+class KitAvatarPlate extends StatelessWidget {
+  final String initials;
+
+  const KitAvatarPlate(this.initials, {super.key});
+
+  /// `Ada Lovelace` → `AL`; `ada@example.test` → `AD`; nothing → `?`.
+  static String initialsOf(String? name) {
+    final parts = (name ?? '')
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) {
+      final p = parts.first;
+      return p.substring(0, p.length < 2 ? p.length : 2).toUpperCase();
+    }
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      width: 40,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: t.chrome, shape: BoxShape.circle),
+      child: Text(initials,
+          style: AppTheme.mono(
+              fontSize: 14, fontWeight: FontWeight.w600, color: t.chromeFg)),
+    );
+  }
+}
+
+/// A note in a row's description role on a sunken ground — the composed
+/// summary instruction, shown rather than hidden (settings.md §Simple
+/// controls). `--surface-sunken` takes `--fg-muted` (ADR-073).
+class KitSunkenNote extends StatelessWidget {
+  final String text;
+  final bool italic;
+
+  const KitSunkenNote(this.text, {super.key, this.italic = true});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: t.surfaceSunken,
+        borderRadius: AppRadius.smR,
+      ),
+      child: Text(text,
+          style: TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 13,
+            height: 1.45,
+            fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+            color: t.fgMuted,
+          )),
+    );
+  }
+}
+
+/// A row's own line of quiet copy — a schedule sentence, a saved outcome —
+/// in the description role.
+class KitRowNote extends StatelessWidget {
+  final String text;
+
+  const KitRowNote(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Text(text,
+      style: TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 13,
+        height: 1.45,
+        color: Tokens.of(context).fgMuted,
+      ));
+}
+
+/// The build stamp that closes Settings (`BuildStamp.jsx`): mono 11 in the
+/// meta role, saying which contract this client is pinned to.
+class KitBuildStamp extends StatelessWidget {
+  final String contract;
+  final String platform;
+
+  const KitBuildStamp({super.key, required this.contract, required this.platform});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 18, 2, 4),
+      child: Text.rich(
+        TextSpan(
+          style: AppTheme.mono(fontSize: 11, color: t.fgSubtle),
+          children: [
+            const TextSpan(text: 'Contract '),
+            TextSpan(
+                text: contract,
+                style: AppTheme.mono(
+                    fontSize: 11, fontWeight: FontWeight.w600, color: t.fgMuted)),
+            const TextSpan(text: ' · client '),
+            TextSpan(
+                text: platform,
+                style: AppTheme.mono(
+                    fontSize: 11, fontWeight: FontWeight.w600, color: t.fgMuted)),
+          ],
+        ),
+      ),
+    );
+  }
 }

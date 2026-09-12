@@ -82,7 +82,7 @@ a new obligation on a finished screen is a new item.
   existing device test already covers write-before-move; extend it with the composition assert.
 
 ## F-04 · Settings — recompose
-- status: open
+- status: done 2026-09-12
 - screen: settings
 - route: /settings
 - spec: spec/screens/settings.md §Composition §Summaries section §Client-local preferences §States; spec/component-kit.md §2.1 §3 §4 §6 §14.1

@@ -838,7 +838,28 @@ void main() {
       await tester.drag(scrollable.first, const Offset(0, -400));
       await pumpFor(tester, total: const Duration(seconds: 1));
     }
-    expect(find.text('Summaries'), findsOneWidget);
+    expect(find.text('SUMMARIES'), findsOneWidget,
+        reason: 'the section eyebrow renders uppercased');
     expect(find.text('Save style'), findsOneWidget);
+
+    // Composition (QUEUE F-04, `screens/settings.md` §Composition): the
+    // required parts, in the kit's roles, in the spec's order. §2.1 chapter
+    // opening with the Account folio · §3 section headers · raised row lists
+    // of setting rows · §6.8 segmented controls in the control strips · no
+    // Material card, tile or switch anywhere on the screen.
+    expect(find.byType(ChapterOpening), findsOneWidget);
+    expect(find.textContaining('ACCOUNT ·'), findsOneWidget,
+        reason: 'the folio carries the account');
+    expect(find.byType(SectionHeader), findsWidgets);
+    expect(find.byType(KitRowList), findsWidgets);
+    expect(find.byType(KitSettingRow), findsWidgets);
+    expect(find.byType(KitSegmented), findsWidgets,
+        reason: 'summary style / length / tone are §6.8 tracks');
+    expect(find.byType(Card), findsNothing);
+    expect(find.byType(ListTile), findsNothing);
+    expect(find.byType(SwitchListTile), findsNothing);
+    expect(find.byType(ChoiceChip), findsNothing,
+        reason: 'the style positions are a segmented control, not chips');
+    expect(find.byType(SnackBar), findsNothing);
   });
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart'
-    show InputDecoration, TextField, TextInputType;
+    show DropdownButton, DropdownButtonHideUnderline, DropdownMenuItem, InputDecoration, TextField, TextInputType;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
@@ -829,6 +829,10 @@ class KitTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
 
+  /// More than one line makes a note field; the frame is unchanged.
+  final int minLines;
+  final int maxLines;
+
   const KitTextField({
     super.key,
     required this.controller,
@@ -836,6 +840,8 @@ class KitTextField extends StatelessWidget {
     this.icon,
     this.keyboardType,
     this.onChanged,
+    this.minLines = 1,
+    this.maxLines = 1,
   });
 
   @override
@@ -859,6 +865,8 @@ class KitTextField extends StatelessWidget {
               controller: controller,
               keyboardType: keyboardType,
               onChanged: onChanged,
+              minLines: minLines,
+              maxLines: maxLines,
               style: AppTheme.mono(fontSize: 15, color: t.fg),
               cursorColor: t.accent,
               // Collapsed: the frame above IS the field; Material's own
@@ -1001,3 +1009,139 @@ String kitDocKind(String type) => kKindByType[type] ?? 'note';
 /// filter rather than a filter that can match nothing.
 List<String> kitTypesForKind(String kind) =>
     kKindByType.keys.where((t) => kKindByType[t] == kind).toList();
+
+
+/// The reference's `select` inside a `.timefield` frame: the same bordered
+/// surface as [KitTextField], holding one chosen value and opening a list.
+/// Drawn from tokens — Material's dropdown chrome is replaced, not themed.
+class KitSelect<T> extends StatelessWidget {
+  final T value;
+  final List<T> options;
+  final String Function(T) label;
+  final ValueChanged<T>? onChanged;
+  final IconData? icon;
+
+  const KitSelect({
+    super.key,
+    required this.value,
+    required this.options,
+    required this.label,
+    this.onChanged,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: AppRadius.smR,
+        border: Border.all(color: t.border),
+      ),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: t.fgMuted),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<T>(
+                value: value,
+                isExpanded: true,
+                isDense: true,
+                dropdownColor: t.surface,
+                iconEnabledColor: t.fgMuted,
+                style: AppTheme.mono(fontSize: 15, color: t.fg),
+                items: [
+                  for (final o in options)
+                    DropdownMenuItem(value: o, child: Text(label(o))),
+                ],
+                onChanged: onChanged == null
+                    ? null
+                    : (v) {
+                        if (v != null) onChanged!(v);
+                      },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The reference's `.stepper`: `−` · the number in the mono face · `+` · a
+/// unit line in the description role. The bounds are the caller's — the
+/// control never invents a range.
+class KitStepper extends StatelessWidget {
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int>? onChanged;
+  final String? unit;
+
+  const KitStepper({
+    super.key,
+    required this.value,
+    required this.min,
+    required this.max,
+    this.onChanged,
+    this.unit,
+  });
+
+  Widget _button(BuildContext context, String glyph, VoidCallback? onTap) {
+    final t = Tokens.of(context);
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: glyph == '+' ? 'Increase' : 'Decrease',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: AppRadius.controlR(32),
+            border: Border.all(color: t.border),
+          ),
+          child: Text(glyph,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 16,
+                color: onTap == null ? t.fgSubtle : t.fg,
+              )),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final canDown = onChanged != null && value > min;
+    final canUp = onChanged != null && value < max;
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 10,
+      runSpacing: 6,
+      children: [
+        _button(context, '−', canDown ? () => onChanged!(value - 1) : null),
+        Text('$value', style: AppTheme.mono(fontSize: 15, color: t.fg)),
+        _button(context, '+', canUp ? () => onChanged!(value + 1) : null),
+        if (unit != null)
+          Text(unit!,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 13,
+                height: 1.45,
+                color: t.fgMuted,
+              )),
+      ],
+    );
+  }
+}

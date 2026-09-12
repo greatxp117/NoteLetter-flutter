@@ -1,16 +1,30 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' show Icons, ThemeMode;
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../models/newsletter_settings.dart';
-import '../state/settings_notifier.dart';
-import '../theme/app_colors.dart';
-import '../widgets/app_toast.dart';
-import '../state/activation_message.dart';
-import '../state/schedule.dart';
-import 'settings/summaries_section.dart';
-import '../theme/app_radius.dart';
-import '../theme/app_theme.dart';
 
+import '../build_info.dart';
+import '../models/newsletter_settings.dart';
+import '../state/activation_message.dart';
+import '../state/auth_notifier.dart';
+import '../state/schedule.dart';
+import '../state/settings_notifier.dart';
+import '../state/theme_notifier.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/kit/kit.dart';
+import 'settings/summaries_section.dart';
+
+/// Settings (`spec/screens/settings.md` §Composition, ADR-041).
+///
+/// Reading frame (760) inside a scroll container · chapter opening (§2.1)
+/// with the `Account · {email}` folio · sections opened by §3 headers, each a
+/// raised row list of setting rows (`kit_rows.dart`) · segmented controls
+/// (§6.8) in the control strips · the build stamp last.
+///
+/// The daily letter's form lives here until QUEUE F-05 gives it its own route
+/// (`/letters/settings`, as the reference has); it is composed from the kit
+/// so the move is a cut, not a rewrite. The "Run through setup again" row
+/// lands with F-14.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -18,25 +32,34 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
+/// The cadences the reference offers, in its order.
+const _frequencies = [
+  ('daily', 'Daily'),
+  ('weekdays', 'Weekdays'),
+  ('weekly', 'Weekly'),
+];
+
 class _SettingsPageState extends State<SettingsPage> {
-  // Newsletter form controllers
+  // The letter form's state — the stored document is the truth; these are the
+  // edit in flight, adopted from it on load.
   bool _enabled = true;
   String _timezone = deviceTimezone();
   String _frequency = 'daily';
   final _deliveryTimeCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _purposeCtrl = TextEditingController();
-  int _dateRangeDays = 30;
+  int _itemsPerLetter = 5;
   int _excludeRecentDays = 7;
 
-  // Privacy toggles (local only for now)
-  bool _allowTraining = false;
-  bool _strictPrivacy = true;
+  /// What the last save said — the 2.30.0 outcome line, or "saved".
+  String? _outcome;
+  String? _saveError;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       context.read<SettingsNotifier>().loadAll().then((_) {
         if (!mounted) return;
         final settings = context.read<SettingsNotifier>().newsletter;
@@ -51,7 +74,7 @@ class _SettingsPageState extends State<SettingsPage> {
       // A stored zone always wins; the device guess is only a default.
       _timezone = s.timezone.isNotEmpty ? s.timezone : deviceTimezone();
       _frequency = s.frequency;
-      _dateRangeDays = s.dateRangeDays;
+      _itemsPerLetter = s.itemsPerNewsletter;
       _excludeRecentDays = s.excludeRecentDays;
     });
     _deliveryTimeCtrl.text = s.deliveryTime;
@@ -68,8 +91,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _saveNewsletter() async {
-    final current =
-        context.read<SettingsNotifier>().newsletter ?? const NewsletterSettings();
+    final notifier = context.read<SettingsNotifier>();
+    final current = notifier.newsletter ?? const NewsletterSettings();
+    // 2.29.0 — a client that sends `deliveryTime` sends `timezone` in the
+    // SAME call, or the orchestrator reads the stored time as UTC.
     final updated = current.copyWith(
       enabled: _enabled,
       frequency: _frequency,
@@ -77,636 +102,289 @@ class _SettingsPageState extends State<SettingsPage> {
       timezone: _timezone,
       emailAddress: _emailCtrl.text.trim(),
       purposeText: _purposeCtrl.text.trim(),
-      dateRangeDays: _dateRangeDays,
+      itemsPerNewsletter: _itemsPerLetter,
       excludeRecentDays: _excludeRecentDays,
     );
-
-    final notifier = context.read<SettingsNotifier>();
     final wasEnabled = current.enabled;
+    setState(() {
+      _outcome = null;
+      _saveError = null;
+    });
+    // Write BEFORE you move (ADR-022): nothing below moves until the PUT has
+    // answered, and a rejection stays beside the control that refused it.
     final error = await notifier.saveNewsletter(updated);
     if (!mounted) return;
-
     if (error != null) {
-      AppToast.show(context, error, type: ToastType.error);
+      setState(() => _saveError = error);
       return;
     }
-
     // 2.30.0 (ADR-031) — when this save TURNED delivery on, say what actually
     // happened rather than "saved". The backend decides whether a letter goes
-    // now; this only reports it. Keyed on the transition, not the value, so a
-    // partial save that merely carries `enabled: true` says nothing new.
+    // now; this only reports it. Keyed on the transition, not the value.
     final activation = (!wasEnabled && _enabled)
         ? activationMessage(notifier.lastActivation)
         : null;
-    AppToast.show(context, activation ?? 'Newsletter settings saved.',
-        type: ToastType.success);
+    setState(() => _outcome = activation ?? 'Letter settings saved.');
   }
-
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
-    final muted =
-        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
+    final settings = context.watch<SettingsNotifier>();
+    final themeN = context.watch<ThemeNotifier>();
+    final user = context.watch<AuthNotifier>().user;
+    final who = (user?.displayName?.trim().isNotEmpty ?? false)
+        ? user!.displayName!
+        : (user?.email ?? '');
 
-    return Consumer<SettingsNotifier>(
-      builder: (context, settings, _) {
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
+    return KitPage(
+      width: KitFrameWidth.reading,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ChapterOpening(
+            folio: 'Account · $who',
+            title: 'Settings',
+            standfirst:
+                'How NoteLetter looks, how your letter behaves, and where '
+                'your account stands.',
+          ),
+
+          // ── Appearance ────────────────────────────────────────────────
+          const SectionHeader('Appearance', first: true),
+          KitRowList(
+            raised: true,
+            rows: [
+              KitSettingRow(
+                icon: Icons.wb_sunny_outlined,
+                title: 'Theme',
+                description:
+                    'Light, dark, or follow your system. The plum chrome '
+                    'stays warm either way.',
+                wideControl: true,
+                trailing: [
+                  KitSegmented(
+                    segments: const [
+                      KitSegment('Light', icon: Icons.wb_sunny_outlined),
+                      KitSegment('System', icon: Icons.desktop_windows_outlined),
+                      KitSegment('Dark', icon: Icons.dark_mode_outlined),
+                    ],
+                    selected: switch (themeN.themeMode) {
+                      ThemeMode.light => 0,
+                      ThemeMode.system => 1,
+                      ThemeMode.dark => 2,
+                    },
+                    onChanged: (i) => themeN.setMode(const [
+                      ThemeMode.light,
+                      ThemeMode.system,
+                      ThemeMode.dark,
+                    ][i]),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // ── The daily letter ──────────────────────────────────────────
+          const SectionHeader('The daily letter'),
+          KitRowList(
+            raised: true,
+            rows: [
+              KitSettingRow(
+                icon: Icons.mail_outline,
+                title: 'Scheduled delivery',
+                // 2.29.0: the schedule is STATED from what was read, never
+                // assumed; 2.30.0: what turning it on does is said BEFORE the
+                // switch is touched.
+                description: settings.isLoading
+                    ? 'Loading…'
+                    : '${scheduleSentence(
+                        enabled: _enabled,
+                        deliveryTime: _deliveryTimeCtrl.text.trim(),
+                        timezone: _timezone,
+                        frequency: _frequency,
+                      )}. ${_enabled ? 'Turn this off to pause letters without losing any of these settings. “Send now” keeps working either way.' : 'Nothing is sent on a schedule while this is off. Your settings below are kept, and “Send now” still works. $activationHint'}',
+                trailing: [
+                  KitSwitch(
+                    value: _enabled,
+                    onChanged: settings.isLoading
+                        ? null
+                        : (v) => setState(() => _enabled = v),
+                  ),
+                ],
+              ),
+              KitSettingRow(
+                icon: Icons.alternate_email,
+                title: 'Send to',
+                description:
+                    'Letters go to your account email until you set a '
+                    'different address.',
+                below: KitTextField(
+                  controller: _emailCtrl,
+                  icon: Icons.mail_outline,
+                  placeholder: 'you@example.com',
+                  keyboardType: TextInputType.emailAddress,
+                ),
+              ),
+              KitSettingRow(
+                icon: Icons.schedule_outlined,
+                title: 'How often, and when',
+                description:
+                    'The zone is yours to set — a time means nothing without '
+                    'one.',
+                below: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    KitSegmented(
+                      segments: [
+                        for (final f in _frequencies) KitSegment(f.$2),
+                      ],
+                      selected: _frequencies
+                          .indexWhere((f) => f.$1 == _frequency)
+                          .clamp(0, _frequencies.length - 1),
+                      onChanged: (i) =>
+                          setState(() => _frequency = _frequencies[i].$1),
+                    ),
+                    const SizedBox(height: AppSpacing.s2),
+                    KitTextField(
+                      controller: _deliveryTimeCtrl,
+                      icon: Icons.schedule_outlined,
+                      placeholder: '07:00',
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: AppSpacing.s2),
+                    KitSelect<String>(
+                      icon: Icons.calendar_today_outlined,
+                      value: _timezone,
+                      options: timezoneOptions(_timezone),
+                      label: (z) => z.replaceAll('_', ' '),
+                      onChanged: (z) => setState(() => _timezone = z),
+                    ),
+                  ],
+                ),
+              ),
+              KitSettingRow(
+                icon: Icons.auto_stories_outlined,
+                title: 'Passages per letter',
+                below: KitStepper(
+                  value: _itemsPerLetter,
+                  min: 1,
+                  max: 5,
+                  unit:
+                      '${_itemsPerLetter == 1 ? 'passage' : 'passages'} each morning',
+                  onChanged: (v) => setState(() => _itemsPerLetter = v),
+                ),
+              ),
+              KitSettingRow(
+                icon: Icons.hourglass_empty_outlined,
+                title: 'Rest a passage for',
+                // The knob a "nothing new to send" result points at (2.2.0,
+                // ADR-011).
+                description:
+                    'After a passage appears in a letter it rests this long '
+                    'before it can be chosen again. Lower it if “Send now” '
+                    'says there’s nothing new.',
+                below: KitStepper(
+                  value: _excludeRecentDays,
+                  min: 0,
+                  max: 90,
+                  // 4.39.0 (ADR-077): a floor, not the whole rule.
+                  unit: restDaysLabel(_excludeRecentDays),
+                  onChanged: (v) => setState(() => _excludeRecentDays = v),
+                ),
+              ),
+              KitSettingRow(
+                icon: Icons.chat_bubble_outline,
+                title: 'Your librarian',
+                description:
+                    'What you want to learn or achieve. Your letter weights '
+                    'passages by it.',
+                below: KitTextField(
+                  controller: _purposeCtrl,
+                  minLines: 2,
+                  maxLines: 4,
+                  placeholder:
+                      'e.g. Help me connect ideas across philosophy readings…',
+                ),
+              ),
+              KitRowSlot(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Settings',
-                      style: AppTheme.serif(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Manage your account, integrations, and preferences.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark
-                            ? AppColors.mutedForegroundDark
-                            : AppColors.mutedForeground,
-                      ),
+                    if (_saveError != null) ...[
+                      // §14.2 — the rejection at the control that refused.
+                      KitFailureInline(_saveError!),
+                      const SizedBox(height: AppSpacing.s2),
+                    ],
+                    Wrap(
+                      spacing: AppSpacing.s2,
+                      runSpacing: AppSpacing.s2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        KitButton.primary(
+                          settings.isSaving ? 'Saving…' : 'Save letter settings',
+                          onPressed: settings.isSaving || settings.isLoading
+                              ? null
+                              : _saveNewsletter,
+                        ),
+                        if (_outcome != null) KitRowNote(_outcome!),
+                      ],
                     ),
                   ],
-                ),
-              ),
-              // Newsletter settings card
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Newsletter',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Personalise your automated knowledge digest.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: isDark
-                                ? AppColors.mutedForegroundDark
-                                : AppColors.mutedForeground,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (settings.isLoading)
-                          const Center(child: CircularProgressIndicator())
-                        else ...[
-                          SwitchListTile(
-                            value: _enabled,
-                            onChanged: (v) => setState(() => _enabled = v),
-                            title: const Text('Enable newsletter'),
-                            subtitle: const Text(
-                                'Receive your personalised digest by email'),
-                            activeThumbColor: primary,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          // 2.30.0 (ADR-031): said BEFORE the switch is
-                          // touched. Unannounced mail seconds after a settings
-                          // change reads as a bug. Shown only while off, since
-                          // it describes what turning it ON will do.
-                          if (!_enabled)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2, bottom: 6),
-                              child: Text(activationHint,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                      color: isDark
-                                          ? AppColors.mutedForegroundDark
-                                          : AppColors.mutedForeground)),
-                            ),
-                          // 2.29.0: the schedule is STATED from what was read,
-                          // never assumed. The web reference said "Arrives
-                          // tomorrow morning" to every reader, including
-                          // accounts that had no schedule at all.
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Text(
-                              scheduleSentence(
-                                enabled: _enabled,
-                                deliveryTime: _deliveryTimeCtrl.text.trim(),
-                                timezone: _timezone,
-                                frequency: _frequency,
-                              ),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                  color: isDark
-                                      ? AppColors.mutedForegroundDark
-                                      : AppColors.mutedForeground),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // 2.29.0 — a client that sends `deliveryTime` sends
-                          // `timezone` in the SAME call, or the orchestrator
-                          // reads the stored time as UTC.
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Timezone',
-                                  style: theme.textTheme.bodySmall
-                                      ?.copyWith(fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 6),
-                              DropdownButtonFormField<String>(
-                                initialValue: _timezone,
-                                isExpanded: true,
-                                items: [
-                                  for (final tz in timezoneOptions(_timezone))
-                                    DropdownMenuItem(
-                                        value: tz, child: Text(tz)),
-                                ],
-                                onChanged: (v) => setState(
-                                    () => _timezone = v ?? _timezone),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Frequency',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w500)),
-                                    const SizedBox(height: 6),
-                                    DropdownButtonFormField<String>(
-                                      initialValue: _frequency,
-                                      decoration: const InputDecoration(
-                                          contentPadding: EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 10)),
-                                      items: const [
-                                        DropdownMenuItem(
-                                            value: 'daily',
-                                            child: Text('Daily')),
-                                        DropdownMenuItem(
-                                            value: 'weekly',
-                                            child: Text('Weekly')),
-                                        DropdownMenuItem(
-                                            value: 'weekdays',
-                                            child: Text('Weekdays')),
-                                      ],
-                                      onChanged: (v) =>
-                                          setState(() => _frequency = v!),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Delivery time (HH:MM)',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w500)),
-                                    const SizedBox(height: 6),
-                                    TextField(
-                                      controller: _deliveryTimeCtrl,
-                                      decoration: const InputDecoration(
-                                        hintText: '07:00',
-                                        contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 10),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Email address',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                      fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: _emailCtrl,
-                                keyboardType: TextInputType.emailAddress,
-                                decoration: const InputDecoration(
-                                    hintText: 'you@example.com'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Purpose / focus',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                      fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Describe what you want to learn or achieve. The AI will weight content accordingly.',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: isDark
-                                      ? AppColors.mutedForegroundDark
-                                      : AppColors.mutedForeground,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: _purposeCtrl,
-                                maxLines: 3,
-                                decoration: const InputDecoration(
-                                  hintText:
-                                      'e.g. Help me connect ideas across philosophy readings…',
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Date range: $_dateRangeDays days',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w500),
-                              ),
-                              Slider(
-                                value: _dateRangeDays.toDouble(),
-                                min: 1,
-                                max: 30,
-                                divisions: 29,
-                                activeColor: primary,
-                                label: '$_dateRangeDays',
-                                onChanged: (v) =>
-                                    setState(() => _dateRangeDays = v.round()),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _excludeRecentDays == 0
-                                    ? "Don't skip recently-sent passages"
-                                    : 'Skip passages sent in the last '
-                                        '$_excludeRecentDays day'
-                                        '${_excludeRecentDays == 1 ? '' : 's'}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w500),
-                              ),
-                              Text(
-                                'Stops your daily letter from repeating itself.',
-                                style: theme.textTheme.bodySmall
-                                    ?.copyWith(color: muted),
-                              ),
-                              Slider(
-                                value: _excludeRecentDays.toDouble(),
-                                min: 0,
-                                max: 30,
-                                divisions: 30,
-                                activeColor: primary,
-                                label: '$_excludeRecentDays',
-                                onChanged: (v) => setState(
-                                    () => _excludeRecentDays = v.round()),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed: settings.isSaving ? null : _saveNewsletter,
-                            style: FilledButton.styleFrom(
-                                backgroundColor: primary),
-                            child: settings.isSaving
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white),
-                                  )
-                                : const Text('Save Newsletter Settings'),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Notifications card (2.5.0 ADR-014 / 2.6.0 ADR-015)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
-                child: Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.notifications_none),
-                    title: const Text('Notifications'),
-                    subtitle: const Text(
-                        'How you hear about NoteLetter — on-screen, email, or push, at the severity you choose.'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.go('/settings/notifications'),
-                  ),
-                ),
-              ),
-              // Summaries (4.3.0 + 4.4.0, ADR-040)
-              const SummariesSection(),
-              // Data sources card
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Connect Data Sources',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Import content automatically from your favourite platforms.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: isDark
-                                ? AppColors.mutedForegroundDark
-                                : AppColors.mutedForeground,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (settings.isLoading)
-                          const Center(child: CircularProgressIndicator())
-                        else ...[
-                          _IntegrationTile(
-                            icon: Icons.drive_folder_upload_outlined,
-                            iconColor: Colors.blue,
-                            title: 'Google Drive',
-                            provider: 'google_drive',
-                            settings: settings,
-                          ),
-                          Divider(
-                              height: 24,
-                              color: isDark
-                                  ? AppColors.borderDark
-                                  : AppColors.borderLight),
-                          _IntegrationTile(
-                            icon: Icons.cloud_outlined,
-                            iconColor: Colors.blueAccent,
-                            title: 'OneDrive',
-                            provider: 'onedrive',
-                            settings: settings,
-                          ),
-                          Divider(
-                              height: 24,
-                              color: isDark
-                                  ? AppColors.borderDark
-                                  : AppColors.borderLight),
-                          _IntegrationTile(
-                            icon: Icons.folder_outlined,
-                            iconColor: Colors.blueGrey,
-                            title: 'Dropbox',
-                            provider: 'dropbox',
-                            settings: settings,
-                          ),
-                          Divider(
-                              height: 24,
-                              color: isDark
-                                  ? AppColors.borderDark
-                                  : AppColors.borderLight),
-                          _IntegrationTile(
-                            icon: Icons.note_outlined,
-                            iconColor: Colors.black87,
-                            title: 'Notion',
-                            provider: 'notion',
-                            settings: settings,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Privacy card
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Privacy & Security',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Control how your data is used.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: isDark
-                                ? AppColors.mutedForegroundDark
-                                : AppColors.mutedForeground,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        SwitchListTile(
-                          value: _allowTraining,
-                          onChanged: (v) =>
-                              setState(() => _allowTraining = v),
-                          title: const Text('Allow AI Training'),
-                          subtitle: const Text(
-                              'Allow your anonymized data to improve AI models'),
-                          activeThumbColor: primary,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                        SwitchListTile(
-                          value: _strictPrivacy,
-                          onChanged: (v) =>
-                              setState(() => _strictPrivacy = v),
-                          title: const Text('Strict Privacy Mode'),
-                          subtitle: const Text(
-                              'Disable all external data sharing'),
-                          activeThumbColor: primary,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
             ],
           ),
-        );
-      },
-    );
-  }
-}
 
-// ── Integration tile ──────────────────────────────────────────────────────────
+          // ── Summaries (4.3.0 + 4.4.0, ADR-040) ────────────────────────
+          const SummariesSection(),
 
-class _IntegrationTile extends StatefulWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String provider;
-  final SettingsNotifier settings;
-
-  const _IntegrationTile({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.provider,
-    required this.settings,
-  });
-
-  @override
-  State<_IntegrationTile> createState() => _IntegrationTileState();
-}
-
-class _IntegrationTileState extends State<_IntegrationTile> {
-  bool _busy = false;
-
-  Future<void> _onConnect() async {
-    setState(() => _busy = true);
-    final error = await widget.settings.connectProvider(widget.provider);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (error != null) {
-      AppToast.show(context, error, type: ToastType.error);
-    }
-  }
-
-  Future<void> _onDisconnect() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Disconnect ${widget.title}?'),
-        content: Text(
-            'This will stop automatic syncing from ${widget.title}. '
-            'Your already-imported documents will remain.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Disconnect'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _busy = true);
-    final error = await widget.settings.disconnectProvider(widget.provider);
-    if (!mounted) return;
-    setState(() => _busy = false);
-
-    if (error != null) {
-      AppToast.show(context, error, type: ToastType.error);
-    } else {
-      AppToast.show(
-        context,
-        '${widget.title} disconnected.',
-        type: ToastType.info,
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    final connected = widget.settings.isConnected(widget.provider);
-    final integration = widget.settings.integrationFor(widget.provider);
-
-    String subtitle;
-    if (connected && integration != null) {
-      subtitle = integration.providerEmail != null
-          ? '${integration.providerEmail} · ${integration.lastSyncLabel}'
-          : integration.lastSyncLabel;
-    } else {
-      subtitle = 'Not connected';
-    }
-
-    return Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: widget.iconColor.withValues(alpha: 0.1),
-            borderRadius: AppRadius.controlR(40),
-          ),
-          child: Icon(widget.icon, color: widget.iconColor, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(widget.title,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w500)),
-                  if (connected) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.green,
-                      ),
-                    ),
-                  ],
+          // ── Notifications (2.5.0, ADR-014) ────────────────────────────
+          const SectionHeader('Notifications'),
+          KitRowList(
+            raised: true,
+            rows: [
+              KitSettingRow(
+                icon: Icons.notifications_none,
+                title: 'Channels',
+                description:
+                    'How you hear about what NoteLetter does — on-screen, by '
+                    'email or by push, at the severity you choose.',
+                trailing: [
+                  KitSettingLink('Manage channels',
+                      onTap: () => context.go('/settings/notifications')),
                 ],
               ),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? AppColors.mutedForegroundDark
-                      : AppColors.mutedForeground,
-                ),
+            ],
+          ),
+
+          // ── Account ───────────────────────────────────────────────────
+          const SectionHeader('Account'),
+          KitRowList(
+            raised: true,
+            rows: [
+              KitSettingRow(
+                icon: Icons.person_outline,
+                leading: KitAvatarPlate(KitAvatarPlate.initialsOf(who)),
+                title: (user?.displayName?.trim().isNotEmpty ?? false)
+                    ? user!.displayName!
+                    : 'Your account',
+                description: user?.email,
+                trailing: [
+                  KitSettingLink('Sign out',
+                      icon: Icons.logout,
+                      onTap: () => context.read<AuthNotifier>().signOut()),
+                ],
               ),
             ],
           ),
-        ),
-        _busy
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : OutlinedButton(
-                onPressed: connected ? _onDisconnect : _onConnect,
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                    color: connected
-                        ? Colors.red.shade300
-                        : (isDark
-                            ? AppColors.borderDark
-                            : AppColors.borderLight),
-                  ),
-                  foregroundColor: connected
-                      ? Colors.red.shade400
-                      : theme.colorScheme.onSurface,
-                ),
-                child: Text(connected ? 'Disconnect' : 'Connect'),
-              ),
-      ],
+
+          const KitBuildStamp(
+            contract: BuildInfo.contractPin,
+            platform: BuildInfo.platform,
+          ),
+          const SizedBox(height: AppSpacing.s8),
+        ],
+      ),
     );
   }
 }

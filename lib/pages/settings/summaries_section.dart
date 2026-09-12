@@ -1,16 +1,17 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/widgets.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_radius.dart';
+import '../../widgets/kit/kit.dart';
 import 'summary_prompt.dart';
-import '../../theme/tokens.dart';
 
 /// Settings → Summaries (spec/screens/settings.md 4.3.0 + 4.4.0, ADR-040):
 /// the summary-style prompt, in two modes over **one stored value**.
 ///
-/// Simple = three segmented controls that COMPOSE into `summaryPrompt`
+/// Simple = three segmented controls (§6.8) that COMPOSE into `summaryPrompt`
 /// (positions recovered by exact match; all-defaults composes to a reset).
 /// Custom = the free-text field, prefilled so the reader edits the existing
 /// stance rather than authoring one from nothing. A hand-authored prompt
@@ -21,6 +22,12 @@ import '../../theme/tokens.dart';
 /// resolves, so the displayed value always comes from the subscription. A
 /// control that adopted the new value first would hide a failed save
 /// completely — it would revert only on reload.
+///
+/// Composition (settings.md §Composition): one §3 section header over a
+/// raised row list holding one setting row, whose control strip is the mode's
+/// own controls. The rejection is a §14.2 line at the control; a failed READ
+/// of the stored style is a §14.1 block (INV-24), never the default rendered
+/// as if it were the reader's choice.
 class SummariesSection extends StatefulWidget {
   const SummariesSection({super.key});
 
@@ -31,6 +38,7 @@ class SummariesSection extends StatefulWidget {
 class _SummariesSectionState extends State<SummariesSection> {
   String? _stored; // the confirmed prompt; null = default in effect
   bool _loaded = false;
+  String? _subError; // INV-24: the subscription failed, not "no style"
   String? _draftText; // custom-mode edit in flight
   Map<String, String>? _draftChoices; // simple-mode edit in flight
   String? _modeOverride; // user-chosen mode
@@ -38,14 +46,22 @@ class _SummariesSectionState extends State<SummariesSection> {
   String? _error;
 
   final _textCtrl = TextEditingController();
+  StreamSubscription<String?>? _sub;
 
   @override
   void initState() {
     super.initState();
-    FirestoreService.instance.subscribeSummarySettings().listen((p) {
+    _sub = FirestoreService.instance.subscribeSummarySettings().listen((p) {
       if (!mounted) return;
       setState(() {
         _stored = p;
+        _subError = null;
+        _loaded = true;
+      });
+    }, onError: (e) {
+      if (!mounted) return;
+      setState(() {
+        _subError = '$e';
         _loaded = true;
       });
     });
@@ -53,6 +69,7 @@ class _SummariesSectionState extends State<SummariesSection> {
 
   @override
   void dispose() {
+    _sub?.cancel();
     _textCtrl.dispose();
     super.dispose();
   }
@@ -95,185 +112,149 @@ class _SummariesSectionState extends State<SummariesSection> {
     // Don't render a field that is about to change under the reader.
     if (!_loaded) return const SizedBox.shrink();
 
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final muted =
-        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
-
-    final storedPrompt = _stored;
-    final custom = storedPrompt != null;
-    final storedChoices = parsePrompt(storedPrompt); // null = hand-authored
-    final mode = _modeOverride ?? (storedChoices != null ? 'simple' : 'custom');
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Summaries',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(
-                'How each new source’s summary is written. It applies to sources you '
-                'add from now on; an existing source’s summary changes only when you '
-                'regenerate it from its Summary tab.',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
-              ),
-              const SizedBox(height: 16),
-              if (mode == 'simple')
-                ..._simpleMode(theme, muted, storedChoices, storedPrompt)
-              else
-                ..._customMode(theme, muted, custom, storedChoices, storedPrompt),
-            ],
+    final Widget body;
+    if (_subError != null) {
+      body = KitFailureBlock(
+        sentence: 'Your summary settings could not be read.',
+        detail: _subError!,
+      );
+    } else {
+      final storedPrompt = _stored;
+      final storedChoices = parsePrompt(storedPrompt); // null = hand-authored
+      final mode =
+          _modeOverride ?? (storedChoices != null ? 'simple' : 'custom');
+      body = KitRowList(
+        raised: true,
+        rows: [
+          KitSettingRow(
+            icon: Icons.edit_outlined,
+            title: 'Summary style',
+            description:
+                'How each new source’s summary is written. It applies to '
+                'sources you add from now on; an existing source’s summary '
+                'changes only when you regenerate it from its Summary tab.',
+            below: mode == 'simple'
+                ? _simpleMode(storedChoices, storedPrompt)
+                : _customMode(storedChoices, storedPrompt),
           ),
-        ),
-      ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('Summaries'),
+        body,
+      ],
     );
   }
 
-  List<Widget> _simpleMode(ThemeData theme, Color muted,
-      Map<String, String>? storedChoices, String? storedPrompt) {
+  Widget _simpleMode(Map<String, String>? storedChoices, String? storedPrompt) {
     final choices = _draftChoices ?? storedChoices ?? defaultChoices;
     final composed = composePrompt(choices); // null = all defaults
     final dirty = composed != storedPrompt;
     final previewText = composed ?? defaultSummaryPrompt;
+    final effectiveText = storedPrompt ?? defaultSummaryPrompt;
 
-    return [
-      for (final dim in styleDimensions) ...[
-        Text(dim.label, style: theme.textTheme.bodySmall?.copyWith(color: muted)),
-        const SizedBox(height: 6),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final dim in styleDimensions) ...[
+          const SizedBox(height: 4),
+          KitRowNote(dim.label),
+          const SizedBox(height: 5),
+          KitSegmented(
+            segments: [for (final o in dim.options) KitSegment(o.label)],
+            selected: dim.options.indexWhere((o) => o.id == choices[dim.id]),
+            onChanged: _busy
+                ? null
+                : (i) => setState(() => _draftChoices = {
+                      ...choices,
+                      dim.id: dim.options[i].id,
+                    }),
+          ),
+          const SizedBox(height: 8),
+        ],
+        // The instruction the choices compose into — SHOWN, not hidden,
+        // because it is exactly what gets saved and what the model reads.
+        const SizedBox(height: 4),
+        KitSunkenNote(previewText),
+        if (_error != null) ...[
+          const SizedBox(height: 6),
+          KitFailureInline(_error!),
+        ],
+        const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            for (final o in dim.options)
-              ChoiceChip(
-                label: Text(o.label),
-                selected: choices[dim.id] == o.id,
-                onSelected: _busy
-                    ? null
-                    : (_) => setState(() =>
-                        _draftChoices = {...choices, dim.id: o.id}),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-      ],
-      // The instruction the choices compose into — SHOWN, not hidden, because
-      // it is exactly what gets saved and what the model reads. Hiding it would
-      // let the controls claim a precision the prompt does not have.
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? AppColors.surfaceSunkenDark
-              : AppColors.surfaceSunkenLight,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
-        child: Text(previewText,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: muted, fontStyle: FontStyle.italic)),
-      ),
-      if (_error != null) ...[
-        const SizedBox(height: 6),
-        Text(_error!,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: Tokens.of(context).criticalText)),
-      ],
-      const SizedBox(height: 12),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          FilledButton(
-            onPressed: (_busy || !dirty) ? null : () => _put(composed),
-            child: Text(_busy ? 'Saving…' : 'Save style'),
-          ),
-          if (_draftChoices != null)
-            TextButton(
-                onPressed: _busy ? null : _clearEdits,
-                child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
+            KitButton.primary(_busy ? 'Saving…' : 'Save style',
+                onPressed: (_busy || !dirty) ? null : () => _put(composed)),
+            if (_draftChoices != null)
+              KitButton.ghost('Cancel', onPressed: _busy ? null : _clearEdits),
+            KitSettingLink('Fine-tune by hand', onTap: () {
               // Switching mode writes nothing.
-              _textCtrl.text = composed ?? storedPrompt ?? defaultSummaryPrompt;
+              _textCtrl.text = composed ?? effectiveText;
               setState(() {
                 _draftText = _textCtrl.text;
                 _modeOverride = 'custom';
               });
-            },
-            child: const Text('Fine-tune by hand →'),
-          ),
-        ],
-      ),
-    ];
+            }),
+          ],
+        ),
+      ],
+    );
   }
 
-  List<Widget> _customMode(ThemeData theme, Color muted, bool custom,
-      Map<String, String>? storedChoices, String? storedPrompt) {
+  Widget _customMode(Map<String, String>? storedChoices, String? storedPrompt) {
+    final custom = storedPrompt != null;
     final effectiveText = storedPrompt ?? defaultSummaryPrompt;
     if (_draftText == null && _textCtrl.text != effectiveText) {
       _textCtrl.text = effectiveText;
     }
     final shownText = _draftText ?? effectiveText;
-    final textDirty = _draftText != null && _draftText!.trim() != effectiveText;
+    final textDirty =
+        _draftText != null && _draftText!.trim() != effectiveText;
     final sendable = sendablePrompt(shownText);
 
-    return [
-      TextField(
-        controller: _textCtrl,
-        maxLines: 5,
-        minLines: 3,
-        maxLength: summaryPromptMaxChars,
-        enabled: !_busy,
-        style: theme.textTheme.bodySmall,
-        decoration: const InputDecoration(
-          labelText: 'Summary style prompt',
-          border: OutlineInputBorder(),
-          isDense: true,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        KitTextField(
+          controller: _textCtrl,
+          minLines: 3,
+          maxLines: 6,
+          onChanged: (v) => setState(() => _draftText = v),
         ),
-        onChanged: (v) => setState(() => _draftText = v),
-      ),
-      Text(
-        '${custom ? 'Custom style in effect.' : 'Using the default summary style.'}'
-        ' Up to $summaryPromptMaxChars characters.',
-        style: theme.textTheme.bodySmall?.copyWith(color: muted),
-      ),
-      if (_error != null) ...[
         const SizedBox(height: 6),
-        Text(_error!,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: Tokens.of(context).criticalText)),
-      ],
-      const SizedBox(height: 12),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          FilledButton(
-            onPressed: (_busy || !textDirty || sendable == null)
-                ? null
-                : () => _put(sendable),
-            child: Text(_busy ? 'Saving…' : 'Save style'),
-          ),
-          if (textDirty)
-            TextButton(
-                onPressed: _busy ? null : _clearEdits,
-                child: const Text('Cancel')),
-          // Reset sends null — there is no "empty prompt" state to offer.
-          if (custom)
-            TextButton(
-                onPressed: _busy ? null : () => _put(null),
-                child: const Text('Reset to default')),
-          TextButton(
-            onPressed: () {
+        KitRowNote(
+          '${custom ? 'Custom style in effect.' : 'Using the default summary style.'}'
+          ' Up to $summaryPromptMaxChars characters.',
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 6),
+          KitFailureInline(_error!),
+        ],
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            KitButton.primary(_busy ? 'Saving…' : 'Save style',
+                onPressed: (_busy || !textDirty || sendable == null)
+                    ? null
+                    : () => _put(sendable)),
+            if (textDirty)
+              KitButton.ghost('Cancel', onPressed: _busy ? null : _clearEdits),
+            // Reset sends null — there is no "empty prompt" state to offer.
+            if (custom)
+              KitButton.ghost('Reset to default',
+                  onPressed: _busy ? null : () => _put(null)),
+            KitSettingLink('Use simple controls', onTap: () {
               // Adopt matching positions when the text is (or reverts to) a
               // composed shape; otherwise start from the stored positions or
               // the defaults. Nothing is written by switching modes.
@@ -283,11 +264,10 @@ class _SummariesSectionState extends State<SummariesSection> {
                 _draftText = null;
                 _modeOverride = 'simple';
               });
-            },
-            child: const Text('Use simple controls →'),
-          ),
-        ],
-      ),
-    ];
+            }),
+          ],
+        ),
+      ],
+    );
   }
 }
