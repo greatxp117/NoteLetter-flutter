@@ -591,6 +591,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     }
     return Html(
       data: html,
+      extensions: AppTheme.htmlExtensions,
       style: AppTheme.htmlStyles(
         ui.tokens,
         body: Style(

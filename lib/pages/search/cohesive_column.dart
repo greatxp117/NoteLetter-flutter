@@ -252,6 +252,7 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
             else
               Html(
                 data: html,
+                extensions: AppTheme.htmlExtensions,
                 style: AppTheme.htmlStyles(
                   t,
                   body: Style(

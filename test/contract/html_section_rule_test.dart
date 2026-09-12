@@ -57,4 +57,29 @@ void main() {
         reason: 'these render chunk html with flutter_html\'s own <hr>: '
             '${offenders.join(', ')}');
   });
+
+  test('every Html() in the app passes the shared extensions', () {
+    // The same shape, one field over, and a worse failure: flutter_html
+    // renders NO table of its own, and `extensions:` is declared per call
+    // site. A screen that forgets it shows a hole where a table was — no
+    // error, no fallback text, nothing. INV-11's derivation covers linearized
+    // tables in as many words, so stored chunk html really does contain them:
+    // three surfaces had been dropping every one since they shipped.
+    final offenders = <String>[];
+    for (final f in Directory('lib').listSync(recursive: true)) {
+      if (f is! File || !f.path.endsWith('.dart')) continue;
+      final src = f.readAsStringSync()
+          .replaceAll(RegExp(r'^\s*///?.*$', multiLine: true), '');
+      for (final m in RegExp(r'\bHtml\(').allMatches(src)) {
+        final call = src.substring(m.start, (m.start + 400).clamp(0, src.length));
+        if (!call.contains('AppTheme.htmlExtensions')) {
+          final line = '\n'.allMatches(src.substring(0, m.start)).length + 1;
+          offenders.add('${f.path}:$line');
+        }
+      }
+    }
+    expect(offenders, isEmpty,
+        reason: 'these drop every <table> they are given: '
+            '${offenders.join(', ')}');
+  });
 }

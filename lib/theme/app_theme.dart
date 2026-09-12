@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_html_table/flutter_html_table.dart';
 import 'tokens.dart';
 import 'app_colors.dart';
 import 'app_radius.dart';
@@ -25,6 +26,20 @@ class AppTheme {
           margin: Margins.symmetric(vertical: 18),
         ),
       };
+
+  /// The extensions every `Html()` in the app passes, beside [htmlStyles].
+  ///
+  /// **`<table>` is dropped entirely without this.** flutter_html renders no
+  /// table of its own and the extension is declared PER CALL SITE, so a screen
+  /// that forgets it shows a hole where a table was — no error, no fallback
+  /// text, nothing. INV-11's text derivation covers linearized tables in as
+  /// many words, so stored chunk `html` really does contain them: every PDF or
+  /// DOCX table in the library had been rendering as nothing on the reader, the
+  /// study player and cohesive search since each of them shipped.
+  ///
+  /// It lives here rather than at each call site for the same reason the style
+  /// map does, and `html_section_rule_test.dart` reads the source for both.
+  static const List<HtmlExtension> htmlExtensions = [TableHtmlExtension()];
 
   AppTheme._();
 

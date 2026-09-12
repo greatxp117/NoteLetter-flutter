@@ -291,6 +291,7 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
               // The chunk's own sanitized html (INV-10 vocabulary).
               Html(
                   data: item.excerptHtml,
+                  extensions: AppTheme.htmlExtensions,
                   style: AppTheme.htmlStyles(Tokens.of(context))),
             ],
             const SizedBox(height: 10),

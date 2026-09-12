@@ -16,11 +16,7 @@ library;
 import 'package:flutter/material.dart' show Icon, IconData, Icons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_html/flutter_html.dart';
-// The sent letter is a TABLE layout and has to be: it is HTML mail, where
-// tables are the only reliable box model. flutter_html drops <table> unless
-// this extension is installed, so without it a complete letter renders as an
-// empty strip — which it did, with nothing failing.
-import 'package:flutter_html_table/flutter_html_table.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
@@ -38,46 +34,154 @@ import 'kit_text.dart';
 /// light letter puts a near-black gutter around white paper in dark mode, and
 /// a theme-flipping body would be a different object from the one that was
 /// sent.
+/// A `Color` as the `#RRGGBB` a stylesheet takes.
+///
+/// The letter's ground is spelled ONCE, in [_Paper], and the document wrapper
+/// derives its CSS from it — a second hex here would be a copy that renders
+/// right today and does not move when the first one does, which is the whole
+/// of what `token_contrast_check.py`'s LITERAL direction is for.
+String _cssHex(Color c) =>
+    '#${((c.r * 255).round() << 16 | (c.g * 255).round() << 8 | (c.b * 255).round()).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+
 class _Paper {
   // literal-ok: --paper-50, the letter's own page. It does not flip, for the
   // same reason the letter's inlined colours do not (ADR-087).
   static const ground = Color(0xFFFAFAF7);
-  // literal-ok: --ink-700, the letter's own ink, frozen with its ground.
-  static const ink = Color(0xFF14171F);
 }
 
-/// A complete letter, hosted bare on its own paper.
-class KitLetterPaper extends StatelessWidget {
+/// A complete letter, hosted bare on its own paper — **in a web view**.
+///
+/// Not `flutter_html`, and the reason is the whole point of ADR-087. A sent
+/// letter is HTML **mail**: its layout is nested tables, because tables are the
+/// only box model mail clients agree on. flutter_html renders no table without
+/// an extension and, with one, the letter's own baseline-aligned cells reach
+/// `RenderBox.size accessed in RenderParagraph.computeDryLayout` — it cannot
+/// lay this document out. The alternative was to rewrite the letter's HTML
+/// until the renderer could take it, which is exactly what a client hosting the
+/// letter BARE may not do: the reader would then be looking at something nobody
+/// was sent.
+///
+/// So the letter is handed to the engine that mail clients use. Nothing about
+/// it is themed, styled or wrapped here — this widget's whole job is to give it
+/// a width and the height it asks for.
+class KitLetterPaper extends StatefulWidget {
   final String html;
 
   const KitLetterPaper(this.html, {super.key});
+
+  /// The letter, wrapped in the minimum a document needs and **nothing else**.
+  ///
+  /// No stylesheet of ours: every colour, face and metric in a letter is inline
+  /// (ADR-087 forbids a `<style>` block in the body for a second reason — the
+  /// plain-text part is a naive tag strip that a `<style>` block survives). The
+  /// viewport meta and the two resets are what make a 640px mail sheet fit a
+  /// phone instead of scrolling sideways.
+  @visibleForTesting
+  static String documentFor(String body) => '''
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html,body{margin:0;padding:0;background:${_cssHex(_Paper.ground)};-webkit-text-size-adjust:100%}
+img{max-width:100%;height:auto}table{max-width:100%}</style>
+</head><body>$body</body></html>''';
+
+  @override
+  State<KitLetterPaper> createState() => _KitLetterPaperState();
+}
+
+class _KitLetterPaperState extends State<KitLetterPaper> {
+  late final WebViewController _controller;
+
+  /// The letter's own height, **measured**, never assumed. Until the page
+  /// reports one there is no honest number, so the view holds a minimum rather
+  /// than guessing a letter's length.
+  double? _height;
+
+  static const _minHeight = 420.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // The letter's ground, frozen light, behind the document itself — so the
+      // moment before it paints is paper rather than a flash of white or of
+      // the app's dark surface.
+      ..setBackgroundColor(_Paper.ground)
+      // The one channel this page has, and it carries one number: how tall the
+      // letter turned out to be.
+      ..addJavaScriptChannel('LetterHeight',
+          onMessageReceived: (m) {
+            final h = double.tryParse(m.message);
+            if (h != null && h > 0 && mounted) setState(() => _height = h);
+          })
+      ..setNavigationDelegate(NavigationDelegate(
+        // A letter is a document, not a browser. Its own body is the only
+        // thing this view ever loads; every link in it — the reader links
+        // INV-21 puts on each card, the unsubscribe footer — is a navigation
+        // AWAY, and it is refused here rather than replacing the letter with a
+        // web page inside the app.
+        onNavigationRequest: (r) => r.url.startsWith('about:')
+            ? NavigationDecision.navigate
+            : NavigationDecision.prevent,
+        onPageFinished: (_) => _measure(),
+      ))
+      ..loadHtmlString(KitLetterPaper.documentFor(widget.html));
+  }
+
+  /// Ask the page how tall it is. Called when it finishes loading, and again
+  /// after a beat: web fonts and the seal land after `onPageFinished` and each
+  /// changes the answer.
+  void _measure() {
+    for (final ms in [0, 250, 1000]) {
+      Future<void>.delayed(Duration(milliseconds: ms), () {
+        if (mounted) _controller.runJavaScript(_measureJs);
+      });
+    }
+  }
+
+  /// Fit the letter to the screen the way a phone mail client does, and
+  /// report how tall it ends up.
+  ///
+  /// A sent letter is a **640px sheet** — that is the width mail is designed
+  /// at, and it is not going to change for a phone. `width=device-width` does
+  /// not rescue it either: the sheet's cells carry 56px of padding each side,
+  /// so its min-content width is wider than a phone and `max-width:100%` has
+  /// nothing left to give. It simply hangs off the right edge, which is how
+  /// the first render of this looked.
+  ///
+  /// So the page is laid out at **its own measured width** and scaled down to
+  /// the screen — exactly what mobile Safari and Mail do with a desktop-width
+  /// message. The width is read from the document rather than hardcoded from
+  /// the renderer: a letter that changes width keeps fitting, and no number
+  /// from the backend is copied into this client to go stale.
+  ///
+  /// The height comes back pre-scaled, because the widget is sized in device
+  /// pixels and the page is now measuring itself in its own.
+  static const _measureJs = '''(function(){
+  var dw = window.__nlDeviceWidth || (window.__nlDeviceWidth = window.innerWidth);
+  var need = Math.max(document.documentElement.scrollWidth, dw);
+  if (need > dw) {
+    document.querySelector('meta[name=viewport]')
+      .setAttribute('content', 'width=' + need);
+  }
+  var scale = Math.min(1, dw / need);
+  LetterHeight.postMessage(
+    String(Math.ceil(document.body.scrollHeight * scale)));
+})();''';
+
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: _Paper.ground,
       width: double.infinity,
-      child: Html(
-        data: html,
-        extensions: const [TableHtmlExtension()],
-        style: {
-          // The shared map, resolved against the LIGHT tokens and only the
-          // light ones. Every other Html() in the app passes
-          // `AppTheme.htmlStyles(Tokens.of(context))`; this one may not,
-          // because the letter does not flip — so it is frozen at the theme
-          // the letter was rendered in rather than skipping the map, which
-          // would take flutter_html's own black four-sided <hr>.
-          ...AppTheme.htmlStyles(Tokens.light),
-          // The body style carries only the face and the ink — every colour
-          // that matters is inline in the letter and must win.
-          'body': Style(
-            margin: Margins.zero,
-            padding: HtmlPaddings.zero,
-            color: _Paper.ink,
-            fontFamily: AppTheme.fontSerif,
-          ),
-          'img': Style(width: Width(100, Unit.percent)),
-        },
+      height: _height ?? _minHeight,
+      // The letter scrolls with the screen, not inside itself: it sits in the
+      // page's own scroll container at its measured height, so there is one
+      // scroll and the actions bar above it stays reachable.
+      child: WebViewWidget(
+        controller: _controller,
+        gestureRecognizers: const {},
       ),
     );
   }
@@ -260,6 +364,7 @@ class KitLetterBody extends StatelessWidget {
     final t = Tokens.of(context);
     return Html(
       data: html,
+      extensions: AppTheme.htmlExtensions,
       style: {
         ...AppTheme.htmlStyles(t),
         'body': Style(

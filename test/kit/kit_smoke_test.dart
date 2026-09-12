@@ -596,23 +596,27 @@ void main() {
       expect(find.text('3 passages · Sent on request'), findsOneWidget);
     });
 
-    testWidgets('a letterheaded body is hosted bare, on frozen paper',
-        (tester) async {
-      await pumpBoth(
-        tester,
-        const KitLetterPaper(
-          '<div data-nl-letterhead="1"><p data-nl-lede="1">A note.</p></div>',
-        ),
-      );
-      // The letter does not flip: the ground it sits on is the same colour in
-      // both themes, because the letter's own palette is baked light hex and a
-      // themed page behind it would be a different object from the one sent.
-      final grounds = tester
-          .widgetList<Container>(find.byType(Container))
-          .where((c) => c.color != null)
-          .map((c) => c.color)
-          .toList();
-      expect(grounds, contains(const Color(0xFFFAFAF7)));
+    test('a letterheaded body is wrapped and NOT edited', () {
+      // The bare letter is a platform view — a widget test cannot prove it
+      // renders, and pretending otherwise is what a fake WebViewPlatform would
+      // do. The device run and the screenshot pair prove the render; what is
+      // provable here is the only thing this widget does to the letter, which
+      // is wrap it.
+      const body = '<div data-nl-letterhead="1" style="background:#FAFAF7">'
+          '<table><tr><td>A letter.</td></tr></table></div>';
+      final doc = KitLetterPaper.documentFor(body);
+      // The letter's own markup, byte for byte. A client hosting it bare may
+      // not rewrite it to suit a renderer (ADR-087) — the reader would be
+      // looking at something nobody was sent.
+      expect(doc, contains(body));
+      // What we add: a viewport, so a 640px mail sheet fits a phone instead of
+      // scrolling sideways, and the letter's own frozen ground behind it.
+      expect(doc, contains('width=device-width'));
+      expect(doc, contains('#FAFAF7'));
+      // …and no font, colour or metric of ours: every one of those is inline
+      // in the letter and must win.
+      expect(doc, isNot(contains('Source Serif')));
+      expect(doc, isNot(contains('font-size')));
     });
   });
 

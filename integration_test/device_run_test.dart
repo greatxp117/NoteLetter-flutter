@@ -18,6 +18,7 @@ import 'package:flutter_app/state/cloud_notifier.dart';
 import 'package:flutter_app/state/documents_notifier.dart';
 import 'package:flutter_app/state/newsletter_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
+import 'package:flutter_app/state/scripture_letter_notifier.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
@@ -133,6 +134,13 @@ void main() {
           ),
           ChangeNotifierProvider<NewsletterNotifier>(
             create: (_) => NewsletterNotifier(),
+          ),
+          // The readings letter's own settings document (ADR-029) — separate
+          // from the daily letter's, exactly as its endpoint is. A provider
+          // missing HERE does not fail the app: it fails the run, with a
+          // ProviderNotFoundError wall where the screen should be.
+          ChangeNotifierProvider<ScriptureLetterNotifier>(
+            create: (_) => ScriptureLetterNotifier(),
           ),
           ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
           ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
@@ -861,5 +869,81 @@ void main() {
     expect(find.byType(ChoiceChip), findsNothing,
         reason: 'the style positions are a segmented control, not chips');
     expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('letters composes from the kit and opens a letter', (
+    tester,
+  ) async {
+    // Screen 7/11 (QUEUE F-05). Seed the letters FIRST — the canonical seed's
+    // two records predate 2.0.0 and carry no `html_body`, so without this
+    // there is no letter to open and nothing here is exercised:
+    //   FIRESTORE_EMULATOR_HOST=localhost:8080 \
+    //     ../NoteLetter-Firebase-Functions/functions/venv/bin/python \
+    //     tool/seed_letters.py
+    final router = await pumpApp(tester);
+    router.go('/letters');
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitSourceRow).evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+
+    // §Composition — the bespoke header (§2 names letters, ask and search as
+    // the three that do not open a chapter), then §3 section headers over the
+    // cards and the archive.
+    expect(find.byType(ScreenHeader), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsNothing,
+        reason: 'letters has a bespoke header, not a chapter opening');
+    expect(find.text('Letters'), findsWidgets);
+    expect(find.text('LATEST LETTER'), findsOneWidget);
+    expect(find.byType(SectionHeader), findsWidgets);
+    expect(find.byType(KitCard), findsWidgets);
+    expect(find.byType(Card), findsNothing);
+    expect(find.byType(ListTile), findsNothing);
+
+    // 2.29.0 rule 3 — the schedule is STATED from what was read. The seed's
+    // settings say 08:00 America/Chicago, so that is what the card says; a
+    // client that had not read them would have to say nothing.
+    expect(find.textContaining('ARRIVES EVERY DAY AT 08:00'), findsOneWidget);
+    expect(find.byType(KitSwitch), findsWidgets);
+
+    // The archive rows, and the two axes on them (INV-23). `delivered` is the
+    // ONLY state that may read as "Delivered"; the deferred letter says it is
+    // still going, and the `empty` row is informational and NOT openable.
+    // The §6.3 pill sets its label in mono caps, so these are the rendered
+    // strings, not the table's.
+    expect(find.text('DELIVERED'), findsOneWidget);
+    expect(find.text('STILL SENDING…'), findsOneWidget);
+    expect(find.text('NOTHING NEW'), findsOneWidget);
+    expect(find.text('FAILED'), findsNothing,
+        reason: 'an empty result is not a failure (2.2.0, ADR-011)');
+
+    // The readings letter — a SECOND letter beside the first, never a mode of
+    // it, and with no send action of its own: its builder is an OIDC-only
+    // worker that answers a client with 403 (the 1.5.1 defect).
+    expect(find.text('THE READINGS LETTER'), findsOneWidget);
+    expect(find.textContaining('Thursday of week 23'), findsWidgets);
+    expect(find.text('Send now'), findsOneWidget,
+        reason: 'exactly one Send now on this screen, and it is the daily '
+            'letter\'s');
+
+    // Open the letter. `warnIfMissed` stays on: a tap that lands on nothing
+    // is silent, and everything below would then be asserting the LIST.
+    await tester.tap(find.text('Preview').first);
+    await pumpFor(tester, total: const Duration(seconds: 3));
+
+    // The letter is hosted BARE (4.50.0, ADR-087) — the app draws no frame
+    // around a body that brought its own, so the §11 sheet is ABSENT here and
+    // the letter is the web view holding the object that was sent.
+    expect(find.text('All letters'), findsOneWidget);
+    expect(find.byType(KitLetterPaper), findsOneWidget);
+    expect(find.byType(KitLetterSheet), findsNothing,
+        reason: 'a letterheaded body is not framed — that would draw the '
+            'app\'s masthead above the letter\'s own');
+
+    // …and the way back out of it works.
+    await tester.tap(find.text('All letters'));
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.text('LATEST LETTER'), findsOneWidget);
   });
 }

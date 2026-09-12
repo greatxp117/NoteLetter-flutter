@@ -98,7 +98,7 @@ a new obligation on a finished screen is a new item.
   route in F-05.
 
 ## F-05 · Letters + letter settings — recompose, `html_body`, delivery
-- status: blocked: pair letter-reader: flutter_html cannot lay out the sent letter — RenderBox.size accessed in RenderParagraph.computeDryLayout (flutter_html_table's grid, over the letter's mail tables). Decide: render the bare letterheaded body in a WebView (faithful — it IS the object that was sent), or not at all. Rewriting the letter's HTML to suit the renderer is what ADR-087 forbids
+- status: done 2026-09-12
 - screen: letters
 - route: /letters
 - spec: spec/screens/letters.md §Composition §Data §States §Pinned sources §Scheduled delivery is a control; spec/component-kit.md §11 §5.2 §14.1; spec/api/newsletter.md
