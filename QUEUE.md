@@ -98,12 +98,12 @@ a new obligation on a finished screen is a new item.
   route in F-05.
 
 ## F-05 · Letters + letter settings — recompose, `html_body`, delivery
-- status: blocked: spec-vs-web: letters.md §Composition Header requires 'a Segmented control (§6.8) carrying the tabs, trailing on the same row' — the web reference, the design prototype and letters.md itself have no tabs (LettersView.jsx renders an IcoSliders ghost button 'Letter settings' there)
+- status: blocked: pair letter-reader: flutter_html cannot lay out the sent letter — RenderBox.size accessed in RenderParagraph.computeDryLayout (flutter_html_table's grid, over the letter's mail tables). Decide: render the bare letterheaded body in a WebView (faithful — it IS the object that was sent), or not at all. Rewriting the letter's HTML to suit the renderer is what ADR-087 forbids
 - screen: letters
 - route: /letters
 - spec: spec/screens/letters.md §Composition §Data §States §Pinned sources §Scheduled delivery is a control; spec/component-kit.md §11 §5.2 §14.1; spec/api/newsletter.md
 - web: src/pages/LettersView.jsx; src/pages/LetterSettings.jsx; src/pages/letters/LetterDocument.jsx; src/pages/letters/ReadingsLetter.jsx; src/pages/letters/PinnedSources.jsx; src/pages/letters/delivery.js; src/pages/letters/schedule.js; src/styles/app-kit.css
-- flutter: lib/pages/letters_page.dart; lib/pages/letters/readings_letter.dart; lib/pages/letters/pinned_sources.dart; lib/pages/letter_settings_page.dart (new); lib/router.dart; lib/widgets/kit/kit_letter.dart (new); lib/widgets/kit/kit.dart; lib/models/newsletter.dart; lib/models/newsletter_settings.dart; lib/widgets/newsletter_card.dart
+- flutter: lib/pages/letters_page.dart; lib/pages/letters/readings_letter.dart; lib/pages/letters/pinned_sources.dart; lib/pages/letter_settings_page.dart (new); lib/router.dart; lib/widgets/kit/kit_letter.dart (new); lib/widgets/kit/kit.dart; lib/models/newsletter.dart; lib/models/newsletter_settings.dart
 - folds: 4.50.0 (`html_body` is the whole letter — render it, not `html`); 4.50.1; 4.22.0 (the `delivery` map + badge, INV-23); 4.24.0 (`emailEnabled` control, `email_failed` row); 2.29.0 + 2.30.0 (letters half); 2.33.0 (pinned sources, verify parts); 4.15.0 (`?p=` source links, verify); 2.26.0 + 2.25.x (readings letter settings, verify); TODO "Flutter is recorded as pending, not implemented" (html_body); TODO "Flutter and iOS render the six delivery activity types but not the delivery map"
 - device_test: letters composes from the kit and opens a letter
 - shots: letters; letter-settings; letter-reader

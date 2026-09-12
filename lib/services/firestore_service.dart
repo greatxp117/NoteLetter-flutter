@@ -10,6 +10,7 @@ import '../models/notification_channel.dart';
 import '../models/organization_settings.dart';
 import '../models/organization_suggestion.dart';
 import '../models/newsletter_settings.dart';
+import '../models/scripture_newsletter_settings.dart';
 import '../models/study.dart';
 import '../models/support.dart';
 import '../models/tag.dart';
@@ -344,36 +345,40 @@ class FirestoreService {
     return NewsletterSettings.fromJson(data);
   }
 
-  /// Latest newsletter by recency (INV-09) — never construct `{uid}_{date}` IDs.
-  Future<Newsletter?> getLatestNewsletter() async {
-    final list = await listNewsletters(limit: 1);
-    return list.isEmpty ? null : list.first;
-  }
-
-  /// Newsletter history by `generated_at desc` (INV-09).
+  /// One-shot read of `/users/{uid}/settings/scripture_newsletter`.
   ///
-  /// **Filtered `kind != "scripture"`, never `kind == "daily"`** (2.25.2): the
-  /// field is absent on every pre-2.24.0 record, so equality would drop a real
-  /// user's entire letter history. The filter is applied client-side for the
-  /// same reason the web reference does it — an inequality here would need its
-  /// own index and would exclude the documents that have no `kind` at all.
-  Future<List<Newsletter>> listNewsletters({int limit = 30}) async {
+  /// **Through the SDK, not the endpoint.** `fn_scripture_newsletter_settings`
+  /// answers `GET` with a deliberate 410 (screens/letters.md §Endpoints) — this
+  /// client asked it anyway, so every render of the readings panel resolved to
+  /// a failure block and the opt-in card could never appear.
+  ///
+  /// A missing document means **never opted in**, which is a real answer and
+  /// not a failure; a read that THROWS is a different thing and is left to the
+  /// caller (INV-24).
+  Future<ScriptureNewsletterSettings?> getScriptureNewsletterSettings() async {
     final uid = _uid;
-    if (uid == null) return const [];
+    if (uid == null) return null;
     final snap = await _db
-        .collection('newsletters')
-        .where('user_id', isEqualTo: uid)
-        .orderBy('generated_at', descending: true)
-        .limit(limit)
+        .collection('users')
+        .doc(uid)
+        .collection('settings')
+        .doc('scripture_newsletter')
         .get();
-    return snap.docs
-        .map((d) => Newsletter.fromJson(d.id, d.data()))
-        .where((n) => !n.isScripture)
-        .toList();
+    if (!snap.exists) return const ScriptureNewsletterSettings();
+    return ScriptureNewsletterSettings.fromJson(
+        Map<String, dynamic>.from(snap.data()!));
   }
 
-  /// The readings letter's own history — the other side of the same filter.
-  Future<List<Newsletter>> listScriptureNewsletters({int limit = 30}) async {
+  /// Newsletter history by `generated_at desc` (INV-09) — **both kinds**.
+  ///
+  /// One collection, two letters (2.24.0, ADR-029 §3). The split is made by the
+  /// caller and is `kind != "scripture"`, **never** `kind == "daily"`: the field
+  /// is absent on every pre-2.24.0 record, so equality would drop a real
+  /// reader's entire letter history. It is a client-side split for the same
+  /// reason the web reference makes one — an inequality here would need its own
+  /// index and would exclude the documents that have no `kind` at all, which is
+  /// most of them.
+  Future<List<Newsletter>> listAllNewsletters({int limit = 30}) async {
     final uid = _uid;
     if (uid == null) return const [];
     final snap = await _db
@@ -382,10 +387,7 @@ class FirestoreService {
         .orderBy('generated_at', descending: true)
         .limit(limit)
         .get();
-    return snap.docs
-        .map((d) => Newsletter.fromJson(d.id, d.data()))
-        .where((n) => n.isScripture)
-        .toList();
+    return snap.docs.map((d) => Newsletter.fromJson(d.id, d.data())).toList();
   }
 
   /// Reader: one-shot doc + its chunks (`chunk_index` asc). Fires

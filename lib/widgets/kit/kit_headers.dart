@@ -322,3 +322,90 @@ class RuledSectionLabel extends StatelessWidget {
     );
   }
 }
+
+/// §2 — the **bespoke** screen header.
+///
+/// Nine of the eleven screens open a chapter ([ChapterOpening]); letters, ask
+/// and search do not, and each specifies its own header in its own screen file.
+/// They specify the same shape, so it lives here rather than three times in
+/// `lib/pages/`: a serif title, an italic serif standfirst beneath it, and at
+/// most one quiet action trailing on the title's row.
+///
+/// The action **yields to the title** — §2.1's rule (4.32.6), which applies
+/// wherever an action shares a row with a title: below the compact breakpoint
+/// it drops to its own line rather than narrowing the one required part.
+class ScreenHeader extends StatelessWidget {
+  final String title;
+  final String? standfirst;
+  final Widget? action;
+
+  /// letters.md's 30/1.1/600 is the default; ask and search state their own.
+  final double titleSize;
+  final double standfirstSize;
+
+  /// The head block is **closed by a `--rule`** (letters.md §Composition) —
+  /// this is not the §2.1 chapter rule, which is two bars and an accent
+  /// underbar. A screen running straight into a control bar suppresses it.
+  final bool rule;
+
+  const ScreenHeader({
+    super.key,
+    required this.title,
+    this.standfirst,
+    this.action,
+    this.titleSize = 30,
+    this.standfirstSize = 15,
+    this.rule = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final titleWidget = Text(
+      title,
+      style: AppTheme.serif(
+        fontSize: titleSize,
+        height: 1.1,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.02 * titleSize,
+        color: Tokens.of(context).fg,
+      ).copyWith(shadows: AppShadows.letterpress),
+    );
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.s5),
+      padding: rule ? const EdgeInsets.only(bottom: AppSpacing.s4) : null,
+      decoration: rule
+          ? BoxDecoration(
+              border: Border(
+                  bottom: BorderSide(color: Tokens.of(context).rule)))
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (action == null)
+            titleWidget
+          else if (compact) ...[
+            titleWidget,
+            const SizedBox(height: AppSpacing.s3),
+            Align(alignment: Alignment.centerLeft, child: action!),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: titleWidget),
+                const SizedBox(width: AppSpacing.s4),
+                action!,
+              ],
+            ),
+          if (standfirst != null && standfirst!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s2),
+            Lede(standfirst!,
+                fontSize: standfirstSize,
+                height: standfirstSize + 7,
+                maxWidth: double.infinity),
+          ],
+        ],
+      ),
+    );
+  }
+}

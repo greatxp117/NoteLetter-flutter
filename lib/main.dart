@@ -16,6 +16,7 @@ import 'state/activity_notifier.dart';
 import 'state/documents_notifier.dart';
 import 'state/settings_notifier.dart';
 import 'state/newsletter_notifier.dart';
+import 'state/scripture_letter_notifier.dart';
 import 'state/cloud_notifier.dart';
 import 'state/org_notifier.dart';
 import 'state/tags_notifier.dart';
@@ -84,6 +85,11 @@ void main() async {
         ),
         ChangeNotifierProvider<NewsletterNotifier>(
           create: (_) => NewsletterNotifier(),
+        ),
+        // The readings letter's own settings document (ADR-029) — separate
+        // from the daily letter's, exactly as its endpoint is.
+        ChangeNotifierProvider<ScriptureLetterNotifier>(
+          create: (_) => ScriptureLetterNotifier(),
         ),
         ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
         ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),

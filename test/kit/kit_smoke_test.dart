@@ -573,6 +573,49 @@ void main() {
     });
   });
 
+  group('§11 letter sheet', () {
+    testWidgets('the frame this client draws: masthead, rule, body, seal',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const KitLetterSheet(
+          title: 'A Letter.',
+          marker: 'On Quiet Rooms',
+          standfirst: 'Three passages found each other today.',
+          sealText: '3 passages · Sent on request',
+          children: [
+            RuledSectionLabel('§ 01'),
+            KitLetterBody('<p>Brown the meat before adding liquid.</p>'),
+            KitLetterAttribution('— The Craft of Braising'),
+          ],
+        ),
+      );
+      // The versal raises the opening capitals and sets the rest uppercase —
+      // which letters rise is not a detail (4.50.1 shipped `NOteLETTER`).
+      expect(find.text('ON QUIET ROOMS'), findsOneWidget);
+      expect(find.text('3 passages · Sent on request'), findsOneWidget);
+    });
+
+    testWidgets('a letterheaded body is hosted bare, on frozen paper',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const KitLetterPaper(
+          '<div data-nl-letterhead="1"><p data-nl-lede="1">A note.</p></div>',
+        ),
+      );
+      // The letter does not flip: the ground it sits on is the same colour in
+      // both themes, because the letter's own palette is baked light hex and a
+      // themed page behind it would be a different object from the one sent.
+      final grounds = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((c) => c.color != null)
+          .map((c) => c.color)
+          .toList();
+      expect(grounds, contains(const Color(0xFFFAFAF7)));
+    });
+  });
+
   group('support footer (§13, INV-22)', () {
     testWidgets('the two required parts, and the optional count', (
       tester,

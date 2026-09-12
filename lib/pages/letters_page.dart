@@ -1,19 +1,29 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
 import '../models/newsletter.dart';
+import '../models/newsletter_settings.dart';
+import '../shared/dates.dart';
+import '../state/activation_message.dart';
 import '../state/newsletter_notifier.dart';
-import '../theme/app_colors.dart';
-import '../widgets/app_toast.dart';
+import '../state/schedule.dart';
 import '../state/settings_notifier.dart';
+import '../theme/app_spacing.dart';
+import '../theme/tokens.dart';
+import '../widgets/kit/kit.dart';
+import 'letters/delivery.dart';
+import 'letters/letter_reader.dart';
 import 'letters/pinned_sources.dart';
 import 'letters/readings_letter.dart';
-import '../theme/app_radius.dart';
-import '../theme/app_theme.dart';
-import '../theme/tokens.dart';
 
-/// Letters — newsletter history (INV-09) + "send now". See
-/// spec/screens/letters.md.
+/// Letters (`spec/screens/letters.md` §Composition, ADR-041).
+///
+/// Index frame · a bespoke header (§2 names it so — the serif title, the italic
+/// standfirst, and one ghost Button through to Letter settings) · §3 section
+/// headers opening the pinned block, the latest letter, the readings letter and
+/// the archive · §4.1 row lists for the archive · the letter itself in §11.
 class LettersPage extends StatefulWidget {
   const LettersPage({super.key});
 
@@ -22,16 +32,26 @@ class LettersPage extends StatefulWidget {
 }
 
 class _LettersPageState extends State<LettersPage> {
-  Newsletter? _selected;
+  /// The letter being read, or null for the list. A state rather than a route
+  /// because the archive row is what opens it — the reference does the same.
+  Newsletter? _open;
+
+  String? _sendMessage;
+  String? _sendError;
+  String? _scheduleOutcome;
+  String? _scheduleError;
+  bool _scheduleBusy = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       context.read<NewsletterNotifier>().load();
-      // The pinned block reads `itemsPerNewsletter` from settings and never
-      // defaults it, so the settings must actually be loaded for the "how many
-      // arrive" sentence to appear at all.
+      // The schedule this screen describes is READ, never assumed (2.29.0
+      // rule 3), and the pinned block's "how many arrive" sentence is half of
+      // `itemsPerNewsletter` — so the settings have to actually be loaded for
+      // either line to be allowed to appear.
       final settings = context.read<SettingsNotifier>();
       if (settings.newsletter == null) settings.loadAll();
     });
@@ -39,233 +59,404 @@ class _LettersPageState extends State<LettersPage> {
 
   Future<void> _sendNow() async {
     final notifier = context.read<NewsletterNotifier>();
+    setState(() {
+      _sendMessage = null;
+      _sendError = null;
+    });
     final error = await notifier.requestNewsletter();
     if (!mounted) return;
     if (error != null) {
-      AppToast.show(context, error, type: ToastType.error);
-    } else {
-      AppToast.show(context, 'Newsletter queued — it will appear here shortly.',
-          type: ToastType.success);
+      setState(() => _sendError = error);
+      return;
     }
+    setState(() => _sendMessage =
+        'On its way — it shows up here in a few minutes. The email leaves '
+        'with it; the letter’s row shows what happened to it.');
+    // The build is asynchronous and always writes a record (2.2.0, ADR-011).
+    // Re-reading is how it is found; nothing here polls a function (INV-02).
+    await notifier.load();
+  }
+
+  Future<void> _toggleSchedule(bool next) async {
+    final settings = context.read<SettingsNotifier>();
+    final stored = settings.newsletter;
+    if (stored == null) return;
+    setState(() {
+      _scheduleBusy = true;
+      _scheduleOutcome = null;
+      _scheduleError = null;
+    });
+    // Write BEFORE the switch moves (ADR-022). An optimistic toggle that
+    // silently reverts on reload is indistinguishable from one that worked.
+    final error = await settings.setScheduledDelivery(
+      enabled: next,
+      deliveryTime: stored.deliveryTime,
+      timezone: stored.timezone.isNotEmpty ? stored.timezone : deviceTimezone(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _scheduleBusy = false;
+      _scheduleError = error;
+      // 2.30.0 (ADR-031) — what the activation send did, read from the
+      // response and never assumed. The backend owns the decision.
+      _scheduleOutcome = error == null && next
+          ? activationMessage(settings.lastActivation)
+          : null;
+    });
+    if (error == null && next) await context.read<NewsletterNotifier>().load();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final muted =
-        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
+    final letters = context.watch<NewsletterNotifier>();
+    final settings = context.watch<SettingsNotifier>();
 
-    return Consumer<NewsletterNotifier>(
-      builder: (context, notifier, _) {
-        final selected = _selected ?? notifier.latest;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // History list
-            SizedBox(
-              width: 320,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 28, 16, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Letters',
-                            style: AppTheme.serif(
-                                fontSize: 22, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 12),
-                        // 2.33.0 — the pin's only surface outside the
-                        // extension. Above "Send now" because it describes what
-                        // the NEXT letter will carry.
-                        PinnedSources(
-                            settings: context.watch<SettingsNotifier>().newsletter),
-                        // The second, opt-in letter (2.24.0). No send action:
-                        // its builder is an OIDC-only worker.
-                        const ReadingsLetterPanel(),
-                        FilledButton.icon(
-                          onPressed: notifier.isSending ? null : _sendNow,
-                          style: FilledButton.styleFrom(backgroundColor: primary),
-                          icon: notifier.isSending
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.send, size: 16),
-                          label: const Text('Send now'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: notifier.isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : notifier.history.isEmpty
-                            ? Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Text(
-                                  'No newsletters yet. Configure your preferences '
-                                  'in Settings, or send one now.',
-                                  style: theme.textTheme.bodyMedium
-                                      ?.copyWith(color: muted),
-                                ),
-                              )
-                            : ListView.builder(
-                                itemCount: notifier.history.length,
-                                itemBuilder: (context, i) {
-                                  final n = notifier.history[i];
-                                  final isSelected = n.id == selected?.id;
-                                  final badge = _statusBadge(n.status, Tokens.of(context));
-                                  // empty/error rows carry no html to preview;
-                                  // show their reason instead of the trigger.
-                                  final sub = n.isReadable
-                                      ? (n.trigger == 'manual'
-                                          ? 'Manual send'
-                                          : 'Scheduled')
-                                      : (n.errorMessage ??
-                                          (n.trigger == 'manual'
-                                              ? 'Manual send'
-                                              : 'Scheduled'));
-                                  return ListTile(
-                                    selected: isSelected,
-                                    selectedTileColor:
-                                        primary.withValues(alpha: 0.08),
-                                    title: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(_formatDate(n.generatedAt),
-                                              style: theme.textTheme.bodyMedium
-                                                  ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w600)),
-                                        ),
-                                        if (badge != null)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: badge.color
-                                                  .withValues(alpha: 0.12),
-                                              borderRadius:
-                                                  AppRadius.controlR(20),
-                                            ),
-                                            child: Text(badge.label,
-                                                style: theme.textTheme.labelSmall
-                                                    ?.copyWith(
-                                                        color: badge.color,
-                                                        fontWeight:
-                                                            FontWeight.w600)),
-                                          ),
-                                      ],
-                                    ),
-                                    subtitle: Text(
-                                      sub,
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(color: muted),
-                                    ),
-                                    onTap: () => setState(() => _selected = n),
-                                  );
-                                },
-                              ),
-                  ),
-                ],
-              ),
-            ),
-            VerticalDivider(
-                width: 1,
-                color: isDark ? AppColors.borderDark : AppColors.borderLight),
-            // Rendered newsletter
-            Expanded(
-              child: selected == null
-                  ? Center(
-                      child: Text('Select a newsletter to view it.',
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(color: muted)),
-                    )
-                  : !selected.isReadable
-                      // empty/error/generating: nothing was rendered — show the
-                      // reason as an informational panel, not a broken preview.
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(48),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                    selected.status == 'error'
-                                        ? Icons.error_outline
-                                        : Icons.mark_email_read_outlined,
-                                    size: 32,
-                                    color: muted),
-                                const SizedBox(height: 12),
-                                Text(_statusBadge(selected.status, Tokens.of(context))
-                                        ?.label ??
-                                    'No content',
-                                    style: theme.textTheme.titleMedium),
-                                const SizedBox(height: 8),
-                                Text(
-                                  selected.errorMessage ??
-                                      'This newsletter has no content to display.',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodyMedium
-                                      ?.copyWith(color: muted),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(32, 28, 32, 48),
-                          child: Html(
-                            data: selected.html,
-                            style: AppTheme.htmlStyles(Tokens.of(context)),
-                          ),
-                        ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  String _formatDate(int? ms) {
-    if (ms == null) return 'Unknown date';
-    final dt = DateTime.fromMillisecondsSinceEpoch(ms);
-    return '${dt.month}/${dt.day}/${dt.year}';
-  }
-
-  /// Status → badge (contract 2.2.0, ADR-011). `sent` needs no badge; `empty`
-  /// is informational ("Nothing new"), not a failure. Unknown statuses fall
-  /// through to an informational badge — the vocabulary is open.
-  /// The badge draws its colour twice — a 12% tint and the label ON it — so
-  /// every one of these has to be a token that FLIPS. All four were the light
-  /// constants, unconditionally: `Failed` was brick-500 on the near-black page
-  /// at about 2:1, and `Sending…` was raw plum-500, the exact pair 4.32.0
-  /// replaced with --tone-plum on the web (4.35.0, ADR-072).
-  _Badge? _statusBadge(String status, Tokens t) {
-    switch (status) {
-      case 'sent':
-        return null;
-      case 'error':
-        return _Badge('Failed', t.criticalText);
-      case 'empty':
-        return _Badge('Nothing new', t.fgMuted);
-      case 'generating':
-        return _Badge('Sending…', t.tonePlum);
-      case '':
-        return null;
-      default:
-        return _Badge(status, t.fgMuted);
+    final open = _open;
+    if (open != null) {
+      return LetterReaderView(
+        letter: open,
+        onBack: () => setState(() => _open = null),
+      );
     }
+
+    final archive = letters.history;
+    final latest = letters.latest;
+
+    return KitPage(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ScreenHeader(
+            title: 'Letters',
+            standfirst: 'Every letter your library has written you, and the '
+                'one arriving next.',
+            action: KitButton('Letter settings',
+                icon: Icons.tune,
+                variant: KitButtonVariant.ghost,
+                onPressed: () => context.go('/letters/settings')),
+          ),
+
+          // 2.33.0 — the pin's only surface outside the extension, above the
+          // letter because it describes what the NEXT one will carry.
+          PinnedSources(settings: settings.newsletter),
+
+          const SectionHeader('Latest letter', first: true),
+          _LatestLetter(
+            latest: latest,
+            loaded: letters.loaded,
+            archiveError: letters.error,
+            sending: letters.isSending,
+            onSend: _sendNow,
+            onPreview: latest == null
+                ? null
+                : () => setState(() => _open = latest),
+            onSettings: () => context.go('/letters/settings'),
+            sendMessage: _sendMessage,
+            sendError: _sendError,
+            scheduleOutcome: _scheduleOutcome,
+            scheduleError: _scheduleError,
+            scheduleBusy: _scheduleBusy,
+            onToggleSchedule: _toggleSchedule,
+          ),
+
+          // The SECOND letter, beside the one above and never a mode of it.
+          ReadingsLetterSection(
+            issues: letters.readings,
+            onOpen: (n) => setState(() => _open = n),
+            onSettings: () => context.go('/letters/settings'),
+          ),
+
+          SectionHeader(
+              'Sent · ${archive.length} ${archive.length == 1 ? 'letter' : 'letters'}'),
+          _Archive(
+            rows: archive,
+            loaded: letters.loaded,
+            error: letters.error,
+            onRetry: () => context.read<NewsletterNotifier>().load(),
+            onOpen: (n) => setState(() => _open = n),
+          ),
+          const SizedBox(height: AppSpacing.s8),
+        ],
+      ),
+    );
   }
 }
 
-class _Badge {
-  final String label;
-  final Color color;
-  const _Badge(this.label, this.color);
+/// The latest letter, its schedule and the actions on it (§5.3 hero card).
+class _LatestLetter extends StatelessWidget {
+  final Newsletter? latest;
+  final bool loaded;
+  final String? archiveError;
+  final bool sending;
+  final Future<void> Function() onSend;
+  final VoidCallback? onPreview;
+  final VoidCallback onSettings;
+  final String? sendMessage;
+  final String? sendError;
+  final String? scheduleOutcome;
+  final String? scheduleError;
+  final bool scheduleBusy;
+  final Future<void> Function(bool) onToggleSchedule;
+
+  const _LatestLetter({
+    required this.latest,
+    required this.loaded,
+    required this.archiveError,
+    required this.sending,
+    required this.onSend,
+    required this.onPreview,
+    required this.onSettings,
+    required this.sendMessage,
+    required this.sendError,
+    required this.scheduleOutcome,
+    required this.scheduleError,
+    required this.scheduleBusy,
+    required this.onToggleSchedule,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsNotifier>();
+    final cfg = settings.newsletter;
+    final n = latest;
+    final passages = n?.chunkIds.length ?? 0;
+
+    return KitCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s6, vertical: AppSpacing.s6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ScheduleRow(
+            cfg: cfg,
+            busy: scheduleBusy,
+            onToggle: onToggleSchedule,
+          ),
+          if (scheduleError != null) ...[
+            const SizedBox(height: AppSpacing.s2),
+            KitFailureInline(scheduleError!),
+          ] else if (scheduleOutcome != null) ...[
+            const SizedBox(height: AppSpacing.s2),
+            KitRowNote(scheduleOutcome!),
+          ] else if (cfg != null && !cfg.enabled) ...[
+            const SizedBox(height: AppSpacing.s2),
+            // Said BEFORE the switch is touched (2.30.0 rule 5): a letter
+            // arriving seconds after a settings change, unannounced, reads as
+            // a bug in the direction that matters.
+            KitRowNote(activationHint),
+          ],
+          const SizedBox(height: AppSpacing.s3),
+          if (n?.generatedAt != null) ...[
+            Text('Last sent · ${longDate(n!.generatedAt)}',
+                style: KitText.capsLabel(context)),
+            const SizedBox(height: AppSpacing.s2),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Flexible(child: KitVersal('A Letter', fontSize: 25)),
+              if (n?.subject != null && n!.subject!.isNotEmpty) ...[
+                const SizedBox(width: AppSpacing.s3),
+                Flexible(
+                  child: Text(n.subject!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KitText.capsLabel(context, letterSpacing: 0.04)),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s2),
+          Lede(
+            n != null
+                ? (n.lede.isNotEmpty
+                    ? n.lede
+                    : 'Your daily reading, drawn from your library.')
+                // INV-24 (ADR-071): "no letter yet" is a claim about the
+                // archive, and a read that FAILED is not evidence for it.
+                : archiveError != null
+                    ? 'Your letters could not be read.'
+                    : !loaded
+                        ? 'Loading…'
+                        : "No letter yet — it draws from what's in your "
+                            'library so far.',
+            fontSize: 16,
+            height: 24,
+            maxWidth: double.infinity,
+          ),
+          if (passages > 0) ...[
+            const SizedBox(height: AppSpacing.s3),
+            // `chunk_ids` names exactly the passages the body holds (4.39.0),
+            // so this is counted, not estimated.
+            Text(
+                '$passages ${passages == 1 ? 'passage' : 'passages'} · '
+                '~${passages + 1} min read',
+                style: KitText.meta(context)),
+          ],
+          if (sendError != null) ...[
+            const SizedBox(height: AppSpacing.s2),
+            KitFailureInline(sendError!),
+          ] else if (sendMessage != null) ...[
+            const SizedBox(height: AppSpacing.s2),
+            KitRowNote(sendMessage!),
+          ],
+          const SizedBox(height: AppSpacing.s4),
+          Wrap(
+            spacing: AppSpacing.s2,
+            runSpacing: AppSpacing.s2,
+            children: [
+              KitButton(sending ? 'Sending…' : 'Send now',
+                  icon: Icons.send_outlined,
+                  onPressed: sending ? null : () => onSend()),
+              if (onPreview != null)
+                KitButton('Preview',
+                    icon: Icons.visibility_outlined,
+                    variant: KitButtonVariant.secondary,
+                    onPressed: onPreview),
+              KitButton('Settings',
+                  icon: Icons.settings_outlined,
+                  variant: KitButtonVariant.ghost,
+                  onPressed: onSettings),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The schedule, stated from what was READ (2.29.0 rule 3), with the switch
+/// that owns it.
+class _ScheduleRow extends StatelessWidget {
+  final NewsletterSettings? cfg;
+  final bool busy;
+  final Future<void> Function(bool) onToggle;
+
+  const _ScheduleRow({
+    required this.cfg,
+    required this.busy,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final enabled = cfg?.enabled == true;
+    return Row(
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          margin: const EdgeInsets.only(right: AppSpacing.s2),
+          decoration: BoxDecoration(
+            // Off is a state, not a severity: the dot goes quiet, it does not
+            // go red.
+            color: cfg == null || !enabled ? t.fgSubtle : t.accent,
+            shape: BoxShape.circle,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            // Before the read resolves, say NOTHING about arrival — this
+            // screen once read "Arrives tomorrow morning" to every reader,
+            // including accounts with no schedule at all.
+            cfg == null
+                ? 'Loading…'
+                : scheduleSentence(
+                    enabled: cfg!.enabled,
+                    deliveryTime: cfg!.deliveryTime,
+                    timezone: cfg!.timezone,
+                    frequency: cfg!.frequency,
+                  ).toUpperCase(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: KitText.capsLabel(context,
+                color: t.accentText, letterSpacing: 0.1),
+          ),
+        ),
+        if (cfg != null) ...[
+          const SizedBox(width: AppSpacing.s3),
+          KitSwitch(
+            value: enabled,
+            tooltip: enabled ? 'Pause scheduled delivery' : activationHint,
+            onChanged: busy ? null : (v) => onToggle(v),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// The archive — §4.1 source rows under a §3 header.
+class _Archive extends StatelessWidget {
+  final List<Newsletter> rows;
+  final bool loaded;
+  final String? error;
+  final VoidCallback onRetry;
+  final void Function(Newsletter) onOpen;
+
+  const _Archive({
+    required this.rows,
+    required this.loaded,
+    required this.error,
+    required this.onRetry,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // INV-24 (ADR-071): "No letters sent yet" is a statement about the
+    // archive, and a read that failed is not evidence for it.
+    if (error != null) {
+      return KitFailureBlock(
+        sentence: 'Your letters could not be read.',
+        detail: error!,
+        onRetry: onRetry,
+      );
+    }
+    if (!loaded) return KitRowNote('Loading…');
+    if (rows.isEmpty) return KitRowNote('No letters sent yet.');
+
+    return KitRowList(
+      rows: [
+        for (var i = 0; i < rows.length; i++)
+          _archiveRow(context, rows[i], rows.length - i),
+      ],
+    );
+  }
+
+  Widget _archiveRow(BuildContext context, Newsletter n, int number) {
+    final badge = letterBadge(
+      status: n.status,
+      deliveryState: n.delivery?.state,
+      trigger: n.trigger,
+    );
+    final count = n.chunkIds.length;
+    // A delivery problem outranks the preview: it is the one thing about this
+    // row a reader cannot find out any other way.
+    final note = n.errorMessage ??
+        deliveryNote(
+          state: n.delivery?.state,
+          detail: n.delivery?.detail,
+          attempts: n.delivery?.attempts ?? 0,
+        ) ??
+        n.lede;
+    return KitSourceRow(
+      leading: Text('№ $number',
+          style: KitText.capsLabel(context,
+              color: Tokens.of(context).accentText,
+              fontSize: 12,
+              letterSpacing: 0.03)),
+      title: n.subject?.isNotEmpty == true ? n.subject! : 'A Letter',
+      subtitle: note.isEmpty ? null : note,
+      count: count > 0
+          ? '$count ${count == 1 ? 'passage' : 'passages'} · ~${count + 1} min'
+          : null,
+      date: shortDate(n.generatedAt),
+      trailing: KitStatusPill(badge.text, positive: badge.settled),
+      // Only a letter that was BUILT has a body to open. A bounced one still
+      // opens — it exists, it just never reached the mailbox (INV-23).
+      onTap: n.isReadable ? () => onOpen(n) : null,
+    );
+  }
 }

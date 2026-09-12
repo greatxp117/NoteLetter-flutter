@@ -10,20 +10,31 @@ library;
 class ScriptureNewsletterSettings {
   const ScriptureNewsletterSettings({
     this.enabled = false, // opt-IN: absent means off
+    this.emailEnabled = true, // absent means TRUE (4.24.0)
     this.emailAddress = '',
-    this.deliveryTime = '07:00',
-    this.timezone = 'UTC',
-    this.frequency = 'daily',
+    this.deliveryTime = '06:30',
+    this.timezone = '',
     this.calendar = 'roman',
-    this.itemsPerNewsletter = 5,
-    this.excludeRecentDays = 7,
   });
 
+  /// Whether the letter is BUILT at all. Off stops everything.
   final bool enabled;
+
+  /// Whether it is also **mailed** (4.24.0, ADR-061).
+  ///
+  /// **Two controls, and a client must not merge them.** `enabled` off stops
+  /// the letter being built; this one keeps the daily record and its live "see
+  /// all" search and stops only the mail — which is exactly what the letter's
+  /// own one-click unsubscribe link flips (`fn_scripture_unsubscribe`). A
+  /// reader who used that link has to be able to find this and turn it back on,
+  /// and merging the two would instead delete a feature they open every
+  /// morning. **Absent means true**, so every document written before 4.24.0
+  /// already says "email me", which is what its author meant.
+  final bool emailEnabled;
+
   final String emailAddress;
   final String deliveryTime;
   final String timezone;
-  final String frequency;
 
   /// **Shown, not chosen** (2.25.2). `roman` is the only calendar the shipped
   /// table answers completely — `rcl` is a Sunday-and-principal-feast
@@ -32,51 +43,50 @@ class ScriptureNewsletterSettings {
   /// endpoint still accepts more, so this is a UI restraint, not a schema one.
   final String calendar;
 
-  final int itemsPerNewsletter;
-  final int excludeRecentDays;
-
   factory ScriptureNewsletterSettings.fromJson(Map<String, dynamic> json) =>
       ScriptureNewsletterSettings(
         enabled: json['enabled'] as bool? ?? false,
+        // `??` and not `== true`: absent is TRUE here, and only here.
+        emailEnabled: json['emailEnabled'] as bool? ?? true,
         emailAddress: json['emailAddress'] as String? ?? '',
-        deliveryTime: json['deliveryTime'] as String? ?? '07:00',
-        timezone: json['timezone'] as String? ?? 'UTC',
-        frequency: json['frequency'] as String? ?? 'daily',
+        deliveryTime: json['deliveryTime'] as String? ?? '06:30',
+        timezone: json['timezone'] as String? ?? '',
         calendar: json['calendar'] as String? ?? 'roman',
-        itemsPerNewsletter: json['itemsPerNewsletter'] as int? ?? 5,
-        excludeRecentDays: json['excludeRecentDays'] as int? ?? 7,
       );
 
-  /// Partial update body — any subset of the accepted set and nothing else.
+  /// The whole document, for the PUT that opts in.
+  ///
+  /// **Six keys, and there are only six.** This used to send `frequency`,
+  /// `itemsPerNewsletter` and `excludeRecentDays` as well — the daily letter's
+  /// keys, which this endpoint rejects with a hard 400 that writes nothing. So
+  /// every save this client has ever attempted for the readings letter failed,
+  /// and nothing could see it: the contract suite drives the endpoint from the
+  /// FIXTURE body, so it exercises the adapter and never what a screen puts in
+  /// it (`scripture-newsletter:settings-unknown-keys` is those exact four keys,
+  /// asserting the 400).
   Map<String, dynamic> toJson() => {
         'enabled': enabled,
+        'emailEnabled': emailEnabled,
         'deliveryTime': deliveryTime,
-        'timezone': timezone,
-        'frequency': frequency,
-        'calendar': calendar,
+        if (timezone.isNotEmpty) 'timezone': timezone,
         if (emailAddress.isNotEmpty) 'emailAddress': emailAddress,
-        'itemsPerNewsletter': itemsPerNewsletter,
-        'excludeRecentDays': excludeRecentDays,
+        'calendar': calendar,
       };
 
   ScriptureNewsletterSettings copyWith({
     bool? enabled,
+    bool? emailEnabled,
     String? emailAddress,
     String? deliveryTime,
     String? timezone,
-    String? frequency,
     String? calendar,
-    int? itemsPerNewsletter,
-    int? excludeRecentDays,
   }) =>
       ScriptureNewsletterSettings(
         enabled: enabled ?? this.enabled,
+        emailEnabled: emailEnabled ?? this.emailEnabled,
         emailAddress: emailAddress ?? this.emailAddress,
         deliveryTime: deliveryTime ?? this.deliveryTime,
         timezone: timezone ?? this.timezone,
-        frequency: frequency ?? this.frequency,
         calendar: calendar ?? this.calendar,
-        itemsPerNewsletter: itemsPerNewsletter ?? this.itemsPerNewsletter,
-        excludeRecentDays: excludeRecentDays ?? this.excludeRecentDays,
       );
 }

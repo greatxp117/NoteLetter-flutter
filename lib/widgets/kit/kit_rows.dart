@@ -85,6 +85,16 @@ class _KitSourceRowState extends State<KitSourceRow> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // Below the compact breakpoint the row's four trailing columns do not fit
+    // — with a count, a date AND an affordance it overflowed by 45px on a
+    // phone, which paints the yellow-and-black bars over the content and is a
+    // layout error, not a squeeze. The count is the one that moves: it is the
+    // row's own figure, so it belongs with the row's own text, and the date
+    // and the affordance keep their columns. Recorded in CLAUDE.md
+    // §Composition deviations.
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final countInline = compact && widget.count != null;
     return MouseRegion(
       cursor: widget.onTap == null
           ? SystemMouseCursors.basic
@@ -151,10 +161,18 @@ class _KitSourceRowState extends State<KitSourceRow> {
                         ),
                       ),
                     ],
+                    if (countInline) ...[
+                      const SizedBox(height: 3),
+                      Text(widget.count!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              AppTheme.mono(fontSize: 11, color: t.fgMuted)),
+                    ],
                   ],
                 ),
               ),
-              if (widget.count != null) ...[
+              if (widget.count != null && !countInline) ...[
                 const SizedBox(width: 14),
                 Text(widget.count!,
                     style:

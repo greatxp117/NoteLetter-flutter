@@ -12,6 +12,7 @@ import 'pages/notification_settings_page.dart';
 import 'pages/not_found_page.dart';
 import 'pages/branding_page.dart';
 import 'pages/reader_page.dart';
+import 'pages/letter_settings_page.dart';
 import 'pages/letters_page.dart';
 import 'pages/sources_page.dart';
 import 'pages/tags_page.dart';
@@ -140,6 +141,12 @@ List<RouteBase> appRoutes() {
             GoRoute(
               path: '/letters',
               builder: (context, state) => const LettersPage(),
+            ),
+            // The letter's form is its own screen, as the reference has it —
+            // it was a section inside /settings until F-05.
+            GoRoute(
+              path: '/letters/settings',
+              builder: (context, state) => const LetterSettingsPage(),
             ),
             GoRoute(
               path: '/tags',

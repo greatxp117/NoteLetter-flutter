@@ -70,12 +70,63 @@ class SettingsNotifier extends ChangeNotifier {
   /// read `activationSend` (2.30.0). Null until a save happens.
   Map<String, dynamic>? lastActivation;
 
-  Future<String?> saveNewsletter(NewsletterSettings settings) async {
+  /// The letter form's Save — every editable key **except `enabled`**.
+  ///
+  /// The switch owns `enabled` and writes it on its own ([setScheduledDelivery]).
+  /// Two writers for one field is how a screen starts disagreeing with itself:
+  /// a Save that carried the switch's value would also re-send `enabled: true`
+  /// on every unrelated edit, and 2.30.0's activation send is keyed on the
+  /// TRANSITION, so a client that includes the key in an unrelated partial save
+  /// is one deploy away from mailing its user for a typo fix.
+  Future<String?> saveLetterSettings({
+    required String emailAddress,
+    required String frequency,
+    required String deliveryTime,
+    required String timezone,
+    required String purposeText,
+    required int itemsPerNewsletter,
+    required int excludeRecentDays,
+    List<String>? topicFilters,
+  }) =>
+      _put({
+        'emailAddress': emailAddress,
+        'frequency': frequency,
+        'deliveryTime': deliveryTime,
+        // 2.29.0 — sent in the SAME call as `deliveryTime`, always. An hour
+        // with no zone is UTC, which is nobody's morning by choice.
+        'timezone': timezone,
+        'purposeText': purposeText,
+        'itemsPerNewsletter': itemsPerNewsletter,
+        'excludeRecentDays': excludeRecentDays,
+        if (topicFilters != null) 'topicFilters': topicFilters,
+      });
+
+  /// Scheduled delivery, from wherever the reader is (2.29.0 rule 1). Off is a
+  /// **pause**: it keeps every other setting, and "Send now" keeps working.
+  ///
+  /// Turning it ON stores the zone too, because `deliveryTime` alone is read as
+  /// UTC by the orchestrator.
+  Future<String?> setScheduledDelivery({
+    required bool enabled,
+    required String deliveryTime,
+    required String timezone,
+  }) =>
+      _put(enabled
+          ? {
+              'enabled': true,
+              'deliveryTime': deliveryTime,
+              'timezone': timezone,
+            }
+          : {'enabled': false});
+
+  /// One PUT path, so `activationSend` is captured and the stored document is
+  /// re-read the same way whatever wrote it.
+  Future<String?> _put(Map<String, dynamic> partial) async {
     _isSaving = true;
     _error = null;
     notifyListeners();
     try {
-      final res = await Api.instance.updateNewsletterSettings(settings.toJson());
+      final res = await Api.instance.updateNewsletterSettings(partial);
       // 2.30.0 (ADR-031): present only when this request TRANSITIONED delivery
       // on. Kept so the screen can state what the backend decided instead of
       // inferring it — the reason vocabulary is open.

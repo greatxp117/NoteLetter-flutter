@@ -3,3 +3,4 @@ build/
 
 # macOS Finder metadata — never a repo's business.
 .DS_Store
+__pycache__/

@@ -70,8 +70,8 @@ values; each scale factor is recorded here (component-kit.md) and applied
 
 - §1.5 gutter 56 → 20 · §2.1 title 44 → 32
 - §2.1 header actions and §5.3 hero actions stack under their content
-- §6.6/§6.8, §4.2's timestamp and a setting row's control strip stack at 768,
-  not web's 680/640 — one compact breakpoint, not three
+- §6.6/§6.8, §4.2's timestamp, a setting row's control strip and §4.1's count
+  stack at 768, not web's 680/640 — one compact breakpoint, not three
 
 ## Rules that are easy to break here
 

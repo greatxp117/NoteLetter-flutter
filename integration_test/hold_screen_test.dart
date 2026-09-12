@@ -33,6 +33,7 @@ import 'package:flutter_app/state/chat_notifier.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
 import 'package:flutter_app/state/documents_notifier.dart';
 import 'package:flutter_app/state/newsletter_notifier.dart';
+import 'package:flutter_app/state/scripture_letter_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
@@ -44,6 +45,11 @@ import 'package:flutter_app/state/upload_notifier.dart';
 const seedEmail = 'seed@noteletter.test';
 const seedPassword = 'seed-password-1';
 const route = String.fromEnvironment('HOLD_ROUTE', defaultValue: '/activity');
+
+/// A STATE no route reaches — an opened letter, a typed query, a picker.
+/// `tool/shots.sh <screen> <route> [HOLD_STATE]` passes it; [reachState] below
+/// is the one place that knows how each is reached.
+const holdState = String.fromEnvironment('HOLD_STATE');
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -80,6 +86,10 @@ void main() {
             create: (_) => SettingsNotifier()),
         ChangeNotifierProvider<NewsletterNotifier>(
             create: (_) => NewsletterNotifier()),
+        // The readings letter's own settings document (ADR-029) —
+        // separate from the daily letter's, as the endpoint is.
+        ChangeNotifierProvider<ScriptureLetterNotifier>(
+            create: (_) => ScriptureLetterNotifier()),
         ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
         ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
         ChangeNotifierProvider<TagsNotifier>(create: (_) => TagsNotifier()),
@@ -97,9 +107,26 @@ void main() {
     for (var i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 200));
     }
+    await reachState(tester);
 
     Future<void> hold(String label, ThemeMode mode) async {
-      await theme.setMode(mode);
+      // `ThemeNotifier` starts an async read of the stored preference in its
+      // own constructor, and that read OVERWRITES whatever was set before it
+      // lands. Every hold run ends on dark, so it is the light capture that
+      // loses the race — and it loses it silently: the file is written, it is
+      // named `.light.png`, and it is a dark frame. Set, pump, and CONFIRM the
+      // mode the app is in before the marker says it is safe to shoot.
+      for (var attempt = 0; attempt < 10; attempt++) {
+        if (theme.themeMode == mode && attempt > 0) break;
+        await theme.setMode(mode);
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+      }
+      if (theme.themeMode != mode) {
+        fail('theme is ${theme.themeMode}, not $mode — the capture would be '
+            'the wrong theme under the right name');
+      }
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 200));
       }
@@ -112,4 +139,38 @@ void main() {
     await hold('LIGHT', ThemeMode.light);
     await hold('DARK', ThemeMode.dark);
   });
+}
+
+/// Drive the screen into [holdState]. Bounded `pump` loops, never
+/// `pumpAndSettle`: a screen with a live animation does not settle, and the
+/// wait reads as green until something is actually pulsing on it.
+Future<void> reachState(WidgetTester tester) async {
+  Future<void> settle() async {
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+  }
+
+  switch (holdState) {
+    case '':
+      return;
+    // letters.md — the letter itself is a state of the Letters screen, opened
+    // from its archive. The letterheaded letter `tool/seed_letters.py` writes
+    // is the top row.
+    case 'letter':
+      // Both letters offer a Preview; the daily one is first on the screen.
+      expect(find.text('Preview'), findsWidgets,
+          reason: 'run tool/seed_letters.py first — no readable letter to open');
+      final preview = find.text('Preview').first;
+      // `warnIfMissed` stays ON, deliberately: a tap that lands on nothing is
+      // silent, and the capture would then be the LIST under the name of the
+      // reader. The assertion below is the other half of the same point.
+      await tester.tap(preview);
+      await settle();
+      expect(find.text('All letters'), findsOneWidget,
+          reason: 'the letter did not open — this frame would be the list');
+      return;
+    default:
+      fail('hold_screen_test knows no HOLD_STATE "$holdState"');
+  }
 }
