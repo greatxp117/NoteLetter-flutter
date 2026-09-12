@@ -690,6 +690,28 @@ void main() {
       reason: 'the eyebrow renders uppercased',
     );
 
+    // Composition (QUEUE F-03, `screens/support.md` §Composition): the
+    // required parts, in the kit's roles, in the spec's order — the one layer
+    // no other gate looks at. §2.2 header · §7 offer (the seed holds no
+    // thread, or the transcript) · §10 dock pinned below both · §13 footer
+    // from the shell, still there.
+    expect(find.byType(SubScreenHeader), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsNothing,
+        reason: 'a sub-screen does not open a chapter');
+    expect(find.byType(KitComposerDock), findsOneWidget);
+    expect(find.byType(KitSupportFooter), findsOneWidget,
+        reason: 'INV-22: the footer is the shell\'s and survives this screen');
+    final headerY = tester.getTopLeft(find.byType(SubScreenHeader)).dy;
+    final dockY = tester.getTopLeft(find.byType(KitComposerDock)).dy;
+    expect(dockY, greaterThan(headerY));
+    final hasThread = find.byType(KitMessageCard).evaluate().isNotEmpty;
+    if (!hasThread) {
+      expect(find.byType(KitEmptyState), findsOneWidget,
+          reason: 'no thread is the §7 offer, not a failure');
+      expect(find.byType(KitButton), findsNothing,
+          reason: 'the composer IS the action; the offer carries no CTA');
+    }
+
     // The route the user came from travels with the message — the shell
     // supplied it, which is the practical half of why the footer is the
     // shell's. It is in the URL the footer navigated to.
@@ -726,6 +748,13 @@ void main() {
       '',
       reason: 'the composer cleared only after the 201',
     );
+    // The sent message is a §5.2 reduced-emphasis card on the trailing edge,
+    // and the thread now awaits an answer (derived from last_sender).
+    expect(find.byType(KitMessageCard), findsWidgets);
+    expect(find.byType(KitEmptyState), findsNothing);
+    expect(find.byType(KitThreadNote), findsOneWidget,
+        reason: 'last_sender == user ⇒ the awaiting line, exactly once');
+    expect(find.byType(SnackBar), findsNothing);
   });
 
   testWidgets('notifications composes from the kit', (tester) async {

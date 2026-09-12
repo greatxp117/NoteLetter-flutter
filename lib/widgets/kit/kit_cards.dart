@@ -611,3 +611,96 @@ class KitCardGrid extends StatelessWidget {
     );
   }
 }
+
+/// §5.2 at **reduced emphasis** — one message of a conversation
+/// (`screens/support.md` §Composition). A variant of the passage card, not a
+/// new card: the same `--r-md` sheet with a 1px border, tightened to
+/// `11px 14px`, no hover shadow, and its meta row lifted **outside** the sheet
+/// as the message's own mono caps timestamp+sender line.
+///
+/// The two sides are told apart by surface, never by alignment alone: a
+/// support message takes the accent-chip roles, a user message
+/// `--surface-raised`. Body sans 14/24 — this is the reader's own words to a
+/// person, not a quotation from a document, so it does not take the reading
+/// serif.
+class KitMessageCard extends StatelessWidget {
+  /// The mono caps line above the sheet: `You · 9:41 AM · /activity`.
+  final List<String> meta;
+  final String body;
+
+  /// `true` for the reader's own message (trailing edge, `--surface-raised`).
+  final bool mine;
+
+  const KitMessageCard({
+    super.key,
+    this.meta = const [],
+    required this.body,
+    required this.mine,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: FractionallySizedBox(
+        widthFactor: 0.9,
+        child: Column(
+          crossAxisAlignment:
+              mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            if (meta.isNotEmpty) ...[
+              Text(
+                meta.where((s) => s.isNotEmpty).join(' · ').toUpperCase(),
+                textAlign: mine ? TextAlign.right : TextAlign.left,
+                style: KitText.capsLabel(context,
+                    fontSize: 10, letterSpacing: 0.12, color: t.fgSubtle),
+              ),
+              const SizedBox(height: 6),
+            ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: mine ? t.surfaceRaised : t.accentChipBg,
+                borderRadius: AppRadius.mdR,
+                border: Border.all(color: mine ? t.border : t.accentChipBorder),
+              ),
+              child: Text(
+                body,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 14,
+                  height: 24 / 14,
+                  color: mine ? t.fg : t.accentChipFg,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The one-line note that closes a thread awaiting an answer — sans 12/17 at
+/// `--fg-subtle`, on the trailing edge like the message it follows.
+class KitThreadNote extends StatelessWidget {
+  final String text;
+
+  const KitThreadNote(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment: Alignment.centerRight,
+        child: Text(
+          text,
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 12,
+            height: 17 / 12,
+            color: Tokens.of(context).fgSubtle,
+          ),
+        ),
+      );
+}

@@ -4,10 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/support.dart';
 import '../state/support_notifier.dart';
-import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
-import '../theme/app_theme.dart';
-import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 
 /// Support — the conversation between one user and a human (contract 4.18.0,
@@ -55,7 +52,12 @@ class _SupportPageState extends State<SupportPage> {
       // every screen), so this screen never starts one.
       context.read<SupportNotifier>().markRead();
     });
-    _controller.addListener(() => setState(() {}));
+    _controller.addListener(() {
+      // Editing withdraws the last rejection, as the reference does — the
+      // text it referred to is being changed.
+      context.read<SupportNotifier>().clearError();
+      setState(() {});
+    });
   }
 
   @override
@@ -85,7 +87,6 @@ class _SupportPageState extends State<SupportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     final support = context.watch<SupportNotifier>();
     final messages = support.messages;
 
@@ -108,14 +109,7 @@ class _SupportPageState extends State<SupportPage> {
               if (support.loading && messages.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.s6),
-                  child: Text(
-                    'Loading…',
-                    style: TextStyle(
-                      fontFamily: AppTheme.fontSans,
-                      fontSize: 14,
-                      color: t.fgMuted,
-                    ),
-                  ),
+                  child: Text('Loading…', style: KitText.meta(context)),
                 )
               // INV-24 (ADR-071): the empty state below is an OFFER — it
               // invites the reader to write. A thread we failed to READ is not
@@ -137,19 +131,28 @@ class _SupportPageState extends State<SupportPage> {
                       'is no wrong way to write it.',
                 )
               else ...[
-                for (final m in messages) _MessageCard(message: m),
+                // The transcript: §5.2 at reduced emphasis, one per message,
+                // 18px apart, oldest first.
+                for (final m in messages)
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.s4),
+                    child: KitMessageCard(
+                      meta: [
+                        m.sender == SupportSender.user ? 'You' : 'Support',
+                        _stamp(m.createdAt),
+                        if (m.route != null && m.route!.isNotEmpty) m.route!,
+                      ],
+                      body: m.body,
+                      mine: m.sender == SupportSender.user,
+                    ),
+                  ),
+                // Derived from `last_sender`, never a stored status field.
                 if (support.awaitingAnswer)
                   Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.s2),
-                    child: Text(
+                    padding: const EdgeInsets.only(top: AppSpacing.s4),
+                    child: KitThreadNote(
                       'Received. $_answerWindow You’ll be told through '
                       'your notification channels when there’s a reply.',
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontSans,
-                        fontSize: 13,
-                        height: 1.5,
-                        color: t.fgSubtle,
-                      ),
                     ),
                   ),
               ],
@@ -175,89 +178,21 @@ class _SupportPageState extends State<SupportPage> {
   }
 }
 
-/// One message. A support message takes the accent-chip roles, a user message
-/// `--surface-raised` — the two sides of the conversation are told apart by
-/// surface, not by alignment alone.
-class _MessageCard extends StatelessWidget {
-  final SupportMessage message;
-
-  const _MessageCard({required this.message});
-
-  static String _stamp(int? ms) {
-    if (ms == null) return '';
-    final d = DateTime.fromMillisecondsSinceEpoch(ms);
-    final now = DateTime.now();
-    final hh = d.hour % 12 == 0 ? 12 : d.hour % 12;
-    final mm = d.minute.toString().padLeft(2, '0');
-    final ampm = d.hour < 12 ? 'AM' : 'PM';
-    final time = '$hh:$mm $ampm';
-    if (d.year == now.year && d.month == now.month && d.day == now.day) {
-      return time;
-    }
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[d.month - 1]} ${d.day} · $time';
+/// The reference's relative stamp: time today, `Mon D · time` otherwise.
+String _stamp(int? ms) {
+  if (ms == null) return '';
+  final d = DateTime.fromMillisecondsSinceEpoch(ms);
+  final now = DateTime.now();
+  final hh = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  final mm = d.minute.toString().padLeft(2, '0');
+  final ampm = d.hour < 12 ? 'AM' : 'PM';
+  final time = '$hh:$mm $ampm';
+  if (d.year == now.year && d.month == now.month && d.day == now.day) {
+    return time;
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    final mine = message.sender == SupportSender.user;
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.s4),
-      child: Column(
-        crossAxisAlignment: mine
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        children: [
-          Text(
-            [
-              mine ? 'You' : 'Support',
-              _stamp(message.createdAt),
-              if (message.route != null && message.route!.isNotEmpty)
-                message.route!,
-            ].where((s) => s.isNotEmpty).join(' · '),
-            style: AppTheme.mono(fontSize: 11, color: t.fgSubtle),
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: mine ? t.surfaceRaised : t.accentChipBg,
-                borderRadius: AppRadius.mdR,
-                border: Border.all(color: mine ? t.border : t.accentChipBorder),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s5,
-                  vertical: AppSpacing.s4,
-                ),
-                child: Text(
-                  message.body,
-                  style: AppTheme.serif(
-                    fontSize: 16,
-                    height: 26 / 16,
-                    color: mine ? t.fg : t.accentChipFg,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[d.month - 1]} ${d.day} · $time';
 }

@@ -59,6 +59,31 @@ void main() {
     });
   });
 
+  group('§5.2 reduced emphasis (support)', () {
+    testWidgets('message cards on both edges and the thread note',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KitMessageCard(
+                meta: ['You', '9:41 AM', '/activity'],
+                body: 'The reader lost my place.',
+                mine: true),
+            KitMessageCard(
+                meta: ['Support', 'Sep 12 · 10:02 AM'],
+                body: 'Thanks — looking now.',
+                mine: false),
+            KitThreadNote('Received.'),
+          ],
+        ),
+      );
+      expect(find.text('YOU · 9:41 AM · /ACTIVITY'), findsOneWidget);
+      expect(find.text('Received.'), findsOneWidget);
+    });
+  });
+
   group('type roles', () {
     testWidgets('eyebrow, lede and the accent clause render', (tester) async {
       await pumpBoth(

@@ -68,10 +68,21 @@ class KitComposerDock extends StatelessWidget {
         compact ? AppSpacing.frameGutterCompact : AppSpacing.frameGutter;
 
     return Stack(
+      // The scrim rises 44px ABOVE the dock (the reference's `::before` with
+      // `bottom: 100%`), so the stack must not clip it.
+      clipBehavior: Clip.none,
       children: [
         // The scrim: transparent → --bg, and pointer-transparent so the
-        // content it dissolves stays reachable.
-        Positioned.fill(
+        // content it dissolves stays reachable. It covers the dock and the
+        // 44px above it — never the page: an `Align` with no height factor
+        // expands to its constraints, and this dock once filled the whole
+        // pane with its gradient, washing the header (found by QUEUE F-03's
+        // composition assert, not by eye).
+        Positioned(
+          left: 0,
+          right: 0,
+          top: -44,
+          bottom: 0,
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -88,6 +99,7 @@ class KitComposerDock extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(gutter, AppSpacing.s4, gutter, 22),
           child: Align(
             alignment: Alignment.bottomCenter,
+            heightFactor: 1,
             child: ConstrainedBox(
               constraints:
                   const BoxConstraints(maxWidth: AppSpacing.frameReading),

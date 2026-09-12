@@ -68,7 +68,7 @@ a new obligation on a finished screen is a new item.
   `pumpAndSettle` on a screen with a live animation — bounded `pump` loops).
 
 ## F-03 · Support — recompose
-- status: open
+- status: done 2026-09-12
 - screen: support
 - route: /support
 - spec: spec/screens/support.md §Composition §Behaviour §States; spec/component-kit.md §2.2 §5.2 §10 §13 §14.1
