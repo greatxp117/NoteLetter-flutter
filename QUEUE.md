@@ -98,7 +98,7 @@ a new obligation on a finished screen is a new item.
   route in F-05.
 
 ## F-05 · Letters + letter settings — recompose, `html_body`, delivery
-- status: open
+- status: blocked: spec-vs-web: letters.md §Composition Header requires 'a Segmented control (§6.8) carrying the tabs, trailing on the same row' — the web reference, the design prototype and letters.md itself have no tabs (LettersView.jsx renders an IcoSliders ghost button 'Letter settings' there)
 - screen: letters
 - route: /letters
 - spec: spec/screens/letters.md §Composition §Data §States §Pinned sources §Scheduled delivery is a control; spec/component-kit.md §11 §5.2 §14.1; spec/api/newsletter.md
