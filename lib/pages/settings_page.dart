@@ -96,6 +96,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 description:
                     'When your letter arrives, who it goes to, what it draws '
                     'from — and the readings letter beside it.',
+                // The link drops under the copy on a phone rather than taking
+                // half the row's width from it.
+                wideControl: true,
                 trailing: [
                   KitSettingLink('Open letter settings',
                       onTap: () => context.go('/letters/settings')),
