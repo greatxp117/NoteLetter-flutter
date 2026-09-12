@@ -6,15 +6,18 @@
 /// the grades already given are there.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_html/flutter_html.dart';
 import '../../models/study.dart';
 import '../../services/api.dart';
 import '../../services/firestore_service.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_radius.dart';
+import '../../shared/extraction_markers.dart';
+import '../../state/study_schedule.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/kit/kit.dart';
 
 /// Grades in SM-2 order, with the promise each one makes.
 const _gradeLabels = {
@@ -65,10 +68,13 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
           _outcome[qid] = 'Recorded. This passage has since been removed from '
               'the source, so it will not come back.';
         } else {
+          // The schedule's OWN answer, from the response — never computed
+          // here from the grade (INV-17).
           final due = (res['item'] as Map?)?['due_at'];
-          _outcome[qid] = due is int
-              ? 'Back on ${_fmtDate(due)}.'
-              : 'Recorded.';
+          final back = returnLabel(due is int ? due : null);
+          _outcome[qid] = back == null
+              ? 'Recorded.'
+              : 'Recorded — $back.';
         }
       });
     } catch (_) {
@@ -88,66 +94,70 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
         .logChunksRead(item.documentId, [item.chunkId]);
   }
 
-  static String _fmtDate(int ms) {
-    final d = DateTime.fromMillisecondsSinceEpoch(ms).toLocal();
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${d.day} ${months[d.month - 1]}';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final muted =
-        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
-
     return StreamBuilder<StudySession?>(
       stream: FirestoreService.instance.subscribeStudySession(widget.sessionId),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
         if (snap.hasError) {
-          // A dropped subscription is a connection problem, not a wrong
-          // account — saying the latter sends the reader looking for a
-          // problem they do not have.
-          return _message(theme, muted, 'The connection dropped.',
-              'Check your connection and try again.');
+          // A dropped subscription is a CONNECTION problem, not a wrong
+          // account (2.37.2). Saying the latter sends the reader looking for a
+          // problem they do not have, on the one screen whose whole claim is
+          // that what it shows is real.
+          return KitPage(
+            width: KitFrameWidth.reading,
+            child: KitFailureBlock(
+              sentence: 'The connection dropped.',
+              detail: '${snap.error}',
+              onRetry: () => setState(() {}),
+              retryLabel: 'Try again',
+            ),
+          );
+        }
+        if (snap.connectionState == ConnectionState.waiting) {
+          return KitPage(
+            width: KitFrameWidth.reading,
+            child: KitRowNote('Loading…'),
+          );
         }
         final session = snap.data;
         if (session == null) {
-          return _message(theme, muted, 'Session not found',
-              'This session may belong to another account.');
-        }
-
-        if (!session.gradable) {
-          return _statusPanel(theme, muted, session);
-        }
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 64),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(session.programTitle,
-                      style: theme.textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
-                  Text(_sessionLine(session),
-                      style:
-                          theme.textTheme.bodySmall?.copyWith(color: muted)),
-                  const SizedBox(height: 20),
-                  for (final item in session.items)
-                    _itemCard(theme, muted, session, item),
-                ],
-              ),
+          return KitPage(
+            width: KitFrameWidth.reading,
+            child: KitEmptyState(
+              icon: Icons.help_outline,
+              title: 'Session not found',
+              standfirst: 'The link may be old, or this session may belong to '
+                  'another account.',
             ),
+          );
+        }
+
+        return KitPage(
+          width: KitFrameWidth.reading,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ChapterOpening(
+                folio: session.trigger == 'manual'
+                    ? 'Study · requested'
+                    : 'Study · scheduled',
+                title: session.programTitle.isEmpty
+                    ? 'Study session'
+                    : session.programTitle,
+                standfirst: _sessionLine(session),
+              ),
+              // Gated on STATUS, never on item count: the build writes the
+              // full `items` array under `generating` BEFORE the questions are
+              // drawn, so a reader arriving from the email CTA inside that
+              // window would otherwise see a gradable list whose every grade
+              // came back rejected (2.37.2).
+              if (!session.gradable)
+                _statusPanel(session)
+              else
+                for (final item in session.items) _itemCard(session, item),
+              const SizedBox(height: AppSpacing.s8),
+            ],
           ),
         );
       },
@@ -165,7 +175,10 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
     return parts.isEmpty ? 'Nothing due.' : parts.join(' · ');
   }
 
-  Widget _statusPanel(ThemeData theme, Color muted, StudySession s) {
+  /// A session that cannot be graded says why, and says it as information.
+  /// `empty` is not a failure (ADR-011) and an unknown status is not either —
+  /// the vocabulary is open.
+  Widget _statusPanel(StudySession s) {
     final (title, body) = switch (s.status) {
       'generating' => (
           'Still being made',
@@ -180,137 +193,119 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
           'This session could not be built',
           s.errorMessage ?? 'Nothing was consumed — try again.'
         ),
-      // Open vocabulary: an unknown status is informational, never an error.
       _ => ('This session is not ready', 'Check back shortly.'),
     };
-    return _message(theme, muted, title, body);
-  }
-
-  Widget _message(ThemeData theme, Color muted, String title, String body) =>
-      Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(title, style: theme.textTheme.titleMedium),
-              const SizedBox(height: 6),
-              Text(body,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted)),
-            ],
-          ),
-        ),
-      );
-
-  Widget _itemCard(ThemeData theme, Color muted, StudySession session,
-      StudySessionItem item) {
-    final isDark = theme.brightness == Brightness.dark;
-    // Tokens.light/dark are const: the chip pair resolves from the theme the
-    // card is being built in, without a BuildContext.
-    final t = isDark ? Tokens.dark : Tokens.light;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: isDark ? AppColors.borderDark : AppColors.borderLight),
-        borderRadius: AppRadius.mdR,
-      ),
+    return KitCard(
+      padding: const EdgeInsets.all(AppSpacing.s5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelLarge?.copyWith(color: muted)),
-              ),
-              if (item.kind == 'new')
-                _chip(theme, 'New', t.positive, t.positiveText),
-              // Present only when true — absence means an ordinary due review.
-              if (item.ramp) _chip(theme, 'Exam prep', t.accent, t.accentText),
-            ],
-          ),
-          const SizedBox(height: 10),
-          for (final q in item.questions)
-            _question(theme, muted, session, item, q),
+          Text(title, style: KitText.h4(context)),
+          const SizedBox(height: 6),
+          Lede(body, fontSize: 16, height: 24, maxWidth: double.infinity),
         ],
       ),
     );
   }
 
-  /// A fill and a TEXT step, never one colour doing both: the label used to be
-  /// drawn in the same token as the 14% wash behind it — the accent and
-  /// positive steps are sized to be a fill, and set as 11px type they measure
-  /// 3.16–4.23:1 (ADR-069). Both were also the LIGHT step in both themes.
-  Widget _chip(ThemeData theme, String label, Color fill, Color fg) =>
-      Container(
-        margin: const EdgeInsets.only(left: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-            color: fill.withValues(alpha: 0.14),
-            borderRadius: AppRadius.pillR(20)),
-        child: Text(label,
-            style: theme.textTheme.labelSmall?.copyWith(color: fg)),
-      );
+  /// One unit: its source, its kind, and its questions.
+  Widget _itemCard(StudySession session, StudySessionItem item) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.s4),
+      child: KitCard(
+        padding: const EdgeInsets.all(AppSpacing.s4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KitText.meta(context)),
+                ),
+                if (item.kind == 'new')
+                  const KitStatusPill('New', positive: true),
+                // Present only when true — its absence means an ordinary due
+                // review, not "no exam".
+                if (item.ramp) ...[
+                  const SizedBox(width: 6),
+                  const KitStatusPill('Exam prep'),
+                ],
+              ],
+            ),
+            const SizedBox(height: AppSpacing.s3),
+            for (final q in item.questions) _question(session, item, q),
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _question(ThemeData theme, Color muted, StudySession session,
-      StudySessionItem item, Map<String, dynamic> q) {
+  Widget _question(
+      StudySession session, StudySessionItem item, Map<String, dynamic> q) {
     final qid = q['qid'] as String? ?? '';
     final revealed = _revealed.contains(qid);
     // A grade already in `responses` came from the live subscription — this is
-    // what makes the session resumable across a restart.
+    // what makes a session resumable across a restart, or a device.
     final already = session.responses[qid] != null;
     final outcome = _outcome[qid];
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: AppSpacing.s4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // The prompt in reading type — this is the thing being recalled.
           Text(q['question'] as String? ?? '',
-              style: theme.textTheme.bodyLarge),
-          const SizedBox(height: 8),
+              style: KitText.bodyReading(context)),
+          const SizedBox(height: AppSpacing.s2),
           if (!revealed && !already)
-            OutlinedButton(
-              onPressed: () {
-                setState(() => _revealed.add(qid));
-                // The excerpt mounts on reveal, so the read is logged here.
-                _logExcerptRead(session, item);
-              },
-              child: const Text('Show answer'),
-            )
+            KitButton('Show answer',
+                variant: KitButtonVariant.secondary,
+                onPressed: () {
+                  setState(() => _revealed.add(qid));
+                  // The excerpt MOUNTS on reveal, so the read is logged here —
+                  // which is what makes a review's excerpt count only once its
+                  // disclosure is opened (ADR-039 §6).
+                  _logExcerptRead(session, item);
+                })
           else ...[
             Text(q['answer'] as String? ?? '',
-                style: theme.textTheme.bodyMedium),
+                style: KitText.body(context)),
             if (item.excerptHtml.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              // The chunk's own sanitized html (INV-10 vocabulary).
+              const SizedBox(height: AppSpacing.s2),
+              // The chunk's own sanitized html (INV-10), annotated for §17:
+              // a marker inside an excerpt is the extractor talking about the
+              // document, and drawn in the body role it reads as the prompt's
+              // own copy (4.52.0, ADR-089).
               Html(
-                  data: item.excerptHtml,
-                  extensions: AppTheme.htmlExtensions,
-                  style: AppTheme.htmlStyles(Tokens.of(context))),
+                data: markSanitizedHtml(item.excerptHtml),
+                extensions: AppTheme.htmlExtensions,
+                style: AppTheme.htmlStyles(Tokens.of(context)),
+              ),
             ],
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpacing.s3),
             if (already && outcome == null)
-              Text('Answered.',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted))
+              KitRowNote('Answered.')
             else if (outcome != null)
-              Text(outcome,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted))
+              KitRowNote(outcome)
             else
+              // Grades are NOT optimistic: the row disables until the write
+              // confirms (the 2.33.0 posture — this screen's whole value is
+              // that the schedule is real).
               Wrap(
-                spacing: 8,
+                spacing: AppSpacing.s2,
+                runSpacing: AppSpacing.s2,
                 children: [
                   for (final g in studyGrades)
-                    OutlinedButton(
+                    KitButton(
+                      _gradeLabels[g]!,
+                      variant: KitButtonVariant.secondary,
                       onPressed: _busy.contains(qid)
                           ? null
                           : () => _grade(session, item, qid, g),
-                      child: Text(_gradeLabels[g]!),
                     ),
                 ],
               ),

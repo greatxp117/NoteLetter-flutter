@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_app/app.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
+import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
@@ -945,5 +946,95 @@ void main() {
     await tester.tap(find.text('All letters'));
     await pumpFor(tester, total: const Duration(seconds: 1));
     expect(find.text('LATEST LETTER'), findsOneWidget);
+  });
+
+  testWidgets('study composes from the kit', (tester) async {
+    // Screen 8/11 (QUEUE F-06). The seed holds no study program, so `/study`
+    // is the EMPTY state by construction — the same state the web reference
+    // frame shows. The program card is reached by CREATING one through the
+    // endpoint (INV-04: no client writes `study_programs` directly), and it is
+    // deleted again at the end so the next run starts from the same place.
+    final router = await pumpApp(tester);
+    router.go('/study');
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitEmptyState).evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+
+    // §7 — an offer, not an apology: mark, title, standfirst, the rows, and
+    // the action that makes one.
+    expect(find.byType(KitEmptyState), findsOneWidget);
+    expect(find.text('Go deeper on one subject'), findsOneWidget);
+    expect(find.byType(KitNumberedMove), findsNWidgets(3));
+    expect(find.text('New program'), findsWidgets);
+    expect(find.byType(Card), findsNothing);
+    expect(find.byType(ListTile), findsNothing);
+    expect(find.byType(SwitchListTile), findsNothing);
+
+    // ── a program, made the only way a client may make one ──────────────
+    final created = await Api.instance.createStudyProgram({
+      'title': 'Device run — braising',
+      'documentIds': ['seed-doc-article-complete'],
+      'deliveryTime': '07:00',
+      // 2.29.0: a client that sends `deliveryTime` sends `timezone` with it.
+      'timezone': 'America/Chicago',
+      'frequency': 'daily',
+    });
+    // `{created: true, program: {...}}` — the id is the program's own, not a
+    // `programId` at the top level (fixture `study-programs:create`).
+    final programId = (created['program'] as Map?)?['id'] as String?;
+
+    // The delete is in a finally that covers the id assertion too: a run that
+    // creates a program and then fails before its teardown leaves the program
+    // BEHIND, and the next run's empty state — which the seed guarantees — is
+    // gone. That is not a flake in the next run, it is this one's litter.
+    try {
+      expect(programId, isNotNull,
+          reason: 'the endpoint returns the new program');
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.byType(ChapterOpening).evaluate().isNotEmpty) break;
+      }
+      await pumpFor(tester, total: const Duration(seconds: 1));
+
+      // §Composition — chapter opening with the `Deep study · N programs`
+      // folio, then one §5.1 card per program.
+      expect(find.byType(ChapterOpening), findsOneWidget);
+      expect(find.textContaining('DEEP STUDY · 1 PROGRAM'), findsOneWidget);
+      expect(find.text('Study Programs'), findsOneWidget);
+      expect(find.text('Device run — braising'), findsOneWidget);
+      expect(find.byType(KitCard), findsWidgets);
+
+      // Every figure is a STORED field: progress is introduced_count of
+      // unit_count, and the schedule is rendered from what was read — the
+      // seed program was created with 07:00 America/Chicago above.
+      expect(find.textContaining('passages introduced'), findsOneWidget);
+      expect(find.textContaining('Daily at 07:00 · Chicago'), findsOneWidget);
+
+      // A just-created program has NO `material_runway`, so it carries no
+      // §12 notice. Absent is not zero: a client defaulting it would put "no
+      // new material left" on the first thing this reader ever sees.
+      expect(find.byType(KitNotice), findsNothing,
+          reason: 'absent runway ⇒ no notice (4.7.0, ADR-043)');
+
+      expect(find.text('Study now'), findsOneWidget);
+      expect(find.byType(KitSwitch), findsOneWidget);
+      expect(find.byType(KitStatusPill), findsWidgets);
+      expect(find.byType(Card), findsNothing);
+      expect(find.byType(ListTile), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+    } finally {
+      if (programId != null) {
+        await Api.instance.deleteStudyProgram(programId);
+      }
+    }
+
+    // …and the empty state comes back, from the same subscription.
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitEmptyState).evaluate().isNotEmpty) break;
+    }
+    expect(find.byType(KitEmptyState), findsOneWidget);
   });
 }

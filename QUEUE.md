@@ -114,7 +114,7 @@ a new obligation on a finished screen is a new item.
   `letter-reader` is a STATE (open one letter) — add `HOLD_STATE=letter` to `hold_screen_test.dart`.
 
 ## F-06 · Study — recompose, §12 Notice, runway
-- status: open
+- status: done 2026-09-12
 - screen: study
 - route: /study
 - spec: spec/screens/study.md §Composition §Programs list §Create / edit a program §Session player §States; spec/component-kit.md §12 §5.3 §6.8 §14.1 §17

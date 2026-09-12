@@ -19,6 +19,9 @@
 /// reports against the spec table and an 8-row split table (/conformance 5z).
 library;
 
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
+
 /// The closed set, in the order `extraction-contract.md` §Non-verbal content
 /// markers declares it. THREE OF THESE SIX HAVE NEVER BEEN WRITTEN TO
 /// PRODUCTION — the list is declared, never grown from what the corpus holds:
@@ -117,4 +120,103 @@ String markersForSpeech(String? text) => splitMarkers(text)
 bool isAllMarkers(String? text) {
   final s = text ?? '';
   return hasMarker(s) && s.replaceAll(markerRe, '').trim().isEmpty;
+}
+
+/// Rewrite an already-sanitized chunk fragment so every marker renders as §17.
+///
+/// The reference's `markSanitizedHtml`, in Dart. **Sanitize first, annotate
+/// second, and never the other way round**: the spans this adds carry a
+/// `class`, which the chunk vocabulary lists under *Never* — they are ours,
+/// added after the allowlist has run, from text set as TEXT and therefore
+/// never parsed as markup. Sanitizing afterwards would strip them, which is
+/// correct for stored HTML and wrong for this.
+///
+/// It is a **display** rewrite and must never reach a writer: annotating
+/// inside an editor would put a `.x-mark-*` span in front of the cursor and
+/// let `fn_update_content` store it back, which is the one way a display rule
+/// becomes a data change (ADR-089).
+///
+/// Returns the input untouched when it holds no marker, so the common case
+/// costs one regex test and no parse.
+String markSanitizedHtml(String? html) {
+  final input = html ?? '';
+  if (input.isEmpty || !hasMarker(input)) return input;
+
+  final fragment = html_parser.parseFragment(input);
+
+  // Pass 1 — a block that is NOTHING BUT markers becomes its asides. By block,
+  // and first, because the decision belongs to the block: a text node cannot
+  // see that it is the only thing in its paragraph.
+  // One selector at a time: `package:html` does not take a selector GROUP, and
+  // a group it cannot parse matches nothing — which is silent, and leaves
+  // every aside rendered as an inline run inside an empty paragraph.
+  final blocks = [
+    for (final tag in const ['p', 'li', 'figcaption', 'blockquote'])
+      ...fragment.querySelectorAll(tag),
+  ];
+  for (final el in blocks) {
+    if (!isAllMarkers(el.text)) continue;
+    final marks = splitMarkers(el.text).where((p) => p.isMark);
+    final replacements = [
+      for (final m in marks) _asideNode(m.label, m.body),
+    ];
+    // `parent` is typed Element? and is NULL for a node whose parent is the
+    // fragment itself — which is every top-level block in a chunk. Reaching
+    // for it instead of `parentNode` silently skipped pass 1 entirely, and
+    // pass 2 then drew every aside as an inline run inside an empty block.
+    final parent = el.parentNode;
+    if (parent == null) continue;
+    final at = parent.nodes.indexOf(el);
+    parent.nodes.removeAt(at);
+    parent.nodes.insertAll(at, replacements);
+  }
+
+  // Pass 2 — everything left is a marker inside a run of real text.
+  final texts = <dom.Text>[];
+  void walk(dom.Node n) {
+    for (final child in n.nodes) {
+      if (child is dom.Text) {
+        if (hasMarker(child.text)) texts.add(child);
+      } else {
+        walk(child);
+      }
+    }
+  }
+
+  walk(fragment);
+  for (final node in texts) {
+    final parent = node.parentNode;
+    if (parent == null) continue;
+    final at = parent.nodes.indexOf(node);
+    final pieces = [
+      for (final p in splitMarkers(node.text))
+        p.isMark ? _inlineNode(p.label, p.body) : dom.Text(p.text),
+    ];
+    parent.nodes.removeAt(at);
+    parent.nodes.insertAll(at, pieces);
+  }
+
+  return fragment.outerHtml;
+}
+
+dom.Element _asideNode(String label, String body) {
+  final el = dom.Element.tag('div')..className = 'x-mark-aside';
+  el.append(dom.Element.tag('div')
+    ..className = 'x-mark-label caps-label'
+    ..text = label);
+  el.append(dom.Element.tag('div')
+    ..className = 'x-mark-body'
+    ..text = body);
+  return el;
+}
+
+dom.Element _inlineNode(String label, String body) {
+  final el = dom.Element.tag('span')..className = 'x-mark-inline';
+  el.append(dom.Element.tag('span')
+    ..className = 'x-mark-label caps-label'
+    ..text = label);
+  el.append(dom.Element.tag('span')
+    ..className = 'x-mark-body'
+    ..text = body);
+  return el;
 }

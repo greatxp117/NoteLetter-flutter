@@ -25,6 +25,54 @@ class AppTheme {
           border: Border(top: BorderSide(color: t.rule)),
           margin: Margins.symmetric(vertical: 18),
         ),
+        // §17 (4.52.0, ADR-089) — the classes `markSanitizedHtml` adds to a
+        // read-only chunk render. They are here rather than at each call site
+        // for the same reason the `<hr>` rule is: a marker drawn in the body
+        // type role is indistinguishable from a sentence of the document, and
+        // the screen that forgets the style is the screen nobody notices.
+        //
+        // A fragment that was never annotated carries none of these, so this
+        // costs nothing where it does not apply.
+        '.x-mark-aside': Style(
+          margin: Margins.symmetric(vertical: 10),
+          padding: HtmlPaddings.only(left: 12),
+          border: Border(left: BorderSide(color: t.rule, width: 2)),
+          display: Display.block,
+        ),
+        '.x-mark-aside .x-mark-label': Style(
+          display: Display.block,
+          color: t.fgSubtle,
+          fontFamily: fontMono,
+          fontSize: FontSize(10),
+          letterSpacing: 1.6,
+          textTransform: TextTransform.uppercase,
+        ),
+        '.x-mark-aside .x-mark-body': Style(
+          margin: Margins.only(top: 3),
+          fontFamily: fontSans,
+          fontSize: FontSize(14),
+          lineHeight: LineHeight(21 / 14),
+          color: t.fgMuted,
+        ),
+        '.x-mark-inline': Style(color: t.fgSubtle),
+        '.x-mark-inline .x-mark-label': Style(
+          color: t.fgSubtle,
+          fontFamily: fontMono,
+          fontSize: FontSize(10),
+          letterSpacing: 1.6,
+          textTransform: TextTransform.uppercase,
+          margin: Margins.symmetric(horizontal: 4),
+        ),
+        // 0.88em and `--fg-subtle`, not the host's size at `--fg-muted`:
+        // inside the reading serif that is a sans run one shade off the body,
+        // which reads as a font change mid-sentence rather than an annotation
+        // — the pattern's own failure, inside the pattern. Found by rendering
+        // it, not by a gate.
+        '.x-mark-inline .x-mark-body': Style(
+          fontFamily: fontSans,
+          fontSize: FontSize(12.5),
+          margin: Margins.only(right: 4),
+        ),
       };
 
   /// The extensions every `Html()` in the app passes, beside [htmlStyles].

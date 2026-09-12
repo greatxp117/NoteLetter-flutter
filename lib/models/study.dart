@@ -11,6 +11,7 @@
 library;
 
 import 'document.dart' show tsMs;
+import 'newsletter.dart' show LetterDelivery;
 
 /// Grades, in SM-2 order. The vocabulary the player submits.
 const studyGrades = ['again', 'hard', 'good', 'easy'];
@@ -34,6 +35,8 @@ class StudyProgram {
     this.sources = const {},
     this.unitStartedAt,
     this.unitNumber = 1,
+    this.materialRunway,
+    this.lowMaterialReason,
     this.dismissedPrompts = const [],
     this.syllabus,
     this.createdAt,
@@ -85,6 +88,22 @@ class StudyProgram {
   /// Display counter. Never a cursor: what selection reads is [unitStartedAt].
   final int unitNumber;
 
+  /// 4.7.0 (ADR-043) — **sessions of new material left, as the build measured
+  /// it.** Nullable, and the nullability is the point: the field is written by
+  /// the first build, so a just-created program has none. **Absent is not
+  /// zero** — defaulting it would put "no new material left" on every new
+  /// program, which is both wrong and the first thing the reader sees.
+  ///
+  /// **Never recompute it.** `unitCount - introducedCount` is a different
+  /// figure: it counts material still withheld behind a reading position, so
+  /// deriving from it shows a healthy number to exactly the reader who is
+  /// stuck (ADR-043 §Rationale).
+  final int? materialRunway;
+
+  /// Which remedy applies, and an **open vocabulary**: `exhausted` ·
+  /// `awaiting_position` · anything else, which takes the neutral wording.
+  final String? lowMaterialReason;
+
   /// Assessment keys (`"<on>|<title>"`) whose unit-boundary suggestion the
   /// reader declined, so the same date cannot ask twice.
   final List<String> dismissedPrompts;
@@ -124,6 +143,9 @@ class StudyProgram {
         sources: (json['sources'] as Map?)?.cast<String, dynamic>() ?? const {},
         unitStartedAt: tsMs(json['unit_started_at']),
         unitNumber: json['unit_number'] as int? ?? 1,
+        // No `?? 0`, deliberately — see [materialRunway].
+        materialRunway: (json['material_runway'] as num?)?.toInt(),
+        lowMaterialReason: json['low_material_reason'] as String?,
         dismissedPrompts:
             (json['dismissed_prompts'] as List?)?.cast<String>() ?? const [],
         syllabus: json['syllabus'] == null
@@ -185,6 +207,7 @@ class StudySession {
     this.dueRemaining = 0,
     this.rampCount = 0,
     this.errorMessage,
+    this.delivery,
   });
 
   final String id;
@@ -216,6 +239,17 @@ class StudySession {
 
   final String? errorMessage;
 
+  /// 4.22.0 (ADR-059, INV-23) — **the same shape and the same rules** as a
+  /// letter's, so it is the same model: two tables of one vocabulary with
+  /// nothing comparing them is how the copy that goes stale stays invisible.
+  ///
+  /// A delivery problem never contradicts the session itself — the questions
+  /// are here and answerable either way — so it only ever ADDS a chip, and an
+  /// absent map means unknown, never failed.
+  final LetterDelivery? delivery;
+
+  String? get deliveryState => delivery?.state;
+
   /// Whether the player may take grades.
   ///
   /// Gated on STATUS, never on item count: the build writes the full `items`
@@ -242,6 +276,8 @@ class StudySession {
         dueRemaining: json['due_remaining'] as int? ?? 0,
         rampCount: json['ramp_count'] as int? ?? 0,
         errorMessage: json['error_message'] as String?,
+        delivery: LetterDelivery.fromJson(
+            (json['delivery'] as Map?)?.cast<String, dynamic>()),
       );
 }
 

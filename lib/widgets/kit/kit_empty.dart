@@ -301,3 +301,62 @@ class _DashedBorderPainter extends CustomPainter {
   bool shouldRepaint(_DashedBorderPainter old) =>
       old.color != color || old.radius != radius;
 }
+
+/// A **numbered move** — the explainer row form of §7's suggestion stack.
+///
+/// The reference's study empty state uses it (`.st-move`): a mono numeral, a
+/// sans title and a line of copy, in a surface card. It is read, not tapped,
+/// which is the one way it differs from [KitSuggestion] — an empty state whose
+/// rows explain the feature is still "an offer, not an apology", and dropping
+/// the copy to fit a one-line suggestion row would throw away the offer.
+class KitNumberedMove extends StatelessWidget {
+  /// The numeral as the reference sets it — `I`, `II`, `III`.
+  final String number;
+  final String title;
+  final String description;
+
+  const KitNumberedMove({
+    super.key,
+    required this.number,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s4, vertical: AppSpacing.s3 + 1),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: AppRadius.mdR,
+        border: Border.all(color: t.border),
+        boxShadow: AppShadows.s1,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(number, style: KitText.capsLabel(context, letterSpacing: 0.12)),
+          const SizedBox(height: 4),
+          Text(title,
+              style: AppTheme.serif(
+                fontSize: 17,
+                height: 22 / 17,
+                fontWeight: FontWeight.w600,
+                color: t.fg,
+              )),
+          const SizedBox(height: 4),
+          Text(description,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 13,
+                height: 19 / 13,
+                color: t.fgMuted,
+              )),
+        ],
+      ),
+    );
+  }
+}

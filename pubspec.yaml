@@ -26,6 +26,12 @@ dependencies:
   firebase_app_installations: ^0.4.2+7
   flutter_html_table: ^3.0.0
   webview_flutter: ^4.13.1
+  # Pinned, not floated: `flutter_html` 3.0.0 calls `queryselector.matches`,
+  # which html 0.15.7 removed — so a float here fails to COMPILE every screen
+  # that renders chunk HTML. Declared directly because
+  # `shared/extraction_markers.dart` imports it (and the marker gate runs that
+  # file under plain `dart run`), not because anything wanted a newer one.
+  html: 0.15.6
 
 dev_dependencies:
   flutter_test:

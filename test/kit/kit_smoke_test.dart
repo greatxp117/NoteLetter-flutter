@@ -573,6 +573,56 @@ void main() {
     });
   });
 
+  group('§12 notice', () {
+    testWidgets('glyph, measured copy, one action — and no dismiss',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        KitNotice(
+          icon: Icons.error_outline,
+          text: 'About 2 more sessions of new material.',
+          actionLabel: 'Open settings',
+          onAction: () {},
+        ),
+      );
+      expect(find.text('About 2 more sessions of new material.'),
+          findsOneWidget);
+      expect(find.text('Open settings'), findsOneWidget);
+      // Its lifecycle belongs to the condition: it leaves when the backend
+      // says so. A close control would hide a live state and put the surface
+      // in disagreement with the notification already sent.
+      expect(find.byIcon(Icons.close), findsNothing);
+    });
+
+    testWidgets('a notice with no remedy is still a notice', (tester) async {
+      await pumpBoth(
+        tester,
+        const KitNotice(
+            icon: Icons.error_outline, text: 'No new material left.'),
+      );
+      expect(find.text('No new material left.'), findsOneWidget);
+    });
+  });
+
+  group('§7 numbered move', () {
+    testWidgets('numeral, title and copy — the explainer row form',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const KitNumberedMove(
+          number: 'I',
+          title: 'One subject at a time',
+          description: 'Up to ten finished documents.',
+        ),
+      );
+      expect(find.text('I'), findsOneWidget);
+      expect(find.text('One subject at a time'), findsOneWidget);
+      // The copy is the offer — an empty state whose rows drop it is the
+      // apology §7 exists to avoid.
+      expect(find.text('Up to ten finished documents.'), findsOneWidget);
+    });
+  });
+
   group('§11 letter sheet', () {
     testWidgets('the frame this client draws: masthead, rule, body, seal',
         (tester) async {
