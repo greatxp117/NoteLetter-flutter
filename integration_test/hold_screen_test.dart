@@ -199,6 +199,12 @@ Future<void> reachState(WidgetTester tester) async {
         await settle();
         expect(find.byType(KitInspectorRail), findsOneWidget,
             reason: 'the rail did not open — this frame would show no §9');
+        // §9.1 (4.55.0, ADR-091). The cluster is unconditional on this client
+        // — there is no hover to reveal it — so a frame without it is a frame
+        // of the pre-4.55.0 rail, which is exactly the picture this pair is
+        // being re-taken to replace.
+        expect(find.byIcon(Icons.delete_outline), findsWidgets,
+            reason: 'no §9.1 entry actions — this frame would be the old rail');
       }
       return;
     // library.md §Shelf color — the ten swatches live inside the shelf's

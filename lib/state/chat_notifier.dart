@@ -42,6 +42,14 @@ class ChatNotifier extends ChangeNotifier {
 
   bool _loadingThreads = true;
 
+  /// §9.1 entry actions (4.55.0, ADR-091). All three are about ONE entry: the
+  /// rename in flight, the call in flight, and the rejection of either — which
+  /// belongs in the entry that was refused, not in a rail-wide banner.
+  String? _renamingId;
+  String? _entryBusyId;
+  String? _entryErrorId;
+  String? _entryError;
+
   List<AskThread> get threads => _threads;
   List<AskMessage> get messages => _messages;
   String? get activeId => _activeId;
@@ -51,6 +59,9 @@ class ChatNotifier extends ChangeNotifier {
   String? get railError => _railError;
   String? get threadError => _threadError;
   bool get loadingThreads => _loadingThreads;
+  String? get renamingId => _renamingId;
+  bool entryBusy(String id) => _entryBusyId == id;
+  String? entryError(String id) => _entryErrorId == id ? _entryError : null;
 
   ChatNotifier() {
     _listenThreads();
@@ -110,6 +121,94 @@ class ChatNotifier extends ChangeNotifier {
     _messagesSub?.cancel();
     _messagesSub = null;
     notifyListeners();
+  }
+
+  // ── §9.1 entry actions ─────────────────────────────────────────────────────
+
+  /// Open the in-place rename on one entry. Local only — nothing is sent until
+  /// the field is committed.
+  void startRename(String id) {
+    _renamingId = id;
+    _entryError = null;
+    _entryErrorId = null;
+    notifyListeners();
+  }
+
+  void cancelRename() {
+    if (_renamingId == null) return;
+    _renamingId = null;
+    notifyListeners();
+  }
+
+  /// Commit a rename. **Write before you move** (ADR-022): the field stays open
+  /// and the title on screen stays the STORED one until the server has taken
+  /// the new one — closing the field first paints a rename that may not have
+  /// landed, and it would revert on the next reload with nothing to say why.
+  Future<void> renameThread(String id, String title) async {
+    if (_entryBusyId != null) return;
+    final next = title.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final current = _threads.where((t) => t.id == id).firstOrNull?.title ?? '';
+    if (next.isEmpty || next == current) {
+      cancelRename();
+      return;
+    }
+    _entryBusyId = id;
+    _entryError = null;
+    _entryErrorId = null;
+    notifyListeners();
+    try {
+      await Api.instance.renameAskThread(id, next);
+      _renamingId = null;
+    } on UnauthorizedException {
+      await AuthService.instance.signOut();
+      _fail(id, 'Your session expired. Sign in again.');
+    } on ApiException catch (e) {
+      // The server's sentence, verbatim (§14.2).
+      _fail(id, e.message);
+    } catch (_) {
+      _fail(id, 'Could not reach your library. Check your connection.');
+    } finally {
+      _entryBusyId = null;
+      notifyListeners();
+    }
+  }
+
+  /// Delete a conversation and every message under it. Returns true when the
+  /// endpoint took it.
+  ///
+  /// Deleting the OPEN conversation returns the screen to the new-conversation
+  /// state (`screens/ask.md` §Composition): a transcript whose thread is gone
+  /// is a view of nothing, and leaving it up offers a reply to something that
+  /// no longer exists.
+  Future<bool> deleteThread(String id) async {
+    if (_entryBusyId != null) return false;
+    _entryBusyId = id;
+    _entryError = null;
+    _entryErrorId = null;
+    notifyListeners();
+    try {
+      await Api.instance.deleteAskThread(id);
+      if (_activeId == id) newConversation();
+      return true;
+    } on UnauthorizedException {
+      await AuthService.instance.signOut();
+      _fail(id, 'Your session expired. Sign in again.');
+      return false;
+    } on ApiException catch (e) {
+      _fail(id, e.message);
+      return false;
+    } catch (_) {
+      _fail(id, 'Could not reach your library. Check your connection.');
+      return false;
+    } finally {
+      _entryBusyId = null;
+      notifyListeners();
+    }
+  }
+
+  void _fail(String id, String message) {
+    _entryErrorId = id;
+    _entryError = message;
   }
 
   /// Withdraw the last rejection — the text it referred to is being changed.

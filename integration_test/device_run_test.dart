@@ -767,6 +767,62 @@ void main() {
     expect(find.text('Searching…'), findsNothing,
         reason: 'restoring a thread is not thinking (screens/ask.md §States)');
     expect(find.text('Your library'), findsWidgets);
+
+    // ── §9.1 entry actions (4.55.0, ADR-091) ────────────────────────────────
+    // The two methods `fn_ask_threads` has always had and no client called.
+    // A rendered cluster is not a working one, so this drives both, and it
+    // reads the STORED title back out of the subscription rather than the one
+    // the field was left holding — a rename that only painted passes every
+    // other check on this screen.
+    await tester.tap(find.text('History'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    final threadId = ask.activeId!;
+    await tester.tap(find.byIcon(Icons.edit_outlined).first);
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.byType(TextField), findsWidgets,
+        reason: '§9.1 renames IN PLACE — the title becomes a field');
+    await tester.enterText(find.byType(TextField).first, 'Pasta, from the top');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+      if (ask.renamingId == null) break;
+    }
+    debugPrint('DEVICE-RUN ask §9.1 rename: '
+        'error=${ask.entryError(threadId)}, '
+        'stored=${ask.threads.where((t) => t.id == threadId).firstOrNull?.title}');
+    expect(ask.entryError(threadId), isNull,
+        reason: 'the rename was refused — §14.2 would be in the entry');
+    expect(
+      ask.threads.where((t) => t.id == threadId).firstOrNull?.title,
+      'Pasta, from the top',
+      reason: 'write before move: the STORED title is what moved, not a repaint',
+    );
+
+    // Delete confirms first, and the confirmation names what is lost AND what
+    // is not.
+    final before = ask.threads.length;
+    await tester.tap(find.byIcon(Icons.delete_outline).first);
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.textContaining('Nothing leaves your library'), findsOneWidget,
+        reason: 'a destructive action names what is NOT lost too (§9.1)');
+    await tester.tap(find.text('Delete conversation'));
+    for (var i = 0; i < 80; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+      if (ask.threads.length < before) break;
+    }
+    debugPrint('DEVICE-RUN ask §9.1 delete: ${ask.threads.length} thread(s) '
+        'was $before, error=${ask.entryError(threadId)}');
+    expect(ask.entryError(threadId), isNull,
+        reason: 'the delete was refused — §14.2 would be in the entry');
+    expect(ask.threads.length, before - 1);
+    expect(ask.activeId, isNull,
+        reason: 'deleting the OPEN conversation returns to new-conversation');
   });
 
   // ── INV-22 (4.18.0, ADR-054) ───────────────────────────────────────────────

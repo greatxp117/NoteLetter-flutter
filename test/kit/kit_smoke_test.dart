@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/theme/app_theme.dart';
@@ -768,6 +769,141 @@ void main() {
       expect(find.text('Your conversations could not be read.'), findsWidgets);
       expect(find.text('Should not render'), findsNothing);
       expect(find.text('TODAY'), findsNothing);
+    });
+
+    testWidgets('§9.1 — the cluster is present and the TIME yields to it', (
+      tester,
+    ) async {
+      // Two entries, one with actions and one without, so the yield is read as
+      // a difference rather than as an entry that happens to have no time. On
+      // the reference the cluster is hover-revealed and unconditional under a
+      // coarse pointer; this client is only ever the second case.
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 600,
+          child: KitInspectorRail(
+            title: 'Conversations',
+            groups: [
+              KitRailGroup(
+                label: 'Today',
+                entries: [
+                  KitRailEntry(
+                    title: 'Pasta',
+                    time: '8:18 PM',
+                    onTap: () {},
+                    actions: [
+                      KitRailEntryAction(
+                        icon: Icons.edit_outlined,
+                        label: 'Rename “Pasta”',
+                        onPressed: () {},
+                      ),
+                      KitRailEntryAction(
+                        icon: Icons.delete_outline,
+                        label: 'Delete “Pasta”',
+                        danger: true,
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+                  KitRailEntry(
+                    title: 'Systems thinking',
+                    time: 'Sep 3',
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(find.byIcon(Icons.edit_outlined), findsWidgets);
+      expect(find.byIcon(Icons.delete_outline), findsWidgets);
+      // The entry WITH actions has dropped its time; the one without keeps it.
+      expect(find.text('8:18 PM'), findsNothing);
+      expect(find.text('Sep 3'), findsWidgets);
+    });
+
+    testWidgets('§9.1 — rename edits in place, and Escape ABANDONS', (
+      tester,
+    ) async {
+      String? committed;
+      var cancelled = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: SizedBox(
+              height: 600,
+              child: KitInspectorRail(
+                title: 'Conversations',
+                groups: [
+                  KitRailGroup(
+                    label: 'Today',
+                    entries: [
+                      KitRailEntry(
+                        title: 'Pasta',
+                        onTap: () {},
+                        renaming: true,
+                        onRenameCommit: (v) => committed = v,
+                        onRenameCancel: () => cancelled++,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The field IS the title, seeded with it — not an empty box.
+      final field = find.byType(TextField);
+      expect(field, findsOneWidget);
+      expect(tester.widget<TextField>(field).controller!.text, 'Pasta');
+
+      await tester.enterText(field, 'Pasta, from the top');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(committed, 'Pasta, from the top');
+
+      // Escape abandons — and must not then commit the draft it abandoned
+      // through the focus loss it causes itself.
+      committed = null;
+      await tester.enterText(field, 'not this');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(cancelled, 1);
+      expect(committed, isNull);
+    });
+
+    testWidgets('§9.1 — a rejection is §14.2 in THAT entry', (tester) async {
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 600,
+          child: KitInspectorRail(
+            title: 'Conversations',
+            groups: [
+              KitRailGroup(
+                label: 'Today',
+                entries: [
+                  KitRailEntry(
+                    title: 'Pasta',
+                    onTap: () {},
+                    error: 'A title is required.',
+                  ),
+                  KitRailEntry(title: 'Systems thinking', onTap: () {}),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      // The server's sentence, verbatim, once — in the entry that was refused
+      // and not as a rail-wide banner.
+      expect(find.text('A title is required.'), findsWidgets);
+      expect(find.byType(KitFailureInline), findsWidgets);
     });
   });
 

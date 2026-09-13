@@ -173,8 +173,9 @@ class _ChatPageState extends State<ChatPage> {
     final out = <KitRailGroup>[];
     for (final thread in ask.threads) {
       final label = _groupOf(thread.updatedAt);
+      final name = thread.title.isEmpty ? 'Untitled' : thread.title;
       final entry = KitRailEntry(
-        title: thread.title.isEmpty ? 'Untitled' : thread.title,
+        title: name,
         time: _entryTime(thread.updatedAt),
         preview: thread.preview,
         active: thread.id == ask.activeId,
@@ -183,6 +184,29 @@ class _ChatPageState extends State<ChatPage> {
           setState(() => _railOpen = false);
           _scrollToEnd();
         },
+        // §9.1 (4.55.0, ADR-091) — the client surface `fn_ask_threads` PATCH
+        // and DELETE had on no client until 4.55.0. The actions are SIBLINGS of
+        // the tap that opens the entry, which is what the kit widget composes;
+        // this file only says which two there are.
+        actions: [
+          KitRailEntryAction(
+            icon: Icons.edit_outlined,
+            label: 'Rename “$name”',
+            onPressed: () => context.read<ChatNotifier>().startRename(thread.id),
+          ),
+          KitRailEntryAction(
+            icon: Icons.delete_outline,
+            label: 'Delete “$name”',
+            danger: true,
+            onPressed: () => _confirmDelete(thread.id, name),
+          ),
+        ],
+        renaming: ask.renamingId == thread.id,
+        busy: ask.entryBusy(thread.id),
+        error: ask.entryError(thread.id),
+        onRenameCommit: (v) =>
+            context.read<ChatNotifier>().renameThread(thread.id, v),
+        onRenameCancel: () => context.read<ChatNotifier>().cancelRename(),
       );
       if (out.isNotEmpty && out.last.label == label) {
         out.last.entries.add(entry);
@@ -191,6 +215,24 @@ class _ChatPageState extends State<ChatPage> {
       }
     }
     return out;
+  }
+
+  /// §9.1: a destructive entry action confirms, and the confirmation names what
+  /// is lost AND what is not. A conversation CITES passages; it does not hold
+  /// them, so deleting one takes nothing out of the library.
+  Future<void> _confirmDelete(String id, String name) async {
+    final ask = context.read<ChatNotifier>();
+    final ok = await _confirm(
+      context,
+      title: 'Delete “$name”?',
+      body: 'The questions in this conversation and the passages it found are '
+          'removed. Nothing leaves your library — a conversation cites your '
+          'passages, it does not hold them.',
+      confirmLabel: 'Delete conversation',
+      cancelLabel: 'Keep it',
+    );
+    if (ok != true) return;
+    await ask.deleteThread(id);
   }
 
   Widget _thread(BuildContext context, ChatNotifier ask) {
@@ -460,4 +502,42 @@ String _entryTime(int? ms) {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
   return '${months[d.month - 1]} ${d.day}';
+}
+
+/// A destructive confirm in the kit's own buttons — the copy names the
+/// consequence and the cancel label names the alternative ("Keep it"), rather
+/// than the Cancel/OK pair that makes a reader guess which way is safe.
+///
+/// This is the SECOND copy of this helper (`pages/tags/shelf_page.dart` has the
+/// first). It styles nothing itself — `KitButton` and `KitText` do all of it —
+/// but two pages composing the same dialog is how a pattern drifts, and a
+/// confirmation is not yet a named pattern in `component-kit.md`. Booked in
+/// `TODO.md` rather than promoted here, which would be a /contract-change.
+Future<bool?> _confirm(
+  BuildContext context, {
+  required String title,
+  required String body,
+  required String confirmLabel,
+  required String cancelLabel,
+}) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final t = Tokens.of(ctx);
+      return AlertDialog(
+        backgroundColor: t.surface,
+        title: Text(title, style: KitText.h4(ctx)),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Text(body, style: KitText.meta(ctx)),
+        ),
+        actions: [
+          KitButton.ghost(cancelLabel,
+              onPressed: () => Navigator.pop(ctx, false)),
+          KitButton.danger(confirmLabel,
+              onPressed: () => Navigator.pop(ctx, true)),
+        ],
+      );
+    },
+  );
 }

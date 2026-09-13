@@ -336,7 +336,7 @@ a new obligation on a finished screen is a new item.
 - notes: STOP AND ASK first. The reference's shelf page carries a "Feed today's letter" switch, a Lead/Mixed weight picker and an "In your letter" stat, and NOTHING persists any of them: `/tags` has no such field and no endpoint accepts one, so on the web they reset on every reload while claiming to steer the letter. F-08 deliberately did not port them (only measured figures reach a screen). Either the field is a /contract-change (backend first, then every client), or the web control comes OUT and a flutter.md §Out of scope row records it. Not a Flutter-only decision.
 
 ## F-20 · Ask rail — §9.1 entry actions (rename · delete)
-- status: open
+- status: done 2026-09-13
 - screen: ask-rail
 - route: /ask
 - spec: spec/component-kit.md §9.1; spec/screens/ask.md §Composition §States; spec/decisions/ADR-091-a-list-you-can-only-add-to-is-not-a-list.md
