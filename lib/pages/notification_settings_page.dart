@@ -185,7 +185,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     };
     await KitConfirm.show(
       context,
-      title: 'Delete the $name channel?',
+      // Quoted, with no appended noun: a channel labelled "Push channel" gave
+      // "Delete the Push channel channel?".
+      title: 'Delete “$name”?',
       body: '$lost Your letters keep being built and sent, and nothing in your '
           'library changes.'
           '${lastPush ? '\n\nThis is your only push channel — this device will '
