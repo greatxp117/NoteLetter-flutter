@@ -151,7 +151,7 @@ a new obligation on a finished screen is a new item.
   restoring a thread issues no request and must never draw the searching state.
 
 ## F-08 · Shelves — recompose, route `/shelves`, colour names
-- status: open
+- status: done 2026-09-12
 - screen: shelves
 - route: /shelves
 - spec: spec/screens/sources.md §Composition; spec/screens/library.md §Shelf granularity and splitting §Shelf color; spec/component-kit.md §5.1 §6.2 §14.2
@@ -164,6 +164,7 @@ a new obligation on a finished screen is a new item.
 - notes: Routes `/shelves` and `/shelves/:id`; `/tags` redirects. `shelf-color-picker` is a STATE
   (open the picker) — add `HOLD_STATE=color-picker` to `hold_screen_test.dart`. Setting a colour
   is write-before-move: await `fn_update_tag`, then repaint.
+
 
 ## F-09 · Reader — header, body, summary
 - status: open
@@ -320,3 +321,16 @@ a new obligation on a finished screen is a new item.
   battery green INCLUDING the pin test, the whole device run on iPhone 17 and every pair current.
   Then `/contract-change` books the CHANGELOG line listing every folded version, and
   `flutter.md` §Screens reads "composed" on every row.
+
+## F-19 · Shelf letter weight — a control the backend cannot store
+- status: open
+- screen: shelves
+- route: /shelves/seed-tag-recipes
+- spec: spec/screens/library.md §Shelf color; spec/api/tags.md; spec/component-kit.md §8
+- web: src/pages/ShelvesView.jsx
+- flutter: lib/pages/tags/shelf_page.dart
+- folds: none
+- device_test: shelves composes from the kit
+- shots: shelf-color-picker
+- extra_gates: none
+- notes: STOP AND ASK first. The reference's shelf page carries a "Feed today's letter" switch, a Lead/Mixed weight picker and an "In your letter" stat, and NOTHING persists any of them: `/tags` has no such field and no endpoint accepts one, so on the web they reset on every reload while claiming to steer the letter. F-08 deliberately did not port them (only measured figures reach a screen). Either the field is a /contract-change (backend first, then every client), or the web control comes OUT and a flutter.md §Out of scope row records it. Not a Flutter-only decision.

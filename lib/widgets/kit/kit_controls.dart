@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart'
-    show DropdownButton, DropdownButtonHideUnderline, DropdownMenuItem, InputDecoration, TextField, TextInputType;
+    show
+        DropdownButton,
+        DropdownButtonHideUnderline,
+        DropdownMenuItem,
+        InputBorder,
+        InputDecoration,
+        TextField,
+        TextInputType;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
@@ -869,9 +876,23 @@ class KitTextField extends StatelessWidget {
               maxLines: maxLines,
               style: AppTheme.mono(fontSize: 15, color: t.fg),
               cursorColor: t.accent,
-              // Collapsed: the frame above IS the field; Material's own
-              // underline and padding would draw a second one inside it.
-              decoration: InputDecoration.collapsed(
+              // The frame above IS the field. `InputDecoration.collapsed`
+              // clears `border` and nothing else, so `app_theme`'s
+              // `inputDecorationTheme.enabledBorder` went on applying — every
+              // kit field drew a SECOND rounded field inside the first, on
+              // every screen that has one, and each piece was individually
+              // correct. Each border state is suppressed by name (4.54.x,
+              // F-08).
+              decoration: InputDecoration(
+                isDense: true,
+                filled: false,
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
                 hintText: placeholder,
                 hintStyle: AppTheme.mono(fontSize: 15, color: t.fgSubtle),
               ),
@@ -1141,6 +1162,186 @@ class KitStepper extends StatelessWidget {
                 height: 1.45,
                 color: t.fgMuted,
               )),
+      ],
+    );
+  }
+}
+
+/// §6.2's shelf swatch — the control that PICKS a shelf's colour, and the one
+/// place in the app where a raw palette step is the subject rather than a
+/// marker.
+///
+/// **The hairline is not decoration.** `plum-600` and `ink-500` sit within a
+/// step or two of the dark-mode page, so a bare disc of either is an invisible
+/// option in a row of ten (`screens/library.md` §Shelf color). Selection is a
+/// 2px `--fg` ring OUTSIDE that hairline — a swatch cannot mark itself with a
+/// tint, because the tint is the thing being chosen.
+///
+/// [label] is the colour's reader-facing NAME (`Moss`, `Deep plum`), never its
+/// token: a swatch announced as `sage-500` names a variable.
+class KitSwatch extends StatelessWidget {
+  final Color color;
+  final String label;
+  final bool selected;
+
+  /// Null while a write is in flight — write-before-move, so the row cannot be
+  /// re-picked before the request it is waiting on answers.
+  final VoidCallback? onTap;
+
+  const KitSwatch({
+    super.key,
+    required this.color,
+    required this.label,
+    this.selected = false,
+    this.onTap,
+  });
+
+  static const double _size = 24;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      label: label,
+      selected: selected,
+      button: true,
+      child: MouseRegion(
+        cursor: onTap == null
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Opacity(
+            opacity: onTap == null ? 0.5 : 1,
+            child: Container(
+              width: _size + 4,
+              height: _size + 4,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? t.fg : const Color(0x00000000),
+                  width: 2,
+                ),
+              ),
+              child: Container(
+                width: _size,
+                height: _size,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: t.border),
+                  boxShadow: AppShadows.s1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The shelf plate (`.shelf-plate`) — a 30×36 spine-shaped block in a shelf's
+/// stored colour, used as the §2.1 **lead** on a shelf's own chapter opening
+/// the way a file badge leads a document's.
+///
+/// Carries the same hairline every swatch, dot and spine does, for the same
+/// reason.
+class KitShelfPlate extends StatelessWidget {
+  /// A `/tags.color` token name; an unrecognised value (or a legacy hex)
+  /// resolves muted rather than failing.
+  final String? colorToken;
+
+  const KitShelfPlate(this.colorToken, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      width: 30,
+      height: 36,
+      decoration: BoxDecoration(
+        color: AppColors.shelfColor(colorToken) ?? t.fgSubtle,
+        borderRadius: AppRadius.xsR,
+        border: Border.all(color: t.border),
+        boxShadow: AppShadows.s1,
+      ),
+    );
+  }
+}
+
+/// The sunken settings panel (`.shelf-settings`) — a disclosure a screen opens
+/// under its header: `--surface-sunken`, 1px `--border`, `--r-md`, holding a
+/// stack of [KitPanelRow]s.
+///
+/// A panel, not a card: §5.1 is a sheet laid **on** the page and reads as
+/// lifted, and a settings disclosure is the opposite gesture — it is cut into
+/// the page, which is what `--surface-sunken` is for.
+class KitPanel extends StatelessWidget {
+  final List<Widget> children;
+
+  const KitPanel({super.key, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: t.surfaceSunken,
+        borderRadius: AppRadius.mdR,
+        border: Border.all(color: t.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            children[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One row of a [KitPanel] (`.ss-row`): a fixed-width mono caps label naming
+/// the control beside it. The label column is fixed so the controls of a panel
+/// line up with each other rather than with their own labels.
+class KitPanelRow extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  /// A row whose control is taller than its label (a colour row that wraps, a
+  /// split proposal) aligns to the top instead of the centre.
+  final bool alignTop;
+
+  const KitPanelRow({
+    super.key,
+    required this.label,
+    required this.child,
+    this.alignTop = false,
+  });
+
+  static const double _labelWidth = 64;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment:
+          alignTop ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: _labelWidth,
+          child: Padding(
+            padding: EdgeInsets.only(top: alignTop ? 6 : 0),
+            child: KitControlLabel(label),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.s4),
+        Expanded(child: child),
       ],
     );
   }

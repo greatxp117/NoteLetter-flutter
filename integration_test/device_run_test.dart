@@ -1079,6 +1079,99 @@ void main() {
     expect(find.text('LATEST LETTER'), findsOneWidget);
   });
 
+  testWidgets('shelves composes from the kit', (tester) async {
+    // Screen 9/11 (QUEUE F-08). The seed holds three shelves — Recipes (2
+    // volumes), Finance (1) and Stories (1, carrying a LEGACY HEX colour,
+    // which is most of production and must still paint).
+    final router = await pumpApp(tester);
+    // The old route is a redirect, not a 404: `/tags` was this client's route
+    // for the whole life of the screen.
+    router.go('/tags');
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitShelfCard).evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+
+    // §2.1 — folio, title, standfirst. The count in the folio is the shelves
+    // subscription's, the one in the standfirst the documents subscription's.
+    expect(find.byType(ChapterOpening), findsOneWidget);
+    expect(find.textContaining('LIBRARY · 3 SHELVES'), findsOneWidget);
+    expect(find.text('Shelves'), findsOneWidget);
+
+    // §5.1 — one card per shelf, and the dashed slot that makes one.
+    expect(find.byType(KitShelfCard), findsNWidgets(3));
+    expect(find.byType(KitNewCard), findsOneWidget);
+    expect(find.text('Recipes'), findsWidgets);
+    // Stories is `auto_created`; provenance is a LABEL and nothing more.
+    expect(find.text('AUTO'), findsOneWidget);
+    // Nothing Material survived the recompose — this screen was a list of
+    // `ListTile`-ish rows with a FAB until F-08.
+    expect(find.byType(Card), findsNothing);
+    expect(find.byType(ListTile), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
+
+    // ── the shelf's own page ────────────────────────────────────────────
+    await tester.tap(find.text('Recipes').first);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/shelves/seed-tag-recipes');
+    expect(find.text('All shelves'), findsOneWidget);
+    expect(find.byType(KitStatCluster), findsOneWidget);
+    expect(find.text('VOLUMES'), findsOneWidget);
+    expect(find.text('PASSAGES'), findsWidgets);
+    expect(find.text('SPAN'), findsOneWidget);
+    expect(find.byType(KitSourceRow), findsNWidgets(2));
+
+    // 2.20.0 (ADR-025) — the split control is ABSENT below five volumes, not
+    // disabled: the endpoint 400s there, and a control that cannot work is
+    // worse than no control.
+    // The button, not the rail's nav item of the same name.
+    await tester.tap(find.widgetWithText(KitButton, 'Settings'));
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.byType(KitPanel), findsOneWidget);
+    expect(find.text('Split this shelf'), findsNothing);
+    expect(find.text('Delete shelf'), findsOneWidget);
+
+    // §6.2 — ten swatches, each announced by its NAME, not its token.
+    expect(find.byType(KitSwatch), findsNWidgets(10));
+    expect(find.bySemanticsLabel('Deep plum'), findsOneWidget);
+    expect(find.bySemanticsLabel('plum-600'), findsNothing);
+
+    // Write before move: the swatch moves only once `fn_update_tag` has
+    // answered, and what it then draws is what the SUBSCRIPTION carried back.
+    // The web swatch moved first until 2.15.0, so a 400 on every colour change
+    // looked like a success for months.
+    // The seed shelf is `brick-400`, whose NAME is Vermilion.
+    expect(
+      tester
+          .widgetList<KitSwatch>(find.byType(KitSwatch))
+          .any((w) => w.label == 'Vermilion' && w.selected),
+      isTrue,
+    );
+    try {
+      await tester.tap(find.bySemanticsLabel('Deep plum'));
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (tester
+            .widgetList<KitSwatch>(find.byType(KitSwatch))
+            .any((w) => w.label == 'Deep plum' && w.selected)) {
+          break;
+        }
+      }
+      expect(
+        tester.widgetList<KitSwatch>(find.byType(KitSwatch)).any(
+            (w) => w.label == 'Deep plum' && w.selected),
+        isTrue,
+        reason: 'the stored colour came back on the tags subscription',
+      );
+      expect(find.byType(KitFailureInline), findsNothing);
+    } finally {
+      // Put the seed back, so the next run starts where this one did.
+      await Api.instance
+          .updateTag('seed-tag-recipes', {'color': 'brick-400'});
+    }
+  });
+
   testWidgets('study composes from the kit', (tester) async {
     // Screen 8/11 (QUEUE F-06). The seed holds no study program, so `/study`
     // is the EMPTY state by construction — the same state the web reference

@@ -201,6 +201,15 @@ Future<void> reachState(WidgetTester tester) async {
             reason: 'the rail did not open — this frame would show no §9');
       }
       return;
+    // library.md §Shelf color — the ten swatches live inside the shelf's
+    // settings disclosure, which no route reaches. The shelf the seed gives
+    // this state is `seed-tag-recipes`.
+    case 'color-picker':
+      await tester.tap(find.widgetWithText(KitButton, 'Settings'));
+      await settle();
+      expect(find.byType(KitSwatch), findsNWidgets(10),
+          reason: 'the picker did not open — this frame would be the shelf');
+      return;
     default:
       fail('hold_screen_test knows no HOLD_STATE "$holdState"');
   }

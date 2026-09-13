@@ -9,12 +9,21 @@
 /// Review-before-write, the `fn_suggest_tags` → `fn_approve_tags` shape: the
 /// proposal is editable, any part can be skipped, and nothing is written until
 /// the reader confirms. That is what keeps the model out of the write path.
+///
+/// The reference puts this panel inline in the shelf's settings; on a phone it
+/// is an overlay sheet over the same screen — the same parts, in the same
+/// order, composed from the kit since F-08 (it was Material `TextField`s and a
+/// `FilledButton` before).
 library;
 
 import 'package:flutter/material.dart';
+
 import '../../services/api.dart';
+import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/kit/kit.dart';
 
 /// Offered only at >= 5 documents — ABSENT below that, not disabled, because
 /// the endpoint 400s there and a control that cannot work is worse than none.
@@ -30,6 +39,7 @@ class SplitShelfSheet extends StatefulWidget {
       showModalBottomSheet<bool>(
         context: context,
         isScrollControlled: true,
+        backgroundColor: Tokens.of(context).surface,
         builder: (_) => SplitShelfSheet(tagId: tagId, title: title),
       );
 
@@ -53,6 +63,15 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    for (final p in _parts) {
+      p.title.dispose();
+      p.description.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -82,7 +101,7 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = _message(e);
         _loading = false;
       });
     }
@@ -109,11 +128,11 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      // Surfaced inline, never swallowed — the ADR-022 lesson: a client that
-      // does not show its errors makes a validator and a working system
-      // indistinguishable.
+      // Surfaced inline (§14.2), never swallowed — the ADR-022 lesson: a client
+      // that does not show its errors makes a validator and a working system
+      // indistinguishable. The message is the SERVER's, verbatim.
       setState(() {
-        _error = e.toString();
+        _error = _message(e);
         _saving = false;
       });
     }
@@ -121,10 +140,6 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final muted =
-        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
     final kept = _parts.where((p) => !p.skip).length;
     final moving = _parts
         .where((p) => !p.skip)
@@ -132,91 +147,89 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
 
     return Padding(
       padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20),
-      child: SingleChildScrollView(
+          left: AppSpacing.s5,
+          right: AppSpacing.s5,
+          top: AppSpacing.s5,
+          bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.s5),
+      child: KitScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Split “${widget.title}”',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600)),
+            Text('Split “${widget.title}”', style: KitText.h4(context)),
             const SizedBox(height: 6),
             if (_loading)
               const Padding(
                   padding: EdgeInsets.symmetric(vertical: 28),
                   child: Center(child: CircularProgressIndicator()))
-            else if (_parts.isEmpty) ...[
-              // A 200 with no parts is "this shelf already looks coherent",
-              // not a failure — so there is nothing to confirm.
-              Text(
-                  _rationale ??
-                      'This shelf already looks coherent — nothing to split.',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
-              const SizedBox(height: 16),
+            else if (_error != null && _parts.isEmpty) ...[
+              // The proposal itself was refused — a hole, not an empty state.
+              KitFailureBlock(
+                sentence: 'That shelf could not be analysed.',
+                detail: _error!,
+              ),
+              const SizedBox(height: AppSpacing.s4),
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Close')),
+                child: KitButton.ghost('Close',
+                    onPressed: () => Navigator.pop(context, false)),
+              ),
+            ] else if (_parts.isEmpty) ...[
+              // A 200 with no parts is "this shelf already looks coherent",
+              // not a failure — so there is nothing to confirm.
+              KitRowNote(_rationale ??
+                  'This shelf already looks coherent — nothing to split.'),
+              const SizedBox(height: AppSpacing.s4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: KitButton.ghost('Close',
+                    onPressed: () => Navigator.pop(context, false)),
               ),
             ] else ...[
-              Text(
+              KitRowNote(
                 'Every part is editable, and any part can be skipped — its '
                 'volumes stay where they are. The shelf itself is kept either '
                 'way.',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
               ),
               if (_documentCount > 200) ...[
                 const SizedBox(height: 6),
-                Text(
-                    'This proposal covers the 200 most recent of '
-                    '$_documentCount volumes.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted)),
+                KitRowNote('This proposal covers the 200 most recent of '
+                    '$_documentCount volumes.'),
               ],
               const SizedBox(height: 14),
-              for (final part in _parts) _partCard(part, theme, muted),
+              for (final part in _parts) _partCard(part),
               if (_unassigned > 0)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                      '$_unassigned volume${_unassigned == 1 ? '' : 's'} '
-                      'stay on “${widget.title}”.',
-                      style:
-                          theme.textTheme.bodySmall?.copyWith(color: muted)),
+                  padding: const EdgeInsets.only(top: AppSpacing.s1),
+                  child: KitRowNote(
+                      '${_unassigned == 1 ? '1 volume stays' : '$_unassigned volumes stay'} '
+                      'on “${widget.title}”.'),
                 ),
               const SizedBox(height: 14),
               // States what will happen before it happens, in volumes rather
               // than parts, because that is what the reader is deciding about.
-              Text(
+              KitRowNote(
                 kept < 2
                     ? 'Keep at least two parts to split.'
-                    : '$moving volume${moving == 1 ? '' : 's'} move into '
+                    : '${moving == 1 ? '1 volume moves' : '$moving volumes move'} into '
                         '$kept new shelves. “${widget.title}” is kept.',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
               ),
               if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Tokens.of(context).criticalText)),
+                const SizedBox(height: AppSpacing.s2),
+                KitFailureInline(_error!),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s3),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
+                  KitButton.ghost('Cancel',
                       onPressed: _saving
                           ? null
-                          : () => Navigator.pop(context, false),
-                      child: const Text('Cancel')),
-                  const SizedBox(width: 8),
-                  FilledButton(
+                          : () => Navigator.pop(context, false)),
+                  const SizedBox(width: AppSpacing.s2),
+                  KitButton.primary(
+                    _saving ? 'Splitting…' : 'Create $kept shelves',
                     onPressed: (_saving || kept < 2) ? null : _apply,
-                    child: Text(_saving ? 'Splitting…' : 'Split shelf'),
                   ),
                 ],
               ),
@@ -227,44 +240,72 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
     );
   }
 
-  Widget _partCard(_Part part, ThemeData theme, Color muted) {
+  Widget _partCard(_Part part) {
     final n = part.documentIds.length;
-    return Opacity(
-      opacity: part.skip ? 0.5 : 1,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: part.title,
-                    enabled: !part.skip,
-                    decoration: const InputDecoration(labelText: 'Title'),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.s3),
+      child: Opacity(
+        opacity: part.skip ? 0.45 : 1,
+        child: KitCard(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: AppColors.shelfColor(part.color) ??
+                          Tokens.of(context).fgSubtle,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: Tokens.of(context).border, width: 0.5),
+                    ),
                   ),
-                ),
-                TextButton(
-                  onPressed: () => setState(() => part.skip = !part.skip),
-                  child: Text(part.skip ? 'Include' : 'Skip'),
-                ),
-              ],
-            ),
-            TextField(
-              controller: part.description,
-              enabled: !part.skip,
-              decoration: const InputDecoration(labelText: 'Description'),
-            ),
-            const SizedBox(height: 4),
-            Text('$n volume${n == 1 ? '' : 's'}',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted)),
-          ],
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: KitTextField(
+                      controller: part.title,
+                      placeholder: 'Name for this shelf',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 7),
+              KitTextField(
+                controller: part.description,
+                placeholder: 'What belongs on this shelf…',
+              ),
+              const SizedBox(height: 7),
+              Row(
+                children: [
+                  Expanded(
+                    child: KitRowNote(
+                        n == 1 ? '1 volume' : '$n volumes'),
+                  ),
+                  KitButton.ghost(
+                    part.skip ? 'Include' : 'Skip',
+                    onPressed: _saving
+                        ? null
+                        : () => setState(() => part.skip = !part.skip),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
+/// The server's own sentence where there is one (§14.2) — never a generic line
+/// substituted for it, and never a Dart `Exception: …` prefix shown to a
+/// reader.
+String _message(Object e) =>
+    e is ApiException ? e.message : 'That request could not be completed.';
 
 class _Part {
   _Part({

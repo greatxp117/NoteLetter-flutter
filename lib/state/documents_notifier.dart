@@ -20,6 +20,14 @@ class DocumentsNotifier extends ChangeNotifier {
   bool _loading = true;
   StreamSubscription<List<Document>>? _sub;
 
+  /// The subscription's failure (INV-24, ADR-071), beside the data it replaces.
+  ///
+  /// This notifier swallowed its `onError` into a `loading = false` until F-08:
+  /// every screen counting volumes off it — the shelf figures especially — then
+  /// reported a library of zero as though it had read one.
+  String? _error;
+  String? get error => _error;
+
   List<Document> get documents => List.unmodifiable(_documents);
   bool get loading => _loading;
 
@@ -32,9 +40,11 @@ class DocumentsNotifier extends ChangeNotifier {
   void start() {
     _sub ??= FirestoreService.instance.subscribeDocuments().listen((list) {
       _documents = list;
+      _error = null;
       _loading = false;
       notifyListeners();
-    }, onError: (_) {
+    }, onError: (e) {
+      _error = '$e';
       _loading = false;
       notifyListeners();
     });

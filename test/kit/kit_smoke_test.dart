@@ -463,6 +463,101 @@ void main() {
     });
   });
 
+  group('shelf pieces (§5.1, §6.2)', () {
+    testWidgets('the shelf card carries every required part', (tester) async {
+      await pumpBoth(
+        tester,
+        SizedBox(
+          width: 280,
+          child: KitShelfCard(
+            title: 'Recipes',
+            colorToken: 'brick-500',
+            meta: '4 volumes · 213 passages',
+            volumes: 4,
+            volumeTitles: const ['Pasta Fundamentals', 'Legacy Coffee Notes'],
+            moreCount: 2,
+            badge: 'auto',
+            onTap: () {},
+          ),
+        ),
+      );
+      expect(find.text('Recipes'), findsOneWidget);
+      expect(find.text('4 volumes · 213 passages'), findsOneWidget);
+      expect(find.text('Pasta Fundamentals'), findsOneWidget);
+      expect(find.text('+2 more'), findsOneWidget);
+      expect(find.text('AUTO'), findsOneWidget);
+    });
+
+    testWidgets('an empty shelf says so, and a legacy hex still paints', (
+      tester,
+    ) async {
+      await pumpBoth(
+        tester,
+        SizedBox(
+          width: 280,
+          child: const KitShelfCard(
+            title: 'Unread',
+            // Every auto-created tag holds a hex, and there is no backfill.
+            colorToken: '#6B7280',
+            meta: '0 volumes · 0 passages',
+            volumes: 0,
+          ),
+        ),
+      );
+      expect(find.text('Empty shelf'), findsOneWidget);
+    });
+
+    testWidgets('swatch, plate, panel and the new-card slot', (tester) async {
+      await pumpBoth(
+        tester,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              children: const [
+                KitSwatch(
+                    color: Color(0xFF6F8A52), label: 'Moss', selected: true),
+                // A swatch with no handler is the write-in-flight state: it
+                // must still paint, at reduced opacity.
+                KitSwatch(color: Color(0xFF3F2A3C), label: 'Deep plum'),
+              ],
+            ),
+            const KitShelfPlate('plum-600'),
+            KitPanel(
+              children: [
+                KitPanelRow(
+                  label: 'Color',
+                  alignTop: true,
+                  child: KitSwatch(
+                      color: const Color(0xFF6F8A52),
+                      label: 'Moss',
+                      onTap: () {}),
+                ),
+                KitPanelRow(
+                  label: 'Danger',
+                  child: KitButton.danger('Delete shelf', onPressed: () {}),
+                ),
+              ],
+            ),
+            SizedBox(
+              width: 280,
+              child: KitNewCard(
+                title: 'New shelf',
+                subtitle: 'Group volumes by subject or project',
+                onTap: () {},
+              ),
+            ),
+          ],
+        ),
+      );
+      expect(find.text('COLOR'), findsOneWidget);
+      expect(find.text('New shelf'), findsOneWidget);
+      // The swatch names the COLOUR, not the token — a control announced as
+      // `sage-500` names a variable.
+      expect(find.bySemanticsLabel('Moss'), findsWidgets);
+    });
+  });
+
   group('empty state', () {
     testWidgets('renders its suggestions, which are a required part', (
       tester,

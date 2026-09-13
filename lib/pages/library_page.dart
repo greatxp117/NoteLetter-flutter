@@ -168,7 +168,7 @@ class _LibraryHome extends StatelessWidget {
         SectionHeader(
           'Shelves · ${shelves.length}',
           actionLabel: 'New shelf +',
-          onAction: () => context.go('/tags'),
+          onAction: () => context.go('/shelves'),
         ),
         if (shelves.isEmpty)
           KitCard(
@@ -193,7 +193,9 @@ class _LibraryHome extends StatelessWidget {
                     volumes: vols.length,
                     meta: '${_plural(vols.length, 'volume')}'
                         '${passages > 0 ? ' · ${_plural(passages, 'passage')}' : ''}',
-                    onTap: () => context.go('/tags'),
+                    // The shelf's OWN page, now that it has one: the card
+                    // named a shelf and opened the index until F-08.
+                    onTap: () => context.go('/shelves/${s.id}'),
                   );
                 }),
             ],

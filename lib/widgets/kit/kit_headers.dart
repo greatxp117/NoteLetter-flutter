@@ -152,6 +152,51 @@ class ChapterOpening extends StatelessWidget {
   }
 }
 
+/// The back control (`.src-back`) — a 15px chevron and the PARENT's name in
+/// the UI sans, above the header of a screen reached from another one.
+///
+/// It names where it goes ("All shelves"), never the gesture: a bare "Back" is
+/// a browser control, and on a screen a reader can arrive at from two places it
+/// says nothing at all. Extracted from [SubScreenHeader] at F-08 because a
+/// shelf takes the back control and then opens a full **chapter** (§2.1) —
+/// it is its own subject, with a folio and a title, not a utility page.
+class KitBackControl extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+
+  const KitBackControl(this.label, {super.key, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.chevron_left, size: 15, color: t.fgMuted),
+              // `.src-back` gap 6 — the reference's, not a guess.
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 13,
+                  color: t.fgMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// §2.2 — the header for a screen reached *from* another one. Back control →
 /// eyebrow → **plain sans** standfirst.
 ///
@@ -177,28 +222,7 @@ class SubScreenHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          onTap: onBack,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.chevron_left, size: 15, color: t.fgMuted),
-                // `.src-back` gap 6 — the reference's, not a guess.
-                const SizedBox(width: 6),
-                Text(
-                  parentLabel,
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 13,
-                    color: t.fgMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        KitBackControl(parentLabel, onTap: onBack),
         const SizedBox(height: AppSpacing.s4),
         Eyebrow(eyebrow),
         if (standfirst != null) ...[

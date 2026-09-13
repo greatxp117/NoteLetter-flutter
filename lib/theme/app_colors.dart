@@ -256,6 +256,26 @@ class AppColors {
     'ink-500': _ink500,
   };
 
+  /// The reader-facing NAME of each of the ten (`screens/library.md` §Shelf
+  /// color). The token name is the wire value and the label is what a person
+  /// is offered — a swatch announced as `plum-600` names a variable, not a
+  /// colour, and the closed set is a vocabulary in **both** directions: a
+  /// token here with no label is an unnamed swatch, a label with no token is a
+  /// swatch that paints nothing. `test/contract/shelf_colors_test.dart` reads
+  /// the two together, in the spec's order.
+  static const shelfColorLabels = <String, String>{
+    'sage-500': 'Moss',
+    'sage-700': 'Deep moss',
+    'brick-400': 'Vermilion',
+    'brick-500': 'Brick',
+    'brick-700': 'Oxblood',
+    'plum-500': 'Plum',
+    'plum-600': 'Deep plum',
+    'ink-300': 'Slate',
+    'ink-400': 'Deep slate',
+    'ink-500': 'Graphite',
+  };
+
   /// Resolve a `/tags.color` value. Returns null for anything unrecognised so
   /// the caller can fall back to its own muted colour — never an error.
   static Color? shelfColor(String? value) {

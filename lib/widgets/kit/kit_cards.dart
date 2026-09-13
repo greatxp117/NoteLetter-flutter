@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
@@ -455,9 +456,14 @@ class KitStatCluster extends StatelessWidget {
   }
 }
 
-/// A shelf, as a card in the library's shelves grid
-/// (`screens/library.md` §Composition): a **spine stack** over the shelf name
-/// in serif and a mono count.
+/// A shelf, as a card in the shelves grid (`screens/library.md` §Composition):
+/// a **spine band** over the shelf name in serif, a mono count, and the first
+/// few volume titles.
+///
+/// Required parts, in order: the spine band · a colour dot · the serif name ·
+/// an optional provenance badge (`auto`, `split`) · the mono meta · the volume
+/// lines, which say `Empty shelf` when there are none rather than leaving the
+/// card short.
 ///
 /// The spines are the shelf's stored token colour at stepped opacities — the
 /// one place in the app where a shelf's colour is the subject rather than a
@@ -476,6 +482,20 @@ class KitShelfCard extends StatelessWidget {
   /// How many volumes the shelf holds — the spine count, clamped 1..9 so a
   /// large shelf stays a shelf rather than a barcode.
   final int volumes;
+
+  /// The first few volume titles, as the reference shows them. Empty renders
+  /// the italic `Empty shelf` line: a shelf with nothing on it is a fact about
+  /// the shelf, and ADR-025 calls it a defect worth seeing, not a blank.
+  final List<String> volumeTitles;
+
+  /// Volumes beyond [volumeTitles] — `+3 more`. Zero renders nothing.
+  final int moreCount;
+
+  /// `auto` for an auto-created shelf, `split` for one split from another.
+  /// **A label and nothing more** (ADR-025): provenance never rolls counts up
+  /// to a parent and never nests one shelf under another.
+  final String? badge;
+
   final VoidCallback? onTap;
 
   const KitShelfCard({
@@ -483,6 +503,9 @@ class KitShelfCard extends StatelessWidget {
     required this.title,
     required this.meta,
     required this.volumes,
+    this.volumeTitles = const [],
+    this.moreCount = 0,
+    this.badge,
     this.colorToken,
     this.onTap,
   });
@@ -500,32 +523,44 @@ class KitShelfCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 52,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (var i = 0; i < n; i++) ...[
-                    if (i > 0) const SizedBox(width: 3),
-                    Container(
-                      width: 6,
-                      height: 40 * (0.62 + ((i * 23) % 38) / 100),
-                      decoration: BoxDecoration(
-                        color: spineColor.withValues(
-                            alpha: 0.32 + ((i * 7) % 5) * 0.14),
-                        borderRadius: BorderRadius.circular(1),
-                        border: Border.all(color: t.border, width: 0.5),
-                      ),
-                    ),
-                  ],
-                ],
+          // The band is `--surface-sunken` under a `--rule`: the shelf the
+          // spines stand on. Without it the bars float in the card and the
+          // card stops reading as a shelf at all.
+          Container(
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            decoration: BoxDecoration(
+              color: t.surfaceSunken,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppRadius.md),
+                topRight: Radius.circular(AppRadius.md),
               ),
+              border: Border(bottom: BorderSide(color: t.rule)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < n; i++) ...[
+                  if (i > 0) const SizedBox(width: 3),
+                  Container(
+                    width: 7,
+                    height: 44 * (0.62 + ((i * 23) % 38) / 100),
+                    decoration: BoxDecoration(
+                      color: spineColor.withValues(
+                          alpha: 0.32 + ((i * 7) % 5) * 0.14),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(2),
+                        topRight: Radius.circular(2),
+                      ),
+                      border: Border.all(color: t.border, width: 0.5),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+            padding: const EdgeInsets.fromLTRB(18, 15, 18, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -533,41 +568,195 @@ class KitShelfCard extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      width: 8,
-                      height: 8,
+                      width: 9,
+                      height: 9,
                       decoration: BoxDecoration(
                         color: spineColor,
                         shape: BoxShape.circle,
                         border: Border.all(color: t.border, width: 0.5),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.s2),
-                    Expanded(
+                    const SizedBox(width: 9),
+                    Flexible(
                       child: Text(
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.serif(
-                          fontSize: 17,
-                          height: 22 / 17,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 19,
+                          height: 1.15,
+                          fontWeight: FontWeight.w600,
                           color: t.fg,
                         ),
                       ),
                     ),
+                    if (badge != null) ...[
+                      const SizedBox(width: 9),
+                      _ProvenanceBadge(badge!),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 9),
                 Text(
                   meta,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTheme.mono(fontSize: 11, color: t.fgSubtle),
                 ),
+                const SizedBox(height: 9),
+                if (volumeTitles.isEmpty)
+                  Text('Empty shelf',
+                      style: AppTheme.serif(
+                        fontSize: 12,
+                        height: 16 / 12,
+                        fontStyle: FontStyle.italic,
+                        color: t.fgSubtle,
+                      ))
+                else
+                  for (final v in volumeTitles)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text(
+                        v,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: AppTheme.fontSans,
+                          fontSize: 13,
+                          color: t.fgMuted,
+                        ),
+                      ),
+                    ),
+                if (moreCount > 0)
+                  Text('+$moreCount more',
+                      style: AppTheme.serif(
+                        fontSize: 12,
+                        height: 16 / 12,
+                        fontStyle: FontStyle.italic,
+                        color: t.fgSubtle,
+                      )),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The `auto` / `split` badge on a shelf card (`.shelf-auto-badge`) — mono 9
+/// caps in a hairline box. Not a §6.3 status pill: it states where the shelf
+/// came from, not what condition it is in.
+class _ProvenanceBadge extends StatelessWidget {
+  final String label;
+
+  const _ProvenanceBadge(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        borderRadius: AppRadius.xsR,
+        border: Border.all(color: t.border),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: AppTheme.mono(
+          fontSize: 9,
+          letterSpacing: 0.08 * 9,
+          color: t.fgSubtle,
+        ),
+      ),
+    );
+  }
+}
+
+/// The dashed **make one** card that closes a grid (`.shelf-new`) — a plus in
+/// an accent-chip disc, a serif title and a sans subtitle.
+///
+/// §7's posture at card scale: the offer is a place to put something, not a
+/// sentence saying there is nothing here. It is dashed `--border-strong` on the
+/// page ground rather than a `--surface` sheet, so it reads as a slot beside
+/// the real cards instead of an eleventh shelf.
+class KitNewCard extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  const KitNewCard({
+    super.key,
+    this.icon = Icons.add,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
+
+  @override
+  State<KitNewCard> createState() => _KitNewCardState();
+}
+
+class _KitNewCardState extends State<KitNewCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 200),
+          padding: const EdgeInsets.all(AppSpacing.s6),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _hover ? t.hover : null,
+            borderRadius: AppRadius.mdR,
+            border: Border.all(
+              color: _hover ? t.accentChipBorder : t.borderStrong,
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: t.accentChipBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(widget.icon, size: 20, color: t.seal),
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              Text(
+                widget.title,
+                style: AppTheme.serif(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: t.fg,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              Text(
+                widget.subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 12,
+                  color: t.fgSubtle,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

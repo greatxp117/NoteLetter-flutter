@@ -16,6 +16,7 @@ import 'pages/letter_settings_page.dart';
 import 'pages/letters_page.dart';
 import 'pages/sources_page.dart';
 import 'pages/tags_page.dart';
+import 'pages/tags/shelf_page.dart';
 import 'pages/study_page.dart';
 import 'pages/study/session_player.dart';
 import 'pages/study/program_editor.dart';
@@ -153,10 +154,22 @@ List<RouteBase> appRoutes() {
               path: '/letters/settings',
               builder: (context, state) => const LetterSettingsPage(),
             ),
+            // Shelves (F-08). `/shelves` and `/shelves/:id` are the
+            // reference's own routes; `/tags` stays as a redirect because it
+            // was this client's route for the whole life of the screen, and a
+            // renamed route that 404s is a link the reader cannot tell from a
+            // deleted screen.
             GoRoute(
-              path: '/tags',
-              builder: (context, state) => const TagsPage(),
+              path: '/shelves',
+              builder: (context, state) => const ShelvesPage(),
             ),
+            GoRoute(
+              path: '/shelves/:shelfId',
+              builder: (context, state) => ShelfPage(
+                shelfId: state.pathParameters['shelfId']!,
+              ),
+            ),
+            GoRoute(path: '/tags', redirect: (context, state) => '/shelves'),
             // Support (4.18.0, ADR-054; spec/screens/support.md). `from` is the
             // route the user was on when they clicked the footer — supplied by
             // the shell, which is the only thing that knows it.

@@ -118,8 +118,8 @@ class _SidebarState extends State<Sidebar> {
             KitNavItem(
               icon: Icons.label_outline,
               label: 'All shelves',
-              active: route == '/tags',
-              onTap: () => go('/tags'),
+              active: route.startsWith('/shelves'),
+              onTap: () => go('/shelves'),
             ),
           ],
           footer: Column(
