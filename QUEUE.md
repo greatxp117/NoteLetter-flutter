@@ -129,7 +129,7 @@ a new obligation on a finished screen is a new item.
   device test by creating a program through the API in the test, then delete it.
 
 ## F-07 · Ask — recompose, route `/ask`, inspector rail
-- status: open
+- status: blocked: spec-vs-web: ask.md §Composition 'Left column — Inspector rail (§9) holding conversation history' has no reference implementation — AskView.jsx renders .ask-head + .ask-cols > .ask-main only, and all 14 classes that would compose it (.ask-rail*, .convo*) are in fixtures/dead-class-baseline.json as the 'Ask conversation rail (17)' cluster. Kit §9's only declared consumer in any screen spec is this clause, so §9 has zero live consumers on any client. Building it in Flutter puts the mirror ahead of the reference (ADR-070/client-against-client: fatal direction). Needs /contract-change to decide whether §9 + ask.md's left column are the 4.5.0 stylesheet-transcription defect (as §2 at 4.5.1 and §8 at 4.46.0 were) or a feature web owes first. The other two thirds — recompose from the kit, route /ask with /chat redirect — are unambiguous and unblocked once the rail is settled.
 - screen: ask
 - route: /ask
 - spec: spec/screens/ask.md §Composition §Data / endpoints §States; spec/component-kit.md §9 §10 §14.1 §17.2
