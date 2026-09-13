@@ -360,3 +360,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: The same `_confirm` helper was copied VERBATIM into three pages and a fourth dialog in program_editor drew plain Material chrome. `KitConfirm` replaces all four. The contract is the ADR's: `onConfirm` returns null on success or the server's sentence on a refusal, the widget pops only on success, and a refusal keeps the panel open with §14.2 inside it — so `ChatNotifier.deleteThread` returns `String?` like ActivityNotifier's writers, not `bool`. No screenshot: the panel is not a screen state any pair names.
+
+## F-22 · The two missing confirmations — channel delete, cloud disconnect
+- status: done 2026-09-13
+- screen: none
+- route: none
+- spec: spec/screens/notifications.md; spec/screens/settings.md; spec/component-kit.md §18
+- web: src/pages/NotificationSettings.jsx; src/pages/SourcesBrowse.jsx
+- flutter: lib/pages/notification_settings_page.dart; lib/pages/sources_page.dart
+- folds: 4.56.1 (the confirmations §18 made checkable)
+- device_test: signs in and reaches the library
+- shots: none
+- extra_gates: none
+- notes: Both actions ran on the FIRST TAP, on every client, while two screen specs required a confirmation. Channel delete is the one that mattered: removing the last `push` channel also unregisters the device, so one tap could stop every notification of every level reaching it — the copy says so. `CloudNotifier.disconnect` already returned null-or-the-sentence, which is exactly §18's contract with the panel; `_remove` in notification_settings_page was changed to match. The third confirmation in 4.56.1 (cloud-import bulk Dismiss) has no Flutter host — this client has no review queue yet — and arrives with that screen.

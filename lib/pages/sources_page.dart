@@ -356,9 +356,29 @@ class _ProviderCard extends StatelessWidget {
                 icon: Icons.auto_awesome_outlined,
                 onPressed: () => run(() => org.enableOrganization(providerId)));
           }),
-          KitButton.ghost('Disconnect',
-              onPressed: () => run(() => cloud.disconnect(providerId),
-                  okMsg: '${spec.name} disconnected.')),
+          // §18 Confirmation (4.56.0, ADR-092). `screens/settings.md` has
+          // required this since 1.2.0 and named the copy it owes; it ran on the
+          // first tap. `disconnect` already returns null-or-the-sentence, which
+          // is §18's contract with the panel.
+          KitButton.ghost('Disconnect', onPressed: () async {
+            final done = await KitConfirm.show(
+              context,
+              title: 'Disconnect ${spec.name}?',
+              body: 'Any imports still queued from ${spec.name} stop, the '
+                  'folders it organized are archived, and its suggestions '
+                  'expire.\n\nEverything already in your library stays — '
+                  'documents, passages and letters are unaffected, and the '
+                  'files in ${spec.name} itself are never touched. '
+                  'Reconnecting starts a fresh pick of folders.',
+              confirmLabel: 'Disconnect',
+              cancelLabel: 'Stay connected',
+              onConfirm: () => cloud.disconnect(providerId),
+            );
+            if (done == true && context.mounted) {
+              AppToast.show(context, '${spec.name} disconnected.',
+                  type: ToastType.info);
+            }
+          }),
         ],
       ],
     );

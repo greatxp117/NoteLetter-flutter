@@ -166,7 +166,40 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     }
   }
 
-  Future<void> _remove(
+  // §18 Confirmation (4.56.0, ADR-092). `screens/notifications.md` has required
+  // this since the screen existed and no client had built it — the channel went
+  // on the first tap. The copy names the consequence a reader cannot see from
+  // the row: the LAST push channel also unregisters the device, so one tap
+  // could stop every notification reaching it.
+  Future<void> _confirmRemove(
+      NotificationChannel c, List<NotificationChannel> all) async {
+    final name = c.label?.isNotEmpty == true
+        ? c.label!
+        : (_typeLabel[c.type] ?? c.type);
+    final lastPush =
+        c.type == 'push' && !all.any((o) => o.id != c.id && o.type == 'push');
+    final lost = switch (c.type) {
+      'email' => 'Activity stops reaching ${c.destination ?? 'that address'}.',
+      'push' => 'Pushed alerts stop reaching your devices.',
+      _ => 'Toasts and the unread badge stop appearing in the app.',
+    };
+    await KitConfirm.show(
+      context,
+      title: 'Delete the $name channel?',
+      body: '$lost Your letters keep being built and sent, and nothing in your '
+          'library changes.'
+          '${lastPush ? '\n\nThis is your only push channel — this device will '
+              'also stop being registered, so no notification of any level will '
+              'reach it until you add one again.' : ''}',
+      confirmLabel: 'Delete channel',
+      cancelLabel: 'Keep it',
+      onConfirm: () => _remove(c, all),
+    );
+  }
+
+  /// Returns null on success and the server's sentence on a refusal — §18's
+  /// contract with the panel, which stays open on one.
+  Future<String?> _remove(
       NotificationChannel c, List<NotificationChannel> all) async {
     try {
       await Api.instance.deleteNotificationChannel(c.id);
@@ -185,8 +218,11 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           await prefs.remove(_deviceKey);
         }
       }
+      return null;
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      return e.message;
+    } catch (_) {
+      return 'Could not reach your library. Check your connection.';
     }
   }
 
@@ -297,7 +333,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 Icons.delete_outline,
                 tooltip: 'Delete channel',
                 color: t.fgMuted,
-                onPressed: () => _remove(c, channels),
+                onPressed: () => _confirmRemove(c, channels),
               ),
             ],
           ),
