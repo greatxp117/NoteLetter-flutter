@@ -907,6 +907,126 @@ void main() {
     });
   });
 
+  group('§18 confirmation', () {
+    testWidgets('the panel STAYS OPEN on a refusal, and answers inside it', (
+      tester,
+    ) async {
+      // The whole reason this pattern exists. A confirmation that closes on
+      // click has reported success for something that may not have happened —
+      // and closing it on the REJECTION is worse than never catching one.
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => TextButton(
+                onPressed: () => KitConfirm.show(
+                  ctx,
+                  title: 'Delete “Pasta”?',
+                  body: 'The questions go. Nothing leaves your library.',
+                  confirmLabel: 'Delete conversation',
+                  cancelLabel: 'Keep it',
+                  onConfirm: () async {
+                    calls++;
+                    return 'Conversation not found.';
+                  },
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete “Pasta”?'), findsOneWidget);
+
+      await tester.tap(find.text('Delete conversation'));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      // Still open, with the server's sentence in it.
+      expect(find.text('Delete “Pasta”?'), findsOneWidget);
+      expect(find.text('Conversation not found.'), findsOneWidget);
+      expect(find.byType(KitFailureInline), findsOneWidget);
+
+      // Cancel still works after a refusal — the reader is not trapped.
+      await tester.tap(find.text('Keep it'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete “Pasta”?'), findsNothing);
+    });
+
+    testWidgets('it closes and reports true only on SUCCESS', (tester) async {
+      bool? outcome;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => TextButton(
+                onPressed: () async {
+                  outcome = await KitConfirm.show(
+                    ctx,
+                    title: 'Remove “Budget”?',
+                    body: 'The original file is untouched.',
+                    confirmLabel: 'Remove',
+                    cancelLabel: 'Keep it',
+                    onConfirm: () async => null,
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove “Budget”?'), findsNothing);
+      expect(outcome, isTrue);
+    });
+
+    testWidgets('a dismissal reports false, and never runs the action', (
+      tester,
+    ) async {
+      var calls = 0;
+      bool? outcome;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => TextButton(
+                onPressed: () async {
+                  outcome = await KitConfirm.show(
+                    ctx,
+                    title: 'Delete the “Recipes” shelf?',
+                    body: 'Its volumes stay in your library.',
+                    confirmLabel: 'Delete shelf',
+                    cancelLabel: 'Keep it',
+                    onConfirm: () async {
+                      calls++;
+                      return null;
+                    },
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep it'));
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+      expect(outcome, isFalse);
+    });
+  });
+
   group('§12 notice', () {
     testWidgets('glyph, measured copy, one action — and no dismiss', (
       tester,

@@ -375,8 +375,12 @@ class _RowMenu extends StatelessWidget {
         if (!context.mounted) return;
         AppToast.show(context, err ?? 'Indexing this image.',
             type: err != null ? ToastType.error : ToastType.info);
+      // §18 (4.56.0, ADR-092). The ACTION runs inside the confirmation now, so
+      // its rejection renders in the panel the reader is looking at instead of
+      // a toast behind it — and the panel does not close on one, which is what
+      // stops a refused delete reading as a successful one.
       case 'cancel':
-        final confirmed = await _confirm(
+        final done = await KitConfirm.show(
           context,
           title: 'Stop processing “${_name()}”?',
           body: 'This deletes the document; nothing indexed so far is kept. '
@@ -384,14 +388,12 @@ class _RowMenu extends StatelessWidget {
               'time.',
           confirmLabel: 'Stop & remove',
           cancelLabel: 'Keep processing',
+          onConfirm: () => activity.cancelDocument(doc.id),
         );
-        if (confirmed != true || !context.mounted) return;
-        final err = await activity.cancelDocument(doc.id);
-        if (!context.mounted) return;
-        AppToast.show(context, err ?? 'Cancelled.',
-            type: err != null ? ToastType.error : ToastType.info);
+        if (done != true || !context.mounted) return;
+        AppToast.show(context, 'Cancelled.', type: ToastType.info);
       case 'delete':
-        final confirmed = await _confirm(
+        final done = await KitConfirm.show(
           context,
           title: 'Remove “${_name()}”?',
           body: 'This removes the document and any passages indexed from it '
@@ -399,49 +401,14 @@ class _RowMenu extends StatelessWidget {
               'device or cloud service is untouched.',
           confirmLabel: 'Remove',
           cancelLabel: 'Keep it',
+          onConfirm: () => activity.deleteDocument(doc.id),
         );
-        if (confirmed != true || !context.mounted) return;
-        final err = await activity.deleteDocument(doc.id);
-        if (!context.mounted) return;
-        AppToast.show(context, err ?? 'Removed.',
-            type: err != null ? ToastType.error : ToastType.info);
+        if (done != true || !context.mounted) return;
+        AppToast.show(context, 'Removed.', type: ToastType.info);
     }
   }
 
   String _name() => doc.title.isEmpty ? 'Untitled' : doc.title;
-}
-
-/// A destructive confirm, in the kit's own buttons — the copy names the
-/// consequence and the cancel label names the alternative ("Keep it"), rather
-/// than the two-word Cancel/OK pair that makes a reader guess which way is
-/// safe.
-Future<bool?> _confirm(
-  BuildContext context, {
-  required String title,
-  required String body,
-  required String confirmLabel,
-  required String cancelLabel,
-}) {
-  return showDialog<bool>(
-    context: context,
-    builder: (ctx) {
-      final t = Tokens.of(ctx);
-      return AlertDialog(
-        backgroundColor: t.surface,
-        title: Text(title, style: KitText.h4(ctx)),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Text(body, style: KitText.meta(ctx)),
-        ),
-        actions: [
-          KitButton.ghost(cancelLabel,
-              onPressed: () => Navigator.pop(ctx, false)),
-          KitButton.danger(confirmLabel,
-              onPressed: () => Navigator.pop(ctx, true)),
-        ],
-      );
-    },
-  );
 }
 
 /// The library with nothing in it. **An offer, not an apology** (§7) — the

@@ -347,3 +347,16 @@ a new obligation on a finished screen is a new item.
 - shots: ask-rail
 - extra_gates: none
 - notes: F-07 built the §9 rail and is done, so this is its own item (a done item is never edited). §9.1 is an OPTIONAL part of §9 and this is its first consumer. The entry becomes a CONTAINER: the open affordance and the two actions are siblings, never nested. On Flutter the rail is §9's overlay form, which is a COARSE pointer — so the cluster is unconditionally present, not hover-revealed, and the trailing time yields to it. Rename edits in place in the title's own type role (commit on submit/blur, abandon on Escape) and the title moves only when `Api.renameAskThread` resolves. Delete confirms first and names what is lost and what is not; deleting the OPEN thread returns the screen to the new-conversation state. A rejection is §14.2 inline in that entry, dense. Both adapters (`fn_ask_threads` PATCH and DELETE, threadId on the QUERY STRING for DELETE) land with this item; `AskView.jsx` is the reference.
+
+## F-21 · Confirmation — §18 kit widget, three copies retired
+- status: done 2026-09-13
+- screen: none
+- route: none
+- spec: spec/component-kit.md §18; spec/decisions/ADR-092-a-confirmation-that-cannot-report-a-refusal.md
+- web: src/shared/ConfirmDialog.jsx; src/styles/app-onboarding.css
+- flutter: lib/widgets/kit/kit_confirm.dart (new); lib/widgets/kit/kit.dart; lib/pages/tags/shelf_page.dart; lib/pages/chat_page.dart; lib/pages/sources/browse_section.dart; lib/pages/study/program_editor.dart; lib/state/chat_notifier.dart; test/kit/kit_smoke_test.dart
+- folds: 4.56.0 (ADR-092 — §18 Confirmation and its required failure slot)
+- device_test: ask composes from the kit
+- shots: none
+- extra_gates: none
+- notes: The same `_confirm` helper was copied VERBATIM into three pages and a fourth dialog in program_editor drew plain Material chrome. `KitConfirm` replaces all four. The contract is the ADR's: `onConfirm` returns null on success or the server's sentence on a refusal, the widget pops only on success, and a refusal keeps the panel open with §14.2 inside it — so `ChatNotifier.deleteThread` returns `String?` like ActivityNotifier's writers, not `bool`. No screenshot: the panel is not a screen state any pair names.

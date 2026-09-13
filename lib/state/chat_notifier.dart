@@ -173,15 +173,19 @@ class ChatNotifier extends ChangeNotifier {
     }
   }
 
-  /// Delete a conversation and every message under it. Returns true when the
-  /// endpoint took it.
+  /// Delete a conversation and every message under it. Returns **null on
+  /// success and the server's sentence on a refusal** — §18's contract with its
+  /// confirmation (ADR-092), and the same shape `ActivityNotifier`'s writers
+  /// already use. The rejection is NOT stored on the entry here: the reader is
+  /// looking at the panel they pressed a button in, and that is where §18 puts
+  /// it. A rename has no panel, so that one still answers in the entry.
   ///
   /// Deleting the OPEN conversation returns the screen to the new-conversation
   /// state (`screens/ask.md` §Composition): a transcript whose thread is gone
   /// is a view of nothing, and leaving it up offers a reply to something that
   /// no longer exists.
-  Future<bool> deleteThread(String id) async {
-    if (_entryBusyId != null) return false;
+  Future<String?> deleteThread(String id) async {
+    if (_entryBusyId != null) return null;
     _entryBusyId = id;
     _entryError = null;
     _entryErrorId = null;
@@ -189,17 +193,14 @@ class ChatNotifier extends ChangeNotifier {
     try {
       await Api.instance.deleteAskThread(id);
       if (_activeId == id) newConversation();
-      return true;
+      return null;
     } on UnauthorizedException {
       await AuthService.instance.signOut();
-      _fail(id, 'Your session expired. Sign in again.');
-      return false;
+      return 'Your session expired. Sign in again.';
     } on ApiException catch (e) {
-      _fail(id, e.message);
-      return false;
+      return e.message;
     } catch (_) {
-      _fail(id, 'Could not reach your library. Check your connection.');
-      return false;
+      return 'Could not reach your library. Check your connection.';
     } finally {
       _entryBusyId = null;
       notifyListeners();

@@ -6,7 +6,6 @@ import '../../models/document.dart';
 import '../../models/tag.dart';
 import '../../state/documents_notifier.dart';
 import '../../state/tags_notifier.dart';
-import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'shelf_parts.dart';
 import 'split_shelf_sheet.dart';
@@ -104,8 +103,13 @@ class _ShelfPageState extends State<ShelfPage> {
     // accepted value back, so what is drawn is what was stored.
   }
 
+  // §18 (4.56.0, ADR-092): the delete runs INSIDE the confirmation, so a refusal
+  // answers in the panel and the panel stays open. It used to close first and
+  // put the sentence in the colour picker's error slot, three controls away
+  // from the button that was pressed.
   Future<void> _delete(Tag shelf, int volumes) async {
-    final ok = await _confirm(
+    final tags = context.read<TagsNotifier>();
+    final done = await KitConfirm.show(
       context,
       title: 'Delete the “${shelf.title}” shelf?',
       body: 'The shelf and its settings are removed. Its '
@@ -113,15 +117,10 @@ class _ShelfPageState extends State<ShelfPage> {
           '— they just come off this shelf.',
       confirmLabel: 'Delete shelf',
       cancelLabel: 'Keep it',
+      onConfirm: () => tags.deleteTag(shelf.id),
     );
-    if (ok != true || !mounted) return;
-    final err = await context.read<TagsNotifier>().deleteTag(shelf.id);
-    if (!mounted) return;
-    if (err != null) {
-      setState(() => _colorError = err);
-      return;
-    }
-    if (mounted) context.go('/shelves');
+    if (done != true || !mounted) return;
+    context.go('/shelves');
   }
 
   @override
@@ -377,34 +376,3 @@ String _span(List<Document> vols) {
   return '$first – ${shortDate(ranked.last.createdAt)}';
 }
 
-/// A destructive confirm in the kit's own buttons — the copy names the
-/// consequence and the cancel label names the alternative ("Keep it"), rather
-/// than the Cancel/OK pair that makes a reader guess which way is safe.
-Future<bool?> _confirm(
-  BuildContext context, {
-  required String title,
-  required String body,
-  required String confirmLabel,
-  required String cancelLabel,
-}) {
-  return showDialog<bool>(
-    context: context,
-    builder: (ctx) {
-      final t = Tokens.of(ctx);
-      return AlertDialog(
-        backgroundColor: t.surface,
-        title: Text(title, style: KitText.h4(ctx)),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Text(body, style: KitText.meta(ctx)),
-        ),
-        actions: [
-          KitButton.ghost(cancelLabel,
-              onPressed: () => Navigator.pop(ctx, false)),
-          KitButton.danger(confirmLabel,
-              onPressed: () => Navigator.pop(ctx, true)),
-        ],
-      );
-    },
-  );
-}

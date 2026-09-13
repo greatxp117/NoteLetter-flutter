@@ -15,6 +15,7 @@ import '../../services/firestore_service.dart';
 import '../../state/schedule.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/kit/kit.dart';
 
 class ProgramEditorPage extends StatefulWidget {
   const ProgramEditorPage({super.key, this.programId});
@@ -346,30 +347,27 @@ class _UnitPanelState extends State<_UnitPanel> {
     final readings = widget.program.documentIds
         .where((id) => widget.program.kindFor(id) == 'reading')
         .toList();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Start a new unit?'),
-        content: Text(
-          readings.isEmpty
-              ? 'Everything available so far is treated as covered, and new '
-                  'material is introduced from here.'
-              : 'Everything available so far is treated as covered. Say how far '
-                  'you have read in each reading, and new material is '
-                  'introduced from there.',
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Not yet')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Start the unit')),
-        ],
-      ),
+    // §18 Confirmation (4.56.0, ADR-092). This drew plain Material chrome — a
+    // default dialog surface and `TextButton`/`FilledButton` — while three
+    // pages next door hand-composed the kit's version of the same thing.
+    // `danger: false`: advancing a unit destroys nothing, it is only
+    // non-idempotent, which is why it is confirmed at all.
+    final confirmed = await KitConfirm.show(
+      context,
+      title: 'Start a new unit?',
+      body: readings.isEmpty
+          ? 'Everything available so far is treated as covered, and new '
+              'material is introduced from here.'
+          : 'Everything available so far is treated as covered. Say how far '
+              'you have read in each reading, and new material is '
+              'introduced from there.',
+      confirmLabel: 'Start the unit',
+      cancelLabel: 'Not yet',
+      danger: false,
+      onConfirm: () async => null,
     );
     // Deliberately not idempotent, so it is confirmed before it is called.
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
     try {
       await Api.instance.advanceStudyUnit(widget.program.id,

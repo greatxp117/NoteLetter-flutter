@@ -220,9 +220,13 @@ class _ChatPageState extends State<ChatPage> {
   /// §9.1: a destructive entry action confirms, and the confirmation names what
   /// is lost AND what is not. A conversation CITES passages; it does not hold
   /// them, so deleting one takes nothing out of the library.
+  /// §18 (4.56.0, ADR-092): the delete runs inside the panel and its rejection
+  /// renders there. §9.1's "the rejection goes in the entry" holds for the
+  /// rename, which has no dialog — here the reader is looking at the
+  /// confirmation, not at the row behind it.
   Future<void> _confirmDelete(String id, String name) async {
     final ask = context.read<ChatNotifier>();
-    final ok = await _confirm(
+    await KitConfirm.show(
       context,
       title: 'Delete “$name”?',
       body: 'The questions in this conversation and the passages it found are '
@@ -230,9 +234,8 @@ class _ChatPageState extends State<ChatPage> {
           'passages, it does not hold them.',
       confirmLabel: 'Delete conversation',
       cancelLabel: 'Keep it',
+      onConfirm: () => ask.deleteThread(id),
     );
-    if (ok != true) return;
-    await ask.deleteThread(id);
   }
 
   Widget _thread(BuildContext context, ChatNotifier ask) {
@@ -504,40 +507,3 @@ String _entryTime(int? ms) {
   return '${months[d.month - 1]} ${d.day}';
 }
 
-/// A destructive confirm in the kit's own buttons — the copy names the
-/// consequence and the cancel label names the alternative ("Keep it"), rather
-/// than the Cancel/OK pair that makes a reader guess which way is safe.
-///
-/// This is the SECOND copy of this helper (`pages/tags/shelf_page.dart` has the
-/// first). It styles nothing itself — `KitButton` and `KitText` do all of it —
-/// but two pages composing the same dialog is how a pattern drifts, and a
-/// confirmation is not yet a named pattern in `component-kit.md`. Booked in
-/// `TODO.md` rather than promoted here, which would be a /contract-change.
-Future<bool?> _confirm(
-  BuildContext context, {
-  required String title,
-  required String body,
-  required String confirmLabel,
-  required String cancelLabel,
-}) {
-  return showDialog<bool>(
-    context: context,
-    builder: (ctx) {
-      final t = Tokens.of(ctx);
-      return AlertDialog(
-        backgroundColor: t.surface,
-        title: Text(title, style: KitText.h4(ctx)),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Text(body, style: KitText.meta(ctx)),
-        ),
-        actions: [
-          KitButton.ghost(cancelLabel,
-              onPressed: () => Navigator.pop(ctx, false)),
-          KitButton.danger(confirmLabel,
-              onPressed: () => Navigator.pop(ctx, true)),
-        ],
-      );
-    },
-  );
-}
