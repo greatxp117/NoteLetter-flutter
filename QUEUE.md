@@ -167,7 +167,7 @@ a new obligation on a finished screen is a new item.
 
 
 ## F-09 · Reader — header, body, summary
-- status: open
+- status: in-progress
 - screen: reader
 - route: /reader/seed-doc-pdf-complete
 - spec: spec/screens/reader.md §Composition §Header — byline & reading cost §Reading state & typography §Regenerate summary §States; spec/component-kit.md §8 §5.2 §2.1 §14.1 §17.1
@@ -334,3 +334,16 @@ a new obligation on a finished screen is a new item.
 - shots: shelf-color-picker
 - extra_gates: none
 - notes: STOP AND ASK first. The reference's shelf page carries a "Feed today's letter" switch, a Lead/Mixed weight picker and an "In your letter" stat, and NOTHING persists any of them: `/tags` has no such field and no endpoint accepts one, so on the web they reset on every reload while claiming to steer the letter. F-08 deliberately did not port them (only measured figures reach a screen). Either the field is a /contract-change (backend first, then every client), or the web control comes OUT and a flutter.md §Out of scope row records it. Not a Flutter-only decision.
+
+## F-20 · Ask rail — §9.1 entry actions (rename · delete)
+- status: open
+- screen: ask-rail
+- route: /ask
+- spec: spec/component-kit.md §9.1; spec/screens/ask.md §Composition §States; spec/decisions/ADR-091-a-list-you-can-only-add-to-is-not-a-list.md
+- web: src/pages/AskView.jsx; src/styles/app-kit.css
+- flutter: lib/widgets/kit/kit_rail.dart; lib/pages/chat_page.dart; lib/state/chat_notifier.dart; lib/services/api.dart
+- folds: 4.55.0 (ADR-091 — the client surface fn_ask_threads PATCH/DELETE never had)
+- device_test: ask composes from the kit
+- shots: ask-rail
+- extra_gates: none
+- notes: F-07 built the §9 rail and is done, so this is its own item (a done item is never edited). §9.1 is an OPTIONAL part of §9 and this is its first consumer. The entry becomes a CONTAINER: the open affordance and the two actions are siblings, never nested. On Flutter the rail is §9's overlay form, which is a COARSE pointer — so the cluster is unconditionally present, not hover-revealed, and the trailing time yields to it. Rename edits in place in the title's own type role (commit on submit/blur, abandon on Escape) and the title moves only when `Api.renameAskThread` resolves. Delete confirms first and names what is lost and what is not; deleting the OPEN thread returns the screen to the new-conversation state. A rejection is §14.2 inline in that entry, dense. Both adapters (`fn_ask_threads` PATCH and DELETE, threadId on the QUERY STRING for DELETE) land with this item; `AskView.jsx` is the reference.
