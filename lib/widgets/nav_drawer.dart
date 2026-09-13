@@ -18,7 +18,7 @@ const _navItems = [
   _NavItem(Icons.dashboard_outlined, 'Daily Digest', '/'),
   _NavItem(Icons.menu_book_outlined, 'Knowledge Base', '/library'),
   _NavItem(Icons.label_outline, 'Tags', '/tags'),
-  _NavItem(Icons.chat_bubble_outline, 'Chat', '/chat'),
+  _NavItem(Icons.chat_bubble_outline, 'Ask', '/ask'),
   _NavItem(Icons.mail_outline, 'Letters', '/letters'),
   _NavItem(Icons.school_outlined, 'Study', '/study'),
   _NavItem(Icons.cloud_outlined, 'Sources', '/sources'),

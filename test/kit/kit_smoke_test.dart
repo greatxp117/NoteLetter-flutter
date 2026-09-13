@@ -34,16 +34,23 @@ void main() {
   }
 
   group('§17 extraction marker', () {
-    testWidgets('aside and inline render in both themes, no brackets',
-        (tester) async {
+    testWidgets('aside and inline render in both themes, no brackets', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const KitMarkerAside(
-                label: 'On screen', body: '10 habits of well-spoken people'),
-            const KitMarkerInline(label: 'Image', body: 'a laptop', hostFontSize: 16),
+              label: 'On screen',
+              body: '10 habits of well-spoken people',
+            ),
+            const KitMarkerInline(
+              label: 'Image',
+              body: 'a laptop',
+              hostFontSize: 16,
+            ),
             Builder(
               builder: (context) => KitMarkedText(
                 'said [Video: a person typing]. and then',
@@ -60,21 +67,24 @@ void main() {
   });
 
   group('§5.2 reduced emphasis (support)', () {
-    testWidgets('message cards on both edges and the thread note',
-        (tester) async {
+    testWidgets('message cards on both edges and the thread note', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         const Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             KitMessageCard(
-                meta: ['You', '9:41 AM', '/activity'],
-                body: 'The reader lost my place.',
-                mine: true),
+              meta: ['You', '9:41 AM', '/activity'],
+              body: 'The reader lost my place.',
+              mine: true,
+            ),
             KitMessageCard(
-                meta: ['Support', 'Sep 12 · 10:02 AM'],
-                body: 'Thanks — looking now.',
-                mine: false),
+              meta: ['Support', 'Sep 12 · 10:02 AM'],
+              body: 'Thanks — looking now.',
+              mine: false,
+            ),
             KitThreadNote('Received.'),
           ],
         ),
@@ -85,36 +95,51 @@ void main() {
   });
 
   group('settings rows', () {
-    testWidgets('setting link, avatar, notes, stepper, select and stamp',
-        (tester) async {
+    testWidgets('setting link, avatar, notes, stepper, select and stamp', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            KitRowList(raised: true, rows: [
-              KitSettingRow(
-                icon: Icons.person_outline,
-                leading: KitAvatarPlate(KitAvatarPlate.initialsOf('Ada Lovelace')),
-                title: 'Ada Lovelace',
-                description: 'ada@example.test',
-                trailing: [KitSettingLink('Sign out', icon: Icons.logout)],
-              ),
-              KitSettingRow(
-                icon: Icons.schedule_outlined,
-                title: 'Rest a passage for',
-                below: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    KitStepper(value: 7, min: 0, max: 90, unit: 'days', onChanged: (_) {}),
-                    KitSelect<String>(
-                        value: 'a', options: const ['a', 'b'], label: (s) => s),
-                    const KitSunkenNote('a composed instruction'),
-                    const KitRowNote('Letter settings saved.'),
-                  ],
+            KitRowList(
+              raised: true,
+              rows: [
+                KitSettingRow(
+                  icon: Icons.person_outline,
+                  leading: KitAvatarPlate(
+                    KitAvatarPlate.initialsOf('Ada Lovelace'),
+                  ),
+                  title: 'Ada Lovelace',
+                  description: 'ada@example.test',
+                  trailing: [KitSettingLink('Sign out', icon: Icons.logout)],
                 ),
-              ),
-            ]),
+                KitSettingRow(
+                  icon: Icons.schedule_outlined,
+                  title: 'Rest a passage for',
+                  below: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      KitStepper(
+                        value: 7,
+                        min: 0,
+                        max: 90,
+                        unit: 'days',
+                        onChanged: (_) {},
+                      ),
+                      KitSelect<String>(
+                        value: 'a',
+                        options: const ['a', 'b'],
+                        label: (s) => s,
+                      ),
+                      const KitSunkenNote('a composed instruction'),
+                      const KitRowNote('Letter settings saved.'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             const KitBuildStamp(contract: '4.4.0', platform: 'flutter'),
           ],
         ),
@@ -573,9 +598,88 @@ void main() {
     });
   });
 
+  group('§9 inspector rail', () {
+    testWidgets('header, group labels, entries — and the active marker', (
+      tester,
+    ) async {
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 600,
+          child: KitInspectorRail(
+            title: 'Conversations',
+            onClose: () {},
+            newLabel: 'New conversation',
+            newActive: false,
+            onNew: () {},
+            groups: [
+              KitRailGroup(
+                label: 'Today',
+                entries: [
+                  KitRailEntry(
+                    title: 'What have I been reading about pasta?',
+                    time: '8:18 PM',
+                    preview: 'and about tax invoices?',
+                    active: true,
+                    onTap: () {},
+                  ),
+                  KitRailEntry(
+                    title: 'Systems thinking',
+                    time: 'Sep 3',
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      // Required parts: the mono caps title, the close control (the phone
+      // form's — an overlay a reader cannot dismiss is a trap), the group
+      // label, and the entry's three lines.
+      expect(find.text('CONVERSATIONS'), findsWidgets);
+      expect(find.byIcon(Icons.close), findsWidgets);
+      expect(find.text('TODAY'), findsWidgets);
+      expect(find.text('New conversation'), findsWidgets);
+      expect(find.text('and about tax invoices?'), findsWidgets);
+      expect(find.text('8:18 PM'), findsWidgets);
+    });
+
+    testWidgets('the notice stands INSTEAD of the entries', (tester) async {
+      // INV-24: a rail that could not be READ is not an empty rail. If both
+      // rendered, the failure would sit above a list asserting there is
+      // nothing to list.
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 600,
+          child: KitInspectorRail(
+            title: 'Conversations',
+            notice: const KitFailureBlock(
+              sentence: 'Your conversations could not be read.',
+              detail: 'permission-denied',
+            ),
+            groups: [
+              KitRailGroup(
+                label: 'Today',
+                entries: [
+                  KitRailEntry(title: 'Should not render', onTap: () {}),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(find.text('Your conversations could not be read.'), findsWidgets);
+      expect(find.text('Should not render'), findsNothing);
+      expect(find.text('TODAY'), findsNothing);
+    });
+  });
+
   group('§12 notice', () {
-    testWidgets('glyph, measured copy, one action — and no dismiss',
-        (tester) async {
+    testWidgets('glyph, measured copy, one action — and no dismiss', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         KitNotice(
@@ -585,8 +689,10 @@ void main() {
           onAction: () {},
         ),
       );
-      expect(find.text('About 2 more sessions of new material.'),
-          findsOneWidget);
+      expect(
+        find.text('About 2 more sessions of new material.'),
+        findsOneWidget,
+      );
       expect(find.text('Open settings'), findsOneWidget);
       // Its lifecycle belongs to the condition: it leaves when the backend
       // says so. A close control would hide a live state and put the surface
@@ -598,15 +704,18 @@ void main() {
       await pumpBoth(
         tester,
         const KitNotice(
-            icon: Icons.error_outline, text: 'No new material left.'),
+          icon: Icons.error_outline,
+          text: 'No new material left.',
+        ),
       );
       expect(find.text('No new material left.'), findsOneWidget);
     });
   });
 
   group('§7 numbered move', () {
-    testWidgets('numeral, title and copy — the explainer row form',
-        (tester) async {
+    testWidgets('numeral, title and copy — the explainer row form', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         const KitNumberedMove(
@@ -624,8 +733,9 @@ void main() {
   });
 
   group('§11 letter sheet', () {
-    testWidgets('the frame this client draws: masthead, rule, body, seal',
-        (tester) async {
+    testWidgets('the frame this client draws: masthead, rule, body, seal', (
+      tester,
+    ) async {
       await pumpBoth(
         tester,
         const KitLetterSheet(
@@ -652,7 +762,8 @@ void main() {
       // do. The device run and the screenshot pair prove the render; what is
       // provable here is the only thing this widget does to the letter, which
       // is wrap it.
-      const body = '<div data-nl-letterhead="1" style="background:#FAFAF7">'
+      const body =
+          '<div data-nl-letterhead="1" style="background:#FAFAF7">'
           '<table><tr><td>A letter.</td></tr></table></div>';
       final doc = KitLetterPaper.documentFor(body);
       // The letter's own markup, byte for byte. A client hosting it bare may

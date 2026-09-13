@@ -97,8 +97,8 @@ class _SidebarState extends State<Sidebar> {
             KitNavItem(
               icon: Icons.chat_bubble_outline,
               label: 'Ask',
-              active: route == '/chat',
-              onTap: () => go('/chat'),
+              active: route == '/ask',
+              onTap: () => go('/ask'),
             ),
             const KitRailGroupLabel('Study'),
             KitNavItem(

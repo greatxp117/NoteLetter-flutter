@@ -194,6 +194,9 @@ class Tokens {
   Color get chromeHover => AppColors.chromeHover;
   Color get chromeActive => AppColors.chromeActive;
   Color get chromeBorder => AppColors.chromeBorder;
+
+  /// The backdrop behind an overlay (§9's phone form, §15). Fixed, not paired.
+  Color get scrim => AppColors.scrim;
   Color get chromeAccentBar => AppColors.chromeAccentBar;
 }
 

@@ -27,6 +27,7 @@ export 'kit_headers.dart';
 export 'kit_letter.dart';
 export 'kit_markers.dart';
 export 'kit_notice.dart';
+export 'kit_rail.dart';
 export 'kit_rows.dart';
 export 'kit_shell.dart';
 export 'kit_support_footer.dart';

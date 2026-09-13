@@ -80,6 +80,11 @@ List<RouteBase> appRoutes() {
               builder: (context, state) => const LibraryPage(),
             ),
             GoRoute(path: '/library', redirect: (context, state) => '/'),
+            // 4.53.0 — the route is `/ask`, as the reference's has always been.
+            // `/chat` stays as a redirect: it is in this app's own history and
+            // a renamed route that 404s is a link the reader cannot tell from
+            // a deleted screen.
+            GoRoute(path: '/chat', redirect: (context, state) => '/ask'),
             GoRoute(
               path: '/search',
               builder: (context, state) => const SearchPage(),
@@ -89,7 +94,7 @@ List<RouteBase> appRoutes() {
               builder: (context, state) => const ActivityPage(),
             ),
             GoRoute(
-              path: '/chat',
+              path: '/ask',
               builder: (context, state) => const ChatPage(),
             ),
             // Study (2.34.0). `/study/session/:id` is where the session

@@ -129,15 +129,15 @@ a new obligation on a finished screen is a new item.
   device test by creating a program through the API in the test, then delete it.
 
 ## F-07 · Ask — recompose, route `/ask`, inspector rail
-- status: open
+- status: done 2026-09-12
 - screen: ask
 - route: /ask
 - spec: spec/screens/ask.md §Composition §Data / endpoints §States; spec/component-kit.md §9 §10 §14.1 §17.2
 - web: src/pages/AskView.jsx; src/styles/app-kit.css
-- flutter: lib/pages/chat_page.dart; lib/widgets/chat_interface.dart; lib/widgets/kit/kit_rail.dart (new); lib/widgets/kit/kit.dart; lib/router.dart; lib/state/chat_notifier.dart; lib/widgets/sidebar.dart; lib/widgets/nav_drawer.dart
+- flutter: lib/pages/chat_page.dart; lib/widgets/kit/kit_rail.dart (new); lib/widgets/kit/kit.dart; lib/widgets/kit/kit_headers.dart; lib/router.dart; lib/state/chat_notifier.dart; lib/models/ask_thread.dart (new); lib/services/api.dart; lib/services/firestore_service.dart; lib/theme/app_colors.dart; lib/theme/tokens.dart; lib/widgets/sidebar.dart; lib/widgets/nav_drawer.dart
 - folds: 4.34.3 (§14 on ask); 4.52.0 (markers inline in citation pills); 4.5.1 (route names follow web); 4.53.0 (ADR-090 — Ask conversation history, fn_ask_turn/fn_ask_threads + the §9 rail); 4.54.0 (ask_threads.preview)
 - device_test: ask composes from the kit
-- shots: ask; ask-thread
+- shots: ask; ask-thread; ask-rail
 - extra_gates: none
 - notes: Route becomes `/ask`; keep `/chat` as a redirect. §9 inspector rail: the `KitRail*`
   pieces exist for the CHROME rail (§1.2) — §9 is a different pattern and wants its own

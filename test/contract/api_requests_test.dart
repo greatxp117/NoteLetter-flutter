@@ -175,6 +175,14 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       Api.instance.retryDocument(b['docId'], force: b['force'] == true),
   'fn_update_content': (b) =>
       Api.instance.updateContent(b['docId'], chunks: _maps(b['chunks'])),
+  // One Ask turn (4.53.0, ADR-090). `threadId` is conditional — omitted, the
+  // endpoint creates the thread — so the builder must not send it as null.
+  'fn_ask_turn': (b) => Api.instance.askTurn(
+        b['question'],
+        threadId: b['threadId'] as String?,
+        sourceTypes: _strs(b['sourceTypes']),
+        limit: (b['limit'] as num?)?.toInt(),
+      ),
   'fn_search_notes': (b) => Api.instance.searchNotes(b['query'],
       sourceTypes: _strs(b['sourceTypes']), limit: b['limit'] ?? 10),
   // Closed key set (4.40.0, ADR-078). Every optional key is passed straight
@@ -282,6 +290,8 @@ const _suites = [
   'api/summary-settings',
   // 4.18.0 (ADR-054) — the support thread.
   'api/support',
+  // 4.53.0 (ADR-090) — Ask conversation history.
+  'api/ask',
 ];
 
 // ── What this client does NOT drive, declared ───────────────────────────────
@@ -334,6 +344,7 @@ const _methodAware = {
   'fn_study_programs',
   'fn_apply_syllabus_plan',
   'fn_scripture_newsletter_settings',
+  'fn_ask_threads',
 };
 
 Future<dynamic> _invokeMethodAware(
@@ -394,6 +405,14 @@ Future<dynamic> _invokeMethodAware(
         return Api.instance.getScriptureNewsletterSettings();
       }
       return Api.instance.updateScriptureNewsletterSettings(b);
+    // `b` is the body merged with the query, so the DELETE's threadId — which
+    // rides the QUERY STRING, because a DELETE body is not reliably carried —
+    // arrives here the same way the PATCH's body does.
+    case 'fn_ask_threads':
+      if (method == 'DELETE') {
+        return Api.instance.deleteAskThread(b['threadId']);
+      }
+      return Api.instance.renameAskThread(b['threadId'], b['title']);
   }
   throw StateError('no method-aware dispatch for $endpoint');
 }

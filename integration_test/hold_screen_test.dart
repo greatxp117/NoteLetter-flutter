@@ -26,6 +26,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_app/app.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
+import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
@@ -169,6 +170,36 @@ Future<void> reachState(WidgetTester tester) async {
       await settle();
       expect(find.text('All letters'), findsOneWidget,
           reason: 'the letter did not open — this frame would be the list');
+      return;
+    // ask.md — the rail and a recorded turn (4.53.0, ADR-090). `/ask` alone is
+    // the §7 empty state with the rail closed, which shows none of §9: no
+    // grouped entries, no accent bar, no preview line. This drives a REAL turn
+    // (fn_ask_turn through the shim, retrieval included) and leaves the rail
+    // open, which is the phone form of the two columns the web frame shows.
+    case 'ask-thread':
+    case 'ask-rail':
+      final field = find.byType(TextField).last;
+      await tester.enterText(field, 'What have I been reading about pasta?');
+      await settle();
+      // The send CONTROL: §10's field takes `TextInputAction.newline`, so a
+      // submit action inserts a line and sends nothing.
+      await tester.tap(find.bySemanticsLabel('Send'));
+      for (var i = 0; i < 200; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.text('Your library').evaluate().isNotEmpty) break;
+      }
+      await settle();
+      expect(find.text('Your library'), findsWidgets,
+          reason: 'no answer came back — this frame would be the empty state');
+      // The rail stays CLOSED here. It is an overlay on this client, so an
+      // open one covers the transcript entirely and the frame would compare
+      // nothing the web `ask-thread` frame shows. §9 has its own pair below.
+      if (holdState == 'ask-rail') {
+        await tester.tap(find.text('History'));
+        await settle();
+        expect(find.byType(KitInspectorRail), findsOneWidget,
+            reason: 'the rail did not open — this frame would show no §9');
+      }
       return;
     default:
       fail('hold_screen_test knows no HOLD_STATE "$holdState"');

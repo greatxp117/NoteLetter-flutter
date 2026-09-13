@@ -638,6 +638,137 @@ void main() {
     }
   });
 
+  // ── Ask (4.53.0/4.54.0, ADR-090) ───────────────────────────────────────────
+  testWidgets('ask composes from the kit', (tester) async {
+    // Ask is screen 7/11. Nothing here was visible to Tier-1: the rail is
+    // composition, the route rename is a table, and "restoring a conversation
+    // issues no request" is the ABSENCE of one.
+    final router = await pumpApp(tester);
+    router.go('/ask');
+    for (var i = 0; i < 16; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+
+    // The bespoke header (§2), its eyebrow, and the dock (§10).
+    expect(find.byType(ScreenHeader), findsOneWidget);
+    expect(
+      find.byType(ChapterOpening),
+      findsNothing,
+      reason: 'ask has a bespoke header, not a chapter opening (§2)',
+    );
+    expect(find.text('GROUNDED IN YOUR LIBRARY'), findsOneWidget);
+    expect(find.byType(KitComposerDock), findsOneWidget);
+
+    // The rail is §9's PHONE form: an overlay, closed until asked for. A rail
+    // drawn as a permanent column on a phone is a different pattern.
+    expect(find.byType(KitInspectorRail), findsNothing);
+    await tester.tap(find.text('History'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.byType(KitInspectorRail), findsOneWidget);
+    expect(
+      find.text('CONVERSATIONS'),
+      findsOneWidget,
+      reason: 'the mono caps title is a required part of §9',
+    );
+    expect(
+      find.text('New conversation'),
+      findsOneWidget,
+      reason: 'the dashed new-conversation control is the rail\'s own offer',
+    );
+    // Close it the way §9's phone form requires — a visible control, not only
+    // the backdrop.
+    await tester.tap(find.byIcon(Icons.close));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.byType(KitInspectorRail), findsNothing);
+
+    // Empty is an OFFER (§7), never a bare sentence.
+    expect(find.byType(KitEmptyState), findsOneWidget);
+    expect(find.byType(KitSuggestion), findsWidgets);
+
+    // A turn. Generous wait: this is an embedding call plus a vector query,
+    // and a cold first request runs to several seconds — a short wait takes
+    // the failure branch and is green for the wrong reason.
+    await tester.enterText(find.byType(TextField).last, 'pasta cooking');
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    // The SEND CONTROL, not a text-input action: §10's field takes
+    // `TextInputAction.newline` because a prompt is written, not typed into a
+    // form field — so `receiveAction(done)` inserts a line and sends nothing,
+    // and the test reads as "the app did not answer".
+    await tester.tap(find.bySemanticsLabel('Send'));
+    for (var i = 0; i < 200; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+      if (find.text('Your library').evaluate().isNotEmpty) break;
+    }
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+
+    final ask = Provider.of<ChatNotifier>(
+      tester.element(find.byType(KitComposerDock)),
+      listen: false,
+    );
+    // Say which branch this run took. Without it a green run is ambiguous —
+    // the rejection branch renders a state too, which is the defect the search
+    // test above was green through for a whole release.
+    debugPrint(
+      'DEVICE-RUN ask: ${ask.messages.length} stored message(s), '
+      'thread=${ask.activeId}, error=${ask.error}',
+    );
+
+    if (ask.error != null) {
+      // The shim's dummy OpenAI key is the expected failure here. What is NOT
+      // allowed is silence: §14.2 says so, beside the composer, in the
+      // server's own words, with the question still in the box.
+      expect(find.byType(KitFailureInline), findsWidgets,
+          reason: 'a refused turn says so (§14.2) — never an empty answer');
+      expect(
+        tester.widget<TextField>(find.byType(TextField).last).controller?.text,
+        'pasta cooking',
+        reason: 'write before move: a rejected question stays in the box',
+      );
+      return;
+    }
+
+    // The turn was RECORDED, which is the whole of ADR-090: both messages came
+    // back from the subscription, not from local state.
+    expect(ask.messages.length, greaterThanOrEqualTo(2));
+    expect(ask.activeId, isNotNull);
+    expect(find.text('You'), findsWidgets);
+    expect(find.text('Your library'), findsWidgets);
+
+    // The thread is now in the rail, with the title and the preview the
+    // BACKEND wrote — a second line this client cannot derive.
+    await tester.tap(find.text('History'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.byType(KitRailEntry), findsWidgets);
+    expect(find.text('TODAY'), findsOneWidget,
+        reason: 'entries are grouped under mono caps labels (§9)');
+    final entry = tester.widgetList<KitRailEntry>(find.byType(KitRailEntry));
+    expect(entry.first.active, isTrue,
+        reason: 'the open conversation is the marked one');
+    expect(entry.first.preview, isNotEmpty,
+        reason: 'ask_threads.preview (4.54.0) backs the entry\'s second line');
+
+    // Reopening a stored conversation issues NO request and must not draw the
+    // searching state. The absence of a request is not observable, so this
+    // asserts the thing that would be visible if one were made.
+    await tester.tap(find.byType(KitRailEntry).first);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.text('Searching…'), findsNothing,
+        reason: 'restoring a thread is not thinking (screens/ask.md §States)');
+    expect(find.text('Your library'), findsWidgets);
+  });
+
   // ── INV-22 (4.18.0, ADR-054) ───────────────────────────────────────────────
   // The Tier-1 gate (`test/contract/support_footer_test.dart`) proves the route
   // TABLE nests every screen under the footer's shell, and that the footer

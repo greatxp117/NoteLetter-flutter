@@ -336,6 +336,13 @@ class RuledSectionLabel extends StatelessWidget {
 /// it drops to its own line rather than narrowing the one required part.
 class ScreenHeader extends StatelessWidget {
   final String title;
+
+  /// A mono caps line ABOVE the title, at `--accent-text`. Ask opens with one
+  /// ("Grounded in your library"); letters and search do not, so it is
+  /// optional — but where a screen file names it, it is a required part and
+  /// dropping it is non-conformance like any other.
+  final String? eyebrow;
+
   final String? standfirst;
   final Widget? action;
 
@@ -351,6 +358,7 @@ class ScreenHeader extends StatelessWidget {
   const ScreenHeader({
     super.key,
     required this.title,
+    this.eyebrow,
     this.standfirst,
     this.action,
     this.titleSize = 30,
@@ -382,13 +390,19 @@ class ScreenHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (action == null)
+          if (eyebrow != null && eyebrow!.isNotEmpty) ...[
+            Text(
+              eyebrow!.toUpperCase(),
+              style: KitText.capsLabel(context,
+                  color: Tokens.of(context).accentText,
+                  fontSize: 10,
+                  letterSpacing: 0.16),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (action == null || compact)
             titleWidget
-          else if (compact) ...[
-            titleWidget,
-            const SizedBox(height: AppSpacing.s3),
-            Align(alignment: Alignment.centerLeft, child: action!),
-          ] else
+          else
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -403,6 +417,18 @@ class ScreenHeader extends StatelessWidget {
                 fontSize: standfirstSize,
                 height: standfirstSize + 7,
                 maxWidth: double.infinity),
+          ],
+          // §2.1's yield rule, compact: the action drops below the TITLE BLOCK
+          // — title AND standfirst — never between them. It used to sit
+          // directly under the title, which splits the one required part from
+          // the line that belongs to it; the reference's own compact form
+          // stacks `.ask-head-text` whole and the actions after it. Wrong on
+          // all three bespoke-header screens until 4.53.0, and invisible to
+          // every gate: each part was present, in the right role, in the right
+          // token — in the wrong order.
+          if (action != null && compact) ...[
+            const SizedBox(height: AppSpacing.s3),
+            Align(alignment: Alignment.centerLeft, child: action!),
           ],
         ],
       ),

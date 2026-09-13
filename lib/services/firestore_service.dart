@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/activity_item.dart';
+import '../models/ask_thread.dart';
 import '../models/chunk.dart';
 import '../models/cloud_folder.dart';
 import '../models/document.dart';
@@ -672,6 +673,44 @@ class FirestoreService {
         .map((snap) => snap.docs
             .map((d) => SupportMessage.fromJson(
                 d.id, Map<String, dynamic>.from(d.data())))
+            .toList());
+  }
+
+  // ── Ask conversation history (4.53.0, ADR-090) ─────────────────────────────
+
+  /// The §9 rail's list: the caller's conversations, most recently used first.
+  ///
+  /// The equality filter is not decoration — `firestore.rules` allows this LIST
+  /// only because every document it can return matches it, and an unfiltered
+  /// read of the collection is denied outright. Needs the `ask_threads`
+  /// composite index (`user_id` ASC, `updated_at` DESC).
+  Stream<List<AskThread>> subscribeAskThreads({int limit = 100}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('ask_threads')
+        .where('user_id', isEqualTo: uid)
+        .orderBy('updated_at', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) =>
+                AskThread.fromJson(d.id, Map<String, dynamic>.from(d.data())))
+            .toList());
+  }
+
+  /// One conversation, oldest first. One ordering field, so no composite index.
+  Stream<List<AskMessage>> subscribeAskMessages(String threadId) {
+    if (threadId.isEmpty) return Stream.value(const []);
+    return _db
+        .collection('ask_threads')
+        .doc(threadId)
+        .collection('messages')
+        .orderBy('created_at')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) =>
+                AskMessage.fromJson(d.id, Map<String, dynamic>.from(d.data())))
             .toList());
   }
 }

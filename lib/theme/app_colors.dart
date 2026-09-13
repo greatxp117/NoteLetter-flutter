@@ -87,6 +87,14 @@ class AppColors {
   static const chromeBorder = Color(0x1AFFFFFF); // rules on plum rgba(255,255,255,.10)
   static const chromeAccentBar = _brick400; // active left bar --brick-400
 
+  // ── Scrim — identical in both themes (4.53.0) ────────────────────────────
+  // The backdrop behind an overlay: `.ask-rail-backdrop` is
+  // `rgba(11,13,19,0.5)` and §15's sheet scrim `rgba(11,13,19,0.42)`. It is a
+  // SCRIM, not a surface — the ground beneath it is unknown by construction, so
+  // it has no palette identity and does not flip: a scrim that lightened in
+  // dark mode would stop separating the overlay from the page.
+  static const scrim = Color(0x800B0D13); // rgba(11,13,19,0.50)
+
   // ── Semantic — Dark ──────────────────────────────────────────────────────
   static const backgroundDark = _ink700; // --bg (dark)
   static const foregroundDark = _paper50; // --fg (dark)

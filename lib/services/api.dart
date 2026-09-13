@@ -246,6 +246,45 @@ class Api {
     return _http.post('/fn_synthesize_search', data: body);
   }
 
+  // ── Ask conversation history (4.53.0/4.54.0, ADR-090) ─────────────────────
+
+  /// One Ask turn (`fn_ask_turn`). Retrieval AND the record in one call.
+  ///
+  /// **Not `fn_search_notes`.** Ask stopped calling it at 4.53.0; Search still
+  /// does. The two-call shape — search, then post the turn — leaves a window in
+  /// which a question has been answered and not stored, and puts this client in
+  /// charge of composing the stored citation shape.
+  ///
+  /// **Closed key set** `{threadId, question, sourceTypes, limit}` — an unknown
+  /// key is a 400 naming it, so every optional key is OMITTED rather than sent
+  /// null. Omitting `threadId` creates the thread and titles it from the
+  /// question.
+  Future<Map<String, dynamic>> askTurn(
+    String question, {
+    String? threadId,
+    List<String>? sourceTypes,
+    int? limit,
+  }) {
+    final body = <String, dynamic>{'question': question};
+    if (threadId != null) body['threadId'] = threadId;
+    if (sourceTypes != null) body['sourceTypes'] = sourceTypes;
+    if (limit != null) body['limit'] = limit;
+    return _http.post('/fn_ask_turn', data: body);
+  }
+
+  /// Rename a conversation (`fn_ask_threads` PATCH).
+  Future<Map<String, dynamic>> renameAskThread(String threadId, String title) =>
+      _http.patch('/fn_ask_threads',
+          data: {'threadId': threadId, 'title': title});
+
+  /// Delete a conversation and its messages (`fn_ask_threads` DELETE).
+  ///
+  /// `threadId` rides the QUERY STRING, not the body: a DELETE body is not
+  /// reliably carried, which is the same reason `fn_notification_channels`
+  /// takes `channelId` that way.
+  Future<Map<String, dynamic>> deleteAskThread(String threadId) =>
+      _http.delete('/fn_ask_threads', queryParameters: {'threadId': threadId});
+
   // ── Tags (INV-04) ─────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> createTag(String title,
