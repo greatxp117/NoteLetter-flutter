@@ -129,19 +129,26 @@ a new obligation on a finished screen is a new item.
   device test by creating a program through the API in the test, then delete it.
 
 ## F-07 · Ask — recompose, route `/ask`, inspector rail
-- status: blocked: spec-vs-web: ask.md §Composition 'Left column — Inspector rail (§9) holding conversation history' has no reference implementation — AskView.jsx renders .ask-head + .ask-cols > .ask-main only, and all 14 classes that would compose it (.ask-rail*, .convo*) are in fixtures/dead-class-baseline.json as the 'Ask conversation rail (17)' cluster. Kit §9's only declared consumer in any screen spec is this clause, so §9 has zero live consumers on any client. Building it in Flutter puts the mirror ahead of the reference (ADR-070/client-against-client: fatal direction). Needs /contract-change to decide whether §9 + ask.md's left column are the 4.5.0 stylesheet-transcription defect (as §2 at 4.5.1 and §8 at 4.46.0 were) or a feature web owes first. The other two thirds — recompose from the kit, route /ask with /chat redirect — are unambiguous and unblocked once the rail is settled.
+- status: open
 - screen: ask
 - route: /ask
 - spec: spec/screens/ask.md §Composition §Data / endpoints §States; spec/component-kit.md §9 §10 §14.1 §17.2
 - web: src/pages/AskView.jsx; src/styles/app-kit.css
 - flutter: lib/pages/chat_page.dart; lib/widgets/chat_interface.dart; lib/widgets/kit/kit_rail.dart (new); lib/widgets/kit/kit.dart; lib/router.dart; lib/state/chat_notifier.dart; lib/widgets/sidebar.dart; lib/widgets/nav_drawer.dart
-- folds: 4.34.3 (§14 on ask); 4.52.0 (markers inline in citation pills); 4.5.1 (route names follow web)
+- folds: 4.34.3 (§14 on ask); 4.52.0 (markers inline in citation pills); 4.5.1 (route names follow web); 4.53.0 (ADR-090 — Ask conversation history, fn_ask_turn/fn_ask_threads + the §9 rail); 4.54.0 (ask_threads.preview)
 - device_test: ask composes from the kit
-- shots: ask
+- shots: ask; ask-thread
 - extra_gates: none
 - notes: Route becomes `/ask`; keep `/chat` as a redirect. §9 inspector rail: the `KitRail*`
-  pieces exist for the utility rail — compose the pattern, do not re-spell it. Rail entries in
-  `sidebar.dart` and `nav_drawer.dart` follow the web rail order.
+  pieces exist for the CHROME rail (§1.2) — §9 is a different pattern and wants its own
+  `kit_rail.dart`; do not re-spell either. Rail entries in `sidebar.dart` and `nav_drawer.dart`
+  follow the web rail order.
+  UNBLOCKED 2026-09-12: the rail had no reference implementation and was blocked rather than
+  built ahead of it. Resolved by ADR-090 — web now ships it, so this item mirrors rather than
+  leads. Read `NoteLetter-web/src/pages/AskView.jsx` and the four frames
+  (`ask`, `ask-thread` × light/dark). A turn is ONE `fn_ask_turn` call, not `fn_search_notes`;
+  threads and messages are subscriptions; `title` is the first question and `preview` the latest;
+  restoring a thread issues no request and must never draw the searching state.
 
 ## F-08 · Shelves — recompose, route `/shelves`, colour names
 - status: open
