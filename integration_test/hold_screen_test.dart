@@ -39,6 +39,7 @@ import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/support_notifier.dart';
+import 'package:flutter_app/pages/reader/manuscript_panel.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
@@ -216,7 +217,15 @@ Future<void> reachState(WidgetTester tester) async {
     case 'manuscript':
       await tester.tap(find.text('Manuscript'));
       await settle();
-      expect(find.textContaining('Manuscript · the extracted text'), findsWidgets,
+      // byType, not the panel's copy. The first version asserted
+      // `textContaining('Manuscript · the extracted text')` and failed on a
+      // screen that was rendering perfectly: `Eyebrow` draws
+      // `text.toUpperCase()`, so what is on screen is
+      // `MANUSCRIPT · THE EXTRACTED TEXT`. A finder written from the source
+      // string rather than from the renderer is a test that fails for its own
+      // reasons — the same slip as looking for 'SpeedRead' where the label is
+      // 'Speed read'. The type is what "the panel opened" actually means.
+      expect(find.byType(ManuscriptPanel), findsOneWidget,
           reason: 'the manuscript panel did not open — this frame would be the '
               'summary');
       return;
