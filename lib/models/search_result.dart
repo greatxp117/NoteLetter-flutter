@@ -76,12 +76,30 @@ class SearchResultDocument {
 class SearchResult {
   final Chunk chunk;
   final SearchResultDocument document;
+
+  /// The blended rank: `0.8 × cosine + 0.2 × source_priority`.
   final double score;
+
+  /// The two **measured components** of [score] (4.44.0, ADR-082), always
+  /// present on a successful response and rounded to 4 decimals by the server.
+  ///
+  /// **Null means the surface did not receive one, and a client may not solve
+  /// for it.** `source_priority` is algebraically recoverable as
+  /// `(score − 0.8 × cosine) / 0.2`, and that figure is an inference wearing a
+  /// measurement's clothes: both inputs are already rounded, dividing by 0.2
+  /// multiplies their error fivefold, the three links of the document → chunk
+  /// → 0.5 fallback become indistinguishable, and the arithmetic keeps
+  /// succeeding — wrongly — if the weights ever change. The score explainer
+  /// renders no row for a null rather than deriving one.
+  final double? cosine;
+  final double? sourcePriority;
 
   const SearchResult({
     required this.chunk,
     required this.document,
     this.score = 0,
+    this.cosine,
+    this.sourcePriority,
   });
 
   factory SearchResult.fromJson(Map<String, dynamic> json) {
@@ -90,6 +108,8 @@ class SearchResult {
       document: SearchResultDocument.fromJson(
           json['document'] as Map<String, dynamic>),
       score: (json['score'] as num?)?.toDouble() ?? 0,
+      cosine: (json['cosine'] as num?)?.toDouble(),
+      sourcePriority: (json['source_priority'] as num?)?.toDouble(),
     );
   }
 }

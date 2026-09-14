@@ -7,6 +7,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
+import 'score_explainer.dart';
 
 /// One ranked passage (`spec/screens/search.md` §Composition §Body).
 ///
@@ -96,25 +97,31 @@ class _SearchResultCardState extends State<SearchResultCard> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  _ScoreMeter(score: r.score),
+                  _ScoreMeter(
+                    score: r.score,
+                    cosine: r.cosine,
+                    sourcePriority: r.sourcePriority,
+                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.s3),
               // The matched span is marked, not merely quoted: the mark is what
               // says "this is the part that answered you".
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: excerpt,
-                      style: AppTheme.serif(
-                        fontSize: 17,
-                        height: 28 / 17,
-                        color: t.fg,
-                      ).copyWith(backgroundColor: t.highlight),
-                    ),
-                  ],
-                ),
+              //
+              // `chunk.text` is the representation that carries `[Image: …]`
+              // (the derivation writes it there and never into `html`), so
+              // this row is one of the two surfaces §17.2 exists for. Markers
+              // draw as Marker inline — never as the matched quotation, and
+              // never stripped: across production they are a median 31.6% of a
+              // marker-bearing chunk, and for a Reel whose burned-in text IS
+              // the content, deleting them deletes the document.
+              KitMarkedText(
+                excerpt,
+                style: AppTheme.serif(
+                  fontSize: 17,
+                  height: 28 / 17,
+                  color: t.fg,
+                ).copyWith(backgroundColor: t.highlight),
               ),
               const SizedBox(height: 14),
               Container(height: 1, color: t.rule),
@@ -146,41 +153,58 @@ class _SearchResultCardState extends State<SearchResultCard> {
 
 /// The similarity meter: a 42×4 track filled to the score, and **the number
 /// beside it**. A bar alone is a shape; the figure is what makes it a
-/// measurement, and this one is measured (the backend's cosine similarity).
+/// measurement, and this one is measured (the backend's blended rank).
+///
+/// The meter is also the **anchor** of the §16 score explainer (4.44.0,
+/// ADR-082) — the element whose figure the popover breaks down. It carried
+/// `cursor: help` on the reference for fifteen months with nothing behind it;
+/// [SearchScoreAnchor] is what that cursor was promising, and it draws nothing
+/// when the response carried no components to explain.
 class _ScoreMeter extends StatelessWidget {
   final double score;
+  final double? cosine;
+  final double? sourcePriority;
 
-  const _ScoreMeter({required this.score});
+  const _ScoreMeter({
+    required this.score,
+    required this.cosine,
+    required this.sourcePriority,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final clamped = score.clamp(0.0, 1.0);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 42,
-          height: 4,
-          decoration: BoxDecoration(
-            color: t.surfaceSunken,
-            borderRadius: BorderRadius.circular(2),
-          ),
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: clamped,
-            child: Container(
-              decoration: BoxDecoration(
-                color: t.accent,
-                borderRadius: BorderRadius.circular(2),
+    return SearchScoreAnchor(
+      score: score,
+      cosine: cosine,
+      sourcePriority: sourcePriority,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 42,
+            height: 4,
+            decoration: BoxDecoration(
+              color: t.surfaceSunken,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: clamped,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: t.accent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 7),
-        Text(clamped.toStringAsFixed(2),
-            style: AppTheme.mono(fontSize: 10, color: t.fgMuted)),
-      ],
+          const SizedBox(width: 7),
+          Text(clamped.toStringAsFixed(2),
+              style: AppTheme.mono(fontSize: 10, color: t.fgMuted)),
+        ],
+      ),
     );
   }
 }

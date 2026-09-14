@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'result_card.dart' show SearchPassageAction;
+import 'score_explainer.dart';
 
 /// **Cohesive body** (`spec/screens/search.md` §Composition, 4.40.0, ADR-078).
 ///
@@ -239,14 +240,25 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
                 ),
                 const SizedBox(width: 10),
                 // A measured figure (the blended score the server ranked on),
-                // in the mono face — the same slot the passages mode gives it.
-                Text(p.score.toStringAsFixed(2),
-                    style: AppTheme.mono(fontSize: 10, color: t.fgMuted)),
+                // in the mono face — the same slot the passages mode gives it,
+                // and the same §16 explainer behind it (4.44.0, ADR-082). Both
+                // surfaces carry ONE explainer; what differs is only the
+                // element it hangs on.
+                SearchScoreAnchor(
+                  score: p.score,
+                  cosine: p.cosine,
+                  sourcePriority: p.sourcePriority,
+                  child: Text(p.score.toStringAsFixed(2),
+                      style: AppTheme.mono(fontSize: 10, color: t.fgMuted)),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             if (html.isEmpty)
-              Text(p.text,
+              // `text` is the representation `[Image: …]` lives in, so the
+              // no-html branch draws its markers as §17.2 rather than as the
+              // reader's own sentence.
+              KitMarkedText(p.text,
                   style: AppTheme.serif(
                       fontSize: 17, height: 28 / 17, color: t.fg))
             else

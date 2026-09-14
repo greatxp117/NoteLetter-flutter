@@ -81,7 +81,14 @@ class CohesivePassage {
   final String? html;
 
   final double score;
-  final double cosine;
+
+  /// The measured components of [score] (4.44.0, ADR-082) — the same three
+  /// fields the classic list returns, under the same rule: **measured, never
+  /// derived**. `source_priority` is new at 4.44.0, so a null here is a
+  /// response from before it and the explainer renders no row for it rather
+  /// than solving `(score − 0.8 × cosine) / 0.2` for a figure nothing measured.
+  final double? cosine;
+  final double? sourcePriority;
 
   /// `/reader/{document_id}?p={chunk_id}`, built in code from ids by the
   /// server (INV-21). Never re-derived here: a link a client assembles is a
@@ -101,6 +108,7 @@ class CohesivePassage {
     required this.html,
     required this.score,
     required this.cosine,
+    required this.sourcePriority,
     required this.link,
     required this.pageNumber,
     required this.timestampStart,
@@ -116,7 +124,8 @@ class CohesivePassage {
         text: json['text'] as String? ?? '',
         html: json['html'] as String?,
         score: (json['score'] as num?)?.toDouble() ?? 0,
-        cosine: (json['cosine'] as num?)?.toDouble() ?? 0,
+        cosine: (json['cosine'] as num?)?.toDouble(),
+        sourcePriority: (json['source_priority'] as num?)?.toDouble(),
         link: json['link'] as String? ?? '',
         pageNumber: (json['page_number'] as num?)?.toInt(),
         timestampStart: (json['timestamp_start'] as num?)?.toDouble(),

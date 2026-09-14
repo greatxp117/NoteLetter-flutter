@@ -20,6 +20,7 @@ import 'package:flutter_app/state/documents_notifier.dart';
 import 'package:flutter_app/state/newsletter_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/state/scripture_letter_notifier.dart';
+import 'package:flutter_app/shared/local_flags.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
@@ -706,9 +707,22 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
     }
 
-    // The control bar appears with the query, carrying the type vocabulary.
+    // The control bar appears with the query, carrying the type vocabulary —
+    // all SIX kinds (§6.4.1). A chip set that is short of a kind is a bucket
+    // nothing can reach, and it looks exactly like a complete vocabulary.
     expect(find.byType(KitControlBar), findsOneWidget);
-    expect(find.byType(KitFilterChip), findsNWidgets(4));
+    expect(find.byType(KitFilterChip), findsNWidgets(6));
+    // **No counts** (ADR-065 §4): a count over one page of results is a
+    // statement about that page, and it disabled chips that had matches. The
+    // chips filter SERVER-side now, so none of them is ever disabled either.
+    expect(
+      find.descendant(
+        of: find.byType(KitFilterChip),
+        matching: find.textContaining(RegExp(r'^\d+$')),
+      ),
+      findsNothing,
+      reason: 'search chips carry no count',
+    );
 
     // Say which branch this run took. Without it a green run is ambiguous —
     // the failure branch below returns early and passes too, which is exactly
@@ -749,6 +763,26 @@ void main() {
       findsWidgets,
       reason: 'the pane names the measured score of what it is showing',
     );
+
+    // §16 — the score meter is a CONTROL with an explainer behind it (4.44.0,
+    // ADR-082), and the figures in it are measured. It carried `cursor: help`
+    // on the reference for fifteen months with no popover behind it; this is
+    // the assertion that there is one.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SearchResultCard).first,
+        matching: find.byType(KitAnchoredPopover),
+      ),
+    );
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.text('RELEVANCE'), findsOneWidget,
+        reason: 'the score element opens the §16 explainer');
+    expect(find.text('Similarity'), findsOneWidget);
+    expect(find.text('Source priority'), findsOneWidget,
+        reason: 'both components come off a live response — a missing row here '
+            'means the client is on the derive path ADR-082 forbids');
 
     // Selecting a different result moves the pane to it.
     final cards = find.byType(SearchResultCard);
@@ -1184,6 +1218,22 @@ void main() {
     expect(find.byType(ChoiceChip), findsNothing,
         reason: 'the style positions are a segmented control, not chips');
     expect(find.byType(SnackBar), findsNothing);
+
+    // §Scripture (F-12, ADR-027 §7) — the control that writes the client-local
+    // `nl-scripture` flag. Without it the flag has a reader and no writer, and
+    // the whole citation branch on Search is code nothing can reach: the
+    // dark-feature shape, in one screen. It sits below the fold, so the pair's
+    // frame cannot show it and this is what says it is there.
+    await tester.scrollUntilVisible(find.text('SCRIPTURE'), 300,
+        scrollable: find.byType(Scrollable).first);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.text('SCRIPTURE'), findsOneWidget);
+    expect(find.text('Verse search'), findsOneWidget);
+    expect(find.byType(KitSwitch), findsWidgets,
+        reason: 'the flag has a control, not just a reader');
+    // Off by default, as the reference has it — a citation is only a different
+    // question for someone who reads scripture.
+    expect(LocalFlags.scripture.value, isFalse);
   });
 
   testWidgets('letters composes from the kit and opens a letter', (

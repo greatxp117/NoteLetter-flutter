@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/models/document.dart';
+import 'package:flutter_app/pages/search/score_explainer.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
 /// Every kit pattern, pumped in **both themes**.
@@ -1109,6 +1110,108 @@ void main() {
       // and not as a rail-wide banner.
       expect(find.text('A title is required.'), findsWidgets);
       expect(find.byType(KitFailureInline), findsWidgets);
+    });
+  });
+
+  group('§16 anchored popover', () {
+    Widget anchored() => Builder(
+          builder: (ctx) => Center(
+            child: SearchScoreAnchor(
+              score: 0.8123,
+              cosine: 0.6120,
+              sourcePriority: 0.5000,
+              child: const Text('0.81'),
+            ),
+          ),
+        );
+
+    testWidgets('closed it is UNMOUNTED — no panel, nothing to read', (
+      tester,
+    ) async {
+      await pumpBoth(tester, anchored());
+      // `pointer-events: none` and `aria-hidden` while closed, in the form a
+      // widget tree has one: the panel is not in the tree at all, so it is not
+      // hit-testable, not readable and not a tab stop.
+      expect(find.text('RELEVANCE'), findsNothing);
+      expect(find.text('Similarity'), findsNothing);
+    });
+
+    testWidgets('the head, both rows in fixed order, and the foot', (
+      tester,
+    ) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(body: anchored()),
+      ));
+      await tester.tap(find.text('0.81'));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.text('RELEVANCE'), findsOneWidget);
+      expect(find.text('0.8123'), findsOneWidget,
+          reason: 'the head figure is the blended score at 4dp');
+      // Fixed order: Similarity, then Source priority.
+      final sim = tester.getTopLeft(find.text('Similarity')).dy;
+      final src = tester.getTopLeft(find.text('Source priority')).dy;
+      expect(sim, lessThan(src));
+      // Contribution is `weight × component`, at 4dp — arithmetic over a
+      // returned value, not a reconstruction of one.
+      expect(find.text('0.4896'), findsOneWidget);
+      expect(find.text('0.1000'), findsOneWidget);
+      expect(find.text('×0.8'), findsOneWidget);
+      expect(find.text('×0.2'), findsOneWidget);
+      expect(find.text('Measured by the server, not estimated.'),
+          findsOneWidget);
+    });
+
+    testWidgets('a missing component renders NO ROW — never a derived one', (
+      tester,
+    ) async {
+      // ADR-082, the whole point. `source_priority` is recoverable as
+      // `(score − 0.8 × cosine) / 0.2` and that figure is an inference: both
+      // inputs are already rounded, the division multiplies their error
+      // fivefold, and the arithmetic keeps succeeding — wrongly — if the
+      // weights ever change.
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Center(
+            child: SearchScoreAnchor(
+              score: 0.8123,
+              cosine: 0.6120,
+              sourcePriority: null,
+              child: const Text('0.81'),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('0.81'));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.text('Similarity'), findsOneWidget);
+      expect(find.text('Source priority'), findsNothing);
+      expect(find.text('This surface received only part of the breakdown.'),
+          findsOneWidget);
+    });
+
+    testWidgets('with NO component it is inert — not even a control', (
+      tester,
+    ) async {
+      // No popover, no focus stop, and no promise of an explanation that
+      // cannot come. `cursor: help` over nothing is what this pattern's own
+      // anchor shipped for fifteen months.
+      await pumpBoth(
+        tester,
+        const Center(
+          child: SearchScoreAnchor(
+            score: 0.81,
+            cosine: null,
+            sourcePriority: null,
+            child: Text('0.81'),
+          ),
+        ),
+      );
+      expect(find.byType(KitAnchoredPopover), findsNothing);
+      expect(find.text('0.81'), findsOneWidget);
     });
   });
 

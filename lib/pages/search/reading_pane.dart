@@ -26,11 +26,16 @@ class SearchReadingPane extends StatelessWidget {
   final List<Chunk> context;
   final bool loading;
 
+  /// The context read's own failure (`screens/search.md` §States). The matched
+  /// chunk is still true, so it stays; what is missing is **said**.
+  final String? error;
+
   const SearchReadingPane({
     super.key,
     required this.result,
     required this.context,
     this.loading = false,
+    this.error,
   });
 
   @override
@@ -123,7 +128,11 @@ class SearchReadingPane extends StatelessWidget {
           for (final c in context.isEmpty ? [r.chunk] : context)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.s4),
-              child: Text(
+              // `text`, not `html` — so this is the one path `[Image: …]`
+              // reaches (the derivation writes it there and never into the
+              // fragment). Markers draw as §17.2, never as the reader's own
+              // sentence and never stripped.
+              child: KitMarkedText(
                 c.text,
                 style: c.chunkId == r.chunk.chunkId
                     ? AppTheme.serif(
@@ -140,16 +149,22 @@ class SearchReadingPane extends StatelessWidget {
             ),
         Container(height: 1, color: t.rule),
         const SizedBox(height: AppSpacing.s4),
-        Text(
-          'Showing the passage that matched plus its neighbours. Open the full '
-          'source to keep reading.',
-          style: AppTheme.serif(
-            fontSize: 14,
-            height: 22 / 14,
-            fontStyle: FontStyle.italic,
-            color: t.fgSubtle,
+        // Two renderings, never one sentence switching colour: a footnote and
+        // a rejection are not the same thing set in two hues (§14.2, ADR-070).
+        if (error != null)
+          KitFailureInline(
+              'The surrounding passages could not be loaded — $error')
+        else
+          Text(
+            'Showing the passage that matched plus its neighbours. Open the '
+            'full source to keep reading.',
+            style: AppTheme.serif(
+              fontSize: 14,
+              height: 22 / 14,
+              fontStyle: FontStyle.italic,
+              color: t.fgSubtle,
+            ),
           ),
-        ),
       ],
     );
   }

@@ -7,7 +7,9 @@ import 'package:provider/provider.dart';
 import '../models/cohesive_reading.dart';
 import '../models/search_result.dart';
 import '../models/tag.dart';
+import '../scripture/parse.dart';
 import '../services/firestore_service.dart';
+import '../shared/local_flags.dart';
 import '../state/search_notifier.dart';
 import '../state/tags_notifier.dart';
 import '../theme/app_spacing.dart';
@@ -17,6 +19,7 @@ import '../widgets/kit/kit.dart';
 import 'search/cohesive_column.dart';
 import 'search/reading_pane.dart';
 import 'search/result_card.dart';
+import 'search/scripture_results.dart';
 import 'search/search_field.dart';
 
 /// **Search** (`spec/screens/search.md`) — semantic search over the library.
@@ -47,10 +50,19 @@ import 'search/search_field.dart';
 ///   `Tighter | Normal | Broader` beside it; the body becomes
 ///   [CohesiveColumn], a single reading column in place of the split pane.
 ///
-/// **Not built here:** the citation path. The parser (`scripture/parse.dart`)
-/// and `fn_scripture_lookup` both exist on this client and nothing calls them,
-/// so a citation searches as ordinary text. That is a parity gap, not a
-/// composition one — recorded in `../TODO.md`.
+/// * **Citation branch** (2.28.0 + 4.9.0, ADR-027 §2 / ADR-045) — a citation
+///   is a **different question**, so it takes a different path and neither the
+///   mode nor the breadth control appears on it. The client parse
+///   (`scripture/parse.dart`) is the cheap prefilter that decides which
+///   question is being asked; `fn_scripture_lookup` decides the **result**,
+///   parsing again so one implementation says what was actually searched.
+///   Active only where the client-local `nl-scripture` flag is on — the
+///   affordance is a per-device preference by contract (ADR-027 §7), set in
+///   Settings.
+///
+/// **Not built here:** the quick-search citation echo. It needs a command
+/// palette and this client has none — recorded as an n/a row in
+/// `spec/clients/flutter.md` §Out of scope, not carried as a gap.
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
 
@@ -79,9 +91,22 @@ class _SearchPageState extends State<SearchPage> {
   List<Chunk> _context = const [];
   bool _contextLoading = false;
 
+  /// A failed CONTEXT read is its own state (`screens/search.md` §States).
+  /// The matched chunk is still true, so it stays on screen; what is missing
+  /// is the neighbours, and that is said (§14.2) rather than drawn as a
+  /// passage that happens to stand alone.
+  String? _contextError;
+
+  /// The citation branch is live for this query. Null on every ordinary query;
+  /// the parse is the client's, the result is the server's.
+  Citation? _citation;
+
   @override
   void initState() {
     super.initState();
+    // The client-local scripture flag decides whether a citation is a
+    // different question at all (ADR-027 §7).
+    LocalFlags.ensureLoaded();
     // Shelves, for the shelf pill on a result card (INV-02, and the same
     // subscription Library and Sources already hold — not a second read).
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -98,29 +123,77 @@ class _SearchPageState extends State<SearchPage> {
 
   Future<void> _submit(String raw) async {
     final query = raw.trim();
+    final search = context.read<SearchNotifier>();
     if (query.isEmpty) {
-      context.read<SearchNotifier>().clear();
+      search.clear();
       setState(() {
         _submitted = '';
         _selected = null;
         _context = const [];
+        _contextError = null;
+        _citation = null;
       });
       return;
     }
 
+    // The client parse decides WHICH QUESTION is being asked, cheaply enough
+    // to have been the reason ADR-027 §2 keeps parsing client-side at all.
+    // `looksLikeCitation` is the free prefilter; a false positive costs
+    // nothing because `parseCitation` still rejects it, and being conservative
+    // is what keeps an ordinary search from being hijacked (a bare `acts` is a
+    // word, not a book).
+    final citation = LocalFlags.scripture.value && looksLikeCitation(query)
+        ? parseCitation(query)
+        : null;
+
     setState(() {
       _submitted = query;
-      _filter = 'all';
       _selected = null;
       _context = const [];
+      _contextError = null;
+      _citation = citation;
     });
+    search.clearScripture();
 
-    final search = context.read<SearchNotifier>();
+    if (citation != null) {
+      // The server parses again and its reading wins. `parsed: false` is it
+      // saying this was an ordinary query after all — a NORMAL answer, so the
+      // screen falls through to the vector search rather than showing a
+      // failure. Recording which query was rejected is what actually releases
+      // the fall-through; without it the branch stays taken for a query the
+      // screen has never searched for, and renders "no passages found" for a
+      // search it never made.
+      final stay = await search.lookupScripture(query);
+      if (!mounted) return;
+      if (stay) return;
+      setState(() => _citation = null);
+    }
+
     // Both modes ask the same query. The passages request always runs: it is
     // what the list under a cohesive reading shows while the reading is being
     // built, and what the reader falls back to on the way out of the mode.
     if (_cohesive) unawaited(_runCohesive());
-    await search.search(query, limit: 20);
+    await _runSearch();
+  }
+
+  /// The passages request — the one place it is built, so the chip, the query
+  /// and a retry all send the same thing.
+  ///
+  /// `sourceTypes` goes to the SERVER (4.28.0, ADR-065). It used to be omitted
+  /// and the returned page narrowed locally, which filtered the **global**
+  /// top-20: picking Audio showed the audio chunks that happened to outrank
+  /// everything else, and an empty result meant "none in the top 20" rather
+  /// than "none in your library" — an answer that got worse as the library
+  /// grew. The parameter prefilters the KNN, so each chip returns its own
+  /// top-20 (and the vector index that makes it possible is why sending it
+  /// 500'd in prod for the endpoint's whole life until 4.28.0).
+  Future<void> _runSearch() async {
+    final search = context.read<SearchNotifier>();
+    await search.search(
+      _submitted,
+      sourceTypes: _filter == 'all' ? null : kitTypesForKind(_filter),
+      limit: 20,
+    );
     if (!mounted) return;
     // The reference opens the top result with the results, so the reading pane
     // is answering before the reader has clicked anything.
@@ -165,9 +238,15 @@ class _SearchPageState extends State<SearchPage> {
 
   void _setFilter(String filter) {
     if (_filter == filter) return;
-    setState(() => _filter = filter);
-    // The chip narrows the list on the client and the reading on the server;
-    // only the second needs a request.
+    setState(() {
+      _filter = filter;
+      _selected = null;
+      _context = const [];
+      _contextError = null;
+    });
+    // **Changing a chip re-runs the search.** It does not narrow the page
+    // already returned — that is a different question, and the wrong one.
+    unawaited(_runSearch());
     if (_cohesive) _runCohesive();
   }
 
@@ -181,6 +260,7 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {
       _selected = r;
       _context = const [];
+      _contextError = null;
       _contextLoading = true;
     });
     // ±2 chunks around the match. This also logs `chunk_viewed`, which as of
@@ -188,24 +268,35 @@ class _SearchPageState extends State<SearchPage> {
     // reading a result in this pane is not opening the source and is not
     // reading the passage, so it clears no unread dot and moves no read
     // counter. `getChunkContext` owns that write — never log it from here.
-    final chunks =
-        await FirestoreService.instance.getChunkContext(r.chunk.chunkId);
-    if (!mounted || _selected?.chunk.chunkId != r.chunk.chunkId) return;
-    setState(() {
-      _context = chunks;
-      _contextLoading = false;
-    });
+    try {
+      final chunks =
+          await FirestoreService.instance.getChunkContext(r.chunk.chunkId);
+      if (!mounted || _selected?.chunk.chunkId != r.chunk.chunkId) return;
+      setState(() {
+        _context = chunks;
+        _contextLoading = false;
+      });
+    } catch (e) {
+      if (!mounted || _selected?.chunk.chunkId != r.chunk.chunkId) return;
+      // A context read that failed used to leave the spinner running forever,
+      // and before that it rendered as a passage with no neighbours — the same
+      // silence as a swallowed search catch, one pane over.
+      setState(() {
+        _context = const [];
+        _contextError = '$e';
+        _contextLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer2<SearchNotifier, TagsNotifier>(
       builder: (context, search, tags, _) {
-        final results = search.results;
-        final counts = _countsFor(results);
-        final shown = _filter == 'all'
-            ? results
-            : results.where((r) => _matches(r, _filter)).toList();
+        // **No client-side narrowing** (ADR-065 §2): the server already
+        // returned this chip's kind, prefiltered inside the vector search.
+        final shown = search.results;
+        final citation = _citation;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -221,19 +312,46 @@ class _SearchPageState extends State<SearchPage> {
                     controller: _controller,
                     onSubmitted: _submit,
                   ),
-                  if (_submitted.isNotEmpty) ...[
+                  // **Neither control appears in the citation branch** — a
+                  // citation is a different question, and neither a kind nor a
+                  // breadth narrows it.
+                  if (_submitted.isNotEmpty && citation != null) ...[
                     const SizedBox(height: AppSpacing.s4),
                     KitControlBar(
                       filters: [
+                        const KitFilterChip('Scripture', selected: true),
+                        KitFilterChip(
+                          'Search everything instead',
+                          onPressed: () {
+                            _controller.clear();
+                            _submit('');
+                          },
+                        ),
+                      ],
+                      trailing: [
+                        _CitationCount(
+                          loading: search.scriptureLoading,
+                          failed: search.scriptureError != null,
+                          reference: search.scripture?.reference,
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (_submitted.isNotEmpty && citation == null) ...[
+                    const SizedBox(height: AppSpacing.s4),
+                    KitControlBar(
+                      filters: [
+                        // **No count.** A count over one page of results is a
+                        // statement about that page, not about the library —
+                        // and it disabled chips that had matches (ADR-065 §4).
+                        // §6.7 makes the count optional; the chip set here is
+                        // the KIND vocabulary (§6.4.1), and that is what the
+                        // set has to be complete over.
                         for (final f in _filters.entries)
                           KitFilterChip(
                             f.value,
-                            count: counts[f.key] ?? 0,
                             selected: _filter == f.key,
-                            onPressed:
-                                f.key == 'all' || (counts[f.key] ?? 0) > 0
-                                    ? () => _setFilter(f.key)
-                                    : null,
+                            onPressed: () => _setFilter(f.key),
                           ),
                       ],
                       trailing: [
@@ -296,6 +414,39 @@ class _SearchPageState extends State<SearchPage> {
   ) {
     if (_submitted.isEmpty) return _Suggestions(onPick: _run);
 
+    // ── The citation branch ───────────────────────────────────────────────
+    final citation = _citation;
+    if (citation != null) {
+      if (search.scriptureLoading) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s12),
+          child: Center(
+            child:
+                Text('Reading ${citation.ref}…', style: KitText.meta(context)),
+          ),
+        );
+      }
+      // §14.1, **named for the reference it could not read**. This is not
+      // `Not a citation`, which is the server saying the query parsed as
+      // ordinary text — that answer falls through to the vector search and
+      // never reaches here.
+      if (search.scriptureError != null) {
+        return KitFailureBlock(
+          sentence: '${citation.ref} could not be looked up.',
+          detail: search.scriptureError!,
+          requestId: search.scriptureRequestId,
+          onRetry: () => _submit(_submitted),
+        );
+      }
+      final lookup = search.scripture;
+      if (lookup != null) {
+        return ScriptureResults(
+          data: lookup,
+          onOpenSource: (docId) => context.push('/reader/$docId'),
+        );
+      }
+    }
+
     if (search.isLoading && search.results.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.s12),
@@ -335,13 +486,7 @@ class _SearchPageState extends State<SearchPage> {
     final list = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (shown.isEmpty)
-          KitCard(
-            child: Text('No passages of that kind in these results.',
-                style: KitText.meta(context)),
-          )
-        else
-          for (final r in shown)
+        for (final r in shown)
             SearchResultCard(
               result: r,
               selected: _selected?.chunk.chunkId == r.chunk.chunkId,
@@ -373,6 +518,7 @@ class _SearchPageState extends State<SearchPage> {
       result: _selected,
       context: _context,
       loading: _contextLoading,
+      error: _contextError,
     );
 
     return LayoutBuilder(
@@ -467,20 +613,6 @@ const _suggestions = <String>[
   'Quotes about writing well',
 ];
 
-bool _matches(SearchResult r, String filter) {
-  final kind = kitDocKind(r.document.type);
-  if (filter == 'pdf') return kind == 'pdf' || kind == 'epub';
-  return kind == filter;
-}
-
-Map<String, int> _countsFor(List<SearchResult> results) {
-  final counts = <String, int>{'all': results.length};
-  for (final key in _filters.keys.where((k) => k != 'all')) {
-    counts[key] = results.where((r) => _matches(r, key)).length;
-  }
-  return counts;
-}
-
 /// The trailing control of the bar: **how many passages, ranked how**. A
 /// measured figure, in the mono face, and it says `Searching…` rather than a
 /// stale count while a query is in flight.
@@ -529,6 +661,39 @@ class _ResultCount extends StatelessWidget {
     final t = Tokens.of(context);
     return Text(
       _label(),
+      style: AppTheme.mono(
+          fontSize: 11, letterSpacing: 0.04 * 11, color: t.fgSubtle),
+    );
+  }
+}
+
+/// The citation branch's count line. Measured, like every other figure on this
+/// screen: the reference the SERVER echoed back, never the one the client
+/// parsed — the two can differ, and the server's reading is the one the
+/// results describe.
+class _CitationCount extends StatelessWidget {
+  final bool loading;
+  final bool failed;
+  final String? reference;
+
+  const _CitationCount({
+    required this.loading,
+    required this.failed,
+    required this.reference,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final label = loading
+        ? 'Reading…'
+        : failed
+            ? 'Lookup unavailable'
+            : reference != null
+                ? '$reference · verse by verse'
+                : 'Not a citation';
+    return Text(
+      label,
       style: AppTheme.mono(
           fontSize: 11, letterSpacing: 0.04 * 11, color: t.fgSubtle),
     );

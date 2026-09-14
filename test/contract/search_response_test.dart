@@ -60,6 +60,18 @@ void main() {
         expect(parsed[i].chunk.documentId, rawChunk['document_id']);
         // INV-05: no embedding reaches the model.
         expect(rawChunk.containsKey('embedding'), isFalse);
+
+        // 4.44.0 / ADR-082 — the two MEASURED components of `score`, which the
+        // score explainer renders and **may never solve for**. They are always
+        // present on a successful response, and the chunk carries a
+        // `source_priority` of its own that is NOT this one: reading the
+        // chunk's would show the fallback link rather than the value the
+        // ranking actually used, and the two agree often enough that the
+        // mistake would look right.
+        expect(parsed[i].cosine, raw['cosine'],
+            reason: 'cosine comes off the response, never off the chunk');
+        expect(parsed[i].sourcePriority, raw['source_priority'],
+            reason: 'the RESULT-level source_priority is the one that ranked');
       }
     });
   }

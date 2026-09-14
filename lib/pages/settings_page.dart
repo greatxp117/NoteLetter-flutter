@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../build_info.dart';
+import '../shared/local_flags.dart';
 import '../state/auth_notifier.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_spacing.dart';
@@ -29,6 +30,12 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  @override
+  void initState() {
+    super.initState();
+    LocalFlags.ensureLoaded();
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeN = context.watch<ThemeNotifier>();
@@ -109,6 +116,54 @@ class _SettingsPageState extends State<SettingsPage> {
 
           // ── Summaries (4.3.0 + 4.4.0, ADR-040) ────────────────────────
           const SummariesSection(),
+
+          // ── Scripture (2.28.0, ADR-027 §7) ────────────────────────────
+          //
+          // Client-local and per-device BY CONTRACT: the Scripture shelf and
+          // verse search are affordances, not account state, so a second
+          // device decides for itself. The readings LETTER is the opposite —
+          // contract state on its own settings document — which is why it is
+          // configured on Letters and only pointed at from here.
+          const SectionHeader('Scripture'),
+          ValueListenableBuilder<bool>(
+            valueListenable: LocalFlags.scripture,
+            builder: (context, on, _) => KitRowList(
+              raised: true,
+              rows: [
+                KitSettingRow(
+                  icon: Icons.menu_book_outlined,
+                  title: 'Verse search',
+                  description:
+                      'Turns a citation like Mt 16:24-28 into a verse-by-verse '
+                      'read of the passage, with the notes and books on your '
+                      'shelves that answer each verse.',
+                  trailing: [
+                    KitSwitch(
+                      value: on,
+                      tooltip: 'Verse search',
+                      // Write before you move: the preference is stored, then
+                      // the switch follows. A control that flips first reverts
+                      // only on reload, which is the failure nobody sees.
+                      onChanged: (next) => LocalFlags.setScripture(next),
+                    ),
+                  ],
+                ),
+                if (on)
+                  KitSettingRow(
+                    icon: Icons.mail_outline,
+                    title: 'The readings letter',
+                    description:
+                        'A second letter carrying the day’s Mass readings. It '
+                        'has its own schedule and recipient, so it is set up '
+                        'with your letters rather than here.',
+                    trailing: [
+                      KitSettingLink('Open letter settings',
+                          onTap: () => context.go('/letters/settings')),
+                    ],
+                  ),
+              ],
+            ),
+          ),
 
           // ── Notifications (2.5.0, ADR-014) ────────────────────────────
           const SectionHeader('Notifications'),

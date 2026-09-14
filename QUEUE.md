@@ -218,12 +218,12 @@ a new obligation on a finished screen is a new item.
   which frame is unshootable in `screenshots/README.md` rather than faking one.
 
 ## F-12 · Search — score explainer, server narrowing, citation path
-- status: open
+- status: done 2026-09-14
 - screen: search
 - route: /search
 - spec: spec/screens/search.md §Score explainer §Data / endpoints §States; spec/component-kit.md §16 §6.7 §17.2; spec/api/search.md; spec/decisions/ADR-065-a-prefiltered-knn-needs-its-own-index.md
 - web: src/pages/SearchView.jsx; src/pages/search/ScriptureResults.jsx; src/styles/app-scripture.css; src/styles/app-kit.css
-- flutter: lib/pages/search_page.dart; lib/pages/search/result_card.dart; lib/pages/search/scripture_results.dart (new); lib/widgets/kit/kit_popover.dart (new); lib/widgets/kit/kit.dart; lib/state/search_notifier.dart; lib/models/search_result.dart; lib/scripture/parse.dart; lib/services/api.dart; integration_test/hold_screen_test.dart
+- flutter: lib/pages/search_page.dart; lib/pages/search/result_card.dart; lib/pages/search/reading_pane.dart; lib/pages/search/cohesive_column.dart; lib/pages/search/scripture_results.dart (new); lib/pages/search/score_explainer.dart (new); lib/widgets/kit/kit_popover.dart (new); lib/widgets/kit/kit.dart; lib/widgets/kit/kit_controls.dart; lib/state/search_notifier.dart; lib/models/search_result.dart; lib/models/cohesive_reading.dart; lib/models/scripture_lookup.dart (new); lib/shared/local_flags.dart (new); lib/pages/settings_page.dart; test/contract/search_response_test.dart; test/kit/kit_smoke_test.dart; integration_test/hold_screen_test.dart; integration_test/device_run_test.dart; CLAUDE.md
 - folds: 4.44.0 (§16 anchored popover + `score_parts` — never derive the missing part, ADR-082); 4.28.0 (send `sourceTypes`; drop the local `_matches` narrowing — ADR-065); 2.28.0 + 4.9.0 (`matched_reference`, parallels); 2.28.1 (citation echo — n/a, no palette; recorded in flutter.md); TODO "Search has no citation path"; TODO "Flutter and iOS still narrow search results locally"; TODO "Flutter and iOS: adopt the score explainer"
 - device_test: search composes from the kit and opens a reading pane
 - shots: search
@@ -233,6 +233,11 @@ a new obligation on a finished screen is a new item.
   (a typed query): add `HOLD_STATE=query` to `hold_screen_test.dart` using the reference's query.
   Verify against a REAL embedding key per this repo's CLAUDE.md, or the screen is green on its
   failure branch.
+  The citation branch is gated on the client-local `nl-scripture` flag (ADR-027 §7), which this
+  client had neither a store nor a control for — so `shared/local_flags.dart` and the Settings
+  §Scripture row land here too. **Xavier's call 2026-09-14**: default OFF as the reference has
+  it, and the toggle inside this item rather than a new one on a done screen, so the path is
+  never dark.
 
 ## F-13 · Sources — review queue, picker, rejections
 - status: open

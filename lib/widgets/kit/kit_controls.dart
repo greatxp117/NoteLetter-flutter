@@ -443,15 +443,29 @@ class KitControlBar extends StatelessWidget {
       runSpacing: AppSpacing.s2,
       children: filters,
     );
-    final tail = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < trailing.length; i++) ...[
-          if (i > 0) const SizedBox(width: 10),
-          trailing[i],
-        ],
-      ],
-    );
+    // §6.6: the trailing slot neither wraps nor shrinks — at the width the
+    // reference bar is drawn at. Below the compact breakpoint the bar has
+    // already stacked, and the slot wraps BETWEEN its items rather than
+    // overflowing: a Row that cannot fit does not shrink, it paints the
+    // striped bar and clips whatever is last, which on search was the measured
+    // count sitting beside two segmented controls. Each control stays whole —
+    // what wraps is the boundary between them, never a track (§6.8).
+    final tail = compact
+        ? Wrap(
+            spacing: 10,
+            runSpacing: AppSpacing.s2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: trailing,
+          )
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < trailing.length; i++) ...[
+                if (i > 0) const SizedBox(width: 10),
+                trailing[i],
+              ],
+            ],
+          );
 
     return Container(
       padding: const EdgeInsets.only(bottom: 14),

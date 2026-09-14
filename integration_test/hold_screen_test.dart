@@ -40,6 +40,7 @@ import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/support_notifier.dart';
 import 'package:flutter_app/pages/reader/manuscript_panel.dart';
+import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
@@ -278,6 +279,25 @@ Future<void> reachState(WidgetTester tester) async {
           tester.element(find.byType(KitSourceSetGallery)),
           alignment: 0.0, duration: Duration.zero);
       await settle();
+      return;
+    // search.md — a route alone renders the §7 idle offer, so the query is
+    // typed. The reference's own shot types `budget` and waits: the seed's
+    // chunks are the corpus and it hits the PDF. The frame has to be of
+    // RESULTS, since every part this pair is compared on — the control bar,
+    // the split pane, the reading pane, the score meter — exists only once
+    // something has been searched for.
+    case 'query':
+      final field = find.byType(EditableText).first;
+      await tester.enterText(field, 'budget');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      for (var i = 0; i < 100; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.byType(SearchResultCard).evaluate().isNotEmpty) break;
+      }
+      await settle();
+      expect(find.byType(SearchResultCard), findsWidgets,
+          reason: 'no results came back — this frame would be the idle offer, '
+              'and every part the pair compares is drawn only under results');
       return;
     // library.md §Shelf color — the ten swatches live inside the shelf's
     // settings disclosure, which no route reaches. The shelf the seed gives

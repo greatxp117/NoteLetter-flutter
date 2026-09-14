@@ -8,11 +8,11 @@ Flutter client. Part of the multi-repo workspace — read the umbrella
 run; `test/contract/pin_check_test.dart` parses this exact line and fails while
 it differs from `../NoteLetter-contracts/VERSION`).
 
-Behind the reference on every version [`QUEUE.md`](QUEUE.md) folds; the pin
-is **held** until that queue is empty (`spec/clients/flutter.md` §Pin).
-`/flutter-next` works the queue, `/parity flutter` refreshes it; never narrate
-progress here. Debug builds **refuse prod** — run through `tool/dev.sh`.
-Bundle id `xp.NoteLetter.Flutter` (`xp.NoteLetter` is the Swift app's).
+Behind the reference on every version [`QUEUE.md`](QUEUE.md) folds; the pin is
+**held** until that queue is empty (`spec/clients/flutter.md` §Pin).
+`/flutter-next` works it, `/parity flutter` refreshes it; never narrate here.
+Debug builds **refuse prod** — run through `tool/dev.sh`. Bundle id
+`xp.NoteLetter.Flutter` (`xp.NoteLetter` is the Swift app's).
 
 ## Layout
 
@@ -34,9 +34,9 @@ lib/
 
 Pattern is `pages/` + `state/` + `services/` — **not** feature-first.
 
-**Route names follow the web reference and are not the obvious ones:** `/` is
-the **Library** (the greeting home, the rail's *Home*); the rail's *Library* is
-`/sources`, which owns the volume list and the uploader.
+**Route names follow the web reference, not the obvious ones:** `/` is the
+**Library** (the rail's *Home*); the rail's *Library* is `/sources`, with the
+volume list and the uploader.
 
 The live theme is `theme/app_theme.dart` (`app.dart` only passes it on).
 **Never reintroduce `ColorScheme.fromSeed`** — a generated palette is
@@ -64,15 +64,15 @@ against prod's config and refuses.
 ## Composition deviations
 
 The kit's reference metrics are web's numbers and this client's **starting**
-values; each scale factor is recorded here (component-kit.md) and applied
-**once, inside the kit**, never per screen. All are viewport adaptations below
-768pt, roles and proportions unchanged:
+values; each deviation is recorded here (component-kit.md) and applied **once,
+inside the kit**, never per screen. Roles and proportions unchanged:
 
 - §1.5 gutter 56 → 20 · §2.1 title 44 → 32
 - §2/§5.3 actions stack under the whole title BLOCK, standfirst included —
   never between a title and its standfirst
 - §6.6/§6.8, §4.2's timestamp, a setting row's control strip and §4.1's count
   stack at 768, not web's 680/640 — one compact breakpoint, not three
+- §16's anchor also opens on **tap**: a coarse pointer has neither trigger
 
 ## Rules that are easy to break here
 

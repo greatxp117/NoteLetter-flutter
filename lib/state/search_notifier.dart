@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/cohesive_reading.dart';
+import '../models/scripture_lookup.dart';
 import '../models/search_result.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
@@ -134,6 +135,92 @@ class SearchNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Verse search (2.28.0 + 4.9.0, ADR-027 §2 / ADR-045) ───────────────────
+  //
+  // A citation is a DIFFERENT QUESTION, so it takes a different path. The
+  // client parse is the cheap prefilter that decides which; the server parses
+  // again and its answer is what the results describe.
+  //
+  // Its own loading, error and request id, for the reason the cohesive pair
+  // has its own: a lookup that failed is not a search that failed, and the
+  // screen names the reference it could not read rather than saying search is
+  // unavailable.
+
+  ScriptureLookup? _scripture;
+  bool _scriptureLoading = false;
+  String? _scriptureError;
+  String? _scriptureRequestId;
+
+  /// The query the SERVER said was not a citation. Recording which one is what
+  /// releases the fall-through: without it the screen keeps taking the
+  /// citation branch for a query it has never actually searched for, and
+  /// renders "no passages" for a search it never made.
+  String? _notCitation;
+
+  ScriptureLookup? get scripture => _scripture;
+  bool get scriptureLoading => _scriptureLoading;
+  String? get scriptureError => _scriptureError;
+  String? get scriptureRequestId => _scriptureRequestId;
+
+  /// Has the server already told us [query] is not a citation?
+  bool rejectedAsCitation(String query) => _notCitation == query.trim();
+
+  /// Look the citation up. Resolves to `true` when the screen should **stay on
+  /// the citation branch** — the server read it as a citation, or the lookup
+  /// failed and the reader is owed the reference it could not read.
+  ///
+  /// `false` is `parsed: false`: it was an ordinary query after all, which is a
+  /// **normal answer**, and the caller falls through to the vector search
+  /// rather than showing anything at all.
+  Future<bool> lookupScripture(String reference) async {
+    final trimmed = reference.trim();
+    if (trimmed.isEmpty) return false;
+
+    _scriptureLoading = true;
+    _scriptureError = null;
+    _scriptureRequestId = null;
+    notifyListeners();
+
+    try {
+      final data = await Api.instance.scriptureLookup(trimmed);
+      final parsed = ScriptureLookup.fromJson(data);
+      if (parsed.parsed) {
+        _scripture = parsed;
+        return true;
+      }
+      _scripture = null;
+      _notCitation = trimmed;
+      return false;
+    } on UnauthorizedException {
+      await AuthService.instance.signOut();
+      return false;
+    } on ApiException catch (e) {
+      // A FAILED lookup is not `parsed: false`. One is the server unable to
+      // read the reference; the other is the server saying it was ordinary
+      // text. Falling through on a failure would hide an outage behind a
+      // search that happens to return something.
+      _scripture = null;
+      _scriptureError = e.message;
+      _scriptureRequestId = e.requestId;
+      return true;
+    } catch (_) {
+      _scripture = null;
+      _scriptureError = 'The citation could not be looked up.';
+      return true;
+    } finally {
+      _scriptureLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void clearScripture() {
+    _scripture = null;
+    _scriptureError = null;
+    _scriptureRequestId = null;
+    _scriptureLoading = false;
+    notifyListeners();
+  }
+
   void clear() {
     _results = [];
     _query = '';
@@ -144,6 +231,11 @@ class SearchNotifier extends ChangeNotifier {
     _cohesiveError = null;
     _cohesiveRequestId = null;
     _cohesiveLoading = false;
+    _scripture = null;
+    _scriptureError = null;
+    _scriptureRequestId = null;
+    _scriptureLoading = false;
+    _notCitation = null;
     notifyListeners();
   }
 }
