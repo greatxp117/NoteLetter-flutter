@@ -437,8 +437,15 @@ void main() {
         fail('the reader draws no "$label" panel control — reader.md §Panels '
             'lists six and this run found five');
       }
-      await tester.tap(tab.first);
+      // Printed per panel because the first run of this test timed out after
+      // twelve minutes with no indication of WHERE: a hang reports the test,
+      // never the step, and four of these six panels had never been opened on
+      // a device at all.
+      debugPrint('PANEL: opening $label');
+      await tester.ensureVisible(tab.first);
+      await tester.tap(tab.first, warnIfMissed: false);
       await pumpFor(tester, total: const Duration(seconds: 2));
+      debugPrint('PANEL: $label built');
       // An exception during build is swallowed into the widget tree as an
       // ErrorWidget rather than failing the tap, so the tap alone proves
       // nothing: a panel that throws still "opens".

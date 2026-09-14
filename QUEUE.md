@@ -181,7 +181,7 @@ a new obligation on a finished screen is a new item.
   Reading speed is 220 wpm. Seed the long document first (`tool/seed_long_doc.py`) for the drag test.
 
 ## F-10 · Reader — panels, save obligations, follow-along
-- status: blocked: artifacts: iOS build fails 'out of space' at 3.1 GiB free (99%); simctl answers but takes minutes, and the one booted simulator (iPhone 17, 415B7A69) is driven by another project's build. Our emulator is also not up — 8080/9099 belong to mb-3252a. Code obligations landed; device run + reader-manuscript pair not captured
+- status: blocked: artifacts: the device run REACHED the simulator and timed out after 12 min with no step named; the instrumented retry (PANEL: per tap) was killed by memory pressure, along with the emulator suite and the shim. Disk fell 7.8 -> 2.5 GiB (99%) during the iOS build. Whether a panel hangs or the machine was swapping is UNDETERMINED. Code obligations landed
 - screen: reader-manuscript
 - route: /reader/seed-doc-pdf-complete
 - spec: spec/screens/reader.md §Panels §Saving a manuscript edit §Listen follow-along §Deep link to a passage §Opening at a shared carousel slide §Per-chunk shelves §Supersession confirm §Finishing a document; spec/component-kit.md §6.6 §14.2
