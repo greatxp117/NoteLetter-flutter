@@ -215,6 +215,50 @@ class Document {
     );
   }
 
+  /// Fold in the counters a confirmed `doc_opened` write committed
+  /// (`screens/reader.md` §Data).
+  ///
+  /// Narrow for the same reason [withRegeneratedSummary] is: `doc_opened`
+  /// moves **exactly** `view_count` and `last_viewed_at`, and it is applied
+  /// only once the transaction has confirmed — never a guess made before it
+  /// (ADR-022). Rendering the fetched snapshot unmodified is what showed
+  /// `Views 0 · Last read Never` for a whole session on a first open.
+  Document withReadLogged({required int viewCount, required int lastViewedAt}) {
+    return Document(
+      id: id,
+      userId: userId,
+      title: title,
+      type: type,
+      status: status,
+      mimeType: mimeType,
+      sourceUrl: sourceUrl,
+      gcsPath: gcsPath,
+      createdAt: createdAt,
+      processedAt: processedAt,
+      chunkCount: chunkCount,
+      wordCount: wordCount,
+      summary: summary,
+      keyPoints: keyPoints,
+      themes: themes,
+      tagIds: tagIds,
+      thumbnailUrl: thumbnailUrl,
+      sourceAudioUrl: sourceAudioUrl,
+      sourceImageUrl: sourceImageUrl,
+      author: author,
+      publishDate: publishDate,
+      processingStage: processingStage,
+      finishedAt: finishedAt,
+      nextLetterRequestedAt: nextLetterRequestedAt,
+      errorMessage: errorMessage,
+      forceProcess: forceProcess,
+      skipReason: skipReason,
+      sourcePriority: sourcePriority,
+      viewCount: viewCount,
+      lastViewedAt: lastViewedAt,
+      sourceIntegration: sourceIntegration,
+    );
+  }
+
   factory Document.fromJson(String id, Map<String, dynamic> json) {
     return Document(
       id: id,

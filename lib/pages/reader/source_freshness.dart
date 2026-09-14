@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
 
@@ -85,9 +86,13 @@ class _SourceFreshnessState extends State<SourceFreshness> {
     if (f['missing_at_provider'] == true) {
       return Padding(
         padding: const EdgeInsets.only(top: 12),
+        // `.proc-note` is an italic serif remark at `--fg-subtle`, not UI sans
+        // body copy: this is an aside ABOUT the document, in the same editorial
+        // voice the rest of the reader's asides use.
         child: Text(
           'The original file is no longer at $provider — this imported copy is the surviving record.',
-          style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.muted),
+          style: KitText.lede(context, fontSize: 13, height: 20)
+              .copyWith(color: ui.subtle),
         ),
       );
     }

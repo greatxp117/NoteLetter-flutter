@@ -338,7 +338,12 @@ class KitHeroCard extends StatelessWidget {
                 ],
                 if (stats.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  KitStatCluster(stats: stats),
+                  // The HERO form (§8): 24px numerals, no separators. It is a
+                  // form, not the absence of the `--ruled` modifier — the two
+                  // were one flag here until 4.46.0, which is why every caller
+                  // that wanted the reader/shelf header's separated row got the
+                  // hero's metrics instead (ADR-084).
+                  KitStatCluster(stats: stats, form: KitStatForm.hero),
                 ],
               ],
             ),
@@ -377,7 +382,26 @@ class KitStat {
   final String value;
   final String label;
 
-  const KitStat(this.value, this.label);
+  /// The `/ 12` of a `4 / 12` — **context, not a second figure**, so it sits
+  /// beside the numeral at 14px `--fg-subtle` and never reads as loud as the
+  /// count it qualifies (3.1.0, ADR-039).
+  final String? denominator;
+
+  const KitStat(this.value, this.label, {this.denominator});
+}
+
+/// The two forms of §8. **Which stats appear is the screen's business; how one
+/// is drawn is this file's**, and the two were entangled in a single `ruled`
+/// bool until 4.46.0.
+enum KitStatForm {
+  /// The default — serif 18/500 numerals, gap 14, each stat closed by a 1px
+  /// `--rule` at 18px right padding, the last unseparated. The reader header,
+  /// the source header and a shelf header all draw this.
+  separated,
+
+  /// Inside a [KitHeroCard] — gap 22, serif 24/500 numerals at line-height 1,
+  /// **no separators**.
+  hero,
 }
 
 /// §8 — a row of figures: a **serif numeral** over a **mono caps label**.
@@ -386,25 +410,41 @@ class KitStat {
 /// Figures shown here must be **measured**. The design prototype's numbers are
 /// mock data and its progress bar is a simulated timer; a stat needs a real
 /// backing signal before it gets a slot.
+///
+/// **[ruled] is a modifier, not a form** (4.46.0, ADR-084). §8 named the 18px
+/// separated row "rule-bounded form (reader header)" and gave it top and bottom
+/// rules, transcribed from `.reader-meta` — a web class that was already dead
+/// when this kit was written. The reader header has never drawn them. The rules
+/// are a **report** treatment, for a full-width band across the measure (admin
+/// metrics, the recipe body); a header inside a screen frame does not take it.
 class KitStatCluster extends StatelessWidget {
   final List<KitStat> stats;
 
-  /// The reader-header form: wrapped top and bottom by a `--rule`, with each
-  /// stat separated by a vertical rule.
+  /// Separated row (default) or the hero card's row.
+  final KitStatForm form;
+
+  /// The `--ruled` modifier: the row additionally wrapped top and bottom by a
+  /// 1px `--rule` with 12px of vertical padding. Independent of [form].
   final bool ruled;
 
-  const KitStatCluster({super.key, required this.stats, this.ruled = false});
+  const KitStatCluster({
+    super.key,
+    required this.stats,
+    this.form = KitStatForm.separated,
+    this.ruled = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final numeralSize = ruled ? 18.0 : 24.0;
+    final hero = form == KitStatForm.hero;
+    final numeralSize = hero ? 24.0 : 18.0;
 
     Widget one(KitStat s, bool last) => Container(
-          padding: ruled && !last
+          padding: !hero && !last
               ? const EdgeInsets.only(right: 18)
               : EdgeInsets.zero,
-          decoration: ruled && !last
+          decoration: !hero && !last
               ? BoxDecoration(
                   border: Border(right: BorderSide(color: t.rule)))
               : null,
@@ -412,8 +452,20 @@ class KitStatCluster extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                s.value,
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: s.value),
+                  if (s.denominator != null)
+                    TextSpan(
+                      text: ' / ${s.denominator}',
+                      style: AppTheme.serif(
+                        fontSize: 14,
+                        height: 1,
+                        fontWeight: FontWeight.w500,
+                        color: t.fgSubtle,
+                      ),
+                    ),
+                ]),
                 style: AppTheme.serif(
                   fontSize: numeralSize,
                   height: 1,
@@ -431,14 +483,13 @@ class KitStatCluster extends StatelessWidget {
           ),
         );
 
-    final row = Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final row = Wrap(
+      spacing: hero ? 22 : 14,
+      runSpacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.start,
       children: [
-        for (var i = 0; i < stats.length; i++) ...[
-          if (i > 0) SizedBox(width: ruled ? 14 : 22),
+        for (var i = 0; i < stats.length; i++)
           one(stats[i], i == stats.length - 1),
-        ],
       ],
     );
 

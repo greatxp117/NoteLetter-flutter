@@ -19,6 +19,22 @@ import 'activity_merge.dart';
 import 'read_counters.dart';
 import 'auth_service.dart';
 
+/// What a `doc_opened` write actually committed to the document's counters
+/// (`screens/reader.md` §Data).
+///
+/// The reader's one-shot `get` happens BEFORE the open is logged, so the
+/// snapshot it renders is pre-increment: a client that renders it unmodified
+/// shows `Views 0 · Last read Never` for the whole session on a first open —
+/// which web carried from 1.0.0 to 3.1.0 and this client carried until 4.54.1.
+/// The fix is to fold in what the write returned **once it confirms**, never a
+/// value minted optimistically before it (ADR-022).
+class ReadLogged {
+  final int viewCount;
+  final int lastViewedAt;
+
+  const ReadLogged({required this.viewCount, required this.lastViewedAt});
+}
+
 /// Direct Firestore access (INV-02): documents/activity/tags are realtime
 /// subscriptions; newsletters/settings/import jobs are one-shot reads.
 /// Every query filters `where('user_id', '==', uid)` — mirrors web `api.js`.
@@ -393,10 +409,18 @@ class FirestoreService {
 
   /// Reader: one-shot doc + its chunks (`chunk_index` asc). Fires
   /// `logReadEvent('doc_opened', ...)` — fire-and-forget (INV-03).
-  Future<(Document, List<Chunk>)?> getReaderDocument(String docId) async {
+  ///
+  /// The third element is that log's own future: it resolves with the counters
+  /// the transaction committed, or null when it wrote nothing. Deliberately
+  /// NOT awaited here — the counter is display-only, and blocking the document
+  /// render on a transaction that is allowed to fail silently would trade
+  /// something that matters for something that does not. Mirrors `api.js`'s
+  /// `readLogged`.
+  Future<(Document, List<Chunk>, Future<ReadLogged?>)?> getReaderDocument(
+      String docId) async {
     final result = await _fetchReaderDocument(docId);
-    if (result != null) unawaited(logReadEvent('doc_opened', docId));
-    return result;
+    if (result == null) return null;
+    return (result.$1, result.$2, logReadEvent('doc_opened', docId));
   }
 
   /// Same reads as [getReaderDocument] but WITHOUT logging `doc_opened` — used
@@ -574,16 +598,24 @@ class FirestoreService {
   /// than one event cannot be read as an answer to anything — that is the whole
   /// of 4.0.0, and this client is configured against real prod, so the old
   /// behaviour re-inflated counters the 4.0.0 backfill had just corrected.
-  Future<void> logReadEvent(String eventType, String documentId,
+  ///
+  /// Returns **what the write actually committed** for the document counters,
+  /// or null when nothing was committed (a signed-out caller, a rules denial,
+  /// an aborted transaction, or an event that moves no document counter). The
+  /// reader folds that in so its stat row reflects the read it just logged —
+  /// never a value guessed BEFORE the write confirms, which is the ADR-022
+  /// rule. See [ReadLogged].
+  Future<ReadLogged?> logReadEvent(String eventType, String documentId,
       [String? chunkId]) async {
     final uid = _uid;
-    if (uid == null) return;
+    if (uid == null) return null;
     // The rule lives in read_counters.dart as a pure function so it can be
     // asserted directly — this transaction cannot be (see that file).
     final targets = readCounterTargets(eventType, chunkId: chunkId);
     final bumpsDocument = targets.document;
     final bumpsChunkRead = targets.chunkRead;
     final bumpsChunkSearch = targets.chunkSearch;
+    ReadLogged? written;
     try {
       await _db.runTransaction((tx) async {
         final docRef = _db.collection('documents').doc(documentId);
@@ -595,8 +627,16 @@ class FirestoreService {
         final chunkSnap = chunkRef != null ? await tx.get(chunkRef) : null;
 
         if (bumpsDocument) {
+          final next = ((docSnap!.data()?['view_count'] as int?) ?? 0) + 1;
+          // `last_viewed_at` is a server timestamp we cannot read back without
+          // another round trip; the local instant is within milliseconds of it
+          // and this value is display-only (INV-03: nothing computes on these
+          // counters).
+          written =
+              ReadLogged(viewCount: next, lastViewedAt: DateTime.now()
+                  .millisecondsSinceEpoch);
           tx.update(docRef, {
-            'view_count': ((docSnap!.data()?['view_count'] as int?) ?? 0) + 1,
+            'view_count': next,
             'last_viewed_at': FieldValue.serverTimestamp(),
           });
         }
@@ -626,8 +666,12 @@ class FirestoreService {
           'created_at': FieldValue.serverTimestamp(),
         });
       });
+      return written;
     } catch (_) {
-      // Fire-and-forget — never block the UI on a failed read-tracking write.
+      // STILL fire-and-forget — a failed log must never block the UI (INV-03).
+      // The caller reads null as "leave the stored counters alone", which is
+      // the honest answer: nothing was written.
+      return null;
     }
   }
   // ── Support thread (4.18.0, ADR-054; spec/api/support.md §Reads) ──────────

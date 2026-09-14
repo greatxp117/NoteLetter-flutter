@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
-import '../../theme/app_radius.dart';
+import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 
 /// Regenerate summary (spec/screens/reader.md §Regenerate summary, 4.3.0,
@@ -57,7 +57,6 @@ class _RegenerateControlState extends State<_RegenerateControl> {
 
   @override
   Widget build(BuildContext context) {
-    final ui = ReaderUi(context);
     return Padding(
       padding: const EdgeInsets.only(top: 18),
       child: Column(
@@ -68,29 +67,29 @@ class _RegenerateControlState extends State<_RegenerateControl> {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              OutlinedButton(
+              KitButton.secondary(
+                _busy ? 'Regenerating…' : 'Regenerate summary',
                 onPressed: _busy ? null : _regenerate,
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: AppRadius.controlR(36)),
-                ),
-                child: Text(_busy ? 'Regenerating…' : 'Regenerate summary'),
               ),
               // 4.3.1: regenerate applies the CURRENT prompt, so a reader
               // looking at a summary they want different is one step from the
               // field that changes it. Permissive (SHOULD).
-              TextButton(
-                onPressed: () => context.go('/settings'),
-                child: const Text('Edit your summary style →'),
-              ),
+              KitSettingLink('Edit your summary style',
+                  icon: Icons.arrow_forward,
+                  onTap: () => context.go('/settings')),
             ],
           ),
           const SizedBox(height: 6),
-          Text(
+          // The 429 is the 60s cooldown and reads as CALM COPY in the note's
+          // own voice — never a §14 failure, because the summary on screen is
+          // still correct and nothing was blanked.
+          Lede(
             _note ??
                 'Rewrites the summary, key points and themes under your summary '
                     'style. The title and passages don’t change.',
-            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted),
+            fontSize: 14,
+            height: 21,
+            maxWidth: 440,
           ),
         ],
       ),
@@ -124,13 +123,24 @@ class SummaryPanel extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ui.intro('Summary · what this source is about'),
-          ui.empty(Icons.auto_awesome_outlined, 'No summary yet.',
-              "This source hasn't been summarized."),
+          ui.intro('Summary'),
           // The empty state is where regenerate matters MOST: it is what a
-          // failed analysis parse leaves behind.
-          if (_canRegenerate)
-            _RegenerateControl(docId: doc.id, onRegenerated: onRegenerated!),
+          // failed analysis parse leaves behind — so it IS the §7 offer here,
+          // not a control stranded under an apology.
+          ui.empty(
+            Icons.auto_awesome_outlined,
+            'No summary yet.',
+            "This source hasn't been summarized.",
+            // Bounded: §7's action row lays its children out with an
+            // UNBOUNDED main axis, and the control wraps its button and link.
+            action: _canRegenerate
+                ? ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: _RegenerateControl(
+                        docId: doc.id, onRegenerated: onRegenerated!),
+                  )
+                : null,
+          ),
         ],
       );
     }
@@ -138,55 +148,53 @@ class SummaryPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ui.eyebrow('Summary · what this source is about'),
+        ui.eyebrow('Summary'),
         if (doc.summary?.isNotEmpty ?? false) ui.note(doc.summary!),
         const SizedBox(height: 20),
         if (doc.themes.isNotEmpty) ...[
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: doc.themes
-                .map((t) => Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: ui.surface,
-                        borderRadius: AppRadius.controlR(24),
-                        border: Border.all(color: ui.border),
-                      ),
-                      child: Text(t,
-                          style: TextStyle(fontFamily: 'Geist', 
-                              fontSize: 12, color: ui.muted)),
-                    ))
-                .toList(),
+            children: [for (final t in doc.themes) KitTag(t)],
           ),
           const SizedBox(height: 24),
         ],
         if (doc.keyPoints.isNotEmpty) ...[
-          ui.eyebrow('Key points'),
+          // A mono caps label, as the reference sets it — the eyebrow opens the
+          // PANEL and a second one inside it would read as a second panel.
+          Text('Key points', style: KitText.capsLabel(context, fontSize: 11)),
           const SizedBox(height: 10),
-          ...doc.keyPoints.map((kp) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 7, right: 10),
-                      child: Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                            color: ui.primary, shape: BoxShape.circle),
-                      ),
+          // Key points are prose the model wrote about the document, so they
+          // take the reading serif and the reading measure — not the UI sans.
+          KitText.readingMeasure(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final kp in doc.keyPoints)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12, right: 12),
+                          child: Container(
+                            width: 5,
+                            height: 5,
+                            decoration: BoxDecoration(
+                                color: ui.subtle, shape: BoxShape.circle),
+                          ),
+                        ),
+                        Expanded(
+                          child:
+                              Text(kp, style: KitText.bodyReading(context)),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: Text(kp,
-                          style: TextStyle(fontFamily: 'Geist', 
-                              fontSize: 15, height: 1.5, color: ui.fg)),
-                    ),
-                  ],
-                ),
-              )),
+                  ),
+              ],
+            ),
+          ),
         ],
         if (_canRegenerate)
           _RegenerateControl(docId: doc.id, onRegenerated: onRegenerated!),

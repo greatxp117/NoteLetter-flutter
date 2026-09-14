@@ -299,6 +299,41 @@ void main() {
     router.go('/reader/$docId');
     await pumpFor(tester, total: const Duration(seconds: 3));
 
+    // The header composes from the kit (§Composition): the Reading frame, a
+    // back control naming the library, a §2.1 chapter opening led by the
+    // document's file badge, and the §8 stat cluster. Asserted on the REAL
+    // renderer because composition is precisely what no contract test sees —
+    // this screen kept its own AppBar, its own `_metaRow` and six accent pills
+    // through every green gate.
+    expect(find.byType(KitBackControl), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsOneWidget,
+        reason: 'the reader opens a chapter — one header, then body swaps');
+    expect(
+      find.descendant(
+          of: find.byType(ChapterOpening), matching: find.byType(KitFileBadge)),
+      findsOneWidget,
+      reason: 'the file badge LEADS the header (§2.1 lead, §6.4)',
+    );
+    final cluster = tester.widget<KitStatCluster>(find.byType(KitStatCluster));
+    expect(cluster.form, KitStatForm.separated,
+        reason: 'the reader header draws the SEPARATED row (§8)');
+    expect(cluster.ruled, isFalse,
+        reason:
+            'the --ruled modifier is a report treatment; a header inside a '
+            'screen frame does not take it (4.46.0, ADR-084)');
+    expect(
+      cluster.stats.any((st) => st.label == 'Passages read'),
+      isTrue,
+      reason: 'coverage is rendered here and only here',
+    );
+    // The stat row must reflect the read it just logged: `doc_opened` is
+    // written AFTER the document is fetched, so a client that renders the
+    // snapshot unmodified shows "Views 0" for the whole session on a first
+    // open (reader.md §Data).
+    final views = cluster.stats.firstWhere((st) => st.label == 'Views');
+    expect(int.parse(views.value), greaterThan(0),
+        reason: 'Views must fold in what the doc_opened write committed');
+
     final manuscript = find.text('Manuscript');
     if (manuscript.evaluate().isNotEmpty) {
       await tester.tap(manuscript.first);
@@ -371,6 +406,46 @@ void main() {
         greaterThanOrEqualTo(atBottom[j] - 0.001),
         reason: 'passage $j retreated on scrolling back up',
       );
+    }
+  });
+
+  // F-10's device obligation. Listen, Original, SpeedRead and History had
+  // never been opened on a device run at all — each is a body swap under the
+  // reader's one header, so a run that only ever sees the Summary panel
+  // exercises none of them, and a panel that throws on first build is
+  // indistinguishable from a panel nobody looked at.
+  testWidgets('the reader opens every panel', (tester) async {
+    // The canonical seed's own complete document — this test is about the
+    // panels building, not about length, so it needs no long-doc fixture.
+    final router = await pumpApp(tester);
+    router.go('/reader/seed-doc-pdf-complete');
+    await pumpFor(tester, total: const Duration(seconds: 3));
+
+    // The labels exactly as `_panels` spells them — 'Speed read', not
+    // 'SpeedRead'. A list written from memory fails on the label rather than on
+    // the panel, which is a red test about nothing.
+    for (final label in const [
+      'Manuscript',
+      'Speed read',
+      'Listen',
+      'Original',
+      'History',
+      'Summary',
+    ]) {
+      final tab = find.text(label);
+      if (tab.evaluate().isEmpty) {
+        fail('the reader draws no "$label" panel control — reader.md §Panels '
+            'lists six and this run found five');
+      }
+      await tester.tap(tab.first);
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      // An exception during build is swallowed into the widget tree as an
+      // ErrorWidget rather than failing the tap, so the tap alone proves
+      // nothing: a panel that throws still "opens".
+      expect(tester.takeException(), isNull,
+          reason: 'the $label panel threw while building');
+      expect(find.byType(ErrorWidget), findsNothing,
+          reason: 'the $label panel built an ErrorWidget');
     }
   });
 

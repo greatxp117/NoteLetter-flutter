@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/chunk.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 
 /// Reader → History panel: `read_events` for the doc, `created_at desc`,
@@ -27,6 +28,14 @@ class _HistoryPanelState extends State<HistoryPanel> {
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  void _load() {
+    setState(() {
+      _error = null;
+      _events = null;
+    });
     FirestoreService.instance.getReadHistory(widget.docId).then((list) {
       if (mounted) setState(() => _events = list);
     }).catchError((e) {
@@ -64,9 +73,18 @@ class _HistoryPanelState extends State<HistoryPanel> {
     final ui = ReaderUi(context);
 
     if (_error != null) {
+      // §14.1 — the region that could not load answers where the content would
+      // have been, with the failure NAMED, the underlying sentence verbatim,
+      // and one action that re-issues the same request. It read as an italic
+      // serif lede here, which is the panel's own explanatory voice: a reader
+      // could not tell a failure from a remark.
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ui.intro('Reading history'),
-        ui.note('Could not load reading history.'),
+        KitFailureBlock(
+          sentence: 'This source’s reading history could not be loaded.',
+          detail: '$_error',
+          onRetry: _load,
+        ),
       ]);
     }
     if (_events == null) {

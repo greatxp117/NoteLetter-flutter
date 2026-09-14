@@ -54,6 +54,21 @@ class AppTheme {
           lineHeight: LineHeight(21 / 14),
           color: t.fgMuted,
         ),
+        // 4.58.0, ADR-095 — the carousel slide the link was copied from. The
+        // backend marks exactly one block per document with `data-shared`;
+        // `_markShared` turns that into this class, because flutter_html
+        // resolves tag and class selectors and has no attribute selector.
+        //
+        // Same shape as `.x-mark-aside` above and deliberately NOT the same
+        // colour: a marker is an aside in `--rule`, this is the reader's own
+        // place in `--accent`. It is a standing state, not the `?p=` flash —
+        // that answers "which passage did the letter quote" and expires; this
+        // answers "which slide were you looking at when you saved this".
+        '.x-shared': Style(
+          padding: HtmlPaddings.only(left: 12),
+          border: Border(left: BorderSide(color: t.accent, width: 2)),
+          display: Display.block,
+        ),
         '.x-mark-inline': Style(color: t.fgSubtle),
         '.x-mark-inline .x-mark-label': Style(
           color: t.fgSubtle,

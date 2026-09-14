@@ -181,7 +181,7 @@ a new obligation on a finished screen is a new item.
   Reading speed is 220 wpm. Seed the long document first (`tool/seed_long_doc.py`) for the drag test.
 
 ## F-10 · Reader — panels, save obligations, follow-along
-- status: open
+- status: blocked: device test: simctl hangs and the iOS build fails 'out of space' — 3.3 GiB free, 99% full; code obligations landed, the device run and the reader-manuscript pair are not captured
 - screen: reader-manuscript
 - route: /reader/seed-doc-pdf-complete
 - spec: spec/screens/reader.md §Panels §Saving a manuscript edit §Listen follow-along §Deep link to a passage §Opening at a shared carousel slide §Per-chunk shelves §Supersession confirm §Finishing a document; spec/component-kit.md §6.6 §14.2

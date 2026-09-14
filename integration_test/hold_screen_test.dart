@@ -207,6 +207,19 @@ Future<void> reachState(WidgetTester tester) async {
             reason: 'no §9.1 entry actions — this frame would be the old rail');
       }
       return;
+    // reader.md §Panels — the manuscript is a BODY SWAP under the reader's one
+    // header, not a route, so no URL reaches it and the frame has to select the
+    // tab first. Without this the `reader-manuscript` pair would be two frames
+    // of the summary panel under a filename claiming otherwise, which is worse
+    // than no pair: a frame is evidence, and a mislabelled one is false
+    // evidence nobody re-checks.
+    case 'manuscript':
+      await tester.tap(find.text('Manuscript'));
+      await settle();
+      expect(find.textContaining('Manuscript · the extracted text'), findsWidgets,
+          reason: 'the manuscript panel did not open — this frame would be the '
+              'summary');
+      return;
     // library.md §Shelf color — the ten swatches live inside the shelf's
     // settings disclosure, which no route reaches. The shelf the seed gives
     // this state is `seed-tag-recipes`.

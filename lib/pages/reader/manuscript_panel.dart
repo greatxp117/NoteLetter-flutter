@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:html/parser.dart' as html_parser;
 import '../../models/chunk.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../shared/extraction_markers.dart';
 import '../../theme/app_radius.dart';
+import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import 'passage_mark.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -74,6 +77,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   /// The anchored passage's element, for [Scrollable.ensureVisible]. One key,
   /// not one per chunk: only the anchor is ever scrolled to.
   final GlobalKey _anchorKey = GlobalKey();
+  final GlobalKey _sharedKey = GlobalKey();
   bool _anchorScrolled = false;
 
   @override
@@ -97,22 +101,71 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   /// repeated — re-anchoring on a rebuild would yank a reader who has scrolled
   /// away back to the passage they arrived at.
   void _scheduleAnchor() {
-    if (_anchorScrolled || widget.anchorChunkId == null) return;
+    if (_anchorScrolled) return;
+    // `?p=` WINS. It is the more specific statement of where to land — a letter
+    // quoting one passage — and two schedulers racing to scroll one viewport
+    // land on whichever frame finishes last (ADR-095, mirroring the reference).
+    final toPassage = widget.anchorChunkId != null;
+    if (!toPassage && _sharedChunkId == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _anchorScrolled) return;
-      final ctx = _anchorKey.currentContext;
+      final ctx = (toPassage ? _anchorKey : _sharedKey).currentContext;
       if (ctx == null) return;
       _anchorScrolled = true;
       Scrollable.ensureVisible(ctx,
-          duration: const Duration(milliseconds: 320),
+          // A shared slide is where the document OPENS, not a movement to
+          // watch; a letter's passage is a jump the reader should see happen.
+          duration: toPassage ? const Duration(milliseconds: 320) : Duration.zero,
           curve: Curves.easeOut,
           alignment: 0.08);
+      if (toPassage) _flashAnchor();
     });
   }
+
+  /// §Deep link's mark: a FLASH, not a state (4.15.0, ADR-051).
+  ///
+  /// It answers "which passage did the letter mean" and then gets out of the
+  /// way; a persistent highlight would compete with the passage-extent mark.
+  /// This client scrolled to the passage from 4.40.0 and never marked it, so
+  /// a reader arriving from a letter landed in the right place with nothing
+  /// saying which passage had been quoted.
+  void _flashAnchor() {
+    if (!mounted) return;
+    setState(() => _flashing = true);
+    Timer(const Duration(milliseconds: 2600), () {
+      if (mounted) setState(() => _flashing = false);
+    });
+  }
+
+  bool _flashing = false;
+
+  /// The chunk carrying the shared-slide mark, or null (4.58.0, ADR-095).
+  String? get _sharedChunkId {
+    for (final c in widget.chunks) {
+      if ((c.html ?? '').contains('data-shared')) return c.chunkId;
+    }
+    return null;
+  }
+
+  /// Set the moment a save succeeds, and honoured by the reload that follows.
+  ///
+  /// ADR-056: after a save the in-memory list is **spent**. Its entries marked
+  /// deleted name chunks that no longer exist, so a second save resends them
+  /// and is refused with a 404. Re-seed from the reload rather than editing on
+  /// top of it. The ordinary guard below cannot do this on its own: `onSaved()`
+  /// triggers the reload while `_editing` is still true, so `!_editing` blocks
+  /// exactly the re-seed that matters.
+  bool _pendingResync = false;
 
   @override
   void didUpdateWidget(covariant ManuscriptPanel old) {
     super.didUpdateWidget(old);
+    if (_pendingResync) {
+      _pendingResync = false;
+      _rebuildControllers();
+      _chunks = _initFrom(widget.chunks);
+      return;
+    }
     if (!_editing && !_dirty) _chunks = _initFrom(widget.chunks);
   }
 
@@ -168,15 +221,37 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
+  /// ADR-056 obligation 2 — never serialize an empty block.
+  ///
+  /// `<p></p>` used to be the answer for text the reader had cleared. It is a
+  /// top-level block with neither text nor an atomic element, which is exactly
+  /// what `fn_update_content` refuses — and it refuses the WHOLE list, so one
+  /// emptied passage silently discards every other edit in the save. Emitting
+  /// nothing lets the preflight below name the passage instead.
   static String _textToHtml(String text) {
     final paras = text
         .split(RegExp(r'\n\s*\n'))
         .map((p) => p.trim())
         .where((p) => p.isNotEmpty)
         .toList();
-    if (paras.isEmpty) return '<p></p>';
+    if (paras.isEmpty) return '';
     return paras.map((p) => '<p>${_esc(p)}</p>').join();
   }
+
+  /// Does this fragment carry anything `fn_update_content` will accept?
+  ///
+  /// Mirrors the endpoint's own test — derived text, or an `<img>` — so the
+  /// editor refuses a passage for the same reason the server would, before a
+  /// request is built. `img`, `table` and `hr` are content with no text of
+  /// their own; `hr` is here because it is the slide/page-break unit (ADR-063),
+  /// not decoration.
+  static bool _htmlHasContent(String html) {
+    if (_stripTags(html).isNotEmpty) return true;
+    return RegExp(r'<(img|table|hr)\b', caseSensitive: false).hasMatch(html);
+  }
+
+  /// `fn_update_content`'s passage ceiling (ADR-056).
+  static const int _maxPassages = 200;
 
   int _wordCount(String text) =>
       text.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).length;
@@ -271,11 +346,31 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
   Future<void> _save() async {
     _commit();
+    final visibleNow = _chunks.where((c) => !c.deleted).toList();
+
+    // ADR-056 obligation 1 — preflight the closed conditions, because this
+    // endpoint refuses the WHOLE list for one bad passage: a save of 200
+    // passages fails on account of passage 137 and nothing else is written.
+    // Checking here names the passage by its 1-BASED POSITION ON SCREEN, which
+    // is the number the endpoint uses and the only one the reader can see.
+    final emptyAt = visibleNow.indexWhere((c) => !_htmlHasContent(c.html));
+    if (emptyAt > -1) {
+      setState(() => _error =
+          'Passage ${emptyAt + 1} is empty. Delete it with its 🗑 button, '
+          'or put some text back.');
+      return;
+    }
+    if (visibleNow.length > _maxPassages) {
+      setState(() => _error =
+          'This edit has ${visibleNow.length} passages and $_maxPassages is '
+          'the limit. Merge some before saving.');
+      return;
+    }
+
     setState(() {
       _saving = true;
       _error = null;
     });
-    final visibleNow = _chunks.where((c) => !c.deleted).toList();
     final payload = visibleNow
         .map((c) => {'chunkId': c.isNew ? null : c.chunkId, 'html': c.html})
         .toList();
@@ -286,6 +381,9 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     try {
       await Api.instance
           .updateContent(widget.docId, chunks: payload, deleteChunkIds: deleteIds);
+      // Before the reload, not after: `onSaved()` is what delivers the new
+      // chunks, and the flag has to be set when didUpdateWidget reads it.
+      _pendingResync = true;
       await widget.onSaved();
       if (mounted) setState(() => _editing = false);
     } on ApiException catch (e) {
@@ -380,7 +478,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       // Toolbar.
       Row(children: [
         Text('${visible.length} passages · $totalWords words',
-            style: TextStyle(fontFamily: 'Geist', 
+            style: TextStyle(fontFamily: 'Geist',
                 fontSize: 11, fontWeight: FontWeight.w600, color: ui.muted)),
         const Spacer(),
         _editing
@@ -395,6 +493,18 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                 label: const Text('Edit text'),
               ),
       ]),
+      // ADR-056 obligation 3 — the rejection renders AT THE CONTROL THAT
+      // FAILED, as component-kit §14.2's Inline form (ADR-070): the server's
+      // message verbatim, no reference id, because this is a value the reader
+      // can fix. It used to be a bare Text at the FOOT of the panel, below
+      // every passage — and the save affordance is reachable from anywhere in
+      // the document, so a reader part way through the text never scrolled to
+      // the end to find out why Save had done nothing.
+      if (_error != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: KitFailureInline(_error!),
+        ),
       const SizedBox(height: 16),
       ...List.generate(visible.length, (i) {
         final c = visible[i];
@@ -490,10 +600,22 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
         // The anchor key rides the OUTERMOST element of the passage, so
         // `ensureVisible` scrolls to the passage and not to a span inside it.
+        final isAnchor =
+            c.chunkId != null && c.chunkId == widget.anchorChunkId;
+        // The shared-slide anchor is the FIRST passage carrying the mark. One
+        // document has at most one, but a chunk that has been split by an edit
+        // could carry it twice, and scrolling to a second one is scrolling
+        // somewhere the reader did not ask to be.
+        final isShared = !isAnchor &&
+            widget.anchorChunkId == null &&
+            _sharedChunkId != null &&
+            c.chunkId == _sharedChunkId;
         return KeyedSubtree(
-          key: c.chunkId != null && c.chunkId == widget.anchorChunkId
+          key: isAnchor
               ? _anchorKey
-              : null,
+              : isShared
+                  ? _sharedKey
+                  : null,
           child: VisibilityDetector(
           key: Key('dwell-${c.chunkId ?? 'new-$i'}'),
           onVisibilityChanged: (info) => _onVisibility(c, info.visibleFraction),
@@ -515,7 +637,15 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                             ? ui.primary.withValues(alpha: 0.5)
                             : ui.border),
                   )
-                : null,
+                // The letter's passage, for 2.6 seconds (4.15.0, ADR-051).
+                // `--accent-soft` because it flips with the theme; a raw step
+                // would stay put and read as a light wash on the dark page.
+                : (isAnchor && _flashing
+                    ? BoxDecoration(
+                        color: ui.tokens.accentSoft,
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
+                      )
+                    : null),
             // A Stack, not a stretched Row: in a Column the cross axis is
             // unbounded, so `CrossAxisAlignment.stretch` would hand the mark an
             // infinite height and assert. The Stack sizes to the text and the
@@ -543,12 +673,6 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           ),
         );
       }),
-      if (_error != null)
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(_error!,
-              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText)),
-        ),
       if (_dirty)
         Padding(
           padding: const EdgeInsets.only(top: 12),
@@ -582,10 +706,45 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     ]);
   }
 
+  /// The RESTING (non-editing) render.
+  ///
+  /// It annotates extraction markers (§17, ADR-089); edit mode deliberately
+  /// does not — an annotation in front of the cursor is one `fn_update_content`
+  /// away from being stored, which is the one way a display rule becomes a data
+  /// change. Sanitize first, annotate second: the spans this adds carry a
+  /// `class`, which the chunk vocabulary lists under *Never*.
+  ///
+  /// Without this, a marker reached the reader as body copy in the reading
+  /// serif — the author's voice saying what the extractor found.
+  /// Turn the backend's `data-shared` into a class flutter_html can select
+  /// (4.58.0, ADR-095).
+  ///
+  /// The attribute is the contract; the class is this client's rendering of
+  /// it, added at DISPLAY time exactly as `markSanitizedHtml` adds its marker
+  /// spans — nothing here changes anything stored, and `class` stays on the
+  /// chunk vocabulary's *Never* list for anything written back. Edit mode does
+  /// not annotate at all, for the same reason markers do not: an annotation in
+  /// front of the cursor is one `fn_update_content` away from being stored.
+  ///
+  /// Parsed rather than regexed: the attribute appears as `data-shared=""`
+  /// after the server's sanitizer and as a bare `data-shared` from the
+  /// extractor, and a pattern that has to know which is a pattern that will
+  /// eventually meet the other one.
+  static String _markShared(String html) {
+    if (!html.contains('data-shared')) return html;
+    final frag = html_parser.parseFragment(html);
+    for (final el in frag.querySelectorAll('[data-shared]')) {
+      final existing = el.attributes['class'];
+      el.attributes['class'] =
+          existing == null || existing.isEmpty ? 'x-shared' : '$existing x-shared';
+    }
+    return frag.outerHtml;
+  }
+
   Widget _rendered(_EditChunk c, ReaderUi ui) {
-    final html = c.html.trim();
+    final html = _markShared(markSanitizedHtml(c.html.trim()));
     if (html.isEmpty) {
-      return Text(c.text,
+      return KitMarkedText(c.text,
           style:
               AppTheme.serif(fontSize: 16, height: 1.6, color: ui.fg));
     }
