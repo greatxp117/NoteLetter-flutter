@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../../models/chunk.dart';
+import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../shared/extraction_markers.dart';
@@ -43,6 +44,11 @@ class _EditChunk {
 /// (image/table/…) are read-only but removable. Per reader.md / INV-04.
 class ManuscriptPanel extends StatefulWidget {
   final String docId;
+
+  /// The document itself — read for the **body swap** only: a distilled
+  /// document renders the §5.4 Recipe body in place of its passage cards
+  /// (4.6.0, ADR-042).
+  final Document doc;
   final List<Chunk> chunks;
   final Future<void> Function() onSaved;
 
@@ -56,12 +62,23 @@ class ManuscriptPanel extends StatefulWidget {
   /// same place the link used to land them.
   final String? anchorChunkId;
 
+  /// §Step jump branch 1 — this document has real audio, so a step's time chip
+  /// switches to Listen and seeks. Null when it has none, and then the chip is
+  /// not a control at all.
+  final ValueChanged<double>? onSeekAudio;
+
+  /// §Step jump branch 2 — the source opened at an offset.
+  final void Function(String url)? onOpenLink;
+
   const ManuscriptPanel(
       {super.key,
       required this.docId,
+      required this.doc,
       required this.chunks,
       required this.onSaved,
-      this.anchorChunkId});
+      this.anchorChunkId,
+      this.onSeekAudio,
+      this.onOpenLink});
 
   @override
   State<ManuscriptPanel> createState() => _ManuscriptPanelState();
@@ -579,6 +596,26 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                       borderSide: BorderSide(color: ui.border)),
                 ),
               )
+            // The Recipe body swap (4.6.0, ADR-042). It renders INSIDE the
+            // passage container rather than instead of it, so the gutter mark,
+            // the dwell rule and INV-03b read tracking behave exactly as on any
+            // other document — the passages ARE the rendered recipe's chunks.
+            //
+            // Only at rest and only for a single-chunk document: editing edits
+            // the manuscript, which is what `fn_update_content` writes, never
+            // the structured field. A multi-chunk recipe falls back to plain
+            // HTML, which is still a complete recipe — the chunk html IS the
+            // recipe (ADR-042 §3).
+            else if (_recipeBody && i == 0)
+              KitRecipeBody(
+                recipe: widget.doc.recipe!,
+                images: _imagesFrom(c.html),
+                onSeek: widget.onSeekAudio,
+                deepLink: _youtubeAt,
+                onOpenLink: widget.onOpenLink,
+                onOpenImage: (im) => KitLightbox.show(context,
+                    url: im.url, caption: im.caption),
+              )
             else
               _rendered(c, ui),
             if (_editing && c.atomic)
@@ -739,6 +776,47 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           existing == null || existing.isEmpty ? 'x-shared' : '$existing x-shared';
     }
     return frag.outerHtml;
+  }
+
+  /// A distilled document renders the §5.4 body rather than passage cards.
+  bool get _recipeBody =>
+      widget.doc.recipe != null &&
+      !_editing &&
+      _chunks.where((c) => !c.deleted).length == 1;
+
+  /// The manuscript's own images, by `data-nl-image-id` — read out of the chunk
+  /// HTML exactly as the reference does, because `images[]` stores Storage
+  /// object PATHS, which do not render, while the `<img>` here carries a URL
+  /// that does.
+  List<RecipeImage> _imagesFrom(String html) {
+    final frag = html_parser.parseFragment(html);
+    return [
+      for (final el in frag.querySelectorAll('img[data-nl-image-id]'))
+        if ((el.attributes['src'] ?? '').isNotEmpty)
+          RecipeImage(
+            id: el.attributes['data-nl-image-id']!,
+            url: el.attributes['src']!,
+            caption: el.attributes['alt'] ?? '',
+          ),
+    ];
+  }
+
+  /// §Step jump branch 2 — a `source_url` on a platform that takes a time
+  /// parameter. YouTube is the only one, and it is checked by HOST rather than
+  /// by substring: a URL that merely mentions youtube.com is not one.
+  String? _youtubeAt(double start) {
+    final raw = widget.doc.sourceUrl;
+    if (raw == null || raw.isEmpty) return null;
+    final u = Uri.tryParse(raw);
+    final host = u?.host.toLowerCase() ?? '';
+    final youtube = host == 'youtu.be' ||
+        host == 'youtube.com' ||
+        host.endsWith('.youtube.com');
+    if (u == null || !youtube) return null;
+    return u.replace(queryParameters: {
+      ...u.queryParameters,
+      't': '${start.round()}s',
+    }).toString();
   }
 
   Widget _rendered(_EditChunk c, ReaderUi ui) {

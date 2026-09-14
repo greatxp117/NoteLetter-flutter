@@ -229,6 +229,56 @@ Future<void> reachState(WidgetTester tester) async {
           reason: 'the manuscript panel did not open — this frame would be the '
               'summary');
       return;
+    // reader.md §Recipe body — the §5.4 body swap. Same route, same header,
+    // same Manuscript panel: only the BODY differs, which is the whole claim
+    // the pattern makes, so the frame has to be the manuscript of a distilled
+    // document rather than a screen of its own.
+    case 'recipe':
+      await tester.tap(find.text('Manuscript'));
+      await settle();
+      expect(find.byType(KitRecipeBody), findsOneWidget,
+          reason: 'no recipe body — run tool/seed_recipe_and_sources.py first; '
+              'this frame would be ordinary passage prose');
+      // A whole recipe is several times a phone viewport, and the body begins
+      // BELOW the reader's header and panel strip — so the frame at rest is a
+      // picture of the header with the pattern out of shot. Aligned to the top
+      // rather than merely "visible": `ensureVisible` stops as soon as an inch
+      // of it has entered the screen, which is the same frame again.
+      await Scrollable.ensureVisible(
+          tester.element(find.byType(KitRecipeBody)),
+          alignment: 0.0, duration: Duration.zero);
+      await settle();
+      return;
+    // component-kit §15.1 / §15.2 — the Original panel is where this client
+    // draws both viewers, exactly as the reference reader does. Which one
+    // appears is decided by the document's SHAPE, so the two states differ
+    // only in the document the route opened.
+    case 'source-file':
+      await tester.ensureVisible(find.text('Original'));
+      await tester.pump();
+      await tester.tap(find.text('Original'), warnIfMissed: false);
+      await settle();
+      expect(find.byType(KitSourceFileView), findsOneWidget,
+          reason: 'no §15.1 view — run tool/seed_recipe_and_sources.py first '
+              '(with no stored bytes the endpoint answers signed_url: null, '
+              'which is a different state and a different picture)');
+      return;
+    case 'source-set':
+      await tester.ensureVisible(find.text('Original'));
+      await tester.pump();
+      await tester.tap(find.text('Original'), warnIfMissed: false);
+      await settle();
+      expect(find.byType(KitSourceSetGallery), findsOneWidget,
+          reason: 'no §15.2 gallery — run tool/seed_recipe_and_sources.py '
+              'first; a set filed as a link draws a link button over a null');
+      // The grid is the subject, and three pages of it do not fit under the
+      // header. Aligned to the top so the frame holds the whole gallery —
+      // toolbar, count, and every tile including the one that has not landed.
+      await Scrollable.ensureVisible(
+          tester.element(find.byType(KitSourceSetGallery)),
+          alignment: 0.0, duration: Duration.zero);
+      await settle();
+      return;
     // library.md §Shelf color — the ten swatches live inside the shelf's
     // settings disclosure, which no route reaches. The shelf the seed gives
     // this state is `seed-tag-recipes`.

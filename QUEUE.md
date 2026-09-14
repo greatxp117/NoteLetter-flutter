@@ -202,7 +202,7 @@ a new obligation on a finished screen is a new item.
   marker exists to prevent.
 
 ## F-11 · Reader — recipe body, source file and set overlays
-- status: open
+- status: done 2026-09-14
 - screen: recipe
 - route: /reader/seed-doc-pdf-complete
 - spec: spec/screens/reader.md §Recipe body; spec/component-kit.md §5.4 §15 §6.4; spec/features/source-visible-before-completion.md; spec/decisions/ADR-042-recipes-are-a-distilled-content-form.md

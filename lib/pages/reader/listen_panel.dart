@@ -22,12 +22,20 @@ class ListenPanel extends StatefulWidget {
   /// is present. Empty/absent → always fall back to proportional timing.
   final List<double?> lineStarts;
 
+  /// Where a recipe step's time chip asked playback to start
+  /// (`screens/reader.md` §Step jump, branch 1). Applied **once**, when the
+  /// player knows its duration — seeking a source that has not loaded clamps
+  /// to zero, which lands the reader at the top of the recording and looks
+  /// exactly like a chip that did nothing.
+  final double? seekTo;
+
   const ListenPanel(
       {super.key,
       required this.docId,
       required this.doc,
       required this.paras,
-      this.lineStarts = const []});
+      this.lineStarts = const [],
+      this.seekTo});
 
   @override
   State<ListenPanel> createState() => _ListenPanelState();
@@ -53,9 +61,13 @@ class _ListenPanelState extends State<ListenPanel> {
       widget.paras.isNotEmpty &&
       widget.lineStarts.every((s) => s != null && s.isFinite);
 
+  /// The step jump waiting for the player to be ready, if any.
+  double? _pendingSeek;
+
   @override
   void initState() {
     super.initState();
+    _pendingSeek = widget.seekTo;
     // Podcast/video: the real episode is already available — load it directly,
     // no "Generate audio" step.
     final src = _sourceAudio;
@@ -67,11 +79,30 @@ class _ListenPanelState extends State<ListenPanel> {
       if (mounted) setState(() => _pos = p);
     });
     _player.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _dur = d);
+      if (!mounted) return;
+      setState(() => _dur = d);
+      _applyPendingSeek();
     });
     _player.onPlayerStateChanged.listen((s) {
       if (mounted) setState(() => _playing = s == PlayerState.playing);
     });
+  }
+
+  @override
+  void didUpdateWidget(ListenPanel old) {
+    super.didUpdateWidget(old);
+    // A second chip tapped while this panel is already open.
+    if (widget.seekTo != null && widget.seekTo != old.seekTo) {
+      _pendingSeek = widget.seekTo;
+      _applyPendingSeek();
+    }
+  }
+
+  void _applyPendingSeek() {
+    final target = _pendingSeek;
+    if (target == null || _dur.inMilliseconds == 0) return;
+    _pendingSeek = null;
+    _seek(target);
   }
 
   @override

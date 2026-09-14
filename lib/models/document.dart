@@ -133,6 +133,23 @@ class Document {
   final int viewCount;
   final int? lastViewedAt;
 
+  /// 4.6.0 (ADR-042) — the shape this document's content was reduced to,
+  /// independent of `type`: `recipe` today. **Open vocabulary**, so no client
+  /// switches exhaustively on it. Non-null means the stored chunks are a
+  /// DISTILLATION, not the source's full text.
+  final String? contentForm;
+
+  /// 4.6.0 (ADR-042) — a durable, directly renderable URL holding the full
+  /// pre-distillation HTML. Provenance, **not** content: never chunked, never
+  /// embedded, never in any chunk HTML. Non-null whenever [contentForm] is
+  /// (INV-20b), and it is the honesty guarantee for a reduction — which is why
+  /// the Original panel must offer it and nothing else may render it.
+  final String? originalContentUrl;
+
+  /// 4.6.0 (ADR-042) — the structured recipe; present iff
+  /// `content_form == "recipe"`.
+  final Recipe? recipe;
+
   /// `{ job_id, provider }` when this document was imported from a cloud
   /// provider (data-model.md). Drives the Reader source-freshness check (1.4.0).
   final Map<String, dynamic>? sourceIntegration;
@@ -168,6 +185,9 @@ class Document {
     this.sourcePriority = 0.5,
     this.viewCount = 0,
     this.lastViewedAt,
+    this.contentForm,
+    this.originalContentUrl,
+    this.recipe,
     this.sourceIntegration,
   });
 
@@ -211,6 +231,9 @@ class Document {
       sourcePriority: sourcePriority,
       viewCount: viewCount,
       lastViewedAt: lastViewedAt,
+      contentForm: contentForm,
+      originalContentUrl: originalContentUrl,
+      recipe: recipe,
       sourceIntegration: sourceIntegration,
     );
   }
@@ -255,6 +278,9 @@ class Document {
       sourcePriority: sourcePriority,
       viewCount: viewCount,
       lastViewedAt: lastViewedAt,
+      contentForm: contentForm,
+      originalContentUrl: originalContentUrl,
+      recipe: recipe,
       sourceIntegration: sourceIntegration,
     );
   }
@@ -292,7 +318,114 @@ class Document {
       sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,
       viewCount: json['view_count'] as int? ?? 0,
       lastViewedAt: tsMs(json['last_viewed_at']),
+      contentForm: json['content_form'] as String?,
+      originalContentUrl: json['original_content_url'] as String?,
+      // Present iff `content_form == "recipe"`, but read off its own field:
+      // `content_form` is an OPEN vocabulary and a client that gated the
+      // object on a value it recognises would drop the structure the first
+      // time the backend names a second form.
+      recipe: (json['recipe'] as Map?) == null
+          ? null
+          : Recipe.fromJson((json['recipe'] as Map).cast<String, dynamic>()),
       sourceIntegration: (json['source_integration'] as Map?)?.cast<String, dynamic>(),
     );
   }
+}
+
+/// One ingredient group (`recipe.ingredients[]`, 4.6.0 ADR-042).
+///
+/// [group] is `null` where the source did not group — and a single-group
+/// recipe renders no heading at all (§5.4): a heading invented over an
+/// ungrouped list says the source made a distinction it did not make.
+class RecipeGroup {
+  final String? group;
+  final List<String> items;
+
+  const RecipeGroup({this.group, this.items = const []});
+
+  factory RecipeGroup.fromJson(Map<String, dynamic> j) => RecipeGroup(
+        group: j['group'] as String?,
+        items: (j['items'] as List?)?.map((e) => '$e').toList() ?? const [],
+      );
+}
+
+/// One method step (`recipe.steps[]`).
+///
+/// [start] is a float seconds offset **or null**, and null far more often than
+/// not: INV-20(c) makes the backend refuse to estimate rather than guess. A
+/// client MUST NOT fill the gap — no interpolation, no proportional guess, no
+/// falling back to the manuscript's own `data-start` (a distilled document has
+/// none). Showing the time without making it seek conforms; seeking to the
+/// wrong place does not.
+class RecipeStep {
+  final String text;
+  final String? imageId;
+  final double? start;
+
+  const RecipeStep({required this.text, this.imageId, this.start});
+
+  factory RecipeStep.fromJson(Map<String, dynamic> j) => RecipeStep(
+        text: j['text'] as String? ?? '',
+        imageId: j['image_id'] as String?,
+        start: (j['start'] as num?)?.toDouble(),
+      );
+}
+
+/// The structured recipe (`document.recipe`, 4.6.0 ADR-042) — present iff
+/// `content_form == "recipe"`.
+///
+/// It is **not** what makes the document readable: the chunk HTML already IS
+/// the recipe (ADR-042 §3), so a client that reads none of these fields still
+/// renders a complete one. What the structure buys is the checkable list, the
+/// step-bound pictures and the step times.
+///
+/// [yield_] and the three times are **strings as the source stated them**, and
+/// `null` where it did not state them — never inferred, the same posture as
+/// `author`/`publish_date`. An omitted stat is ABSENT from the row, never a
+/// zero and never an em-dash: a placeholder reads as a measured value.
+class Recipe {
+  final String title;
+  final String? yield_;
+  final String? prepTime;
+  final String? cookTime;
+  final String? totalTime;
+  final List<RecipeGroup> ingredients;
+  final List<RecipeStep> steps;
+  final List<String> notes;
+
+  /// `data-nl-image-id` content hashes matching `images[]` — the pictures no
+  /// step claimed, rendered as the trailing gallery (the first is the lead).
+  final List<String> gallery;
+
+  const Recipe({
+    required this.title,
+    this.yield_,
+    this.prepTime,
+    this.cookTime,
+    this.totalTime,
+    this.ingredients = const [],
+    this.steps = const [],
+    this.notes = const [],
+    this.gallery = const [],
+  });
+
+  factory Recipe.fromJson(Map<String, dynamic> j) => Recipe(
+        title: j['title'] as String? ?? '',
+        yield_: j['yield'] as String?,
+        prepTime: j['prep_time'] as String?,
+        cookTime: j['cook_time'] as String?,
+        totalTime: j['total_time'] as String?,
+        ingredients: (j['ingredients'] as List?)
+                ?.whereType<Map>()
+                .map((e) => RecipeGroup.fromJson(e.cast<String, dynamic>()))
+                .toList() ??
+            const [],
+        steps: (j['steps'] as List?)
+                ?.whereType<Map>()
+                .map((e) => RecipeStep.fromJson(e.cast<String, dynamic>()))
+                .toList() ??
+            const [],
+        notes: (j['notes'] as List?)?.map((e) => '$e').toList() ?? const [],
+        gallery: (j['gallery'] as List?)?.map((e) => '$e').toList() ?? const [],
+      );
 }

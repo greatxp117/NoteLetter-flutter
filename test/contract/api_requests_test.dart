@@ -205,6 +205,11 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   // the unknown-key case can only be pinned as a server rejection here.
   'fn_summary_settings': (b) =>
       Api.instance.updateSummarySettings(b['summaryPrompt'] as String?),
+  // The source-file / source-set viewer (4.37.0 ADR-075, 4.38.0 ADR-076). One
+  // call answers for BOTH shapes that have bytes: `signed_url` for a `file`,
+  // `members` for a `set`.
+  'fn_get_raw_document_url': (b) =>
+      Api.instance.getRawDocumentUrl(b['docId'] as String),
   'fn_regenerate_summary': (b) =>
       Api.instance.regenerateSummary(b['documentId'] as String),
   'fn_request_newsletter': (b) => Api.instance.requestNewsletter(),
@@ -317,8 +322,6 @@ const _noBuilder = <String, String>{
   'fn_ingest_passage':
       'passage capture is the browser extension\'s (ADR-032); no client but it '
       'sends this',
-  'fn_get_raw_document_url':
-      'the source-file link (4.37.0, ADR-075) — Flutter opens no raw source',
   'fn_get_cloud_integrations': 'cloud sync settings are unbuilt here',
   'fn_list_cloud_files': 'the folder picker is unbuilt here',
   'fn_check_source_freshness': 'freshness (Tier C) is unbuilt here',

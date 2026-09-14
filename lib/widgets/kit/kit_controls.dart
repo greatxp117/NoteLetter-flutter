@@ -1021,6 +1021,57 @@ const Map<String, String> kKindByType = <String, String>{
   'video': 'video',
 };
 
+/// The source-shape vocabulary (component-kit.md §6.4.2, 4.37.0 ADR-075) —
+/// the **second** vocabulary over the same `type` column, and the reason it is
+/// a table: what a document *renders as* (§6.4.1 above) is not what its source
+/// *is*, and every call site used to infer the second from `gcs_path != null`.
+///
+/// That is a two-value test over a three-value world, and it files an
+/// `image_set` — many objects, no single `gcs_path` — in the `link` branch,
+/// which draws **Open the link** over a null.
+///
+/// `epub` is deliberately absent, as in the reference: it is a pending KIND
+/// with no writable `type`, so shaping it would be a branch with no subject.
+const Map<String, String> kShapeByType = <String, String>{
+  // `file` — one stored object, signable by `fn_get_raw_document_url`. Written
+  // by `fn_create_upload_session` BEFORE a byte is uploaded, so the shape
+  // holds in every status, `error` and `pending_upload` included.
+  'pdf': 'file',
+  'docx': 'file',
+  'pptx': 'file',
+  'image': 'file',
+  'plain': 'file',
+  'audio': 'file',
+  'video': 'file',
+
+  // `link` — no stored object at all; `source_url` is the whole source. It
+  // never calls the endpoint: there is nothing to sign.
+  'article': 'link',
+  'youtube': 'link',
+  'instagram': 'link',
+  'tiktok': 'link',
+  'podcast': 'link',
+  'url': 'link',
+
+  // `set` — many objects (`gcs_paths[]`), no single one. The endpoint signs
+  // one `gcs_path`, so it answers `signed_url: null` here by construction and
+  // carries the pages in `members` instead.
+  'image_set': 'set',
+};
+
+/// A document's source shape, from its `type`.
+///
+/// The field fallbacks are defensive only, for a `type` no release has heard
+/// of — `doc_kind_check.py`'s SHAPE direction fails on any writable type the
+/// table misses, so they are never load-bearing.
+String kitSourceShape({String? type, String? gcsPath, String? sourceUrl}) {
+  final declared = kShapeByType[type];
+  if (declared != null) return declared;
+  if (gcsPath != null && gcsPath.isNotEmpty) return 'file';
+  if (sourceUrl != null && sourceUrl.isNotEmpty) return 'link';
+  return 'set';
+}
+
 /// A document `type` → the plate kind ([KitFileBadge]).
 String kitDocKind(String type) => kKindByType[type] ?? 'note';
 

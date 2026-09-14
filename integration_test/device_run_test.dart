@@ -456,6 +456,51 @@ void main() {
     }
   });
 
+  testWidgets('the reader opens the source file', (tester) async {
+    // §15.1 (ADR-075) and §6.4.2. Two facts this asserts that nothing else
+    // can, because both are about a REQUEST the client makes on a real
+    // endpoint:
+    //
+    //  1. the Original panel reaches `fn_get_raw_document_url` at all — this
+    //     client declared no builder for it until now, so the source viewer
+    //     was unreachable rather than unbuilt;
+    //  2. a successful answer carrying a URL renders the §15.1 VIEW, not the
+    //     "no original file is stored" sentence. Those two are the same
+    //     picture to every gate that does not run the request: the panel drew
+    //     one sentence for a failure, an absent object and a link for its
+    //     whole life.
+    final router = await pumpApp(tester);
+    router.go('/reader/seed-doc-pdf-complete');
+    await pumpFor(tester, total: const Duration(seconds: 3));
+
+    // The panel strip SCROLLS on a phone — `Original` is the fifth of six and
+    // starts off-screen, so a bare tap lands on nothing, warns, and leaves the
+    // Summary panel on screen. Ensure it is visible first, exactly as the
+    // every-panel run does.
+    await tester.ensureVisible(find.text('Original'));
+    await tester.pump();
+    await tester.tap(find.text('Original'), warnIfMissed: false);
+    await pumpFor(tester, total: const Duration(seconds: 4));
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.byType(KitSourceFileView),
+      findsOneWidget,
+      reason: 'the Original panel drew no §15.1 view. If the sentence below it '
+          'says no file is stored, the object is missing from the Storage '
+          'emulator — run tool/seed_recipe_and_sources.py; that is a real '
+          'state, and not this one',
+    );
+    // A PDF is the branch that CANNOT be drawn here, and §15.1 rule 1 is that
+    // what the client cannot draw is said rather than omitted: a stage that
+    // renders nothing reads as a broken viewer.
+    expect(find.textContaining('can’t be displayed here'), findsOneWidget);
+    // The toolbar is what the sentence points AT, so its absence would make
+    // the sentence a dead end.
+    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.open_in_new), findsWidgets);
+  });
+
   testWidgets('sources composes from the kit, in the contract order', (
     tester,
   ) async {

@@ -68,6 +68,9 @@ class _ReaderPageState extends State<ReaderPage> {
   /// state — no field, no endpoint, no sync.
   static const _statsPrefKey = 'reader_detailed_stats';
 
+  /// Where a recipe step's time chip asked Listen to start (§Step jump).
+  double? _listenSeek;
+
   bool _finishBusy = false;
   String? _finishError;
   bool _loading = true;
@@ -218,6 +221,16 @@ class _ReaderPageState extends State<ReaderPage> {
       _listenLines.map((l) => l.text).toList();
   List<double?> get _lineStarts =>
       _listenLines.map((l) => l.start).toList();
+
+  /// Does this document have REAL audio behind its timestamps, as opposed to a
+  /// synthesized narration? **Type OR field**, and both halves are
+  /// load-bearing (ADR-046 §Rationale, ADR-049): `source_audio_url` is set for
+  /// a podcast and an Instagram/TikTok video, while an uploaded recording and
+  /// an uploaded video carry null by design and mint their URL per request.
+  static bool _hasOwnAudio(Document doc) =>
+      (doc.sourceAudioUrl?.isNotEmpty ?? false) ||
+      doc.type == 'audio' ||
+      doc.type == 'video';
 
   /// `word_count`, falling back to counting chunk `text` when it is null —
   /// the reference's rule, and the one the byline's reading time reads.
@@ -387,9 +400,22 @@ class _ReaderPageState extends State<ReaderPage> {
       case 'manuscript':
         return ManuscriptPanel(
           docId: widget.docId,
+          doc: _document!,
           chunks: _chunks,
           onSaved: _reload,
           anchorChunkId: widget.passageId,
+          // §Step jump branch 1, keyed on **type OR field**: an uploaded
+          // recording and an uploaded video both carry `source_audio_url:
+          // null` by design, so a client that tests only the field draws a
+          // dead chip on every voice memo and every video.
+          onSeekAudio: _hasOwnAudio(_document!)
+              ? (start) => setState(() {
+                    _tab = 'listen';
+                    _listenSeek = start;
+                  })
+              : null,
+          onOpenLink: (url) =>
+              launchUrlString(url, mode: LaunchMode.externalApplication),
         );
       case 'speedread':
         return SpeedReadPanel(paras: _paras);
@@ -399,6 +425,7 @@ class _ReaderPageState extends State<ReaderPage> {
           doc: _document!,
           paras: _listenParas,
           lineStarts: _lineStarts,
+          seekTo: _listenSeek,
         );
       case 'original':
         return OriginalPanel(docId: widget.docId, doc: _document!);

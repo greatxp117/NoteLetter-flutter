@@ -1,8 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/theme/app_theme.dart';
+import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
 /// Every kit pattern, pumped in **both themes**.
@@ -12,7 +17,67 @@ import 'package:flutter_app/widgets/kit/kit.dart';
 /// screenshot pair (`/design-fidelity` step 5); goldens come after the screens
 /// are rebuilt, deliberately — applied now they would freeze the divergence
 /// and certify it as the standard (ADR-041).
+/// A 1×1 transparent PNG, served to every `Image.network` in this suite.
+///
+/// `NetworkImage` really reaches for the network in a widget test, and a
+/// refused request throws out of the image service rather than out of the
+/// widget — which reads as "the pattern threw" when the pattern is fine. The
+/// patterns that draw a picture (§5.4's figures, §15.1's stage, §15.2's tiles)
+/// are the ones whose layout most needs pumping, so the bytes are faked here
+/// rather than the widgets being kept out of the suite.
+final Uint8List _png = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+    'YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+
+class _FakeImageHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? _) => _FakeHttpClient();
+}
+
+class _FakeHttpClient implements HttpClient {
+  @override
+  bool autoUncompress = true;
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) async => _FakeHttpClientRequest();
+  @override
+  noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+class _FakeHttpClientRequest implements HttpClientRequest {
+  @override
+  final HttpHeaders headers = _FakeHttpHeaders();
+  @override
+  Future<HttpClientResponse> close() async => _FakeHttpClientResponse();
+  @override
+  noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+class _FakeHttpClientResponse implements HttpClientResponse {
+  @override
+  int get statusCode => HttpStatus.ok;
+  @override
+  int get contentLength => _png.length;
+  @override
+  HttpClientResponseCompressionState get compressionState =>
+      HttpClientResponseCompressionState.notCompressed;
+  @override
+  StreamSubscription<List<int>> listen(void Function(List<int>)? onData,
+          {Function? onError, void Function()? onDone, bool? cancelOnError}) =>
+      Stream<List<int>>.value(_png).listen(onData,
+          onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+  @override
+  noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+class _FakeHttpHeaders implements HttpHeaders {
+  @override
+  noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
 void main() {
+  setUpAll(() => HttpOverrides.global = _FakeImageHttpOverrides());
+  tearDownAll(() => HttpOverrides.global = null);
+
   Future<void> pumpBoth(
     WidgetTester tester,
     Widget child, {
@@ -33,6 +98,127 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'threw in $brightness');
     }
   }
+
+  group('§5.4 recipe body', () {
+    const recipe = Recipe(
+      title: 'Cast-Iron Cornbread',
+      yield_: 'Serves 8',
+      prepTime: '10 min',
+      // `cook_time` and `total_time` unstated by the source: the row must not
+      // invent a cell for them.
+      ingredients: [
+        RecipeGroup(items: ['1 cup coarse yellow cornmeal']),
+        RecipeGroup(group: 'To finish', items: ['Honey butter, to serve']),
+      ],
+      steps: [
+        RecipeStep(text: 'Heat the skillet.', start: 42.0),
+        RecipeStep(text: 'Swirl the fat.'),
+      ],
+      notes: ['Coarse cornmeal is the whole texture.'],
+    );
+
+    testWidgets('the required parts, in order, and only the stated stats',
+        (tester) async {
+      await pumpBoth(tester, const KitRecipeBody(recipe: recipe));
+
+      expect(find.text('Cast-Iron Cornbread'), findsOneWidget);
+      expect(find.text('Serves 8'), findsOneWidget);
+      expect(find.text('10 min'), findsOneWidget);
+      // An unstated stat is ABSENT, never a dash or a zero — a placeholder
+      // reads as a measured value (§8).
+      expect(find.text('COOK'), findsNothing);
+      expect(find.text('TOTAL'), findsNothing);
+      expect(find.text('—'), findsNothing);
+
+      // Ingredients BEFORE Method, always: a cook reads the whole list first,
+      // and the order is the pattern, not a preference.
+      final ing = tester.getTopLeft(find.text('INGREDIENTS')).dy;
+      final method = tester.getTopLeft(find.text('METHOD')).dy;
+      expect(ing, lessThan(method));
+
+      // A group label only where the SOURCE grouped.
+      expect(find.text('TO FINISH'), findsOneWidget);
+    });
+
+    testWidgets('a step time with nowhere to go is TEXT, not a control',
+        (tester) async {
+      await pumpBoth(tester, const KitRecipeBody(recipe: recipe));
+      expect(find.text('0:42'), findsOneWidget);
+      // Branch 3 of §Step jump: no audio and no time-parameter source, so the
+      // chip renders plain. A control that looks live and does nothing is the
+      // dead-endpoint defect in miniature.
+      expect(find.byIcon(Icons.headset_outlined), findsNothing);
+      expect(find.byIcon(Icons.open_in_new), findsNothing);
+      // The step with no `start` grows no time of its own — INV-20(c) makes
+      // the backend refuse to estimate, and a client must not fill the gap.
+      expect(find.text('0:00'), findsNothing);
+    });
+
+    testWidgets('a tick is a cooking session — local, and nothing is written',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(child: KitRecipeBody(recipe: recipe)),
+        ),
+      ));
+      final item = find.text('1 cup coarse yellow cornmeal');
+      Text textOf() => tester.widget<Text>(item);
+      expect(textOf().style?.decoration, isNot(TextDecoration.lineThrough));
+      await tester.tap(item);
+      await tester.pump();
+      expect(textOf().style?.decoration, TextDecoration.lineThrough);
+    });
+  });
+
+  group('§15.1 / §15.2 source viewers', () {
+    testWidgets('§15.1 names what it cannot draw rather than drawing nothing',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const KitSourceFileView(
+          title: 'budget.docx',
+          url: 'https://example.test/budget.docx',
+          stage: KitStage.none,
+          typeLabel: 'DOCX',
+        ),
+      );
+      expect(find.text('budget.docx'), findsOneWidget);
+      expect(
+        find.textContaining('A DOCX can’t be displayed here'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('§15.2 renders every member AT ITS OWN INDEX', (tester) async {
+      await pumpBoth(
+        tester,
+        const KitSourceSetGallery(
+          members: [
+            KitSetMember(name: 'front.jpg', signedUrl: 'https://x.test/1.jpg'),
+            // The middle page has not landed. Dropping it would renumber
+            // `back.jpg` to 2 and tell the reader their 3-page set is 2 pages
+            // long (§15.2 rule 1).
+            KitSetMember(name: 'middle.png'),
+            KitSetMember(name: 'back.jpg', signedUrl: 'https://x.test/3.jpg'),
+          ],
+        ),
+        size: const Size(900, 1200),
+      );
+      expect(find.text('PAGES'), findsOneWidget);
+      expect(find.text('2 of 3 uploaded'), findsOneWidget);
+      expect(find.text('middle.png'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(
+        find.textContaining('hasn’t finished uploading'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an empty set is a state, not an empty screen', (tester) async {
+      await pumpBoth(tester, const KitSourceSetGallery(members: []));
+      expect(find.textContaining('no pages stored'), findsOneWidget);
+    });
+  });
 
   group('§17 extraction marker', () {
     testWidgets('aside and inline render in both themes, no brackets', (
