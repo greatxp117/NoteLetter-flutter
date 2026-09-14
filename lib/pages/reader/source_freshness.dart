@@ -84,16 +84,13 @@ class _SourceFreshnessState extends State<SourceFreshness> {
     final provider = _providerName[f['provider']] ?? '${f['provider']}';
 
     if (f['missing_at_provider'] == true) {
-      return Padding(
+      // `.proc-note` from the kit — an italic serif remark at `--fg-subtle`,
+      // not UI sans body copy: this is an aside ABOUT the document, in the
+      // same editorial voice the rest of the reader's asides use. It was this
+      // screen's own `copyWith` until F-09 put the one spelling in the kit.
+      return KitProcNote(
+        'The original file is no longer at $provider — this imported copy is the surviving record.',
         padding: const EdgeInsets.only(top: 12),
-        // `.proc-note` is an italic serif remark at `--fg-subtle`, not UI sans
-        // body copy: this is an aside ABOUT the document, in the same editorial
-        // voice the rest of the reader's asides use.
-        child: Text(
-          'The original file is no longer at $provider — this imported copy is the surviving record.',
-          style: KitText.lede(context, fontSize: 13, height: 20)
-              .copyWith(color: ui.subtle),
-        ),
       );
     }
     if (f['newer_at_provider'] != true) return const SizedBox.shrink();

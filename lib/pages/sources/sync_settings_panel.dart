@@ -135,10 +135,12 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                     // An inert state, said out loud: auto-sync with no folder
                     // scope will never move a file, and silence there looks
                     // exactly like working.
-                    if (inert) _Warning(
-                      'Auto-sync is on but no folders are chosen — nothing '
-                      'will sync until you pick sync folders.',
-                    ),
+                    if (inert)
+                      const KitProcNote(
+                        'Auto-sync is on but no folders are chosen — nothing '
+                        'will sync until you pick sync folders.',
+                        padding: EdgeInsets.only(top: 6),
+                      ),
 
                     _Label('Frequency'),
                     KitSegmented(
@@ -253,31 +255,6 @@ class _Label extends StatelessWidget {
         padding: const EdgeInsets.only(top: 16, bottom: 8),
         child: Eyebrow(text),
       );
-}
-
-/// An inert-state warning: the setting is on and will still do nothing.
-class _Warning extends StatelessWidget {
-  final String text;
-  const _Warning(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ADR-066: a warning drawn from the critical family reads as an
-          // error. This state is auto-sync on with no folders chosen —
-          // nothing has failed, so it draws --warning, not --critical.
-          Icon(Icons.warning_amber_rounded, size: 15, color: t.warning),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: KitText.meta(context))),
-        ],
-      ),
-    );
-  }
 }
 
 /// The preferred-hour picker. 0–23, rendered as a clock hour.

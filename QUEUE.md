@@ -167,7 +167,7 @@ a new obligation on a finished screen is a new item.
 
 
 ## F-09 · Reader — header, body, summary
-- status: in-progress
+- status: done 2026-09-14
 - screen: reader
 - route: /reader/seed-doc-pdf-complete
 - spec: spec/screens/reader.md §Composition §Header — byline & reading cost §Reading state & typography §Regenerate summary §States; spec/component-kit.md §8 §5.2 §2.1 §14.1 §17.1

@@ -167,6 +167,25 @@ void main() {
       expect(find.text('RECENTLY READ · 12 SOURCES'), findsOneWidget);
     });
 
+    testWidgets('KitProcNote is an italic serif sentence and NOTHING else',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const KitProcNote(
+          'Auto-sync is on but no folders are chosen.',
+        ),
+      );
+      final text = tester.widget<Text>(
+        find.text('Auto-sync is on but no folders are chosen.').first,
+      );
+      expect(text.style!.fontStyle, FontStyle.italic);
+      expect(text.style!.fontSize, 13);
+      // The absent icon is a REQUIRED part of this pattern: the reference
+      // draws the inert state as a bare sentence, and a triangle beside it
+      // says something failed when nothing has (F-09).
+      expect(find.byType(Icon), findsNothing);
+    });
+
     testWidgets('AccentTitle splits on a single asterisk pair', (tester) async {
       await pumpBoth(
         tester,

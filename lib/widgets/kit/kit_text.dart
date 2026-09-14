@@ -141,6 +141,41 @@ class KitText {
       );
 }
 
+/// The **process note** (web `.proc-note`) — an italic serif remark at 13 in
+/// `--fg-subtle`, about a state rather than in the app's own voice: the
+/// imported copy that outlived its original, auto-sync switched on with no
+/// folders chosen.
+///
+/// One spelling, in the kit, because there were two (TODO 2026-09-08 → F-09).
+/// The reference draws both of those states as a bare sentence with **no
+/// glyph**; this client drew the reader's as a hand-rolled `copyWith` and the
+/// sync panel's as a warning triangle beside sans meta text. Neither was wrong
+/// on its own token — which is the 4.5.0 shape exactly: a screen can be
+/// token-perfect and still be a different design (ADR-041).
+///
+/// **No icon is a required part, not an omission.** A triangle says something
+/// failed; nothing has. The sentence is the whole pattern.
+class KitProcNote extends StatelessWidget {
+  final String text;
+
+  /// The reference sets this per site (`6px 0 0` in the sync panel, `10px 0 0`
+  /// on the reader) — placement is the screen's business, the metric is not.
+  final EdgeInsetsGeometry padding;
+
+  const KitProcNote(this.text,
+      {super.key, this.padding = const EdgeInsets.only(top: 8)});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: padding,
+        child: Text(
+          text,
+          style: KitText.lede(context, fontSize: 13, height: 20)
+              .copyWith(color: Tokens.of(context).fgSubtle),
+        ),
+      );
+}
+
 /// An eyebrow, as a widget. Sections take this rather than styling a [Text]
 /// themselves.
 class Eyebrow extends StatelessWidget {
