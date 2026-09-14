@@ -184,16 +184,22 @@ a new obligation on a finished screen is a new item.
 - status: open
 - screen: reader-manuscript
 - route: /reader/seed-doc-pdf-complete
-- spec: spec/screens/reader.md §Panels §Saving a manuscript edit §Listen follow-along §Deep link to a passage §Per-chunk shelves §Supersession confirm §Finishing a document; spec/component-kit.md §6.6 §14.2
+- spec: spec/screens/reader.md §Panels §Saving a manuscript edit §Listen follow-along §Deep link to a passage §Opening at a shared carousel slide §Per-chunk shelves §Supersession confirm §Finishing a document; spec/component-kit.md §6.6 §14.2
 - web: src/pages/reader/ManuscriptPanel.jsx; src/pages/reader/ListenPanel.jsx; src/pages/reader/SpeedReadPanel.jsx; src/pages/reader/HistoryPanel.jsx; src/pages/reader/ReorganizeSheet.jsx; src/pages/reader/docAudio.js; src/styles/app-speedread.css
 - flutter: lib/pages/reader/manuscript_panel.dart; lib/pages/reader/listen_panel.dart; lib/pages/reader/speed_read_panel.dart; lib/pages/reader/history_panel.dart; lib/pages/reader/reorganize_sheet.dart; lib/pages/reader/source_freshness.dart; lib/pages/reader/chunk_shelves.dart; lib/pages/reader/dwell.dart; integration_test/hold_screen_test.dart
-- folds: 4.20.0 (the three save obligations — ADR-056); 4.11.0 (per-sentence follow-along); 4.15.0 (`?p=` scroll + flash, verify); 2.35.0 (per-chunk shelves, verify); 3.1.0 (finishing); TODO "Flutter: adopt the three save obligations"
+- folds: 4.20.0 (the three save obligations — ADR-056); 4.11.0 (per-sentence follow-along); 4.15.0 (`?p=` scroll + flash, verify); 4.58.0 (`data-shared` — open at the marked slide and draw the standing margin rule; `?p=` WINS when both are present); 2.35.0 (per-chunk shelves, verify); 3.1.0 (finishing); TODO "Flutter: adopt the three save obligations"
 - device_test: the reader opens every panel
 - shots: reader-manuscript
 - extra_gates: none
 - notes: Listen, Original, SpeedRead and History were never opened on a device run — the new
   device test opens each. `reader-manuscript` is a STATE: add `HOLD_STATE=manuscript` to
   `hold_screen_test.dart` (select the Manuscript tab before holding).
+  4.58.0 is folded here rather than into a new item because this is the item that owns
+  §Deep link, and the two rules are deliberate opposites that have to be built together:
+  `?p=` is a 2.6s flash and takes precedence; `data-shared` is a standing mark. Two effects
+  racing to scroll one pane land on whichever finishes last. Note `folded-through` does NOT
+  move for this — 4.53.0–4.57.4 are still unfolded, and claiming otherwise is what that
+  marker exists to prevent.
 
 ## F-11 · Reader — recipe body, source file and set overlays
 - status: open
