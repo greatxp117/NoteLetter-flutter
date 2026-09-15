@@ -287,7 +287,7 @@ a new obligation on a finished screen is a new item.
 - notes: Refresh both pairs — the rail is in both frames.
 
 ## F-16 · Analytics (INV-25) — decide, then build or record
-- status: open
+- status: done 2026-09-15
 - screen: none
 - route: none
 - spec: spec/features/analytics-events.md; spec/invariants.md
@@ -297,10 +297,19 @@ a new obligation on a finished screen is a new item.
 - device_test: signs in and reaches the library
 - shots: none
 - extra_gates: none
-- notes: STOP AND ASK first: INV-25 may not bind a client without a GA4 stream, and this app has
-  none configured. If it binds, the provider is guarded by `!useEmulator && !isTest` (INV-25a)
-  and `page_location` never carries a document id (INV-25b). If it does not, record the n/a row
-  in `flutter.md` §Out of scope and mark this item done.
+- notes: ASKED and decided 2026-09-15 — it does not bind, and the RECORD branch was taken.
+  INV-25's two clauses are constraints on a provider that EXISTS: (a) governs where one may be
+  constructed, (b) what its hits may carry. A client with no provider satisfies both vacuously,
+  and nothing in `analytics-events.md` obliges a client to emit — 5q reads the web reference
+  alone and names no other client. Recorded in BOTH halves, because a status in one table and a
+  decision in the other is this workspace's most-repeated defect: `flutter.md` §Out of scope
+  carries the reasoning, and `analytics-events.md` §Client coverage no longer reads "pending".
+  What decided it was not the dependency. The mobile SDK auto-collects `screen_view` carrying
+  `firebase_screen_class` — the widget class name — which is the mobile shape of exactly the
+  `page_location` leak ADR-081 needed a live wire read to find, and it would need its own gate
+  before the first hit. Against that: this client is distributed to nobody, and an operator
+  question about what people use cannot be answered by a build nobody runs. Revisit on
+  distribution. No code changed, so no device run and no shots.
 
 ## F-17 · Raw-primitive lint + kit goldens
 - status: open
@@ -389,14 +398,14 @@ a new obligation on a finished screen is a new item.
 - status: open
 - screen: sources
 - route: /sources
-- spec: spec/screens/sources.md §Folder contents; spec/api/cloud-storage.md §fn_scan_cloud_folder; spec/features/cloud-folder-scan.md
+- spec: spec/screens/sources.md §Folder contents; spec/api/cloud-storage.md §`fn_scan_cloud_folder`; spec/features/cloud-folder-scan.md
 - web: src/pages/sources/CloudFilePicker.jsx; src/pages/sources/SyncSettingsPanel.jsx; src/api.js
 - flutter: lib/services/api.dart; lib/pages/sources/sync_settings_panel.dart; lib/pages/sources/browse_section.dart
 - folds: 4.59.0
 - device_test: a folder row in the sync-folder chooser expands and reports its contents
 - shots: sources
 - extra_gates: none
-- notes: Adds `scanCloudFolder` (GET fn_scan_cloud_folder) and the per-folder disclosure on every folder row of the picker, in BOTH modes. Two things must not be merged: `excluded_by_settings` is a setting and carries the affordance back to the type pills; `unreadable` is a fact and carries none — merging them reports a folder of decks as unreadable when it is one toggle from working (pptx is off by default). `held_for_review` qualifies the importable line, it is not a fourth bucket. On `complete: false` the counts are a FLOOR ("at least N") and are never extrapolated. A refusal renders as §14.2 `.fail-inline`, never as a zero — a zero the scan did not measure is what this whole surface is against. NEVER scan the rows the picker lists; the scan is per-folder, on expand. Also: `sync_settings_panel.dart` needs the empty-`include_types` inert note — at 4.59.0 an empty list means nothing imports, where before it silently imported everything.
+- notes: Adds `scanCloudFolder` (GET `fn_scan_cloud_folder`) and the per-folder disclosure on every folder row of the picker, in BOTH modes. Two things must not be merged: `excluded_by_settings` is a setting and carries the affordance back to the type pills; `unreadable` is a fact and carries none — merging them reports a folder of decks as unreadable when it is one toggle from working (pptx is off by default). `held_for_review` qualifies the importable line, it is not a fourth bucket. On `complete: false` the counts are a FLOOR ("at least N") and are never extrapolated. A refusal renders as §14.2 `.fail-inline`, never as a zero — a zero the scan did not measure is what this whole surface is against. NEVER scan the rows the picker lists; the scan is per-folder, on expand. Also: `sync_settings_panel.dart` needs the empty-`include_types` inert note — at 4.59.0 an empty list means nothing imports, where before it silently imported everything.
 
 ## F-24 · Re-shoot the four pairs F-15 staled
 - status: blocked: tool/shots.sh: Unable to start the app on the device — `lipo: can't write to output file … (No space left on device)`; the volume has ~200MB free of 228GB, so no iOS debug build can land

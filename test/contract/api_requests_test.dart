@@ -340,6 +340,13 @@ const _noBuilder = <String, String>{
       'sends this',
   'fn_reply_support_message':
       'there is no support console in this client (CHANGELOG 4.19.0)',
+  // Debt, not a decision: the 4.59.0 capture added seven `cloud:scan-*` cases
+  // and this suite went red the moment they landed, with nothing booking it.
+  // QUEUE F-23 owns the adapter, and the test below holds this entry to that:
+  // it is legal only while an open item names the endpoint.
+  'fn_scan_cloud_folder':
+      'the per-folder disclosure (4.59.0, ADR-096) — QUEUE F-23 lands '
+      '`scanCloudFolder`',
 };
 
 // A case with no `endpoint` at all asserts what the BACKEND stored, or that it
