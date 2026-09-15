@@ -384,3 +384,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: Both actions ran on the FIRST TAP, on every client, while two screen specs required a confirmation. Channel delete is the one that mattered: removing the last `push` channel also unregisters the device, so one tap could stop every notification of every level reaching it — the copy says so. `CloudNotifier.disconnect` already returned null-or-the-sentence, which is exactly §18's contract with the panel; `_remove` in notification_settings_page was changed to match. The third confirmation in 4.56.1 (cloud-import bulk Dismiss) has no Flutter host — this client has no review queue yet — and arrives with that screen.
+
+## F-23 · Sources — folder contents, and a filter that inverted when emptied
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md §Folder contents; spec/api/cloud-storage.md §fn_scan_cloud_folder; spec/features/cloud-folder-scan.md
+- web: src/pages/sources/CloudFilePicker.jsx; src/pages/sources/SyncSettingsPanel.jsx; src/api.js
+- flutter: lib/services/api.dart; lib/pages/sources/sync_settings_panel.dart; lib/pages/sources/browse_section.dart
+- folds: 4.59.0
+- device_test: a folder row in the sync-folder chooser expands and reports its contents
+- shots: sources
+- extra_gates: none
+- notes: Adds `scanCloudFolder` (GET fn_scan_cloud_folder) and the per-folder disclosure on every folder row of the picker, in BOTH modes. Two things must not be merged: `excluded_by_settings` is a setting and carries the affordance back to the type pills; `unreadable` is a fact and carries none — merging them reports a folder of decks as unreadable when it is one toggle from working (pptx is off by default). `held_for_review` qualifies the importable line, it is not a fourth bucket. On `complete: false` the counts are a FLOOR ("at least N") and are never extrapolated. A refusal renders as §14.2 `.fail-inline`, never as a zero — a zero the scan did not measure is what this whole surface is against. NEVER scan the rows the picker lists; the scan is per-folder, on expand. Also: `sync_settings_panel.dart` needs the empty-`include_types` inert note — at 4.59.0 an empty list means nothing imports, where before it silently imported everything.
