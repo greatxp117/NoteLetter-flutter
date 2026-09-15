@@ -397,3 +397,16 @@ a new obligation on a finished screen is a new item.
 - shots: sources
 - extra_gates: none
 - notes: Adds `scanCloudFolder` (GET fn_scan_cloud_folder) and the per-folder disclosure on every folder row of the picker, in BOTH modes. Two things must not be merged: `excluded_by_settings` is a setting and carries the affordance back to the type pills; `unreadable` is a fact and carries none — merging them reports a folder of decks as unreadable when it is one toggle from working (pptx is off by default). `held_for_review` qualifies the importable line, it is not a fourth bucket. On `complete: false` the counts are a FLOOR ("at least N") and are never extrapolated. A refusal renders as §14.2 `.fail-inline`, never as a zero — a zero the scan did not measure is what this whole surface is against. NEVER scan the rows the picker lists; the scan is per-folder, on expand. Also: `sync_settings_panel.dart` needs the empty-`include_types` inert note — at 4.59.0 an empty list means nothing imports, where before it silently imported everything.
+
+## F-24 · Re-shoot the four pairs F-15 staled
+- status: blocked: tool/shots.sh: Unable to start the app on the device — `lipo: can't write to output file … (No space left on device)`; the volume has ~200MB free of 228GB, so no iOS debug build can land
+- screen: none
+- route: none
+- spec: spec/decisions/ADR-041-composition-is-contract.md
+- web: screenshots/
+- flutter: screenshots/shelf-color-picker.flutter.light.png; screenshots/shelf-color-picker.flutter.dark.png; screenshots/ask.flutter.light.png; screenshots/ask.flutter.dark.png; screenshots/ask-thread.flutter.light.png; screenshots/ask-thread.flutter.dark.png; screenshots/ask-rail.flutter.light.png; screenshots/ask-rail.flutter.dark.png
+- folds: none
+- device_test: signs in and reaches the library
+- shots: shelf-color-picker; ask; ask-thread; ask-rail
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py — the whole point
+- notes: F-15 changed kit_shell.dart, kit_headers.dart, sidebar.dart, nav_drawer.dart, local_flags.dart and both harness files, so every item listing one of them went STALE-PAIR — six pairs. Four were re-shot and committed (activity, library, reader-manuscript, search, notifications, shelves); these four were not, because the disk filled mid-run. Nothing about these screens changed — the §2.1 row F-15 rewrote is the WIDE branch and every frame here is compact — but the gate cannot tell a shared-file touch from a redesign, and that is exactly why it is not waived. Routes: shelf-color-picker `/shelves/seed-tag-recipes` HOLD_STATE color-picker; ask `/ask`; ask-thread `/ask` HOLD_STATE ask-thread; ask-rail `/ask` HOLD_STATE ask-rail (the last two run a REAL turn through the shim on 5099). Delete each target PNG before capturing: simctl refuses to overwrite one of these files in place (`Operation not permitted`) and writes happily once the path is free.
