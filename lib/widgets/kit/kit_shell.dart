@@ -182,6 +182,15 @@ class KitRailGroupLabel extends StatelessWidget {
   }
 }
 
+/// How many unread a badge says (`shell/notify.jsx`): the count, capped at
+/// `9+`.
+///
+/// The cap is the whole reason this is a function. A badge is a glyph, not a
+/// figure — it says *there is something here*, and the rail item is 10px of
+/// mono wide at the trailing edge. `127` there is not a more precise badge,
+/// it is a broken one; the feed is where the number lives.
+String kitBadgeLabel(int count) => count > 9 ? '9+' : '$count';
+
 /// A rail nav item.
 ///
 /// The **active item is marked by a 2px accent bar in the leading margin** plus
@@ -191,7 +200,16 @@ class KitNavItem extends StatefulWidget {
   final String label;
   final bool active;
   final VoidCallback? onTap;
+
+  /// §1.2's optional trailing count, mono, in the chrome's own foregrounds.
   final String? count;
+
+  /// The **unread badge** (`screens/activity.md` §Toasts and unread) — the
+  /// same trailing slot as [count], drawn as a filled pill rather than a
+  /// figure. Takes that slot when both are given: a count is how many things
+  /// there are, a badge is that some of them are new, and the second is the
+  /// one worth the space.
+  final String? badge;
 
   const KitNavItem({
     super.key,
@@ -200,6 +218,7 @@ class KitNavItem extends StatefulWidget {
     this.active = false,
     this.onTap,
     this.count,
+    this.badge,
   });
 
   @override
@@ -248,7 +267,9 @@ class _KitNavItemState extends State<KitNavItem> {
                       ),
                     ),
                   ),
-                  if (widget.count != null)
+                  if (widget.badge != null)
+                    _KitNavBadge(widget.badge!)
+                  else if (widget.count != null)
                     Text(
                       widget.count!,
                       style: AppTheme.mono(
@@ -274,6 +295,40 @@ class _KitNavItemState extends State<KitNavItem> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The filled pill a [KitNavItem] wears when something is unread.
+///
+/// **The fill is the chrome's accent, not `--accent`.** The rail is plum in
+/// both themes, so a page token flips underneath a surface that does not:
+/// `--accent`'s light half froze the drawer's avatar to a colour nobody chose,
+/// and the same half would land here. `--brick-400` is the accent this surface
+/// already draws — the active item's bar is it — and white is its foreground,
+/// as everywhere else on the chrome.
+class _KitNavBadge extends StatelessWidget {
+  final String label;
+
+  const _KitNavBadge(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16),
+      margin: const EdgeInsets.only(left: AppSpacing.s2),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: t.chromeAccentBar,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: AppTheme.mono(fontSize: 11, height: 1.2, color: t.chromeFg),
       ),
     );
   }

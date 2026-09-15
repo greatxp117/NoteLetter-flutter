@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/activity_item.dart';
 import '../models/document.dart';
+import '../shared/local_flags.dart';
 import '../state/activity_notifier.dart';
 import '../state/documents_notifier.dart';
 import '../widgets/kit/kit.dart';
@@ -54,6 +55,16 @@ class _ActivityPageState extends State<ActivityPage> {
   Widget build(BuildContext context) {
     return Consumer2<ActivityNotifier, DocumentsNotifier>(
       builder: (context, activity, docs, _) {
+        // Looking at the feed is what marks it seen (§Toasts and unread) — on
+        // every snapshot, not only on arrival, because the reader sits here
+        // while events land and the badge must not light for what is already
+        // on their screen. `markActivitySeen` never moves backwards, so this
+        // is idempotent and a rebuild costs nothing.
+        final newest = activity.newestEventAt;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) LocalFlags.markActivitySeen(newest);
+        });
+
         final docsById = {for (final d in docs.documents) d.id: d};
         final rows = [
           for (final item in activity.items) _ActivityRow.from(item, docsById),

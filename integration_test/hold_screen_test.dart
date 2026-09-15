@@ -375,6 +375,18 @@ Future<void> reachState(WidgetTester tester) async {
       expect(find.byType(OnboardingWizard), findsOneWidget,
           reason: 'the wizard did not open — this frame would be Settings');
       return;
+    // component-kit §1.2 — the chrome rail. On a phone the rail IS the drawer,
+    // so at rest it is off screen entirely: every frame this client captures
+    // shows the app bar and nothing of the navigation. A pattern that cannot
+    // be photographed is a pattern nobody looks at, which is how the drawer
+    // stayed a second, divergent nav through eleven screen recompositions.
+    case 'drawer':
+      await tester.tap(find.byIcon(Icons.menu));
+      await settle();
+      expect(find.byType(KitChromeRail), findsOneWidget,
+          reason: 'the drawer did not open — this frame would be the screen '
+              'behind it');
+      return;
     default:
       fail('hold_screen_test knows no HOLD_STATE "$holdState"');
   }

@@ -274,7 +274,7 @@ a new obligation on a finished screen is a new item.
   before building it.
 
 ## F-15 · Activity unread badge + shell rail
-- status: open
+- status: done 2026-09-15
 - screen: activity
 - route: /activity
 - spec: spec/screens/activity.md §Toasts and unread §Composition; spec/component-kit.md §1.2 §2.1

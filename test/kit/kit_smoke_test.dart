@@ -429,6 +429,69 @@ void main() {
       );
     });
 
+    // 4.32.6 — the actions are the OPTIONAL part and they are the part that
+    // yields. The reference's CSS had this backwards until then, and this
+    // client was ported from that row: `Expanded(titleBlock)` took whatever a
+    // non-shrinking action row left it, so four actions in an 860px column set
+    // *Quarterly Tax Summary* as three stacked lines at 44px. No gate can see
+    // a title that merely wraps — so the gate is the geometry.
+    testWidgets('a wide action set drops to its own line; the title keeps its '
+        'floor', (tester) async {
+      await pumpBoth(
+        tester,
+        ChapterOpening(
+          title: 'Quarterly Tax Summary',
+          // Sized rather than measured: the branch turns on a WIDTH, and a
+          // row of buttons whose width comes from font metrics would make
+          // this test's subject the font.
+          actions: [
+            for (final label in const [
+              'Open the source',
+              'Speed read',
+              'Summarize',
+              'Delete',
+            ])
+              SizedBox(
+                  width: 150, child: KitButton.ghost(label, onPressed: () {})),
+          ],
+        ),
+        // Wide enough for §2.1's row branch (the compact branch stacks
+        // unconditionally and would pass this for the wrong reason), narrow
+        // enough that the actions cannot fit beside the title.
+        size: const Size(800, 900),
+      );
+
+      final title = tester.getRect(find.byType(AccentTitle));
+      final actions =
+          tester.getRect(find.widgetWithText(KitButton, 'Speed read'));
+      expect(actions.top, greaterThan(title.bottom),
+          reason: 'the actions stayed beside the title and squeezed it');
+      expect(title.width, greaterThanOrEqualTo(212),
+          reason: 'the title fell below its 24ch floor');
+    });
+
+    testWidgets('and stays beside a title that leaves room for it',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        ChapterOpening(
+          title: 'Activity',
+          actions: [
+            SizedBox(
+                width: 120, child: KitButton.primary('Add', onPressed: () {})),
+          ],
+        ),
+        size: const Size(1200, 900),
+      );
+
+      final title = tester.getRect(find.byType(AccentTitle));
+      final action = tester.getRect(find.widgetWithText(KitButton, 'Add'));
+      expect(action.left, greaterThan(title.right),
+          reason: 'one small action beside one word should not wrap — a row '
+              'that always stacks is the other half of the same defect');
+      expect(action.top, lessThan(title.bottom));
+    });
+
     testWidgets('section header carries an action', (tester) async {
       await pumpBoth(
         tester,
@@ -825,6 +888,23 @@ void main() {
                   onTap: () {},
                 ),
                 KitNavItem(icon: Icons.search, label: 'Search', onTap: () {}),
+                // The unread badge (screens/activity.md §Toasts and unread) —
+                // the same trailing slot as the count, drawn as a pill.
+                KitNavItem(
+                  icon: Icons.timeline_outlined,
+                  label: 'Activity',
+                  badge: kitBadgeLabel(12),
+                  onTap: () {},
+                ),
+                // Both given: the badge takes the slot. A count says how many
+                // things there are, a badge says some of them are new.
+                KitNavItem(
+                  icon: Icons.mail_outlined,
+                  label: 'Letters',
+                  count: '4',
+                  badge: kitBadgeLabel(2),
+                  onTap: () {},
+                ),
               ],
             ),
             child: const Column(
@@ -837,6 +917,10 @@ void main() {
         ),
       );
       expect(find.text('Library'), findsWidgets);
+      expect(find.text('9+'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('4'), findsNothing,
+          reason: 'the count drew beside the badge instead of yielding to it');
     });
   });
 

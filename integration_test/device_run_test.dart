@@ -632,7 +632,77 @@ void main() {
     // behind it — a letter sent, a service connected, an organization move —
     // could not appear on the activity screen at all, while `subscribeActivity`
     // merged it correctly the whole time and every gate stayed green.
+    //
+    // First-run is NOT this test's subject, and it is a device-local flag: a
+    // simulator that still carries `nl-onboarded: false` from an interrupted
+    // run puts the wizard in front of the whole authenticated surface, and
+    // every assertion below then fails describing a shell that is simply not
+    // on screen. The wizard test sets the same flag the other way for the same
+    // reason — its subject IS first-run.
+    await LocalFlags.setOnboarded(true);
     final router = await pumpApp(tester);
+
+    // ---- The rail, before the feed is opened (2.5.0, §Toasts and unread) ----
+    //
+    // On a phone the drawer IS the navigation, and it used to be a SECOND one:
+    // its own labels, its own routes, no library card, no identity footer — and
+    // it would have had no badge either, on the one viewport where the badge is
+    // the only thing that says the feed has moved. It renders `RailContent`
+    // now, so this asserts the rail through the drawer deliberately.
+    // The Scaffold's own drawer button. By its ICON, not its tooltip: the
+    // tooltip is a localization and this suite would then be asserting
+    // MaterialLocalizations rather than the shell.
+    // Wait for the SHELL, not a fixed number of frames. `OnboardingGate` wraps
+    // the whole authenticated surface and decides on the first documents
+    // snapshot, so for the first moments of a run there is no `AppLayout` in
+    // the tree at all — no Scaffold, no app bar, no drawer button. A fixed
+    // pump here read as "the compact shell has no navigation".
+    for (var i = 0; i < 60; i++) {
+      if (find.byIcon(Icons.menu).evaluate().isNotEmpty) break;
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.byIcon(Icons.menu), findsOneWidget,
+        reason: 'no drawer button — the compact shell has no navigation at all');
+    await tester.tap(find.byIcon(Icons.menu));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.byType(KitChromeRail), findsOneWidget,
+        reason: 'the drawer is not the kit rail — the second nav is back');
+    expect(find.byType(KitRailCard), findsOneWidget,
+        reason: '§1.2s library card is missing from the compact rail');
+    expect(find.byType(KitRailFooter), findsOneWidget,
+        reason: '§1.2 requires a pinned identity footer');
+    expect(find.text('Daily Digest'), findsNothing,
+        reason: 'a nav vocabulary that is in no spec and no reference');
+
+    // The badge agrees with the RULE over the live feed and the live mark —
+    // asserted as agreement rather than as a fixed number, because the mark is
+    // client-local and a simulator carries the previous run's. Both branches
+    // are real: an untouched device shows the seed's events as unread, a
+    // second run shows none, and the badge must be right either way.
+    final ctx = tester.element(find.byType(KitChromeRail));
+    final activityState = Provider.of<ActivityNotifier>(ctx, listen: false);
+    // The rail opens the feed subscription itself; give it its first snapshot
+    // before asking what it counts, or the agreement below is 0 == 0.
+    for (var i = 0; i < 40; i++) {
+      if (activityState.items.isNotEmpty) break;
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    final expected = activityState.unreadSince(LocalFlags.activityLastSeen.value);
+    debugPrint('DEVICE-RUN activity: unread=$expected '
+        'lastSeen=${LocalFlags.activityLastSeen.value} '
+        'newestEvent=${activityState.newestEventAt}');
+    if (expected > 0) {
+      expect(find.text(kitBadgeLabel(expected)), findsWidgets,
+          reason: 'the rail does not show the unread count it computes');
+    }
+
+    Navigator.of(ctx).pop();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
     router.go('/activity');
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
@@ -661,7 +731,12 @@ void main() {
     // The control bar (§6.6) carries one chip per family, and the empty ones
     // are DISABLED, not dropped — the set of chips is a vocabulary.
     expect(find.byType(KitControlBar), findsOneWidget);
-    expect(find.byType(KitFilterChip), findsNWidgets(5));
+    // SIX: `All · Sources · Processing · Letters · Study · In the library`
+    // (screens/activity.md §Filters), plus `Other` only when a row falls into
+    // it. This asserted five — the set before Study had events (4.25.0) — and
+    // the number went unchallenged because the count that would have failed it
+    // needs a SEEDED feed, and an empty one returns from this test earlier.
+    expect(find.byType(KitFilterChip), findsNWidgets(6));
 
     // Date buckets are section headers (§3); the eyebrow renders uppercased.
     expect(
@@ -699,6 +774,41 @@ void main() {
         lessThanOrEqualTo(before),
       );
       break;
+    }
+
+    // ---- and the badge is CLEARED by having looked at the feed ----
+    //
+    // The mark is what the reader saw, not the clock: the newest event on the
+    // screen. Written while the feed is open, so the count the rail shows next
+    // is what arrived after this moment — not after some instant that may be
+    // ahead of the snapshot.
+    final ctx2 = tester.element(find.byType(KitTimeline));
+    final act = Provider.of<ActivityNotifier>(ctx2, listen: false);
+    if (act.newestEventAt > 0) {
+      expect(LocalFlags.activityLastSeen.value, act.newestEventAt,
+          reason: 'looking at the feed did not mark it seen');
+      expect(act.unreadSince(LocalFlags.activityLastSeen.value), 0);
+    }
+
+    // The Scaffold's own drawer button. By its ICON, not its tooltip: the
+    // tooltip is a localization and this suite would then be asserting
+    // MaterialLocalizations rather than the shell.
+    expect(find.byIcon(Icons.menu), findsOneWidget,
+        reason: 'no drawer button — the compact shell has no navigation at all');
+    await tester.tap(find.byIcon(Icons.menu));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    final rail = find.byType(KitChromeRail);
+    expect(rail, findsOneWidget);
+    expect(
+      find.descendant(of: rail, matching: find.text('9+')),
+      findsNothing,
+      reason: 'the badge survived the screen that clears it',
+    );
+    Navigator.of(tester.element(rail)).pop();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
     }
   });
 

@@ -1,118 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import '../state/theme_notifier.dart';
+
 import '../theme/app_colors.dart';
-import '../theme/app_radius.dart';
-import '../theme/app_theme.dart';
+import 'sidebar.dart';
 
-class _NavItem {
-  final IconData icon;
-  final String label;
-  final String route;
-
-  const _NavItem(this.icon, this.label, this.route);
-}
-
-const _navItems = [
-  _NavItem(Icons.dashboard_outlined, 'Daily Digest', '/'),
-  _NavItem(Icons.menu_book_outlined, 'Knowledge Base', '/library'),
-  _NavItem(Icons.label_outline, 'Shelves', '/shelves'),
-  _NavItem(Icons.chat_bubble_outline, 'Ask', '/ask'),
-  _NavItem(Icons.mail_outline, 'Letters', '/letters'),
-  _NavItem(Icons.school_outlined, 'Study', '/study'),
-  _NavItem(Icons.cloud_outlined, 'Sources', '/sources'),
-  _NavItem(Icons.auto_awesome_outlined, 'Welcome', '/landing'),
-  _NavItem(Icons.palette_outlined, 'Branding', '/branding'),
-  _NavItem(Icons.settings_outlined, 'Settings', '/settings'),
-];
-
+/// The compact form of the chrome rail (`component-kit.md` §1.1): the rail
+/// becomes a drawer.
+///
+/// **It renders [RailContent] — the same rail the wide viewport draws**, as
+/// the reference's `Drawer` renders the same `SidebarContent` its sidebar
+/// does. What was here was a second navigation: *Daily Digest*, *Knowledge
+/// Base*, a `/library` route this app does not serve, Welcome and Branding as
+/// primary destinations, plain `ListTile` rows with their own type, no library
+/// card, no group labels, no identity footer — and, once the unread badge
+/// existed, no badge, on the viewport where the drawer IS the nav.
+///
+/// Nothing could have gone red for that. A second nav is not a wrong nav to
+/// any gate; it is only wrong beside the first one, which is why it survived
+/// every screen recomposition that went past it.
 class NavDrawer extends StatelessWidget {
   const NavDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Plum chrome, identical in light & dark (see Sidebar / web app-kit.css).
-    final currentRoute = GoRouterState.of(context).uri.path;
-
     return Drawer(
       backgroundColor: AppColors.chrome,
+      // The rail's own padding is §1.2's; the drawer adds only the device's
+      // safe area, so the brand lockup clears the notch.
       child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    // The chrome is one plum in both themes, so its accent is
-                    // the fixed one the active-nav bar draws — not the light
-                    // half of --accent, which froze this circle to #9D352D.
-                    backgroundColor: AppColors.chromeAccentBar,
-                    child: const Icon(Icons.edit_note, color: Colors.white, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'NoteLetter',
-                    style: AppTheme.serif(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.chromeForeground,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: AppColors.chromeBorder),
-            const SizedBox(height: 8),
-            ...(_navItems.map((item) {
-              final isActive = currentRoute == item.route;
-              final fg = isActive ? AppColors.chromeForeground : AppColors.chromeMuted;
-              return ListTile(
-                leading: Icon(item.icon, color: fg),
-                title: Text(
-                  item.label,
-                  style: TextStyle(
-                    fontFamily: 'Geist',
-                    fontSize: 14,
-                    color: fg,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                ),
-                selected: isActive,
-                selectedTileColor: AppColors.chromeActive,
-                shape: RoundedRectangleBorder(borderRadius: AppRadius.controlR(40)),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  context.go(item.route);
-                },
-              );
-            })),
-            const Spacer(),
-            // No storage figure here. One was drawn ("2.1 GB / 6 GB used", a
-            // 0.35 bar) from the day the drawer was written and no endpoint
-            // reports storage, so it was the design prototype's mock number
-            // on a real screen — the umbrella trap "show only measured
-            // numbers". The web rail draws none either.
-            const Divider(height: 1, color: AppColors.chromeBorder),
-            Consumer<ThemeNotifier>(
-              builder: (ctx, notifier, _) => ListTile(
-                leading: Icon(notifier.modeIcon, color: AppColors.chromeMuted),
-                title: Text(
-                  notifier.modeLabel,
-                  style: const TextStyle(
-                    fontFamily: 'Geist',
-                    fontSize: 14,
-                    color: AppColors.chromeForeground,
-                  ),
-                ),
-                onTap: notifier.toggle,
-              ),
-            ),
-          ],
-        ),
+        child: RailContent(onNavigate: () => Navigator.of(context).pop()),
       ),
     );
   }

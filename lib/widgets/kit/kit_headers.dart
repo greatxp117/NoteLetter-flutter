@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
@@ -122,24 +123,17 @@ class ChapterOpening extends StatelessWidget {
                 children: actions,
               ),
             ] else
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: titleBlock),
-                  const SizedBox(width: AppSpacing.s4),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = 0; i < actions.length; i++) ...[
-                          if (i > 0) const SizedBox(width: AppSpacing.s2),
-                          actions[i],
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+              KitTitleActionsRow(
+                title: titleBlock,
+                actions: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      if (i > 0) const SizedBox(width: AppSpacing.s2),
+                      actions[i],
+                    ],
+                  ],
+                ),
               ),
             if (rule) ...[
               const SizedBox(height: 22),
@@ -473,4 +467,121 @@ class ScreenHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+/// §2.1's title row: the title block and its **actions**, on one line where
+/// they fit and stacked where they do not — and it is the ACTIONS that yield.
+///
+/// The actions are an optional part and the title is the one required part
+/// (component-kit.md §2.1), and until contract 4.32.6 the reference's CSS had
+/// that backwards: `.ch-acts` refused to shrink and `.ch-open-main` had
+/// `min-width: 0`, so the required part absorbed the whole squeeze. On the
+/// reader — four actions, ~620px of them, in an 860px column — the title got
+/// 240px and *Quarterly Tax Summary* set as three stacked lines at 44px with
+/// half the frame empty beside it. This client had the same shape, because it
+/// was ported from the same row: `Expanded(titleBlock)` takes whatever the
+/// non-flexible action row leaves, however little that is.
+///
+/// This is `flex-wrap: wrap` with `flex: 1 1 24ch` on the title, written as a
+/// render object because Flutter has neither: a `Row` cannot wrap, a `Wrap`
+/// cannot flex, and both of the layouts that CAN be composed from the
+/// framework's boxes are one of the two failures — a title that shrinks past
+/// its floor, or actions that always drop to their own line even when there is
+/// a frame's worth of room beside a one-word title.
+///
+/// **No gate can see this.** A title that merely wraps throws nothing, renders
+/// at correct tokens, and passes every contract test; it was found by looking
+/// at it, and [KitTitleActionsRow] is where the next reader finds the rule
+/// rather than re-deriving it per screen.
+class KitTitleActionsRow extends MultiChildRenderObjectWidget {
+  KitTitleActionsRow({super.key, required Widget title, required Widget actions})
+      : super(children: [title, actions]);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderTitleActions();
+}
+
+class _TitleActionsParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderTitleActions extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _TitleActionsParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _TitleActionsParentData> {
+  /// The 24ch floor, in this client's units. `ch` is the advance of `0` in the
+  /// element's own font, and `.ch-open-main` inherits the UI sans at
+  /// `--text-base` (16px) — about 0.55em — so 24ch is ~212px. Converted once,
+  /// here, on the same principle as `AppSpacing.measure`'s 68ch.
+  static const double floor = 212;
+
+  /// The gap beside the actions, and the one under the title when they wrap —
+  /// `.ch-open-row`'s `gap: 16px`, which in CSS applies on both axes.
+  static const double gap = AppSpacing.s4;
+
+  /// `.ch-acts { padding-top: 6px }` — the actions sit a little below the top
+  /// of the title block, not on it.
+  static const double actionsTop = 6;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _TitleActionsParentData) {
+      child.parentData = _TitleActionsParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final title = firstChild!;
+    final actions = childAfter(title)!;
+    // An unbounded width has no "does it fit" to answer, so it takes the
+    // stacked branch rather than guessing — the same answer a flex container
+    // in an unbounded inline axis gives.
+    final width = constraints.hasBoundedWidth
+        ? constraints.maxWidth
+        : double.infinity;
+
+    actions.layout(
+        BoxConstraints(maxWidth: constraints.hasBoundedWidth ? width : double.infinity),
+        parentUsesSize: true);
+    final beside = width - gap - actions.size.width;
+
+    if (constraints.hasBoundedWidth && beside >= floor) {
+      title.layout(BoxConstraints.tightFor(width: beside), parentUsesSize: true);
+      _offsetOf(title).offset = Offset.zero;
+      _offsetOf(actions).offset =
+          Offset(width - actions.size.width, actionsTop);
+      size = constraints.constrain(Size(
+          width,
+          title.size.height > actions.size.height + actionsTop
+              ? title.size.height
+              : actions.size.height + actionsTop));
+      return;
+    }
+
+    final titleConstraints = constraints.hasBoundedWidth
+        ? BoxConstraints.tightFor(width: width)
+        : const BoxConstraints();
+    title.layout(titleConstraints, parentUsesSize: true);
+    _offsetOf(title).offset = Offset.zero;
+    _offsetOf(actions).offset = Offset(0, title.size.height + gap);
+    size = constraints.constrain(Size(
+      constraints.hasBoundedWidth
+          ? width
+          : (title.size.width > actions.size.width
+              ? title.size.width
+              : actions.size.width),
+      title.size.height + gap + actions.size.height,
+    ));
+  }
+
+  _TitleActionsParentData _offsetOf(RenderBox child) =>
+      child.parentData! as _TitleActionsParentData;
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }

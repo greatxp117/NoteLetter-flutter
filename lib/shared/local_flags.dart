@@ -46,6 +46,25 @@ class LocalFlags {
   /// they open the app. Not a [SharedPreferences] key for the same reason.
   static final ValueNotifier<bool> onboardingReplay = ValueNotifier<bool>(false);
 
+  /// When the reader last looked at the Activity feed, epoch ms
+  /// (`spec/screens/activity.md` §Toasts and unread, 2.5.0/ADR-014).
+  ///
+  /// **Client-local by contract, not contract data** — the reference keeps it
+  /// in `localStorage` under this exact key, beside theme and density, and it
+  /// deliberately does not sync across devices in Phase A. A device that has
+  /// not seen a run of events still has them to read.
+  ///
+  /// An `int` here where the reference stores the same number as a string:
+  /// this is the platform store, not `localStorage`, and a string would be a
+  /// transcription of a JS limitation. The VALUE is the contract; its
+  /// encoding is the client's.
+  static const String activityLastSeenKey = 'nl-activity-last-seen';
+
+  /// A [ValueNotifier] for the same reason [scripture] is one: two surfaces
+  /// read it (the rail's badge and the feed, which marks it), and a value each
+  /// cached at mount would leave the badge lit on the screen that cleared it.
+  static final ValueNotifier<int> activityLastSeen = ValueNotifier<int>(0);
+
   static Future<void>? _loading;
 
   /// Read the stored values once, whoever asks first.
@@ -59,6 +78,7 @@ class LocalFlags {
     final prefs = await SharedPreferences.getInstance();
     scripture.value = prefs.getBool(scriptureKey) ?? false;
     onboarded.value = prefs.getBool(onboardedKey) ?? false;
+    activityLastSeen.value = prefs.getInt(activityLastSeenKey) ?? 0;
   }();
 
   /// Write before you move: the stored value lands first, then the notifier —
@@ -78,5 +98,15 @@ class LocalFlags {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(onboardedKey, done);
     onboarded.value = done;
+  }
+
+  /// The feed was looked at [atMs]. Never moves backwards: the reader is on
+  /// the screen while events arrive, and a mark taken from an older frame
+  /// would re-light the badge for events they are watching land.
+  static Future<void> markActivitySeen(int atMs) async {
+    if (atMs <= activityLastSeen.value) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(activityLastSeenKey, atMs);
+    activityLastSeen.value = atMs;
   }
 }
