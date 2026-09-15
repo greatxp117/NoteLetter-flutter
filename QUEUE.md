@@ -334,10 +334,15 @@ a new obligation on a finished screen is a new item.
   the signal it looked like. **The guard is proven live in both directions** from one launch of a
   prod build: `I-ACS023013 Analytics collection disabled` at init, `I-ACS023012 Analytics
   collection enabled` 1.6s later from `start()`, and only `disabled` on the emulator device run.
-  What is still owed is a real hit with real params on the wire — every catalogued event lives
-  inside the authenticated shell, so that needs a signed-in PROD session and Xavier's account.
-  Drive it with `-FIRAnalyticsDebugEnabled`, not DebugView: ADR-081 found what it did by reading
-  what the client SENT.
+  **The wire was read (2026-09-15)** — a throwaway integration test drove the real app against
+  REAL PROD as a scratch account, and the SDK's own queue was copied out of the app container
+  mid-run. `/reader/CANARY-…` arrived as `_sn=reader`, `/shelves/CANARY-…` as `shelf`, and the
+  canary id, the canary query, the scratch email and the scratch uid are absent from the whole
+  store. `endpoint=/fn_list_cloud_files` — query stripped. Two findings no code reading would
+  have given: `_pn`/`_pc` (the PREVIOUS screen) are attached by the SDK to every screen_view with
+  no call site passing them — ADR-081's shape on this platform, id-free only because `_sn` is —
+  and `error_code` arrives as `REQUEST_ERROR`, which the catalog did not allow for and the web
+  has been sending since 4.41.0. Spec corrected. The scratch accounts are deleted.
 
 ## F-17 · Raw-primitive lint + kit goldens
 - status: open
