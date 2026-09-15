@@ -73,6 +73,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     'Replay first-run — bring in sources, write your '
                     'librarian’s mission, and tune your letter. Nothing you’ve '
                     'already set is changed until you finish.',
+                // A button is a wide control: beside two lines of wrapped
+                // title it takes half the row from the copy. Stacks under it
+                // below the compact width, as the letter row above does.
+                wideControl: true,
                 trailing: [
                   KitButton.primary(
                     'Run setup',

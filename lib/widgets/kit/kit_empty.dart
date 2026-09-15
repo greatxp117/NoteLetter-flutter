@@ -47,7 +47,12 @@ class KitMark extends StatelessWidget {
         shape: seal ? BoxShape.circle : BoxShape.rectangle,
         boxShadow: seal ? null : AppShadows.s2,
       ),
-      child: Icon(icon, size: size * 0.43, color: seal ? t.seal : t.chromeFg),
+      // Rounded, so §7's own 60 keeps the 26 the empty state has always drawn:
+      // extracting this widget must not move a pixel on the screens that
+      // already had it.
+      child: Icon(icon,
+          size: (size * 0.433).roundToDouble(),
+          color: seal ? t.seal : t.chromeFg),
     );
     if (!seal) return tile;
     // The ring sits OUTSIDE the disc (`inset: -7px` on the reference), so it is
