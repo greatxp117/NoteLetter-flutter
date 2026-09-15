@@ -148,7 +148,10 @@ class SummaryPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ui.eyebrow('Summary'),
+        // No eyebrow of its own: the reader's §19 rail stacks this section
+        // under a §3 section header that says `Summary` (4.64.0, ADR-100), and
+        // two headers on one section is the panel and the page each thinking
+        // it opens the scroll.
         if (doc.summary?.isNotEmpty ?? false) ui.note(doc.summary!),
         const SizedBox(height: 20),
         if (doc.themes.isNotEmpty) ...[

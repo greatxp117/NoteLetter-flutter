@@ -33,6 +33,7 @@ export 'kit_popover.dart';
 export 'kit_rail.dart';
 export 'kit_recipe.dart';
 export 'kit_rows.dart';
+export 'kit_section_rail.dart';
 export 'kit_shell.dart';
 export 'kit_support_footer.dart';
 export 'kit_text.dart';

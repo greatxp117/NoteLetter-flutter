@@ -70,6 +70,43 @@ class KitFrame extends StatelessWidget {
   }
 }
 
+/// [KitFrame]'s horizontal half: the centred column and its gutter, with no
+/// vertical padding of its own.
+///
+/// A screen built out of SLIVERS cannot wrap its whole body in one [KitFrame] —
+/// each sliver is laid out by the viewport — so every band of such a screen
+/// frames itself with this, and the frame stays one decision rather than one
+/// per band. The vertical padding is then the first and last band's, once.
+class KitFrameBand extends StatelessWidget {
+  final KitFrameWidth width;
+  final Widget child;
+
+  const KitFrameBand({
+    super.key,
+    this.width = KitFrameWidth.listing,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final gutter = compact
+        ? AppSpacing.frameGutterCompact
+        : AppSpacing.frameGutter;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: width.maxWidth),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: gutter),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 /// The scroll container every screen body sits in (`component-kit.md` §1.4).
 ///
 /// **Every screen's body scrolls inside its own container.** This is a shipped

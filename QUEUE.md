@@ -467,7 +467,7 @@ a new obligation on a finished screen is a new item.
 - notes: Two rules from 4.61.0. (1) The turn the reader sent is rendered from send until its own STORED message arrives to replace it — counted against the copies the thread already held, so asking the same question twice does not clear the new turn against the old one's message — and a refusal leaves it in place with the server's sentence (§14.2) plus a retry that re-sends that turn, never back in the composer. (2) The transcript and the rail are two subscriptions and each renders §14.1 in its own region when it cannot be READ; neither may fall back to an empty state, which asserts the reader has asked nothing. Flutter's streams already pass onError (INV-24's third layer) — what it owes is the consumer and both regions. The fourth layer added at 4.61.0 (a React state setter is not a consumer) is JS-specific and has no Dart analogue.
 
 ## F-26 · Reader — one continuous scroll, §19 Section rail
-- status: open
+- status: done 2026-09-15
 - screen: reader
 - route: /reader/seed-doc-pdf-complete
 - spec: spec/screens/reader.md §Continuous scroll §Composition §Deep link to a passage §Opening at a shared carousel slide; spec/component-kit.md §19; spec/decisions/ADR-100-a-panel-is-not-a-place.md

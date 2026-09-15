@@ -418,14 +418,20 @@ void main() {
   // indistinguishable from a panel nobody looked at.
   testWidgets('the reader opens every panel', (tester) async {
     // The canonical seed's own complete document — this test is about the
-    // panels building, not about length, so it needs no long-doc fixture.
+    // sections building, not about length, so it needs no long-doc fixture.
+    //
+    // Since 4.64.0 (ADR-100) the six are STACKED and each control is a jump,
+    // not a tab: tapping one scrolls to a section that is already mounted. The
+    // test is unchanged in what it proves — that every section builds without
+    // throwing — and `the reader scrolls from Summary to History without a
+    // tap` is what proves they are reached by scrolling.
     final router = await pumpApp(tester);
     router.go('/reader/seed-doc-pdf-complete');
     await pumpFor(tester, total: const Duration(seconds: 3));
 
-    // The labels exactly as `_panels` spells them — 'Speed read', not
+    // The labels exactly as `_railItems` spells them — 'Speed read', not
     // 'SpeedRead'. A list written from memory fails on the label rather than on
-    // the panel, which is a red test about nothing.
+    // the section, which is a red test about nothing.
     for (final label in const [
       'Manuscript',
       'Speed read',
@@ -436,14 +442,14 @@ void main() {
     ]) {
       final tab = find.text(label);
       if (tab.evaluate().isEmpty) {
-        fail('the reader draws no "$label" panel control — reader.md §Panels '
-            'lists six and this run found five');
+        fail('the reader draws no "$label" jump — reader.md §Continuous scroll '
+            'lists six sections and this run found five');
       }
       // Printed per panel because the first run of this test timed out after
       // twelve minutes with no indication of WHERE: a hang reports the test,
       // never the step, and four of these six panels had never been opened on
       // a device at all.
-      debugPrint('PANEL: opening $label');
+      debugPrint('PANEL: jumping to $label');
       await tester.ensureVisible(tab.first);
       await tester.tap(tab.first, warnIfMissed: false);
       await pumpFor(tester, total: const Duration(seconds: 2));
@@ -452,10 +458,95 @@ void main() {
       // ErrorWidget rather than failing the tap, so the tap alone proves
       // nothing: a panel that throws still "opens".
       expect(tester.takeException(), isNull,
-          reason: 'the $label panel threw while building');
+          reason: 'the $label section threw while building');
       expect(find.byType(ErrorWidget), findsNothing,
-          reason: 'the $label panel built an ErrorWidget');
+          reason: 'the $label section built an ErrorWidget');
     }
+  });
+
+  // ── ADR-100 / ADR-051 ──────────────────────────────────────────────────────
+  // The reader is one document on one scroll, and the acceptance test is the
+  // DEEP LINK rather than the scroll: `?p=` scrolled into the manuscript, which
+  // was not mounted until the reader picked its tab, so on the web reference
+  // that link had never once fired from a cold open (CHANGELOG 4.64.0). This
+  // client must not reproduce it — which is why the second half opens the link
+  // cold and taps nothing.
+  testWidgets("the reader scrolls from Summary to History without a tap, and "
+      "the rail's current jump follows the scroll", (tester) async {
+    const docId = 'device-run-long-doc';
+    final router = await pumpApp(tester);
+    router.go('/reader/$docId');
+    await pumpFor(tester, total: const Duration(seconds: 4));
+
+    String current() => tester
+        .widget<KitSectionRail>(find.byType(KitSectionRail))
+        .current;
+
+    // Every section is MOUNTED on open — no tap, no reveal. This is the whole
+    // of ADR-100: a section behind a control is a render target nobody mounts.
+    expect(find.byType(KitSectionRail), findsOneWidget,
+        reason: 'the reader draws no §19 rail');
+    expect(current(), 'summary',
+        reason: 'the reader opens at the top of the document');
+
+    // A REAL gesture. Programmatic scrolling moves even a pane a reader cannot
+    // scroll (umbrella traps), so this drags — repeatedly, because the long
+    // document is several viewports tall — and watches the rail report.
+    final seen = <String>{current()};
+    for (var i = 0; i < 60 && current() != 'history'; i++) {
+      await tester.drag(
+        find.byType(CustomScrollView),
+        const Offset(0, -520),
+        warnIfMissed: false,
+      );
+      await pumpFor(tester, total: const Duration(milliseconds: 750));
+      seen.add(current());
+    }
+    final pos = tester
+        .widget<CustomScrollView>(find.byType(CustomScrollView))
+        .controller!
+        .position;
+    debugPrint('DEVICE-RUN reader scroll: reported ${seen.toList()} '
+        'offset=${pos.pixels.round()}/${pos.maxScrollExtent.round()}');
+    expect(current(), 'history',
+        reason: 'scrolling did not reach the last section — either a section '
+            'is not mounted or the rail is not reporting position');
+    // It passed through the middle rather than jumping end to end: the rail
+    // REPORTS, and a report that only ever names the first and last section is
+    // not following the scroll.
+    expect(seen.length, greaterThan(2), reason: 'reported only $seen');
+
+    // Cold open on a passage link — no tap anywhere, which is the condition
+    // the web defect survived under for 49 versions.
+    final chunks = await FirebaseFirestore.instance
+        .collection('chunks')
+        .where('user_id', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
+        .where('document_id', isEqualTo: docId)
+        .get();
+    expect(chunks.docs.length, greaterThan(3),
+        reason: 'run tool/seed_long_doc.py — a short document cannot show a '
+            'scroll that had to happen');
+    final target = chunks.docs.last.id;
+    router.go('/reader/$docId?p=$target');
+    await pumpFor(tester, total: const Duration(seconds: 6));
+    // The link landed INSIDE the document, not at its top: the manuscript is
+    // mounted on open, so the anchor exists for the scroll to reach.
+    //
+    // The OFFSET is the assertion, not the reported section — at the bottom of
+    // the scroll the rail reports the last section whatever brought it there,
+    // so `current != 'summary'` alone would also be true of a reader that did
+    // not move at all if the document were short. This is a fresh route, so
+    // its scroller starts at 0 and any offset is the anchor's doing.
+    final after = tester
+        .widget<CustomScrollView>(find.byType(CustomScrollView))
+        .controller!
+        .position;
+    debugPrint('DEVICE-RUN reader deep link: current=${current()} '
+        'offset=${after.pixels.round()}');
+    expect(after.pixels, greaterThan(100),
+        reason: 'a `?p=` cold open left the reader at the top of the document '
+            '— the passage link has not been honoured (ADR-051), which is the '
+            'defect this whole item exists to avoid reproducing');
   });
 
   testWidgets('the reader opens the source file', (tester) async {

@@ -984,6 +984,77 @@ void main() {
     });
   });
 
+  group('§19 section rail', () {
+    testWidgets('one jump per section, the current one marked by TWO channels',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 120,
+          child: KitSectionRail(
+            items: const [
+              KitSectionRailItem('summary', 'Summary', Icons.auto_awesome_outlined),
+              KitSectionRailItem('manuscript', 'Manuscript', Icons.notes_outlined),
+              KitSectionRailItem('original', 'Original',
+                  Icons.insert_drive_file_outlined, count: 'PDF'),
+            ],
+            current: 'manuscript',
+            onJump: (_) {},
+            background: const Color(0xFFFFFFFF), // literal-ok: a test ground
+
+          ),
+        ),
+      );
+      expect(find.text('Summary'), findsWidgets);
+      expect(find.text('Manuscript'), findsWidgets);
+      // The Original jump carries the document's own type as a mono chip.
+      expect(find.text('PDF'), findsWidgets);
+
+      // Position AND weight, never hue alone (§19): the current jump owns the
+      // 2px accent underline, and its label is `--fg` where the others are
+      // `--fg-muted`. Both are read off the live tree.
+      final marked = tester
+          .widgetList<Container>(find.descendant(
+              of: find.byType(KitSectionRail), matching: find.byType(Container)))
+          .where((c) {
+        final d = c.decoration;
+        return d is BoxDecoration &&
+            d.border is Border &&
+            (d.border! as Border).bottom.width == 2 &&
+            (d.border! as Border).bottom.color.a > 0;
+      });
+      expect(marked.length, 1,
+          reason: 'exactly one jump is current, and it is marked by an '
+              'underline — not by colour alone and not by none');
+    });
+
+    testWidgets('a jump reports the section it names', (tester) async {
+      final jumped = <String>[];
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 120,
+          child: KitSectionRail(
+            items: const [
+              KitSectionRailItem('summary', 'Summary', Icons.auto_awesome_outlined),
+              KitSectionRailItem('history', 'History', Icons.history),
+            ],
+            current: 'summary',
+            onJump: jumped.add,
+            background: const Color(0xFFFFFFFF), // literal-ok: a test ground
+
+          ),
+        ),
+      );
+      await tester.tap(find.text('History').first);
+      await tester.pump();
+      // ONE call, carrying the id — the rail does not set its own current
+      // (§19: it is reported from scroll, and a tap marks it only because the
+      // scroll it causes arrives there).
+      expect(jumped, ['history']);
+    });
+  });
+
   group('§9 inspector rail', () {
     testWidgets('header, group labels, entries — and the active marker', (
       tester,

@@ -109,6 +109,9 @@ List<RouteBase> appRoutes() {
           builder: (context, state) => ReaderPage(
             docId: state.pathParameters['docId']!,
             passageId: state.uri.queryParameters['p'],
+            // `?from=` is the screen the Reader was opened from (4.65.0,
+            // ADR-101) — its back control names that screen and returns there.
+            from: state.uri.queryParameters['from'],
           ),
         ),
         ShellRoute(

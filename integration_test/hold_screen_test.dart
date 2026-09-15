@@ -26,8 +26,6 @@ import 'package:provider/provider.dart';
 import 'package:flutter_app/app.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
-import 'package:flutter_app/state/chat_notifier.dart';
-import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';

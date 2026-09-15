@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
+import '../shared/reader_origin.dart';
 import '../shared/source_host.dart';
+import '../theme/app_spacing.dart';
 import '../models/chunk.dart';
 import '../models/document.dart';
 import '../services/firestore_service.dart';
@@ -28,14 +30,25 @@ import '../widgets/kit/kit.dart';
 import '../services/analytics.dart';
 
 /// Reader — one-shot doc + chunks (`chunk_index` asc), fires `logReadEvent`
-/// on open (INV-03). Six panels (Summary/Manuscript/SpeedRead/Listen/Original/
-/// History) + source-freshness banner + Reorganize action. See reader.md.
+/// on open (INV-03). Six sections + source-freshness banner + Reorganize
+/// action. See reader.md.
+///
+/// **One document on one scroll** (4.64.0, ADR-100). Summary · Manuscript ·
+/// Speed read · Listen · Original · History are all present, all mounted and
+/// all reached by scrolling, in that order — which is normative, because the
+/// rail's positions mean nothing across clients otherwise. They were six TABS
+/// until now, and the cost is the one ADR-100 records: the ordinary path
+/// through the reader (summary, then text) was the one path that needed a tap,
+/// and the manuscript — which is what `?p=` and `[data-shared]` scroll into —
+/// was not mounted on a cold open, so **neither jump had ever fired from a
+/// link**. Nothing failed; the document opened at its top.
 ///
 /// Composition (`screens/reader.md` §Composition): the **Reading** frame (760),
-/// a back control naming the library, a §2.1 chapter opening led by the
-/// document's file badge, the byline beneath it, then the §8 stat cluster in
-/// its **separated row** form. Each panel is a body swap under that one header,
-/// never a second header.
+/// a back control naming the screen the Reader was opened FROM (§The way back,
+/// ADR-101), a §2.1 chapter opening led by the document's file badge, the
+/// byline beneath it, then the §8 stat cluster in its **separated row** form —
+/// one header for the whole scroll, with each section opening on its own §3
+/// section header beneath the §19 rail.
 ///
 /// It sits OUTSIDE `AppLayout` and inside `SupportShell` (INV-22) — the reader
 /// is the app's one full-bleed reading surface, and the support footer is shell
@@ -43,17 +56,35 @@ import '../services/analytics.dart';
 class ReaderPage extends StatefulWidget {
   final String docId;
 
-  /// `?p={chunkId}` — the passage the link pointed at (INV-21). It selects the
-  /// Manuscript panel rather than the Summary one, because a link to a passage
-  /// that opens a summary has not honoured the link; the panel then scrolls to
-  /// it.
+  /// `?p={chunkId}` — the passage the link pointed at (INV-21). The manuscript
+  /// is mounted on open (ADR-100), so this scrolls the one scroll to it.
   final String? passageId;
 
-  const ReaderPage({super.key, required this.docId, this.passageId});
+  /// `?from={path}` — the screen this Reader was opened from (ADR-101). Null
+  /// on a cold open: a newsletter link, a notification, a shared URL.
+  final String? from;
+
+  const ReaderPage({
+    super.key,
+    required this.docId,
+    this.passageId,
+    this.from,
+  });
 
   @override
   State<ReaderPage> createState() => _ReaderPageState();
 }
+
+/// The section order, and it is NORMATIVE (`screens/reader.md` §Continuous
+/// scroll): the rail's positions are meaningless across clients otherwise.
+const List<String> _sectionIds = [
+  'summary',
+  'manuscript',
+  'speedread',
+  'listen',
+  'original',
+  'history',
+];
 
 /// One Listen line: what is spoken, and when it starts (null → the panel falls
 /// back to word-count-proportional timing).
@@ -83,13 +114,93 @@ class _ReaderPageState extends State<ReaderPage> {
   bool _showStats = false;
   Document? _document;
   List<Chunk> _chunks = const [];
-  late String _tab = widget.passageId == null ? 'summary' : 'manuscript';
+
+  /// §19's rail REPORTS the section that currently crosses its own bottom edge
+  /// — it never sets one. A tap marks a jump only because the scroll it causes
+  /// arrives there, which is why this is written from the scroll and not from
+  /// the tap.
+  String _current = 'summary';
+
+  final ScrollController _scroll = ScrollController();
+
+  /// One key per section, for the jump and for the report. They are the only
+  /// thing that knows where a section IS: heights here are the panels' own and
+  /// nothing may guess them (a guessed offset lands a jump in the middle of the
+  /// section above).
+  final Map<String, GlobalKey> _sectionKeys = {
+    for (final id in _sectionIds) id: GlobalKey(),
+  };
 
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_reportCurrent);
     _load();
     _loadStatsPref();
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_reportCurrent);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Which section crosses the rail's bottom edge. Read off the real render
+  /// boxes rather than from a running total of heights: a section's height is
+  /// its panel's own, and a client that added them up would be reporting a
+  /// position it had invented.
+  void _reportCurrent() {
+    if (!mounted) return;
+    final railBottom =
+        (context.findRenderObject() as RenderBox?) == null ? 0.0 : KitSectionRail.height + MediaQuery.paddingOf(context).top;
+    // At the END of the scroll the rule's line is unreachable: the last
+    // sections sit in the tail of the viewport, below the rail, and no amount
+    // of scrolling can bring their heads under it — so a reader looking at
+    // History would be told they are in Listen, at the one position every
+    // reader reaches. The rail reports where the reader IS; at the bottom that
+    // is the last section. (Measured, not assumed: the run that found this
+    // ended at offset 7623 of 7622 with `listen` marked.)
+    if (_scroll.hasClients &&
+        _scroll.offset >= _scroll.position.maxScrollExtent - 1) {
+      if (_current != _sectionIds.last) {
+        setState(() => _current = _sectionIds.last);
+      }
+      return;
+    }
+    String current = _sectionIds.first;
+    for (final id in _sectionIds) {
+      final box = _sectionKeys[id]?.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.attached) continue;
+      final top = box.localToGlobal(Offset.zero).dy;
+      // "Crosses the rail's bottom edge": the last section whose top has gone
+      // past it. A tolerance of one logical pixel, because a jump lands
+      // exactly on the boundary and a strict `<` reports the section above.
+      if (top - railBottom <= 1) current = id;
+    }
+    if (current != _current) setState(() => _current = current);
+  }
+
+  /// A jump scrolls; it never hides. The target offset is the rail's own
+  /// height — a jump that lands a section's header UNDERNEATH the sticky rail
+  /// has not arrived at it (§19).
+  Future<void> _jumpTo(String id) async {
+    final ctx = _sectionKeys[id]?.currentContext;
+    if (ctx == null) return;
+    await Scrollable.ensureVisible(
+      ctx,
+      alignment: 0,
+      alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+    if (!mounted) return;
+    // `ensureVisible` stops with the section's top at the viewport's top,
+    // which on this screen is under the rail.
+    final target = (_scroll.offset - KitSectionRail.height)
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    _scroll.jumpTo(target);
+    _reportCurrent();
   }
 
   Future<void> _loadStatsPref() async {
@@ -274,86 +385,148 @@ class _ReaderPageState extends State<ReaderPage> {
     // The reader is the one authenticated screen OUTSIDE `AppLayout`, so
     // nothing above it pays for the status bar — the AppBar this screen used
     // to carry did, and dropping it put the back control under the notch.
+    //
+    // SLIVERS, because §19's rail is STICKY: it has to stay on screen to be
+    // able to say where the reader is, and a row inside an ordinary scroller
+    // scrolls away with the content it names.
     return SafeArea(
       bottom: false,
-      child: KitPage(
-        width: KitFrameWidth.reading,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            KitBackControl(
-              'Library',
-              onTap: () =>
-                  context.canPop() ? context.pop() : context.go('/sources'),
-            ),
-            const SizedBox(height: 18),
-            ChapterOpening(
-              mark: KitFileBadge(
-                kitDocKind(doc.type),
-                size: KitBadgeSize.header,
-              ),
-              folio: _shelfLabel(doc),
-              title: doc.title.isEmpty ? 'Untitled' : doc.title,
-              // The header runs straight into the byline and the stat row; the
-              // chapter rule would read as a divider between a title and its own
-              // subtitle.
-              rule: false,
-              actions: [
-                KitButton.ghost(
-                  'Ask about this',
-                  icon: Icons.forum_outlined,
-                  onPressed: () => context.go('/ask'),
-                ),
-                if (canReorg)
-                  KitButton.ghost(
-                    'Reorganize',
-                    icon: Icons.account_tree_outlined,
-                    onPressed: () => ReorganizeSheet.show(
-                      context,
-                      widget.docId,
-                      () => _reload(),
+      child: CustomScrollView(
+        controller: _scroll,
+        slivers: [
+          SliverToBoxAdapter(
+            child: KitFrameBand(
+              width: KitFrameWidth.reading,
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.s5),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _backControl(),
+                    const SizedBox(height: 18),
+                    ChapterOpening(
+                      mark: KitFileBadge(
+                        kitDocKind(doc.type),
+                        size: KitBadgeSize.header,
+                      ),
+                      folio: _shelfLabel(doc),
+                      title: doc.title.isEmpty ? 'Untitled' : doc.title,
+                      // The header runs straight into the byline and the stat
+                      // row; the chapter rule would read as a divider between
+                      // a title and its own subtitle.
+                      rule: false,
+                      actions: [
+                        KitButton.ghost(
+                          'Ask about this',
+                          icon: Icons.forum_outlined,
+                          onPressed: () => context.go('/ask'),
+                        ),
+                        if (canReorg)
+                          KitButton.ghost(
+                            'Reorganize',
+                            icon: Icons.account_tree_outlined,
+                            onPressed: () => ReorganizeSheet.show(
+                              context,
+                              widget.docId,
+                              () => _reload(),
+                            ),
+                          ),
+                        KitButton.secondary(
+                          'Add to letter',
+                          icon: Icons.mail_outlined,
+                          onPressed: () => context.go('/settings'),
+                        ),
+                      ],
                     ),
-                  ),
-                KitButton.secondary(
-                  'Add to letter',
-                  icon: Icons.mail_outlined,
-                  onPressed: () => context.go('/settings'),
+                    _bylineRow(doc),
+                    SourceFreshness(docId: widget.docId, doc: doc),
+                    const SizedBox(height: 14),
+                    _statRow(doc, readCount),
+                    if (_showStats) ...[
+                      const SizedBox(height: 16),
+                      _breakdown(),
+                    ],
+                    const SizedBox(height: 14),
+                    _finishControl(doc),
+                    const SizedBox(height: 10),
+                  ],
                 ),
-              ],
+              ),
             ),
-            _bylineRow(doc),
-            SourceFreshness(docId: widget.docId, doc: doc),
-            const SizedBox(height: 14),
-            _statRow(doc, readCount),
-            if (_showStats) ...[const SizedBox(height: 16), _breakdown()],
-            const SizedBox(height: 14),
-            _finishControl(doc),
-            const SizedBox(height: 24),
-            ReaderPanelTabs(
-              panels: _panels(doc),
-              selected: _tab,
-              onSelect: (id) {
-                // Which panel the reader actually reads in. Only on a change:
-                // tapping the tab already open is not a use of a mode.
-                if (id != _tab) {
+          ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: KitSectionRailHeader(
+              items: _railItems(doc),
+              current: _current,
+              // The reader's own ground: it sits outside `AppLayout`, on the
+              // support shell's `--surface`, and a rail painting `--bg` here
+              // is a band across the page rather than the page's own top.
+              background: Tokens.of(context).surface,
+              onJump: (id) {
+                // Which section the reader actually reads in. A jump is a use
+                // of a mode; the scroll that reaches the same section is not,
+                // and neither is a tap on the section already current.
+                if (id != _current) {
                   Analytics.track('reader_mode_used', {'mode': id});
                 }
-                setState(() => _tab = id);
+                _jumpTo(id);
               },
             ),
-            const SizedBox(height: 22),
-            if (!complete && _tab != 'summary')
-              ReaderUi(context).empty(
-                Icons.hourglass_empty,
-                'Still processing',
-                'This panel needs the finished passages. Check back once '
-                    'processing completes.',
-              )
-            else
-              _panel(),
-          ],
-        ),
+          ),
+          for (final id in _sectionIds)
+            SliverToBoxAdapter(
+              child: KitFrameBand(
+                width: KitFrameWidth.reading,
+                child: Padding(
+                  key: _sectionKeys[id],
+                  padding: const EdgeInsets.only(top: 22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Each section opens on its own §3 header: it is the
+                      // label the rail jumps to, and it does the work the tab
+                      // label used to do.
+                      SectionHeader(_sectionEyebrow(id, doc), first: true),
+                      if (!complete && id != 'summary')
+                        ReaderUi(context).empty(
+                          Icons.hourglass_empty,
+                          'Still processing',
+                          'This section needs the finished passages. Check '
+                              'back once processing completes.',
+                        )
+                      else
+                        _section(id),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.s20)),
+        ],
       ),
+    );
+  }
+
+  /// kit §2.2's back control — the one part of that header this screen takes.
+  /// It NAMES the screen the Reader was opened from and returns there
+  /// (ADR-101); a cold open, and any `?from=` this app does not recognise, say
+  /// `Library` and go to Sources, which is the honest answer when nothing is
+  /// known. Rendered by both states — loaded and NOT FOUND — because the
+  /// failure state is the one a reader most needs a way out of.
+  Widget _backControl() {
+    final origin = readerOrigin(
+      widget.from,
+      tags: context.watch<TagsNotifier>().tags,
+    );
+    return KitBackControl(
+      origin.label,
+      // A PUSHED reader (a citation's Open, ADR-101) pops back to the screen
+      // that pushed it, which is the same place `origin.path` names and keeps
+      // that screen's own state. Only a reader with no stack behind it — a cold
+      // open — navigates.
+      onTap: () =>
+          context.canPop() ? context.pop() : context.go(origin.path),
     );
   }
 
@@ -370,7 +543,7 @@ class _ReaderPageState extends State<ReaderPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            KitBackControl('Library', onTap: () => context.go('/sources')),
+            _backControl(),
             const SizedBox(height: 18),
             const ChapterOpening(title: 'Source not found', rule: false),
             if (_error != null)
@@ -397,22 +570,46 @@ class _ReaderPageState extends State<ReaderPage> {
     return 'Unshelved';
   }
 
-  List<ReaderPanel> _panels(Document doc) => [
-    const ReaderPanel('summary', 'Summary', Icons.auto_awesome_outlined),
-    const ReaderPanel('manuscript', 'Manuscript', Icons.notes_outlined),
-    const ReaderPanel('speedread', 'Speed read', Icons.speed_outlined),
-    const ReaderPanel('listen', 'Listen', Icons.headset_outlined),
-    ReaderPanel(
+  /// The rail's jumps, in `_sectionIds` order — the two vocabularies are the
+  /// same list, read once, because a section the rail never names is a section
+  /// that disappears with no error (the `KIND_ORDER` shape).
+  List<KitSectionRailItem> _railItems(Document doc) => [
+    const KitSectionRailItem('summary', 'Summary', Icons.auto_awesome_outlined),
+    const KitSectionRailItem('manuscript', 'Manuscript', Icons.notes_outlined),
+    const KitSectionRailItem('speedread', 'Speed read', Icons.speed_outlined),
+    const KitSectionRailItem('listen', 'Listen', Icons.headset_outlined),
+    KitSectionRailItem(
       'original',
       'Original',
       Icons.insert_drive_file_outlined,
       count: doc.type.toUpperCase(),
     ),
-    const ReaderPanel('history', 'History', Icons.history),
+    const KitSectionRailItem('history', 'History', Icons.history),
   ];
 
-  Widget _panel() {
-    switch (_tab) {
+  /// The §3 eyebrow each section opens with. The reference's own labels — the
+  /// manuscript's says what the section IS, because "Manuscript" alone reads as
+  /// a synonym for the document.
+  String _sectionEyebrow(String id, Document doc) {
+    switch (id) {
+      case 'manuscript':
+        return 'Manuscript · the extracted text';
+      case 'speedread':
+        return 'Speed read';
+      case 'listen':
+        return 'Listen';
+      case 'original':
+        return 'Original · ${doc.type.toUpperCase()}';
+      case 'history':
+        return 'Reading history';
+      case 'summary':
+      default:
+        return 'Summary';
+    }
+  }
+
+  Widget _section(String id) {
+    switch (id) {
       case 'manuscript':
         return ManuscriptPanel(
           docId: widget.docId,
@@ -425,10 +622,14 @@ class _ReaderPageState extends State<ReaderPage> {
           // null` by design, so a client that tests only the field draws a
           // dead chip on every voice memo and every video.
           onSeekAudio: _hasOwnAudio(_document!)
-              ? (start) => setState(() {
-                    _tab = 'listen';
-                    _listenSeek = start;
-                  })
+              ? (start) {
+                  // §Step jump: the chip asks Listen to start at a time. On a
+                  // scroll that is a JUMP, not a tab change — and the seek is
+                  // set first, because the section is already mounted and
+                  // would otherwise play from the top while the scroll runs.
+                  setState(() => _listenSeek = start);
+                  _jumpTo('listen');
+                }
               : null,
           onOpenLink: (url) =>
               launchUrlString(url, mode: LaunchMode.externalApplication),
