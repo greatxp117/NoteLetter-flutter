@@ -15,6 +15,11 @@ class ImportJob {
 
   /// 1.3.0 (ADR-006): `"duplicate" | "size_limit" | null` (missing pre-1.3.0).
   final String? skipReason;
+
+  /// Why the job is held: `type` or `size` (4.45.0, ADR-083). Rendered as the
+  /// row's reason, and **never as a length** — `over_mb` is a proxy for length,
+  /// not a measure of one, because no provider reports a page count.
+  final String? reviewReason;
   final String mimeType;
   final int fileSize;
   final int? createdAt;
@@ -32,6 +37,7 @@ class ImportJob {
     this.documentId,
     this.errorMessage,
     this.skipReason,
+    this.reviewReason,
     this.mimeType = '',
     this.fileSize = 0,
     this.createdAt,
@@ -51,6 +57,7 @@ class ImportJob {
       documentId: json['document_id'] as String?,
       errorMessage: json['error_message'] as String?,
       skipReason: json['skip_reason'] as String?,
+      reviewReason: json['review_reason'] as String?,
       mimeType: json['mime_type'] as String? ?? '',
       fileSize: (json['file_size'] as num?)?.toInt() ?? 0,
       createdAt: tsMs(json['created_at']),
@@ -59,6 +66,15 @@ class ImportJob {
       retryCount: (json['retry_count'] as num?)?.toInt() ?? 0,
     );
   }
+
+  /// 4.45.0 (ADR-083) — held, waiting on the user. **Non-terminal**: no worker
+  /// is enqueued and nothing has been downloaded, extracted or charged for.
+  bool get isAwaitingReview => status == 'awaiting_review';
+
+  /// Dismissed by the reader (4.45.0). Reversed by **Import again**, which is
+  /// `fn_retry_import_job` — since 1.3.0 that already means "import it anyway"
+  /// for a skipped job.
+  bool get isDismissed => skipReason == 'dismissed';
 
   static const _terminal = {'complete', 'error', 'skipped', 'cancelled'};
 

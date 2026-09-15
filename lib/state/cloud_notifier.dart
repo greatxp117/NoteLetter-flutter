@@ -47,6 +47,48 @@ class CloudNotifier extends ChangeNotifier {
   bool get loadingIntegrations => _loadingIntegrations;
   List<ImportJob> get jobs => List.unmodifiable(_jobs);
 
+  /// The held set (4.45.0, ADR-083) — jobs waiting on a judgement. Read off
+  /// the one subscription the screen already holds; there is no second query
+  /// and no count to keep in step.
+  List<ImportJob> get heldJobs =>
+      List.unmodifiable(_jobs.where((j) => j.isAwaitingReview));
+
+  /// Triage held jobs. Returns a message on failure, null on success.
+  ///
+  /// **Renders pessimistically**: nothing is moved here. The rows leave the
+  /// queue when the subscription says the write landed — a control that moves
+  /// before the write hides the failure completely, and this one acts on files
+  /// the reader may not be able to see.
+  ///
+  /// Chunked to the endpoint's 50-id cap. Ids reported in `skipped` are jobs
+  /// already triaged elsewhere; they are **not** an error and simply leave the
+  /// queue on the next snapshot.
+  Future<String?> reviewJobs(List<String> jobIds, String action) async {
+    if (jobIds.isEmpty) return null;
+    try {
+      for (var i = 0; i < jobIds.length; i += 50) {
+        final chunk = jobIds.sublist(
+            i, i + 50 > jobIds.length ? jobIds.length : i + 50);
+        await Api.instance.reviewImportJobs(chunk, action);
+      }
+      return null;
+    } on UnauthorizedException {
+      await AuthService.instance.signOut();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      // Deliberate: `ApiException` above carries every reason the SERVER gave,
+      // and this branch is what is left — a socket that never answered, a body
+      // that would not parse. There is no rejection here to discard, so the
+      // sentence is the only true thing that can be said, and it is still
+      // rendered rather than swallowed.
+      return action == 'approve'
+          ? 'Those files could not be imported.'
+          : 'Those files could not be dismissed.';
+    }
+  }
+
   String? get browseProvider => _browseProvider;
   List<CloudCrumb> get crumbs => List.unmodifiable(_crumbs);
   CloudFileListing? get listing => _listing;
@@ -357,6 +399,7 @@ class CloudNotifier extends ChangeNotifier {
     List<String>? folderIds,
     List<String>? includeTypes,
     List<String>? excludePatterns,
+    Map<String, dynamic>? reviewRules,
   }) async {
     try {
       final data = await Api.instance.syncSettings(
@@ -367,6 +410,7 @@ class CloudNotifier extends ChangeNotifier {
         folderIds: folderIds,
         includeTypes: includeTypes,
         excludePatterns: excludePatterns,
+        reviewRules: reviewRules,
       );
       final updated =
           CloudIntegration.fromJson(data['integration'] as Map<String, dynamic>);

@@ -279,6 +279,12 @@ class SectionHeader extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
+  /// A trailing **note**, not a control: the processing section's split count
+  /// ("3 indexing now — 2 need attention") sits beside the total rather than
+  /// replacing it, because one number for two states buries the half that
+  /// needs a person and the other half is still true.
+  final String? note;
+
   /// The reference margin is `32px 0 14px`; the leading 32 is suppressed for
   /// the first section on a screen, which sits under a header that has already
   /// paid for the space.
@@ -289,6 +295,7 @@ class SectionHeader extends StatelessWidget {
     super.key,
     this.actionLabel,
     this.onAction,
+    this.note,
     this.first = false,
   });
 
@@ -302,6 +309,14 @@ class SectionHeader extends StatelessWidget {
         textBaseline: TextBaseline.alphabetic,
         children: [
           Expanded(child: Eyebrow(eyebrow)),
+          if (note != null)
+            Flexible(
+              child: Text(
+                note!,
+                textAlign: TextAlign.right,
+                style: KitText.lede(context, fontSize: 13, height: 18),
+              ),
+            ),
           if (actionLabel != null)
             GestureDetector(
               onTap: onAction,

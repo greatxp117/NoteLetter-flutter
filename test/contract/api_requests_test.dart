@@ -167,6 +167,22 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   'fn_split_shelf': (b) =>
       Api.instance.splitShelf(b['tagId'], _maps(b['parts'])),
   'fn_cancel_document': (b) => Api.instance.cancelDocument(b['docId']),
+  // Batch triage of held import jobs (4.45.0, ADR-083). `job_ids` and `action`
+  // are snake_case on this endpoint, unlike most of the surface — the fixture
+  // is the authority and the builder mirrors it.
+  'fn_review_import_jobs': (b) =>
+      Api.instance.reviewImportJobs(_strs(b['job_ids']) ?? const [],
+          b['action'] as String),
+  // The three cloud READS. Their fixtures are GETs, so the suite skips them a
+  // step later as "a read, not a builder call" — but an endpoint with no
+  // adapter at all is counted as undriven and has to be DECLARED, which is how
+  // these three sat in `_noBuilder` describing screens this client has had for
+  // versions. Naming the builder is what takes them out of the debt list.
+  'fn_get_cloud_integrations': (_) => Api.instance.getCloudIntegrations(),
+  'fn_list_cloud_files': (b) =>
+      Api.instance.listCloudFiles(Map<String, dynamic>.of(b)),
+  'fn_check_source_freshness': (b) =>
+      Api.instance.checkSourceFreshness(b['docId'] as String? ?? ''),
   // `force` is passed through from the fixture rather than defaulted, so the
   // forced and unforced cases drive DIFFERENT request bodies (4.47.0,
   // ADR-085) — the builder omits the key entirely when it is false, which
@@ -322,10 +338,6 @@ const _noBuilder = <String, String>{
   'fn_ingest_passage':
       'passage capture is the browser extension\'s (ADR-032); no client but it '
       'sends this',
-  'fn_get_cloud_integrations': 'cloud sync settings are unbuilt here',
-  'fn_list_cloud_files': 'the folder picker is unbuilt here',
-  'fn_check_source_freshness': 'freshness (Tier C) is unbuilt here',
-  'fn_review_import_jobs': 'the import review queue (4.45.0) is unbuilt here',
   'fn_reply_support_message':
       'there is no support console in this client (CHANGELOG 4.19.0)',
 };

@@ -34,6 +34,20 @@ class CloudIntegration {
   final List<String> folderIds;
   final List<String> includeTypes;
   final List<String> excludePatterns;
+
+  /// `sync_config.review_rules` (4.45.0, ADR-083) — keyed by supported type,
+  /// each value a **closed** rule object: `{"mode": "always"}` or
+  /// `{"mode": "over_mb", "over_mb": N}` with N an int 1–100.
+  ///
+  /// A type absent from the map is **never reviewed**, and the default is `{}`
+  /// — which is what makes `awaiting_review` an additive status: no held row
+  /// can exist until someone writes a rule, so a client at an older pin cannot
+  /// be shown a status it does not render.
+  ///
+  /// **`over_mb` is named for what it measures.** It is a proxy for length and
+  /// not a measure of it — no provider reports a page count — so it is never
+  /// rendered as "long", "pages", or a page estimate.
+  final Map<String, ReviewRule> reviewRules;
   final int? lastSyncAt;
   final int? lastManualSyncAt;
 
@@ -53,6 +67,7 @@ class CloudIntegration {
     this.folderIds = const [],
     this.includeTypes = const [],
     this.excludePatterns = const [],
+    this.reviewRules = const {},
     this.lastSyncAt,
     this.lastManualSyncAt,
     this.status = 'connected',
@@ -77,6 +92,12 @@ class CloudIntegration {
           (syncConfig['include_types'] as List?)?.cast<String>() ?? const [],
       excludePatterns:
           (syncConfig['exclude_patterns'] as List?)?.cast<String>() ?? const [],
+      reviewRules: {
+        for (final e in ((syncConfig['review_rules'] as Map?) ?? const {})
+            .cast<String, dynamic>()
+            .entries)
+          if (ReviewRule.fromJson(e.value) case final r?) e.key: r,
+      },
       lastSyncAt: _tsMs(json['last_sync_at']),
       lastManualSyncAt: _tsMs(json['last_manual_sync_at']),
       // Missing status = connected (pre-1.3.0 docs).
@@ -110,4 +131,40 @@ class CloudIntegration {
     if (diff.inDays < 1) return 'Synced ${diff.inHours}h ago';
     return 'Synced ${diff.inDays}d ago';
   }
+}
+
+/// One review rule. **A closed object** — the endpoint rejects anything else,
+/// so this parses the two shapes and nothing more; an unreadable value is
+/// dropped rather than guessed at, which leaves that type unreviewed, the same
+/// as absent.
+class ReviewRule {
+  /// `always` or `over_mb`.
+  final String mode;
+
+  /// Only meaningful for `over_mb`; an int 1–100.
+  final int? overMb;
+
+  const ReviewRule.always()
+      : mode = 'always',
+        overMb = null;
+
+  const ReviewRule.overMb(int mb)
+      : mode = 'over_mb',
+        overMb = mb;
+
+  bool get isAlways => mode == 'always';
+
+  static ReviewRule? fromJson(dynamic raw) {
+    if (raw is! Map) return null;
+    final mode = raw['mode'];
+    if (mode == 'always') return const ReviewRule.always();
+    if (mode == 'over_mb') {
+      final n = (raw['over_mb'] as num?)?.toInt();
+      if (n != null) return ReviewRule.overMb(n);
+    }
+    return null;
+  }
+
+  Map<String, dynamic> toJson() =>
+      isAlways ? {'mode': 'always'} : {'mode': 'over_mb', 'over_mb': overMb};
 }

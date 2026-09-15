@@ -81,12 +81,25 @@ class UploadNotifier extends ChangeNotifier {
     }
   }
 
-  Future<void> addUrl(String rawUrl) async {
+  /// Add a link. Returns a **rejection message**, or null when the request was
+  /// made — the same contract as `uploadRejection`, and for the same reason.
+  ///
+  /// **A link refused at the door creates no document row**, so unlike every
+  /// other ingest failure there is no tray entry to carry the reason: the
+  /// caller has to render it at the point of paste or it is not rendered at
+  /// all. That is the whole of 4.19.3 — the reference caught a clear 400 into
+  /// `console.error`, the field cleared, no row appeared, and the paste
+  /// vanished. Here the local INV-07 refusal did the same thing one step
+  /// earlier, by returning silently.
+  Future<String?> addUrl(String rawUrl) async {
     final url = rawUrl.trim();
-    if (url.isEmpty) return;
+    if (url.isEmpty) return null;
 
     final type = _detectUrlType(url);
-    if (type == null) return; // unparseable — reject locally (INV-07)
+    if (type == null) {
+      return 'That doesn’t look like a link NoteLetter can read. Paste a full '
+          'web address, or a YouTube, Instagram, TikTok or podcast link.';
+    }
 
     final displayName =
         type == 'youtube' ? 'YouTube: ${_truncate(url)}' : _truncate(url);
@@ -100,6 +113,10 @@ class UploadNotifier extends ChangeNotifier {
     _files.add(file);
     notifyListeners();
     await _ingestUrl(file, url, type);
+    // The row carries the reason; hand it back too, so the field the reader is
+    // still looking at can say so and keep what they typed.
+    final row = _files.firstWhere((f) => f.id == file.id, orElse: () => file);
+    return row.status == UploadStatus.error ? row.errorMessage : null;
   }
 
   /// Canonical client-side detection table (INV-07) — mirrors web `detectUrlType()`.

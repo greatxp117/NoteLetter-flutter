@@ -8,6 +8,7 @@ import '../state/upload_notifier.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
+import '../shared/upload_types.dart';
 import 'kit/kit.dart';
 
 /// The add flows (`screens/sources.md` §Composition body 1): the **drop zone**,
@@ -60,17 +61,43 @@ class FileUploaderState extends State<FileUploader> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _urlFocus.requestFocus());
   }
 
+  /// The §14.2 slot for a file or a link this client refused **before** any
+  /// request. Every other ingest failure has a document row to carry its
+  /// reason; a refusal at the door creates none, so without this the refusal is
+  /// not rendered anywhere (4.19.3).
+  String? _rejection;
+
+  void _reject(String? message) {
+    if (!mounted) return;
+    setState(() => _rejection = message);
+  }
+
   Future<void> _pickFiles(UploadNotifier notifier) async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       withData: true,
+      // The contracted set (4.10.0, ADR-046), not `FileType.any`. Advisory
+      // only — a share sheet and a paste bypass it entirely — which is why
+      // every file still goes through `uploadRejection` below.
+      type: FileType.custom,
+      allowedExtensions: uploadAllowedExtensions,
     );
     if (result == null) return;
+    _reject(null);
 
     for (final file in result.files) {
       final bytes = file.bytes;
       if (bytes == null) continue;
       final mimeType = lookupMimeType(file.name) ?? 'application/octet-stream';
+      // The same words the server would use, without the round trip — and a
+      // `null` is not an accept, it is "worth sending". The server still
+      // decides, and its message still reaches the row.
+      final refused = uploadRejection(
+          name: file.name, size: file.size, mimeType: mimeType);
+      if (refused != null) {
+        _reject(refused);
+        continue;
+      }
       notifier.addFile(file.name, file.size, bytes, mimeType).then((_) {
         if (!mounted) return;
         final match = notifier.files.lastWhere(
@@ -124,21 +151,23 @@ class FileUploaderState extends State<FileUploader> {
     final url = _urlCtrl.text.trim();
     if (url.isEmpty) return;
 
-    setState(() => _urlSubmitting = true);
+    setState(() {
+      _urlSubmitting = true;
+      _rejection = null;
+    });
     try {
-      await notifier.addUrl(url);
+      final refused = await notifier.addUrl(url);
       if (!mounted) return;
+      if (refused != null) {
+        // **Keep the field, keep the text, say why.** Clearing it on a
+        // rejection is the 4.19.3 defect exactly: the paste disappears, no row
+        // appears, and the reader is left with nothing to correct.
+        _reject(refused);
+        return;
+      }
       _urlCtrl.clear();
       setState(() => _showUrlInput = false);
       widget.onUploadComplete?.call();
-    } catch (e) {
-      if (!mounted) return;
-      final match = notifier.files.lastWhere(
-        (f) => f.name.contains(url.length > 30 ? url.substring(0, 30) : url),
-        orElse: () => UploadFile(id: '', name: '', size: 0),
-      );
-      widget.onUploadError
-          ?.call(match.errorMessage ?? 'Failed to ingest URL.');
     } finally {
       if (mounted) setState(() => _urlSubmitting = false);
     }
@@ -159,14 +188,20 @@ class FileUploaderState extends State<FileUploader> {
               title: uploading
                   ? 'Uploading…'
                   : 'Drop files, or tap to add a few',
-              help: 'PDF, Word, Markdown, plain text, images — '
-                  'up to 100 MB each',
+              // Copy from the one declaration, so the zone cannot promise a
+              // class the picker does not offer or omit one it does. The cap
+              // is **per type** (4.13.0, ADR-049): a flat "100 MB each" is
+              // wrong for video by a factor of twenty, and a reader with a
+              // phone-shot clip reads it as a refusal that has not happened.
+              help: '$uploadAcceptHelp — up to 100 MB each, 2 GB for video',
               formats: const [
                 KitTag('PDF'),
                 KitTag('DOCX'),
-                KitTag('EPUB'),
+                KitTag('PPTX'),
                 KitTag('Markdown'),
                 KitTag('PNG / JPG'),
+                KitTag('Audio'),
+                KitTag('Video'),
               ],
               onTap: () => _pickFiles(notifier),
             ),
@@ -195,6 +230,13 @@ class FileUploaderState extends State<FileUploader> {
                   setState(() => _showUrlInput = false);
                 },
               ),
+
+            // §14.2 — the rejection this client made itself, in the place the
+            // reader is looking. Dense: it sits under a control group.
+            if (_rejection != null) ...[
+              const SizedBox(height: 10),
+              KitFailureInline(_rejection!),
+            ],
 
             if (notifier.files.isNotEmpty) ...[
               const SizedBox(height: 12),

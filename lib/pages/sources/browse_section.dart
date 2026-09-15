@@ -11,6 +11,7 @@ import '../../theme/tokens.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import '../library/document_detail_sheet.dart';
+import 'source_sheet.dart';
 
 /// **Browse** — the volume list on Sources (`screens/sources.md` §Composition
 /// body 2), rebuilt against the kit (ADR-041, contract 4.5.2).
@@ -116,7 +117,8 @@ class _BrowseSectionState extends State<BrowseSection> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (inFlight.isNotEmpty) ...[
-              SectionHeader(_processingLabel(inFlight)),
+              SectionHeader(_processingLabel(inFlight),
+                  note: _processingNote(inFlight)),
               KitRowList(
                 rows: [
                   for (final d in inFlight)
@@ -214,15 +216,20 @@ class _BrowseSectionState extends State<BrowseSection> {
 /// when anything has failed**: "{active} indexing now — {failed} needs
 /// attention". One number for two states would bury the half that needs a
 /// person.
-String _processingLabel(List<Document> inFlight) {
+String _processingLabel(List<Document> inFlight) =>
+    'Being processed · ${inFlight.length}';
+
+/// The split, beside the total — null while nothing has failed.
+String? _processingNote(List<Document> inFlight) {
   final failed = inFlight
       .where((d) =>
           d.status == DocumentStatus.error || d.status == DocumentStatus.skipped)
       .length;
+  if (failed == 0) return null;
   final active = inFlight.length - failed;
-  if (failed == 0) return 'Being processed · $active';
-  if (active == 0) return '$failed needs attention';
-  return '$active indexing now — $failed needs attention';
+  final needs = failed == 1 ? 'needs' : 'need';
+  if (active == 0) return '$failed $needs attention';
+  return '$active indexing now — $failed $needs attention';
 }
 
 /// A volume. The §4.1 row, with its per-source affordances hanging off the end.
@@ -252,14 +259,76 @@ class _VolumeRow extends StatelessWidget {
 
 /// A source still in the pipeline. **Not a different component** — the same
 /// §4.1 row, carrying its stage in the subtitle slot (`screens/sources.md`
-/// §Composition), with retry/remove or cancel in the trailing slot.
-class _ProcessingRow extends StatelessWidget {
+/// §Composition).
+///
+/// The trailing slot carries, in order: the **source affordance** (§6.4.2 —
+/// every row offers the source itself, because `error_message` is a claim
+/// *about* a source and nothing else on the screen shows it), then **the row's
+/// one primary**, then the overflow.
+class _ProcessingRow extends StatefulWidget {
   final Document doc;
 
   const _ProcessingRow({required this.doc});
 
   @override
+  State<_ProcessingRow> createState() => _ProcessingRowState();
+}
+
+class _ProcessingRowState extends State<_ProcessingRow> {
+  /// §14.2 — **one slot, shared**, since one primary means one outstanding
+  /// request. A 409/429 renders here, in the row, with the server's words: the
+  /// cooldown and cap copy is user-facing.
+  String? _error;
+  bool _busy = false;
+
+  /// **The row's one primary** (4.47.0, ADR-085), chosen by `status`:
+  ///
+  /// * `error` → **Retry** (`fn_retry_document`, re-enters at `failed_stage`)
+  /// * `skipped` + not forced → **Index it anyway** (`force: true`)
+  /// * `skipped` + `skip_reason == "unresolved_article"` → **Index it anyway**
+  ///   *whatever `force_process` says* — the card was read correctly and the
+  ///   LOOKUP failed, and a lookup that failed may come back. Hiding it there
+  ///   would make a transient failure permanent with no route back.
+  /// * `skipped`, forced, any other reason → **none**. The appeal has been
+  ///   heard, an unforced retry would still 409, and a control whose only job
+  ///   is to explain why it does nothing is a sentence pretending to be a
+  ///   button.
+  ///
+  /// **Retry is never rendered on a `skipped` row**: `fn_retry_document`
+  /// refuses that status by name, so the control could not succeed and never
+  /// could. The two branches are disjoint by construction.
+  (String, bool)? _primary(Document doc) {
+    if (doc.status == DocumentStatus.error) return ('Retry', false);
+    if (doc.status == DocumentStatus.skipped &&
+        (doc.skipReason == 'unresolved_article' || !doc.forceProcess)) {
+      return ('Index it anyway', true);
+    }
+    return null;
+  }
+
+  Future<void> _runPrimary(bool force) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final activity = context.read<ActivityNotifier>();
+    final err = force
+        ? await activity.forceProcessDocument(widget.doc.id)
+        : await activity.retryDocument(widget.doc.id);
+    if (!mounted) return;
+    // On 200 **no optimistic state is needed**: the document flips to `queued`
+    // under the existing subscription and the row returns to its normal
+    // progress treatment.
+    setState(() {
+      _busy = false;
+      _error = err;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final doc = widget.doc;
     final failed = doc.status == DocumentStatus.error ||
         doc.status == DocumentStatus.skipped;
     // The failure message is shown VERBATIM: there is no error reason code, and
@@ -268,13 +337,49 @@ class _ProcessingRow extends StatelessWidget {
     final subtitle = failed
         ? (doc.errorMessage ?? _stageLabel(doc))
         : _stageLabel(doc);
+    final primary = _primary(doc);
 
-    return KitSourceRow(
+    final row = KitSourceRow(
       leading: KitFileBadge(kitDocKind(doc.type)),
       title: doc.title.isEmpty ? 'Untitled' : doc.title,
       subtitle: subtitle,
       date: _rowDate(doc.createdAt),
-      trailing: _RowMenu(doc: doc),
+      // Three controls at once — the source affordance, the primary and the
+      // overflow — do not fit beside the text on a phone.
+      wideTrailing: true,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Offered on EVERY row — failed, queued, uploading or
+          // mid-extraction — and chosen by the document's shape, which is
+          // known at creation and does not depend on `status`.
+          KitButton.ghost(SourceSheet.labelFor(doc),
+              onPressed: () => SourceSheet.open(context, doc)),
+          if (primary != null) ...[
+            const SizedBox(width: 6),
+            // The one accent-filled control. Same slot, same metrics, same
+            // position in both branches: an `error` row and a `skipped` row
+            // are the same pattern with a different decision in it, not two
+            // designs.
+            KitButton.primary(primary.$1,
+                onPressed: _busy ? null : () => _runPrimary(primary.$2)),
+          ],
+          const SizedBox(width: 4),
+          _RowMenu(doc: doc),
+        ],
+      ),
+    );
+
+    if (_error == null) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.only(left: 44, bottom: 8),
+          child: KitFailureInline(_error!, dense: true),
+        ),
+      ],
     );
   }
 }
@@ -330,22 +435,11 @@ class _RowMenu extends StatelessWidget {
         if (complete)
           const PopupMenuItem(value: 'open', child: Text('Open')),
         const PopupMenuItem(value: 'details', child: Text('Priority & tags…')),
-        // Retry is offered on `error` ONLY (4.47.0, ADR-085). On a skipped
-        // document fn_retry_document refuses that status by name, so the item
-        // could never once have worked — a skipped row's answer is the next
-        // one instead, never both.
-        if (doc.status == DocumentStatus.error)
-          const PopupMenuItem(value: 'retry', child: Text('Retry')),
-        // Gated on the STATUS, never on `image_classification == 'faces'` —
-        // that vocabulary is open and clients may not switch exhaustively on
-        // it. Gone once the appeal has been heard, EXCEPT where the reason can
-        // change: `unresolved_article` means the card read correctly and the
-        // LOOKUP failed, and a lookup that failed may come back (4.48.0,
-        // ADR-085 §7). `skipReason` is a closed vocabulary and may be switched
-        // on.
-        if (doc.status == DocumentStatus.skipped &&
-            (doc.skipReason == 'unresolved_article' || !doc.forceProcess))
-          const PopupMenuItem(value: 'force', child: Text('Index it anyway')),
+        // Retry and Index-it-anyway are NOT here. A failure row has **one
+        // primary** and it is an accent-filled control on the row itself
+        // (4.47.0, ADR-085) — burying the row's single answer in an overflow
+        // menu is the same defect as rendering both at once, arrived at from
+        // the other side. `_ProcessingRow` owns it.
         if (active)
           const PopupMenuItem(value: 'cancel', child: Text('Cancel')),
         const PopupMenuItem(value: 'delete', child: Text('Remove')),
@@ -365,16 +459,6 @@ class _RowMenu extends StatelessWidget {
         if (saved == true && context.mounted) {
           AppToast.show(context, 'Saved.', type: ToastType.info);
         }
-      case 'retry':
-        final err = await activity.retryDocument(doc.id);
-        if (!context.mounted) return;
-        AppToast.show(context, err ?? 'Retrying this source.',
-            type: err != null ? ToastType.error : ToastType.info);
-      case 'force':
-        final err = await activity.forceProcessDocument(doc.id);
-        if (!context.mounted) return;
-        AppToast.show(context, err ?? 'Indexing this image.',
-            type: err != null ? ToastType.error : ToastType.info);
       // §18 (4.56.0, ADR-092). The ACTION runs inside the confirmation now, so
       // its rejection renders in the panel the reader is looking at instead of
       // a toast behind it — and the panel does not close on one, which is what

@@ -261,6 +261,7 @@ class _SourcesPageState extends State<SourcesPage> {
                     ),
                   ),
 
+              _ReviewQueue(held: cloud.heldJobs),
               _ImportActivity(jobs: cloud.jobs),
               const OrganizationSettingsPanel(),
               const _OrganizationSection(),
@@ -606,6 +607,166 @@ class _ImportActivity extends StatelessWidget {
   }
 }
 
+/// **The import review queue** (`screens/sources.md` §Import review queue,
+/// 4.45.0, ADR-083) — the files a sync held because the reader asked to be
+/// asked. Above the progress list, because it is the one thing here that is
+/// waiting on them.
+///
+/// **Empty is not a state worth drawing.** With no rules configured the section
+/// never renders; with rules configured and nothing held, it stays absent too.
+/// "Nothing waiting" is the normal condition, not an achievement.
+///
+/// Every action renders **pessimistically** off the subscription — nothing
+/// moves here until the write lands. A control that moves first hides the
+/// failure completely, and this one acts on files that may be scrolled out of
+/// sight.
+class _ReviewQueue extends StatefulWidget {
+  final List<ImportJob> held;
+  const _ReviewQueue({required this.held});
+
+  @override
+  State<_ReviewQueue> createState() => _ReviewQueueState();
+}
+
+class _ReviewQueueState extends State<_ReviewQueue> {
+  /// §14.2 — one slot for the section's own rejection. One outstanding batch at
+  /// a time, so one slot.
+  String? _error;
+  bool _busy = false;
+
+  Future<void> _run(List<String> ids, String action) async {
+    if (ids.isEmpty || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final err = await context.read<CloudNotifier>().reviewJobs(ids, action);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = err;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final held = widget.held;
+    if (held.isEmpty) return const SizedBox.shrink();
+    final ids = [for (final j in held) j.id];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          '${held.length} ${held.length == 1 ? 'file' : 'files'} waiting for you',
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            KitButton.primary('Import all',
+                onPressed: _busy ? null : () => _run(ids, 'approve')),
+            // §18 on **"Dismiss all" only**, and the asymmetry is the decision
+            // rather than an omission: a reader dismissing one row has just
+            // read that row, while this control acts on files that may be
+            // scrolled out of sight. Both are undoable from Import history, so
+            // a panel on every row would make a triage queue slower without
+            // making anything safer.
+            KitButton.ghost('Dismiss all', onPressed: _busy
+                ? null
+                : () async {
+                    final done = await KitConfirm.show(
+                      context,
+                      title: 'Dismiss ${held.length} '
+                          '${held.length == 1 ? 'file' : 'files'}?',
+                      body: 'They will not be offered again, even if they '
+                          'change at the provider. Nothing is deleted where it '
+                          'lives. You can undo this with Import again on the '
+                          'dismissed row in your import history.',
+                      confirmLabel: 'Dismiss them',
+                      cancelLabel: 'Keep waiting',
+                      onConfirm: () => context
+                          .read<CloudNotifier>()
+                          .reviewJobs(ids, 'dismiss'),
+                    );
+                    if (done == true && mounted) setState(() => _error = null);
+                  }),
+          ],
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          KitFailureInline(_error!),
+        ],
+        const SizedBox(height: 10),
+        KitRowList(
+          rows: [for (final j in held) _HeldRow(job: j, onRun: _run)],
+        ),
+        // The standing sentence the per-row control keeps above the list, so a
+        // single Dismiss is not silent about being permanent.
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            'Dismissing a file means it will not be offered again, even if it '
+            'changes at the provider. Import again on the dismissed row undoes '
+            'it.',
+            style: KitText.meta(context),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A held row: the progress-row anatomy, plus the **size** and the **reason**.
+class _HeldRow extends StatelessWidget {
+  final ImportJob job;
+  final Future<void> Function(List<String> ids, String action) onRun;
+
+  const _HeldRow({required this.job, required this.onRun});
+
+  /// "PDF · 42 MB — over your 5 MB review size" / "PPTX — you asked about
+  /// every one". **Named by size, never by length**: there is no page count to
+  /// promise, because no provider reports one (ADR-083).
+  String _reason() {
+    final kind = job.mimeType.isEmpty
+        ? ''
+        : kitDocKind(job.mimeType).toUpperCase();
+    final size = job.fileSize > 0
+        ? '${(job.fileSize / (1024 * 1024)).toStringAsFixed(job.fileSize >= 10 * 1024 * 1024 ? 0 : 1)} MB'
+        : '';
+    final head = [if (kind.isNotEmpty) kind, if (size.isNotEmpty) size]
+        .join(' · ');
+    final why = job.reviewReason == 'type'
+        ? 'you asked about every one'
+        : 'over your review size';
+    return head.isEmpty ? why : '$head — $why';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KitSourceRow(
+      leading: const KitFileBadge('web'),
+      title: job.providerFileName.isEmpty
+          ? '(fetching name…)'
+          : job.providerFileName,
+      subtitle: [
+        _reason(),
+        if (job.providerPath.isNotEmpty) job.providerPath,
+      ].join(' · '),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          KitButton.ghost('Import',
+              onPressed: () => onRun([job.id], 'approve')),
+          const SizedBox(width: 4),
+          KitButton.ghost('Dismiss',
+              onPressed: () => onRun([job.id], 'dismiss')),
+        ],
+      ),
+    );
+  }
+}
+
 class _JobRow extends StatelessWidget {
   final ImportJob job;
   const _JobRow({required this.job});
@@ -659,13 +820,29 @@ class _JobRow extends StatelessWidget {
   /// exists so that outcome is visible rather than silent.
   (String, (IconData, Color)?) _status(ImportJob j, Tokens t) {
     switch (j.status) {
+      // 4.45.0 (ADR-083) — **held, waiting on the user.** Attention styling,
+      // never failure styling, and **never omitted**: a status the pill map
+      // does not list drops the row out of the section entirely, which is how
+      // a file waiting on a judgement becomes a file that silently is not
+      // there. This client rendered six of nine and had no `awaiting_review`
+      // at all until now.
+      case 'awaiting_review':
+        return ('Waiting for you', (Icons.pause_circle_outline, t.accentText));
       case 'complete':
         return ('Imported', (Icons.check_circle_outline, t.positive));
       case 'error':
         return ('Failed', (Icons.error_outline, t.criticalText));
       case 'skipped':
         return (
-          j.isDuplicate ? 'Already imported' : 'Skipped',
+          j.isDuplicate
+              ? 'Already imported'
+              : j.isDismissed
+                  // A dismissal is reversible, and **Import again** is how —
+                  // `fn_retry_import_job`, which since 1.3.0 already means
+                  // "import it anyway" for a skipped job. `canRetry` already
+                  // covers `skipped`, so the control is there.
+                  ? 'Dismissed — not imported'
+                  : 'Skipped',
           (Icons.remove_circle_outline, t.fgSubtle)
         );
       case 'cancelled':

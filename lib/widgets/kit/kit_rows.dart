@@ -63,6 +63,17 @@ class KitSourceRow extends StatefulWidget {
   /// is the overflow that hangs off it, not a fifth column of content.
   final Widget? trailing;
 
+  /// A trailing cluster too wide to share a phone's row with the text — the
+  /// processing row's source affordance, its one primary and its overflow, all
+  /// three at once. Below the compact width it drops **under** the row's own
+  /// column rather than overflowing it; the row keeps its anatomy and its list.
+  ///
+  /// The same adaptation a setting row's control strip already makes at the
+  /// same breakpoint (`CLAUDE.md` §Composition deviations). A `Row` that
+  /// cannot fit does not shrink — it paints the striped bar and clips whatever
+  /// is last, which here was the reader's only way back from a failed source.
+  final bool wideTrailing;
+
   const KitSourceRow({
     super.key,
     this.leading,
@@ -73,6 +84,7 @@ class KitSourceRow extends StatefulWidget {
     this.onTap,
     this.unread = false,
     this.trailing,
+    this.wideTrailing = false,
   });
 
   @override
@@ -95,7 +107,8 @@ class _KitSourceRowState extends State<KitSourceRow> {
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     final countInline = compact && widget.count != null;
-    return MouseRegion(
+    final stackTrailing = compact && widget.wideTrailing;
+    final Widget body = MouseRegion(
       cursor: widget.onTap == null
           ? SystemMouseCursors.basic
           : SystemMouseCursors.click,
@@ -190,7 +203,7 @@ class _KitSourceRowState extends State<KitSourceRow> {
                   ),
                 ),
               ],
-              if (widget.trailing != null) ...[
+              if (widget.trailing != null && !stackTrailing) ...[
                 const SizedBox(width: 6),
                 widget.trailing!,
               ],
@@ -198,6 +211,21 @@ class _KitSourceRowState extends State<KitSourceRow> {
           ),
         ),
       ),
+    );
+
+    if (!stackTrailing || widget.trailing == null) return body;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        body,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: widget.trailing!,
+          ),
+        ),
+      ],
     );
   }
 }

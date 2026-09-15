@@ -30,7 +30,12 @@ class SyncSettingsPanel extends StatefulWidget {
 
 class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   static const _frequencies = ['hourly', 'daily', 'weekly'];
-  static const _types = ['pdf', 'docx', 'notion'];
+  /// The supported type keys. **`pptx` was missing from 1.4.0 to 4.45.0** and
+  /// both clients rendered three — a synced deck could not be included or
+  /// reviewed, and nothing failed, because a type absent from this list is
+  /// simply a control the reader never sees. `notion` is the Notion provider's
+  /// own key.
+  static const _types = ['pdf', 'docx', 'pptx', 'notion'];
 
   final _patternsController = TextEditingController();
   final _patternsFocus = FocusNode();
@@ -169,7 +174,12 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                       ],
                     ),
 
-                    _Label('Include types'),
+                    // **Two adjacent decisions, presented as two** (ADR-083):
+                    // this one answers *never this type* — the file is dropped
+                    // at discovery with no row, no count and no record it was
+                    // seen. The one below answers *ask me about this one*.
+                    _Label('Import these types',
+                        note: 'everything else is skipped entirely'),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -189,6 +199,32 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                           ),
                       ],
                     ),
+
+                    // **Ask first** (4.45.0, ADR-083) — the adjacent, different
+                    // decision. Only the types actually being imported are
+                    // listed: a type that is skipped entirely is never
+                    // reviewed, so a rule on it would be a control that cannot
+                    // fire.
+                    _Label('Ask before importing',
+                        note: 'held for review, nothing downloaded'),
+                    for (final type in _types.where(i.includeTypes.contains))
+                      _RuleRow(
+                        type: type,
+                        rule: i.reviewRules[type],
+                        onChanged: (next) {
+                          // `review_rules` REPLACES, it does not merge — so
+                          // the whole desired map goes every time.
+                          final map = {
+                            for (final e in i.reviewRules.entries)
+                              e.key: e.value.toJson(),
+                          };
+                          next == null
+                              ? map.remove(type)
+                              : map[type] = next.toJson();
+                          _save((c) => c.syncSettings(widget.providerId,
+                              reviewRules: map));
+                        },
+                      ),
 
                     _Label('Exclude patterns — one glob per line, ≤50'),
                     Container(
@@ -248,12 +284,29 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
 /// A field label inside a panel — the eyebrow role, with the panel's rhythm.
 class _Label extends StatelessWidget {
   final String text;
-  const _Label(this.text);
+
+  /// The reference's `.v` clause — what the control means, beside its name.
+  /// On the two review controls it is load-bearing rather than decorative:
+  /// it is where "everything else is skipped entirely" and "nothing
+  /// downloaded" are said (ADR-083).
+  final String? note;
+
+  const _Label(this.text, {this.note});
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 16, bottom: 8),
-        child: Eyebrow(text),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Flexible(child: Eyebrow(text)),
+            if (note != null) ...[
+              const SizedBox(width: 8),
+              Flexible(child: Text(note!, style: KitText.meta(context))),
+            ],
+          ],
+        ),
       );
 }
 
@@ -291,6 +344,66 @@ class _HourField extends StatelessWidget {
           ],
           onChanged: (v) => v == null ? null : onChanged(v),
         ),
+      ),
+    );
+  }
+}
+
+/// One type's review rule: three positions, and a size field on the middle one.
+///
+/// **Labelled by size, never by length.** "Ask before importing PDFs over 5 MB"
+/// is a statement about bytes; there is no page count to promise, because no
+/// provider reports one and reading it would cost the download the rule exists
+/// to avoid (ADR-083).
+class _RuleRow extends StatelessWidget {
+  final String type;
+  final ReviewRule? rule;
+
+  /// Null clears the rule for this type — which is *Import*, the absence of a
+  /// rule rather than a third mode.
+  final ValueChanged<ReviewRule?> onChanged;
+
+  const _RuleRow({
+    required this.type,
+    required this.rule,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final mb = rule?.overMb ?? 5;
+    final selected = rule == null ? 0 : (rule!.isAlways ? 2 : 1);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SizedBox(width: 52, child: Eyebrow(type.toUpperCase())),
+          KitSegmented(
+            segments: const [
+              KitSegment('Import'),
+              KitSegment('Ask over…'),
+              KitSegment('Always ask'),
+            ],
+            selected: selected,
+            onChanged: (i) => onChanged(switch (i) {
+              0 => null,
+              1 => ReviewRule.overMb(mb),
+              _ => const ReviewRule.always(),
+            }),
+          ),
+          if (selected == 1)
+            KitStepper(
+              value: mb,
+              min: 1,
+              max: 100,
+              unit: 'MB',
+              onChanged: (v) => onChanged(ReviewRule.overMb(v)),
+            ),
+        ],
       ),
     );
   }

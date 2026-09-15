@@ -490,6 +490,19 @@ class Api {
     return _http.post('/fn_sync_settings', data: body);
   }
 
+  /// Batch triage of held import jobs (`fn_review_import_jobs`, 4.45.0,
+  /// ADR-083). [action] is `approve` or `dismiss`; [jobIds] is capped at 50 by
+  /// the endpoint, so a caller with more chunks the call.
+  ///
+  /// Response `{approved, dismissed, skipped}`. **Ids in `skipped` are not an
+  /// error**: they are jobs already triaged elsewhere, reported by id rather
+  /// than failing the batch so a stale queue triaged from two places does not
+  /// 404. They simply leave the queue.
+  Future<Map<String, dynamic>> reviewImportJobs(
+          List<String> jobIds, String action) =>
+      _http.post('/fn_review_import_jobs',
+          data: {'job_ids': jobIds, 'action': action});
+
   Future<Map<String, dynamic>> checkSourceFreshness(String docId) =>
       _http.get('/fn_check_source_freshness', queryParameters: {'docId': docId});
 

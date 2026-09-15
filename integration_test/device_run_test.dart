@@ -581,6 +581,45 @@ void main() {
     } else {
       expect(find.byType(KitEmptyState), findsOneWidget);
     }
+
+    // ── F-13 ────────────────────────────────────────────────────────────
+    // The drop zone says what it will take, from the ONE declaration. It
+    // advertised `EPUB` — a kind nothing in the backend can write — and
+    // promised a flat 100 MB, which is wrong for video by a factor of twenty.
+    expect(find.text('EPUB'), findsNothing,
+        reason: 'epub is advertised and unreachable — no document can have it');
+    expect(find.textContaining('2 GB for video'), findsOneWidget,
+        reason: 'the cap is per type (4.13.0); a flat 100 MB is a limit the '
+            'server does not have');
+
+    // Every processing row offers the SOURCE — failed, queued or uploading —
+    // because `error_message` is a claim about a source and nothing else on
+    // this screen shows the source. The seed carries a failed docx (`file`)
+    // and a queued article (`link`), so both §6.4.2 branches are on screen.
+    final procRows = find.byType(KitSourceRow).evaluate().length;
+    debugPrint('DEVICE-RUN sources: $procRows §4.1 row(s), '
+        'viewFile=${find.text('View file').evaluate().length}, '
+        'openLink=${find.text('Open the link').evaluate().length}, '
+        'retry=${find.text('Retry').evaluate().length}, '
+        'indexAnyway=${find.text('Index it anyway').evaluate().length}');
+    expect(
+      find.text('View file').evaluate().isNotEmpty ||
+          find.text('Open the link').evaluate().isNotEmpty ||
+          find.text('View images').evaluate().isNotEmpty,
+      isTrue,
+      reason: 'no processing row offers its source (§6.4.2) — this is the '
+          'affordance the tray exists to carry',
+    );
+
+    // **Retry is never on a skipped row** and the two branches are disjoint:
+    // `fn_retry_document` refuses `skipped` by name, so a Retry there is a
+    // control that could not once have worked.
+    expect(
+      find.text('Retry').evaluate().length +
+          find.text('Index it anyway').evaluate().length,
+      lessThanOrEqualTo(procRows),
+      reason: 'one primary per row, never two',
+    );
   });
 
   testWidgets('activity composes from the kit and is the MERGED feed', (

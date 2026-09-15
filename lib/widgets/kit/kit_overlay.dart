@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
@@ -9,12 +10,12 @@ import 'kit_text.dart';
 /// §15.1 and §15.2 — the two viewers for a document's own bytes, and the
 /// full-size image view they both open into.
 ///
-/// §15's overlay **sheet** itself is not here yet, deliberately. It is the
-/// shell the Sources processing tray opens these in, and this client has no
-/// tray until F-13; a kit widget nothing mounts is read by the next person as
-/// a spec (the dead-CSS class trap, 4.43.2), so the shell lands in the commit
-/// that first composes it. On this client the reader draws these **inline** in
-/// its Original panel, exactly as the reference reader does.
+/// §15's overlay **sheet** ([KitOverlaySheet]) lands here at F-13, in the
+/// commit that first composes it — the tray is its consumer, and a kit widget
+/// nothing mounts is read by the next person as a spec (the dead-CSS class
+/// trap, 4.43.2). The reader keeps drawing the two viewers **inline** in its
+/// Original panel, exactly as the reference reader does: the sheet is how the
+/// Sources tray shows a source, not a second home for the viewers.
 
 /// One member of a `set`-shaped document — a page, as uploaded.
 ///
@@ -23,6 +24,147 @@ import 'kit_text.dart';
 /// order and is never compacted, because compacting it renumbers every page
 /// after the gap and tells the reader their 12-page set is 11 pages long
 /// (§6.4.2 rule 3, §15.2 rule 1).
+/// §15 · **Overlay sheet** (4.37.0) — the container.
+///
+/// A panel that opens **over** the current screen without leaving it, for
+/// something the reader wants beside what they are already doing: an add flow,
+/// a reference sheet, a source they are about to retry.
+///
+/// Required parts, in order: a **scrim** covering the viewport, which closes on
+/// press · a **panel** (`--surface`, 1px `--border`, `--r-xl`, `--shadow-3`,
+/// clipped, a column that scrolls **inside its body** and never the page) · a
+/// **head** — a 36px iconbox on `--accent-soft`, a serif title, a sans
+/// subtitle, and a close control on the trailing side · a **body**, the only
+/// part that scrolls · an optional **foot** on `--surface-raised` behind a 1px
+/// `--rule`.
+///
+/// **Esc closes it, and so does the scrim** — a sheet with only a button to
+/// close it is a sheet a keyboard cannot leave. `showDialog`'s barrier is both,
+/// which is why this is a dialog rather than a hand-rolled Stack (rule 4: one
+/// shape; the second overlay shape on this app lived from 2.35.0 to 4.56.0).
+///
+/// **A sheet is not a route**: nothing behind it unmounts, and closing restores
+/// exactly the scroll position the reader left.
+class KitOverlaySheet extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget child;
+
+  /// Per-instance width and height — the only two values §15 lets an instance
+  /// choose. The source viewers are the 860/88% pair.
+  final double width;
+  final double heightFactor;
+
+  const KitOverlaySheet({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.width = 860,
+    this.heightFactor = 0.88,
+  });
+
+  static Future<void> show(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required WidgetBuilder builder,
+    double width = 860,
+    double heightFactor = 0.88,
+  }) =>
+      showDialog<void>(
+        context: context,
+        barrierColor: Tokens.of(context).scrim,
+        builder: (ctx) => KitOverlaySheet(
+          icon: icon,
+          title: title,
+          subtitle: subtitle,
+          width: width,
+          heightFactor: heightFactor,
+          child: Builder(builder: builder),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final size = MediaQuery.sizeOf(context);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: width,
+          maxHeight: size.height * heightFactor,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: AppRadius.xlR,
+            border: Border.all(color: t.border),
+            boxShadow: AppShadows.s3,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: t.accentSoft,
+                        borderRadius: AppRadius.smR,
+                      ),
+                      child: Icon(icon, size: 18, color: t.accentText),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: KitText.h4(context)),
+                          if (subtitle != null)
+                            Text(subtitle!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: KitText.meta(context)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    KitIconButton(
+                      Icons.close,
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              Container(height: 1, color: t.rule),
+              // **The body scrolls, the page does not.**
+              Flexible(child: SingleChildScrollView(child: child)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class KitSetMember {
   final String name;
   final String? signedUrl;

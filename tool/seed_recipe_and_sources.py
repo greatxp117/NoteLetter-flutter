@@ -279,4 +279,46 @@ put_object("raw/seed-user-1/pdf/seed-doc-pdf-complete_taxes.pdf",
            b"%PDF-1.4\n% a stand-in for the quarterly tax summary\n",
            "application/pdf")
 
-print("seeded shot-recipe, shot-image-set (2 of 3 pages), and the pdf object")
+# ── A FAILED document that still has its bytes (F-13, `source-file-stage`) ───
+#
+# The tray's whole claim is that a failed source is still reachable: 4.37.0
+# exists because `error_message` is a claim ABOUT a source and nothing else on
+# the screen shows the source. Photographing that needs a row that is BOTH
+# failed and backed by a stored object, and the canonical seed has neither half
+# together — its failed rows have no bytes, so the sheet answers "no original
+# file is stored" and the frame is of the wrong state.
+#
+# An image rather than a PDF, because a stage that DRAWS is the subject: §15.1
+# rule 1 is that every type either renders or is named, and a type that renders
+# is the half worth a picture.
+SHOT_FAIL = "raw/seed-user-1/images/shot-failed-scan.png"
+put_object(SHOT_FAIL, png(560, 420, (228, 186, 150), (150, 170, 200)), "image/png")
+
+put_doc("documents/shot-failed-scan", {
+    "user_id": S(UID),
+    "title": S("scan-2026-07-02.png"),
+    "type": S("image"),
+    "mime_type": S("image/png"),
+    "status": S("error"),
+    "failed_stage": S("extraction"),
+    "gcs_path": S(SHOT_FAIL),
+    "gcs_paths": A([]),
+    "source_url": N,
+    "created_at": TS,
+    "processed_at": N,
+    "chunk_count": I(0),
+    "word_count": I(0),
+    "summary": N,
+    "key_points": A([]),
+    "themes": A([]),
+    "tag_ids": A([]),
+    "error_message": S("Extraction failed: the page could not be read."),
+    "source_priority": D(0.5),
+    "view_count": I(0),
+    "last_viewed_at": N,
+    "content_form": N,
+    "original_content_url": N,
+})
+
+print("seeded shot-recipe, shot-image-set (2 of 3 pages), the pdf object, "
+      "and shot-failed-scan (failed WITH bytes)")

@@ -299,6 +299,58 @@ Future<void> reachState(WidgetTester tester) async {
           reason: 'no results came back — this frame would be the idle offer, '
               'and every part the pair compares is drawn only under results');
       return;
+    // sources.md §Document processing — the tray's affordances. The frame is
+    // the processing section: the seed carries a failed docx (`file` — View
+    // file), a queued article (`link` — Open the link) and an uploading image,
+    // so every §6.4.2 branch the tray can draw is in one picture. Scrolled to
+    // the section, because at rest it sits under the header and the drop zone.
+    case 'proc-affordances':
+      await settle();
+      expect(find.text('View file'), findsWidgets,
+          reason: 'no source affordance — this frame would be the tray without '
+              'the thing it is a frame OF');
+      await Scrollable.ensureVisible(
+          tester.element(find.text('View file').first),
+          alignment: 0.3, duration: Duration.zero);
+      await settle();
+      return;
+    // sources.md §Document processing / component-kit §15 — the sheet a
+    // processing row opens, holding §15.1. Opened from the FAILED row, which
+    // is the case the affordance exists for: `error_message` is a claim about
+    // a source, and this is the only surface that shows the source.
+    case 'source-file-stage':
+      await settle();
+      // The FAILED row that has bytes — `tool/seed_recipe_and_sources.py`
+      // writes it. Not the first View file on the screen: that one belongs to
+      // the uploading docx, whose sheet is correctly the "hasn't finished
+      // uploading yet" state and NOT the §15.1 stage this frame is of.
+      final failed = find.ancestor(
+        of: find.text('scan-2026-07-02.png'),
+        matching: find.byType(KitSourceRow),
+      );
+      expect(failed, findsOneWidget,
+          reason: 'run tool/seed_recipe_and_sources.py first — without a '
+              'failed document that HAS its bytes there is no stage to shoot');
+      final view = find.descendant(of: failed, matching: find.text('View file'));
+      // The control sits in the row's STACKED trailing strip below the compact
+      // breakpoint, which is under the fold at rest — a tap at its unscrolled
+      // position lands on nothing, warns, and leaves the frame showing the
+      // tray under the name of the sheet.
+      await tester.ensureVisible(view);
+      await settle();
+      await tester.tap(view);
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.byType(KitSourceFileView).evaluate().isNotEmpty ||
+            find.byType(KitFailureBlock).evaluate().isNotEmpty ||
+            find.byType(KitProcNote).evaluate().isNotEmpty) {
+          break;
+        }
+      }
+      await settle();
+      expect(find.byType(KitOverlaySheet), findsOneWidget,
+          reason: 'the §15 sheet did not open — this frame would be the tray');
+      return;
     // library.md §Shelf color — the ten swatches live inside the shelf's
     // settings disclosure, which no route reaches. The shelf the seed gives
     // this state is `seed-tag-recipes`.

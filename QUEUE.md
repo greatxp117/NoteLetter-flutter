@@ -240,7 +240,7 @@ a new obligation on a finished screen is a new item.
   never dark.
 
 ## F-13 · Sources — review queue, picker, rejections
-- status: open
+- status: done 2026-09-14
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md §Import review queue §Sync control §Cloud import §Document processing §States; spec/api/uploads.md; spec/api/cloud-storage.md; spec/component-kit.md §6.4 §6.6 §14.2
