@@ -121,9 +121,12 @@ class Document {
   /// 4.48.0 (ADR-085 §7) — why a `skipped` document was skipped. **Closed**
   /// vocabulary, unlike `image_classification`, so a client may switch on it:
   /// `no_text_content` · `unresolved_article`. `null` on every non-skipped
-  /// document. The distinction drives the row: `unresolved_article` can succeed
-  /// on a later attempt (a lookup that failed may come back), so the appeal
-  /// stays on offer there even after `force_process` is true.
+  /// document. The distinction drives the row: the appeal stays on offer on
+  /// `unresolved_article` even after `force_process` is true. Its reason changed
+  /// at 4.60.0 (ADR-085 §8) — a forced run no longer runs the lookup at all, so
+  /// that pair can no longer be produced, and the clause is now the rescue for
+  /// the documents stranded in it by the old rule, which without it would have
+  /// no control at all.
   final String? skipReason;
 
   final double sourcePriority;
