@@ -452,3 +452,16 @@ a new obligation on a finished screen is a new item.
 - shots: shelf-color-picker; ask; ask-thread; ask-rail
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py — the whole point
 - notes: F-15 changed kit_shell.dart, kit_headers.dart, sidebar.dart, nav_drawer.dart, local_flags.dart and both harness files, so every item listing one of them went STALE-PAIR — six pairs. Four were re-shot and committed (activity, library, reader-manuscript, search, notifications, shelves); these four were not, because the disk filled mid-run. Nothing about these screens changed — the §2.1 row F-15 rewrote is the WIDE branch and every frame here is compact — but the gate cannot tell a shared-file touch from a redesign, and that is exactly why it is not waived. Routes: shelf-color-picker `/shelves/seed-tag-recipes` HOLD_STATE color-picker; ask `/ask`; ask-thread `/ask` HOLD_STATE ask-thread; ask-rail `/ask` HOLD_STATE ask-rail (the last two run a REAL turn through the shim on 5099). Delete each target PNG before capturing: simctl refuses to overwrite one of these files in place (`Operation not permitted`) and writes happily once the path is free.
+
+## F-25 · Ask: a sent turn stays, and a failed read says so
+- status: open
+- screen: ask
+- route: /ask
+- spec: spec/screens/ask.md §States; spec/invariants.md; spec/decisions/ADR-097-a-state-setter-is-not-a-consumer.md
+- web: src/pages/AskView.jsx
+- flutter: lib/pages/chat_page.dart; lib/state/chat_notifier.dart
+- folds: none
+- device_test: sends a question with the network off: the question stays on screen with the failure and a retry, and never returns to the composer
+- shots: ask-turn-failed
+- extra_gates: failure_pattern_check.py
+- notes: Two rules from 4.61.0. (1) The turn the reader sent is rendered from send until its own STORED message arrives to replace it — counted against the copies the thread already held, so asking the same question twice does not clear the new turn against the old one's message — and a refusal leaves it in place with the server's sentence (§14.2) plus a retry that re-sends that turn, never back in the composer. (2) The transcript and the rail are two subscriptions and each renders §14.1 in its own region when it cannot be READ; neither may fall back to an empty state, which asserts the reader has asked nothing. Flutter's streams already pass onError (INV-24's third layer) — what it owes is the consumer and both regions. The fourth layer added at 4.61.0 (a React state setter is not a consumer) is JS-specific and has no Dart analogue.
