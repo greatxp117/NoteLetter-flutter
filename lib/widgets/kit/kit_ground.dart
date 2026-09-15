@@ -29,7 +29,25 @@ class KitGround extends StatefulWidget {
   /// under both themes; set false for a surface that wants the lattice alone.
   final bool grain;
 
-  const KitGround({super.key, required this.child, this.grain = true});
+  /// The halftone checker. The onboarding rail is the one surface that wants
+  /// the **grain alone** — `.ob-rail::after` lays grain over the plum field so
+  /// it is not flat, and a lattice of ink dots on chrome is a different
+  /// surface, not a softer one (`spec/screens/onboarding.md` §Composition).
+  final bool lattice;
+
+  /// The grain over a dark chrome field is the light tint, whatever the theme:
+  /// the rail is plum in light mode too, and an ink-tinted grain on it is a
+  /// smudge rather than a texture. Null follows the theme, as every other
+  /// ground does.
+  final bool? darkTint;
+
+  const KitGround({
+    super.key,
+    required this.child,
+    this.grain = true,
+    this.lattice = true,
+    this.darkTint,
+  });
 
   @override
   State<KitGround> createState() => _KitGroundState();
@@ -44,20 +62,21 @@ class _KitGroundState extends State<KitGround> {
   static const int _latticeStep = 3;
 
   Future<void> _ensureTile(bool isDark) async {
-    final key = '${isDark ? 'dark' : 'light'}-${widget.grain}';
+    final key = '${isDark ? 'dark' : 'light'}-${widget.grain}-${widget.lattice}';
     if (_key == key && _tile != null) return;
     final cached = _cache[key];
     if (cached != null) {
       if (mounted) setState(() { _tile = cached; _key = key; });
       return;
     }
-    final image = await _buildTile(isDark: isDark, grain: widget.grain);
+    final image = await _buildTile(
+        isDark: isDark, grain: widget.grain, lattice: widget.lattice);
     _cache[key] = image;
     if (mounted) setState(() { _tile = image; _key = key; });
   }
 
   static Future<ui.Image> _buildTile(
-      {required bool isDark, required bool grain}) {
+      {required bool isDark, required bool grain, required bool lattice}) {
     const n = _tileSize;
     final pixels = Uint8List(n * n * 4);
 
@@ -82,8 +101,8 @@ class _KitGroundState extends State<KitGround> {
 
     // Then the lattice: one dot per 3×3 cell.
     // Light `rgba(20,23,31,.05)` · dark `rgba(255,255,255,.07)`.
-    final dotA = ((isDark ? 0.07 : 0.05) * 255).round();
-    for (var y = 0; y < n; y += _latticeStep) {
+    final dotA = lattice ? ((isDark ? 0.07 : 0.05) * 255).round() : 0;
+    for (var y = 0; lattice && y < n; y += _latticeStep) {
       for (var x = 0; x < n; x += _latticeStep) {
         final o = (y * n + x) * 4;
         pixels[o] = _pm(isDark ? 255 : 20, dotA);
@@ -101,7 +120,7 @@ class _KitGroundState extends State<KitGround> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Tokens.of(context).isDark;
+    final isDark = widget.darkTint ?? Tokens.of(context).isDark;
     _ensureTile(isDark);
     final tile = _tile;
     return CustomPaint(

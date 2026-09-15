@@ -39,6 +39,7 @@ import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/support_notifier.dart';
+import 'package:flutter_app/pages/onboarding/wizard.dart';
 import 'package:flutter_app/pages/reader/manuscript_panel.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
@@ -359,6 +360,20 @@ Future<void> reachState(WidgetTester tester) async {
       await settle();
       expect(find.byType(KitSwatch), findsNWidgets(10),
           reason: 'the picker did not open — this frame would be the shelf');
+      return;
+    // onboarding.md §States/Replay — the wizard is a GATE, not a route: it
+    // renders only for an unset `nl-onboarded` and a first documents snapshot
+    // that arrives EMPTY, and the seed user has a library. Settings' replay
+    // control is the other door into the same flow, and the one the web
+    // reference's own shot uses, so the pair compares the same picture.
+    //
+    // It writes nothing — the flow saves on its last step only — so the hold
+    // leaves the emulator exactly as it found it.
+    case 'onboarding':
+      await tester.tap(find.widgetWithText(KitButton, 'Run setup'));
+      await settle();
+      expect(find.byType(OnboardingWizard), findsOneWidget,
+          reason: 'the wizard did not open — this frame would be Settings');
       return;
     default:
       fail('hold_screen_test knows no HOLD_STATE "$holdState"');

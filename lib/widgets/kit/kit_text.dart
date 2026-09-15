@@ -224,11 +224,18 @@ class AccentTitle extends StatelessWidget {
   final TextStyle style;
   final TextAlign? textAlign;
 
-  const AccentTitle(this.text, {super.key, required this.style, this.textAlign});
+  /// The clause's colour, where the page's `--accent` is not it: **on a chrome
+  /// field the accent is `--brick-400`**, not the brick-500 `--accent` carries
+  /// on paper, which against plum is a muddy near-match rather than a clause
+  /// (`spec/screens/onboarding.md` §Composition). Null is the page accent.
+  final Color? accent;
+
+  const AccentTitle(this.text,
+      {super.key, required this.style, this.textAlign, this.accent});
 
   @override
   Widget build(BuildContext context) {
-    final accent = Tokens.of(context).accent;
+    final accent = this.accent ?? Tokens.of(context).accent;
     final parts = text.split('*');
     if (parts.length < 3) {
       return Text(text, style: style, textAlign: textAlign);

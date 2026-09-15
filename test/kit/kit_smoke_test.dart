@@ -1389,6 +1389,38 @@ void main() {
       // apology §7 exists to avoid.
       expect(find.text('Up to ten finished documents.'), findsOneWidget);
     });
+
+    // Onboarding's spelling of the same three parts (`.ob-move`): a ruled row
+    // with a leading glyph. Both forms live in one widget so the second one
+    // is not retyped on the screen that needs it (4.46.0).
+    testWidgets('the ruled form keeps every part, and leads with a glyph', (
+      tester,
+    ) async {
+      await pumpBoth(
+        tester,
+        const KitNumberedMove(
+          number: 'II',
+          icon: Icons.mail_outline,
+          title: 'Receive a daily letter',
+          description: 'A few passages from your own library.',
+          ruled: true,
+          last: true,
+        ),
+      );
+      expect(find.text('II'), findsOneWidget);
+      expect(find.text('Receive a daily letter'), findsOneWidget);
+      expect(find.text('A few passages from your own library.'), findsOneWidget);
+      expect(find.byIcon(Icons.mail_outline), findsOneWidget);
+    });
+  });
+
+  group('§7 mark', () {
+    testWidgets('the chrome tile, and the sealed form', (tester) async {
+      await pumpBoth(tester, const KitMark(Icons.edit_note, size: 72));
+      expect(find.byIcon(Icons.edit_note), findsOneWidget);
+      await pumpBoth(tester, const KitMark.seal(Icons.edit_note));
+      expect(find.byIcon(Icons.edit_note), findsOneWidget);
+    });
   });
 
   group('§11 letter sheet', () {

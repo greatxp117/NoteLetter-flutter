@@ -21,6 +21,7 @@ import 'pages/study_page.dart';
 import 'pages/study/session_player.dart';
 import 'pages/study/program_editor.dart';
 import 'pages/support_page.dart';
+import 'pages/onboarding/wizard.dart';
 
 GoRouter createRouter(AuthNotifier authNotifier) {
   return GoRouter(
@@ -55,8 +56,15 @@ List<RouteBase> appRoutes() {
     // caller (INV-01), so there is nothing for the footer to link to.
     ShellRoute(
       navigatorKey: supportShellNavigatorKey,
-      builder: (context, state, child) =>
-          SupportShell(route: state.matchedLocation, child: child),
+      // First-run onboarding (`spec/screens/onboarding.md`) wraps the whole
+      // authenticated surface, OUTSIDE the support shell and outside
+      // `AppLayout`: the wizard has its own frame, and the app's rail is
+      // exactly what a reader with nothing in their library has no use for yet.
+      // Outside `/landing` too — the gate reads a documents subscription, and
+      // there is no reader to have a first run until someone is signed in.
+      builder: (context, state, child) => OnboardingGate(
+        child: SupportShell(route: state.matchedLocation, child: child),
+      ),
       routes: [
         GoRoute(
           path: '/reader/:docId',

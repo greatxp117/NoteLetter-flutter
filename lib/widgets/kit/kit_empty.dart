@@ -6,6 +6,87 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_text.dart';
 
+/// §7's **mark** — the rounded chrome-filled tile holding a glyph that opens an
+/// empty state, and the seal that opens a first-run step.
+///
+/// It was drawn inline inside [KitEmptyState] until F-14, which is fine until a
+/// second surface needs it: the onboarding welcome step opens with the same
+/// tile at 72 and the finish step with the [KitMark.seal] variant, and a second
+/// hand-built copy of a mark is how one of them ends up a different tile
+/// (`spec/screens/onboarding.md` §Composition — "onboarding introduces no new
+/// primitives; a step that needs one is a kit change").
+///
+/// Two tones, and the tone is the whole meaning: [KitMark] is the chrome tile
+/// that says *this is the app talking*, and [KitMark.seal] is the accent-soft
+/// disc inside a dashed ring that says *this is finished and sealed*.
+class KitMark extends StatelessWidget {
+  final IconData icon;
+
+  /// 60 for §7, 72 for the onboarding welcome, 86 for the finish seal — the
+  /// reference's own sizes. The glyph scales with it.
+  final double size;
+
+  /// The seal form: a circle on `--accent-soft` with the glyph at `--seal`,
+  /// inside a dashed `--accent-chip-border` ring.
+  final bool seal;
+
+  const KitMark(this.icon, {super.key, this.size = 60}) : seal = false;
+
+  const KitMark.seal(this.icon, {super.key, this.size = 86}) : seal = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final tile = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: seal ? t.accentSoft : t.chrome,
+        borderRadius: seal ? null : AppRadius.lgR,
+        shape: seal ? BoxShape.circle : BoxShape.rectangle,
+        boxShadow: seal ? null : AppShadows.s2,
+      ),
+      child: Icon(icon, size: size * 0.43, color: seal ? t.seal : t.chromeFg),
+    );
+    if (!seal) return tile;
+    // The ring sits OUTSIDE the disc (`inset: -7px` on the reference), so it is
+    // padding around the tile rather than a border on it — a border would eat
+    // into the 86 and shrink the seal.
+    return CustomPaint(
+      painter: _DashedRingPainter(t.accentChipBorder),
+      child: Padding(padding: const EdgeInsets.all(7), child: tile),
+    );
+  }
+}
+
+class _DashedRingPainter extends CustomPainter {
+  final Color color;
+
+  const _DashedRingPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final path = Path()
+      ..addOval(Rect.fromLTWH(0.75, 0.75, size.width - 1.5, size.height - 1.5));
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = (distance + 5).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, next), paint);
+        distance = next + 4;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRingPainter old) => old.color != color;
+}
+
 /// §7 — the empty state.
 ///
 /// Mark → letterpressed serif title → italic serif standfirst → a stack of
@@ -49,17 +130,7 @@ class KitEmptyState extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 60,
-                height: 60,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: t.chrome,
-                  borderRadius: AppRadius.lgR,
-                  boxShadow: AppShadows.s2,
-                ),
-                child: Icon(icon, size: 26, color: t.chromeFg),
-              ),
+              KitMark(icon),
               const SizedBox(height: AppSpacing.s5),
               Text(
                 title,
@@ -309,54 +380,110 @@ class _DashedBorderPainter extends CustomPainter {
 /// which is the one way it differs from [KitSuggestion] — an empty state whose
 /// rows explain the feature is still "an offer, not an apology", and dropping
 /// the copy to fit a one-line suggestion row would throw away the offer.
+///
+/// The reference spells it **twice**: the study card above, and onboarding's
+/// welcome step (`.ob-move`), where the same three parts sit in a **ruled**
+/// row with an accent-soft icon tile leading them. Both live here, chosen by
+/// [ruled] and [icon], rather than the second one being retyped on the screen
+/// that needs it — a kit widget that can only draw one of the reference's two
+/// spellings is a kit rule that quietly outranks the screen's (4.46.0).
 class KitNumberedMove extends StatelessWidget {
   /// The numeral as the reference sets it — `I`, `II`, `III`.
   final String number;
   final String title;
   final String description;
 
+  /// The leading glyph, on an `--accent-soft` tile at `--accent`. Onboarding's
+  /// spelling; the study card has none.
+  final IconData? icon;
+
+  /// The ruled form: no card and no shadow, a 1px `--rule` above each row and
+  /// below the last, so a stack reads as one ruled list rather than a pile of
+  /// sheets. [last] draws that closing rule.
+  final bool ruled;
+  final bool last;
+
   const KitNumberedMove({
     super.key,
     required this.number,
     required this.title,
     required this.description,
+    this.icon,
+    this.ruled = false,
+    this.last = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(number, style: KitText.capsLabel(context, letterSpacing: 0.12)),
+        const SizedBox(height: 4),
+        Text(title,
+            style: AppTheme.serif(
+              fontSize: 17,
+              height: 22 / 17,
+              fontWeight: FontWeight.w600,
+              color: t.fg,
+            )),
+        const SizedBox(height: 4),
+        Text(description,
+            style: TextStyle(
+              fontFamily: AppTheme.fontSans,
+              fontSize: 13,
+              height: 19 / 13,
+              color: t.fgMuted,
+            )),
+      ],
+    );
+
+    final lead = icon == null
+        ? null
+        : Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: t.accentSoft,
+              borderRadius: AppRadius.smR,
+            ),
+            child: Icon(icon, size: 20, color: t.accent),
+          );
+
+    final content = lead == null
+        ? body
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              lead,
+              const SizedBox(width: AppSpacing.s4),
+              Expanded(child: body),
+            ],
+          );
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s4, vertical: AppSpacing.s3 + 1),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: AppRadius.mdR,
-        border: Border.all(color: t.border),
-        boxShadow: AppShadows.s1,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(number, style: KitText.capsLabel(context, letterSpacing: 0.12)),
-          const SizedBox(height: 4),
-          Text(title,
-              style: AppTheme.serif(
-                fontSize: 17,
-                height: 22 / 17,
-                fontWeight: FontWeight.w600,
-                color: t.fg,
-              )),
-          const SizedBox(height: 4),
-          Text(description,
-              style: TextStyle(
-                fontFamily: AppTheme.fontSans,
-                fontSize: 13,
-                height: 19 / 13,
-                color: t.fgMuted,
-              )),
-        ],
-      ),
+      padding: ruled
+          ? const EdgeInsets.symmetric(vertical: AppSpacing.s4, horizontal: 2)
+          : const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s4, vertical: AppSpacing.s3 + 1),
+      decoration: ruled
+          ? BoxDecoration(
+              border: Border(
+                top: BorderSide(color: t.rule),
+                bottom: last ? BorderSide(color: t.rule) : BorderSide.none,
+              ),
+            )
+          : BoxDecoration(
+              color: t.surface,
+              borderRadius: AppRadius.mdR,
+              border: Border.all(color: t.border),
+              boxShadow: AppShadows.s1,
+            ),
+      child: content,
     );
   }
 }

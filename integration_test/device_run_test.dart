@@ -27,6 +27,7 @@ import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/support_notifier.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
+import 'package:flutter_app/pages/onboarding/wizard.dart';
 import 'package:flutter_app/pages/reader/passage_mark.dart';
 import 'package:flutter_app/pages/search/reading_pane.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
@@ -1532,5 +1533,87 @@ void main() {
       if (find.byType(KitEmptyState).evaluate().isNotEmpty) break;
     }
     expect(find.byType(KitEmptyState), findsOneWidget);
+  });
+
+  // ── First-run onboarding (2.27.0; `screens/onboarding.md`) ─────────────────
+  //
+  // LAST in the file, and it signs a DIFFERENT user in — a throwaway account
+  // created here, because the gate's whole subject is an account with nothing
+  // in it and the seed user has a library. Driving it with the replay control
+  // instead would prove the replay door and say nothing about the gate, which
+  // is the half that can be wrong in both directions: shown to a returning
+  // reader for a frame, or never shown at all.
+  //
+  // `nl-onboarded` is a DEVICE flag, not an account one, so a fresh account on
+  // a device that has onboarded correctly sees no wizard. The flag is cleared
+  // here to put the device in first-run condition — that is the gate's stated
+  // precondition, not a nudge toward green.
+  testWidgets('a first-run account sees the wizard', (tester) async {
+    final seed = FirebaseAuth.instance.currentUser;
+    final email = 'firstrun-${DateTime.now().microsecondsSinceEpoch}@noteletter.test';
+    await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(email: email, password: 'first-run-1');
+    await LocalFlags.setOnboarded(false);
+    try {
+      await pumpApp(tester);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        if (find.byType(OnboardingWizard).evaluate().isNotEmpty) break;
+      }
+
+      expect(find.byType(OnboardingWizard), findsOneWidget,
+          reason: 'an account with an empty first snapshot gets first-run');
+      // Its OWN frame: the app shell is not under it, and neither is the
+      // INV-22 footer — the wizard is composed around the shell, not inside
+      // it (`router.dart`).
+      expect(find.byType(KitSupportFooter), findsNothing);
+
+      // The rail's required parts (§Composition): the brand lockup, and the
+      // step list. Below the compact width the rail is a header carrying the
+      // brand and a progress line, which is the reference's own <900px form.
+      expect(find.byType(KitBrand), findsOneWidget);
+      expect(find.textContaining('Step 1 of 5'), findsOneWidget);
+
+      // The welcome step: mark, folio, the accent-claused title, standfirst,
+      // the chapter rule, and the three moves.
+      expect(find.byType(ChapterOpening), findsOneWidget);
+      expect(find.byType(ChapterRule), findsWidgets);
+      expect(find.textContaining('SETTING UP · A FEW MINUTES'), findsOneWidget);
+      expect(find.textContaining('Welcome to'), findsWidgets);
+      expect(find.byType(KitNumberedMove), findsNWidgets(3));
+
+      // The footer: an escape and an advance, both required parts.
+      expect(find.text('Skip setup'), findsOneWidget);
+      expect(find.widgetWithText(KitButton, 'Begin'), findsOneWidget);
+
+      // Advancing reaches step 01, and its real drop zone — the wizard adds
+      // sources through the ingest path, not a simulated one.
+      await tester.tap(find.widgetWithText(KitButton, 'Begin'));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(find.byType(KitDropZone), findsOneWidget);
+      expect(find.textContaining('№ 01 · OF 03'), findsOneWidget);
+
+      // Skipping is a decision: it sets the same flag finishing does, and the
+      // app is behind it immediately. Nothing was written to the account.
+      await tester.tap(find.text('Skip setup'));
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        if (find.byType(OnboardingWizard).evaluate().isEmpty) break;
+      }
+      expect(find.byType(OnboardingWizard), findsNothing);
+      expect(LocalFlags.onboarded.value, isTrue);
+    } finally {
+      // Put the device and the session back: this file's other tests are the
+      // seed user's, and a left-over throwaway session would make whichever
+      // ran next a test of an empty account.
+      await FirebaseAuth.instance.currentUser?.delete();
+      await LocalFlags.setOnboarded(false);
+      if (seed != null) {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: seedEmail, password: seedPassword);
+      }
+    }
   });
 }

@@ -20,8 +20,7 @@ import 'settings/summaries_section.dart';
 ///
 /// The letter's own form is NOT here: it is `/letters/settings`, as the
 /// reference has it (F-05 moved it rather than copying it). This screen keeps
-/// one row through to it, so the way in from Settings survives the move. The
-/// "Run through setup again" row lands with F-14.
+/// one row through to it, so the way in from Settings survives the move.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -57,8 +56,36 @@ class _SettingsPageState extends State<SettingsPage> {
                 'your account stands.',
           ),
 
+          // ── Setup (2.27.0; `screens/onboarding.md` §States/Replay) ────
+          // Replaying first-run is how someone who skipped it, or who wants to
+          // re-tune the letter from scratch, gets back to it — and it is the
+          // ONLY door once the flag is set, since the gate needs an empty
+          // library. Non-destructive by construction: the wizard writes
+          // nothing until its last step.
+          const SectionHeader('Setup', first: true),
+          KitRowList(
+            raised: true,
+            rows: [
+              KitSettingRow(
+                icon: Icons.auto_awesome_outlined,
+                title: 'Run through setup again',
+                description:
+                    'Replay first-run — bring in sources, write your '
+                    'librarian’s mission, and tune your letter. Nothing you’ve '
+                    'already set is changed until you finish.',
+                trailing: [
+                  KitButton.primary(
+                    'Run setup',
+                    onPressed: () =>
+                        LocalFlags.onboardingReplay.value = true,
+                  ),
+                ],
+              ),
+            ],
+          ),
+
           // ── Appearance ────────────────────────────────────────────────
-          const SectionHeader('Appearance', first: true),
+          const SectionHeader('Appearance'),
           KitRowList(
             raised: true,
             rows: [

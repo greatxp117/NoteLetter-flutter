@@ -255,7 +255,7 @@ a new obligation on a finished screen is a new item.
   out-of-scope rows in the SAME commit. `file_uploader.dart` is `FileType.image` today.
 
 ## F-14 · Onboarding wizard (new)
-- status: open
+- status: done 2026-09-14
 - screen: onboarding
 - route: /
 - spec: spec/screens/onboarding.md §When it is shown §Rules §States §Composition; spec/component-kit.md §1.5 §5.3 §6.1

@@ -27,6 +27,25 @@ class LocalFlags {
 
   static final ValueNotifier<bool> scripture = ValueNotifier<bool>(false);
 
+  /// First-run onboarding, done or skipped (`spec/screens/onboarding.md`
+  /// §When it is shown).
+  ///
+  /// **Client-local, not contract state, and deliberately so**: it is a
+  /// per-device first-run experience, and mirroring it to Firestore would have
+  /// a second device re-deciding what the first already did. Skipping sets it
+  /// exactly as finishing does — skipping is a decision, not a deferral, and
+  /// the flow stays reachable from Settings either way.
+  static const String onboardedKey = 'nl-onboarded';
+
+  static final ValueNotifier<bool> onboarded = ValueNotifier<bool>(false);
+
+  /// The replay Settings asks for ("Run through setup again") — **not stored**.
+  ///
+  /// It outlives no launch by design: a replay is one trip through the flow,
+  /// and a persisted one would put the reader back in the wizard the next time
+  /// they open the app. Not a [SharedPreferences] key for the same reason.
+  static final ValueNotifier<bool> onboardingReplay = ValueNotifier<bool>(false);
+
   static Future<void>? _loading;
 
   /// Read the stored values once, whoever asks first.
@@ -39,6 +58,7 @@ class LocalFlags {
   static Future<void> ensureLoaded() => _loading ??= () async {
     final prefs = await SharedPreferences.getInstance();
     scripture.value = prefs.getBool(scriptureKey) ?? false;
+    onboarded.value = prefs.getBool(onboardedKey) ?? false;
   }();
 
   /// Write before you move: the stored value lands first, then the notifier —
@@ -48,5 +68,15 @@ class LocalFlags {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(scriptureKey, on);
     scripture.value = on;
+  }
+
+  /// Write before you move, as [setScripture] does — and here the write is the
+  /// whole point: the flag is what stops the wizard reappearing, so a value
+  /// adopted in memory before the store accepted it is a wizard that comes
+  /// back on the next launch.
+  static Future<void> setOnboarded(bool done) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(onboardedKey, done);
+    onboarded.value = done;
   }
 }

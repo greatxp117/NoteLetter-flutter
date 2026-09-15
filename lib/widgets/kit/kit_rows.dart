@@ -744,10 +744,14 @@ class KitRowSlot extends StatelessWidget {
 /// underlined in `--link-decor`, with a 14px trailing chevron. It leads to the
 /// screen that owns the setting; a row whose control is a whole screen takes
 /// this rather than a button.
+///
+/// `icon: null` is the bare underlined link the reference uses where the target
+/// is not another screen — onboarding's "Skip setup" and its summary's
+/// "Add more" both leave, but neither goes onward.
 class KitSettingLink extends StatefulWidget {
   final String label;
   final VoidCallback? onTap;
-  final IconData icon;
+  final IconData? icon;
 
   const KitSettingLink(this.label,
       {super.key, this.onTap, this.icon = Icons.chevron_right});
@@ -780,8 +784,10 @@ class _KitSettingLinkState extends State<KitSettingLink> {
                   decoration: TextDecoration.underline,
                   decorationColor: t.linkDecor,
                 )),
-            const SizedBox(width: 5),
-            Icon(widget.icon, size: 14, color: color),
+            if (widget.icon != null) ...[
+              const SizedBox(width: 5),
+              Icon(widget.icon, size: 14, color: color),
+            ],
           ],
         ),
       ),

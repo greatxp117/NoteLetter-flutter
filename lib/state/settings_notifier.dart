@@ -101,6 +101,34 @@ class SettingsNotifier extends ChangeNotifier {
         if (topicFilters != null) 'topicFilters': topicFilters,
       });
 
+  /// First-run onboarding's ONE write (`spec/screens/onboarding.md` §Rules).
+  ///
+  /// Unlike [saveLetterSettings] this DOES carry `enabled: true`, and that is
+  /// the point: finishing the wizard is the transition that turns the letter
+  /// on, so 2.30.0's activation send is supposed to fire here. `emailAddress`
+  /// and `purposeText` are sent only when they have a value — a present-but-null
+  /// key is not the same as an absent one, and the account's own address is a
+  /// legitimate seed for the first save, editable in Letter settings after.
+  Future<String?> saveOnboardingLetter({
+    required String frequency,
+    required String deliveryTime,
+    required int itemsPerNewsletter,
+    required String timezone,
+    String purposeText = '',
+  }) {
+    final email = AuthService.instance.currentUser?.email;
+    return _put({
+      'enabled': true,
+      'frequency': frequency,
+      'deliveryTime': deliveryTime,
+      'itemsPerNewsletter': itemsPerNewsletter,
+      // 2.29.0 — sent in the SAME call as `deliveryTime`, always.
+      'timezone': timezone,
+      if (email != null && email.isNotEmpty) 'emailAddress': email,
+      if (purposeText.trim().isNotEmpty) 'purposeText': purposeText.trim(),
+    });
+  }
+
   /// Scheduled delivery, from wherever the reader is (2.29.0 rule 1). Off is a
   /// **pause**: it keeps every other setting, and "Send now" keeps working.
   ///
