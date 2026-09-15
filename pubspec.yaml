@@ -24,6 +24,14 @@ dependencies:
   shared_preferences: ^2.3.2
   visibility_detector: ^0.4.0+2
   firebase_app_installations: ^0.4.2+7
+  # Pinned EXACTLY, and low, on purpose. `firebase_analytics` 12.5.0+ requires
+  # `firebase_core ^4.14.0`, which pins the Firebase **iOS SDK** to 12.19.0 —
+  # so adding a measurement plugin would move the SDK that Auth, Firestore and
+  # Installations all run on, on a client that points at REAL PROD. 12.4.6 is
+  # the newest analytics that pairs with the `firebase_core 4.13.0` already
+  # locked here, and it leaves the iOS SDK at 12.17.0 and every other plugin
+  # untouched. Adding a member is not a reason to move the family.
+  firebase_analytics: 12.4.6
   flutter_html_table: ^3.0.0
   webview_flutter: ^4.13.1
   # Pinned, not floated: `flutter_html` 3.0.0 calls `queryselector.matches`,

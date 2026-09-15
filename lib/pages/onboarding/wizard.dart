@@ -14,6 +14,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
+import '../../services/analytics.dart';
 import 'steps.dart';
 
 /// First-run onboarding (`spec/screens/onboarding.md`) — five steps, shown
@@ -96,6 +97,11 @@ class _OnboardingGateState extends State<OnboardingGate> {
 
 /// One step of the rail's list.
 class _Step {
+  /// The step's id in the `step` vocabulary — the reference's own `STEPS` keys,
+  /// which is a closed set `analytics-events.md` names. Carried on the step
+  /// rather than derived from an index so that reordering the wizard cannot
+  /// quietly re-label what an operator is reading.
+  final String key;
   final String label;
   final String sub;
 
@@ -103,15 +109,15 @@ class _Step {
   /// bookends, not numbered work.
   final String? number;
 
-  const _Step(this.label, this.sub, {this.number});
+  const _Step(this.key, this.label, this.sub, {this.number});
 }
 
 const List<_Step> _steps = [
-  _Step('Welcome', 'What this is'),
-  _Step('Bring in your reading', 'Upload & connect', number: '01'),
-  _Step('Teach your librarian', 'Set its mission', number: '02'),
-  _Step('Tune your letter', 'When & how much', number: '03'),
-  _Step('You’re set', 'Open your library'),
+  _Step('welcome', 'Welcome', 'What this is'),
+  _Step('sources', 'Bring in your reading', 'Upload & connect', number: '01'),
+  _Step('librarian', 'Teach your librarian', 'Set its mission', number: '02'),
+  _Step('letter', 'Tune your letter', 'When & how much', number: '03'),
+  _Step('done', 'You’re set', 'Open your library'),
 ];
 
 /// The rail's footer quote, one per step, cycled.
@@ -166,6 +172,19 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
   String? _saveError;
 
   @override
+  void initState() {
+    super.initState();
+    // The first step counts. The reference's effect runs on mount as well as on
+    // every change, and without this the welcome screen — the one step every
+    // reader who opens the wizard sees — would be the only one never counted.
+    _reportStep(_step);
+  }
+
+  void _reportStep(int step) => Analytics.track('onboarding_step', {
+        'step': step >= 0 && step < _steps.length ? _steps[step].key : 'unknown',
+      });
+
+  @override
   void dispose() {
     _scroll.dispose();
     _prompt.dispose();
@@ -176,6 +195,7 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
   void _goTo(int step) {
     setState(() => _step = step);
     if (_scroll.hasClients) _scroll.jumpTo(0);
+    _reportStep(step);
   }
 
   /// The only write, and it happens on the last step (`onboarding.md` §Rules).

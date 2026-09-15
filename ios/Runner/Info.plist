@@ -45,5 +45,23 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- INV-25(a), the mobile half. The Analytics SDK collects on its own the
+	     moment Firebase initialises — first_open, session_start, user_engagement
+	     — with no call site anywhere, so an emulator build would post development
+	     sessions to the production property with nothing in the bundle to find.
+	     Collection therefore ships OFF and `Analytics.start()` turns it on only
+	     when !useEmulator && !FLUTTER_TEST. A build that never reaches start()
+	     measures nothing, which is what the invariant asks for and the opposite
+	     of the platform default. -->
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<false/>
+	<!-- Automatic screen reporting stamps firebase_screen_class from the platform
+	     view, and every screen in this app is one FlutterViewController. It is a
+	     constant reported as though it were a measurement — the umbrella's own
+	     rule about showing only measured numbers, pointed at our telemetry. The
+	     screen_view this client sends is the catalogued one, keyed on the route
+	     PATTERN. -->
+	<key>FirebaseAutomaticScreenReportingEnabled</key>
+	<false/>
 </dict>
 </plist>

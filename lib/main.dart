@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/api_service.dart';
+import 'services/analytics.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'app.dart';
@@ -65,7 +66,15 @@ void main() async {
     );
   }
 
+  // INV-25(a). Both manifests ship analytics collection OFF, and this is the
+  // only thing that turns it on — under the emulator or under `flutter test` it
+  // returns without touching the SDK, so a development build measures nothing.
+  // Awaited, not fired: the SDK queues nothing while collection is disabled.
+  await Analytics.start();
+
   final authNotifier = AuthNotifier();
+  final router = createRouter(authNotifier);
+  attachAnalytics(router);
 
   runApp(
     MultiProvider(
@@ -99,7 +108,7 @@ void main() async {
         ),
         ChangeNotifierProvider<ThemeNotifier>(create: (_) => ThemeNotifier()),
       ],
-      child: NoteLetterApp(router: createRouter(authNotifier)),
+      child: NoteLetterApp(router: router),
     ),
   );
 }

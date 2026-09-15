@@ -8,6 +8,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/analytics.dart';
 
 /// Import caps enforced by the picker (mirror `fn_import_from_cloud`).
 const int kMaxImportFolders = 20;
@@ -342,12 +343,18 @@ class CloudNotifier extends ChangeNotifier {
     if (provider == null || !hasSelection) {
       return ('Nothing selected.', true);
     }
+    // The provider name is deliberately NOT a param: it is a closed set, but it
+    // is also a fact about where this reader keeps their documents, and the
+    // per-provider breakdown is already in activity_events where it belongs.
+    // Neither are the folder or file ids, which are the reader's own tree.
+    Analytics.track('capture_started', {'surface': 'cloud'});
     try {
       final data = await Api.instance.importFromCloud(
         provider,
         folderIds: _selectedFolders.toList(),
         fileIds: _selectedFiles.toList(),
       );
+      Analytics.track('capture_completed', {'surface': 'cloud'});
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
       final n = (data['queued_files'] as num?)?.toInt() ?? 0;
       _beginSession();

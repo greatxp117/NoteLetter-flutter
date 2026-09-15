@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'auth_service.dart';
+import 'analytics.dart';
 
 /// Resolves the Firebase ID token for INV-01. Defaults to the signed-in user;
 /// swappable in the conformance harness so request construction is testable
@@ -184,6 +185,22 @@ class ApiService {
   }
 
   ApiException _handle(DioException e) {
+    // The ONE place every verb's failure passes through, which is why the
+    // measurement sits here and not at a call site — the reference's `call()`
+    // wraps every `fn_*` for the same reason. Before the 401 exit, because a
+    // session that has expired mid-use is a failure the operator wants counted
+    // exactly like any other (4.41.0, ADR-079).
+    //
+    // `endpointName` strips the query string: six builders put one on the path
+    // and the params of `fn_list_cloud_files` and `fn_check_source_freshness`
+    // are the reader's own cloud folder ids (INV-25b).
+    final body = e.response?.data is Map ? e.response!.data as Map : const {};
+    Analytics.track('request_failed', {
+      'endpoint': Analytics.endpointName(e.requestOptions.path),
+      'error_code': (body['error_code'] as String?) ?? 'NONE',
+      'status': e.response?.statusCode ?? 0,
+    });
+
     if (e.response?.statusCode == 401) return const UnauthorizedException();
 
     String message = 'Something went wrong. Please try again.';

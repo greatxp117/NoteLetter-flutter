@@ -30,6 +30,18 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- INV-25(a), the mobile half — see ios/Runner/Info.plist for the
+             argument. Collection ships OFF; Analytics.start() turns it on only
+             when !useEmulator && !FLUTTER_TEST. -->
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+        <!-- Automatic screen reporting stamps firebase_screen_class from the
+             Activity, which is one MainActivity for every screen this app has:
+             a constant reported as a measurement. -->
+        <meta-data
+            android:name="google_analytics_automatic_screen_reporting_enabled"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

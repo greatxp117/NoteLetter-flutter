@@ -7,6 +7,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/analytics.dart';
 
 /// Ask — conversational retrieval over the reader's own notes, and the app
 /// remembers it (contract 4.53.0/4.54.0, ADR-090; `spec/screens/ask.md`).
@@ -236,6 +237,14 @@ class ChatNotifier extends ChangeNotifier {
       // the rail at a thread that does not exist when the call fails.
       final id = data['threadId'] as String?;
       if (id != null && id != _activeId) openThread(id);
+      // The question is never sent, the same reason a search query is not. How
+      // many passages the answer stood on is what an operator can act on.
+      final message = data['message'];
+      final citations =
+          message is Map ? (message['citations'] as List?) ?? const [] : const [];
+      Analytics.track('ask_run', {
+        'results_bucket': Analytics.bucket(citations.length),
+      });
       return true;
     } on UnauthorizedException {
       await AuthService.instance.signOut();

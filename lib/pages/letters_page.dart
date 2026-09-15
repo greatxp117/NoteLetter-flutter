@@ -17,6 +17,7 @@ import 'letters/delivery.dart';
 import 'letters/letter_reader.dart';
 import 'letters/pinned_sources.dart';
 import 'letters/readings_letter.dart';
+import '../services/analytics.dart';
 
 /// Letters (`spec/screens/letters.md` §Composition, ADR-041).
 ///
@@ -35,6 +36,16 @@ class _LettersPageState extends State<LettersPage> {
   /// The letter being read, or null for the list. A state rather than a route
   /// because the archive row is what opens it — the reference does the same.
   Newsletter? _open;
+
+  /// One setter rather than three call sites, so the preview, the archive row
+  /// and anything that opens a letter later count the same way by construction
+  /// — the reference makes the same argument with one effect. What is emitted
+  /// is that A letter was opened, never which one: the archive key is a
+  /// Firestore id (INV-25b).
+  void _openLetter(Newsletter? n) {
+    if (n != null && n != _open) Analytics.track('letter_opened');
+    setState(() => _open = n);
+  }
 
   String? _sendMessage;
   String? _sendError;
@@ -115,7 +126,7 @@ class _LettersPageState extends State<LettersPage> {
     if (open != null) {
       return LetterReaderView(
         letter: open,
-        onBack: () => setState(() => _open = null),
+        onBack: () => _openLetter(null),
       );
     }
 
@@ -149,7 +160,7 @@ class _LettersPageState extends State<LettersPage> {
             onSend: _sendNow,
             onPreview: latest == null
                 ? null
-                : () => setState(() => _open = latest),
+                : () => _openLetter(latest),
             onSettings: () => context.go('/letters/settings'),
             sendMessage: _sendMessage,
             sendError: _sendError,
@@ -162,7 +173,7 @@ class _LettersPageState extends State<LettersPage> {
           // The SECOND letter, beside the one above and never a mode of it.
           ReadingsLetterSection(
             issues: letters.readings,
-            onOpen: (n) => setState(() => _open = n),
+            onOpen: _openLetter,
             onSettings: () => context.go('/letters/settings'),
           ),
 
@@ -173,7 +184,7 @@ class _LettersPageState extends State<LettersPage> {
             loaded: letters.loaded,
             error: letters.error,
             onRetry: () => context.read<NewsletterNotifier>().load(),
-            onOpen: (n) => setState(() => _open = n),
+            onOpen: _openLetter,
           ),
           const SizedBox(height: AppSpacing.s8),
         ],

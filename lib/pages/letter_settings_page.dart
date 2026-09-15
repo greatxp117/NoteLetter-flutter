@@ -13,6 +13,7 @@ import '../state/settings_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
 import 'letters/readings_letter.dart';
+import '../services/analytics.dart';
 
 /// Letter settings (`spec/screens/letters.md`) — `/letters/settings`.
 ///
@@ -132,6 +133,9 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
           excludeRecentDays: _excludeRecentDays,
         );
     if (!mounted) return;
+    // On the accepted path only: a rejected save changed nothing, and it is
+    // already counted once as a `request_failed`.
+    if (error == null) Analytics.track('letter_settings_saved');
     setState(() {
       _saveError = error;
       _outcome = error == null ? 'Letter settings saved.' : null;

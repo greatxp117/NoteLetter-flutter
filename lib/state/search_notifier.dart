@@ -5,6 +5,7 @@ import '../models/search_result.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/analytics.dart';
 
 class SearchNotifier extends ChangeNotifier {
   List<SearchResult> _results = [];
@@ -48,6 +49,13 @@ class SearchNotifier extends ChangeNotifier {
       _results = rawList
           .map((e) => SearchResult.fromJson(e as Map<String, dynamic>))
           .toList();
+      // The QUERY is never sent — it is the single most revealing string in the
+      // app (INV-25b). How many passages came back is a bucket, because a raw
+      // count is a number about the size of someone's library.
+      Analytics.track('search_run', {
+        'mode': 'passages',
+        'results_bucket': Analytics.bucket(_results.length),
+      });
       _error = null;
     } on UnauthorizedException {
       await AuthService.instance.signOut();
@@ -108,6 +116,11 @@ class SearchNotifier extends ChangeNotifier {
       final data = await Api.instance.synthesizeSearch(trimmed,
           sourceTypes: sourceTypes, breadth: breadth);
       _reading = CohesiveReading.fromJson(data);
+      Analytics.track('search_run', {
+        'mode': 'cohesive',
+        'breadth': breadth,
+        'results_bucket': Analytics.bucket(data['kept'] as num?),
+      });
       _cohesiveError = null;
     } on UnauthorizedException {
       await AuthService.instance.signOut();

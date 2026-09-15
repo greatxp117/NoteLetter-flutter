@@ -6,6 +6,7 @@ import '../models/support.dart';
 import '../state/support_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
+import '../services/analytics.dart';
 
 /// Support — the conversation between one user and a human (contract 4.18.0,
 /// ADR-054; `spec/screens/support.md`).
@@ -70,6 +71,11 @@ class _SupportPageState extends State<SupportPage> {
   Future<void> _send() async {
     final notifier = context.read<SupportNotifier>();
     final ok = await notifier.send(_controller.text, route: widget.fromRoute);
+    // That a message was sent. NEVER the message — it is the reader writing to
+    // a human about their own library (INV-22, INV-25b). On the accepted path
+    // only: a refused send is a `request_failed`, and counting it here too would
+    // report a conversation that never started.
+    if (ok) Analytics.track('support_message_sent');
     // Write BEFORE you move (ADR-022): the box clears only once the endpoint
     // has accepted the message. On a 400/429 the text stays, which is the whole
     // point — this is the one screen where losing what the user typed is

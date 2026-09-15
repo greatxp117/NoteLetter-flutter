@@ -18,6 +18,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
+import '../../services/analytics.dart';
 
 /// Grades in SM-2 order, with the promise each one makes.
 const _gradeLabels = {
@@ -48,12 +49,21 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
   /// a review's excerpt count only once its disclosure is opened.
   final Set<String> _readLogged = {};
 
+  /// `study_session_started` is emitted once, when the session document first
+  /// arrives — not on every rebuild of the stream, and not on mount, because
+  /// until the document is there the session may not exist at all. That a
+  /// session was started; never which programme or which passages.
+  bool _sessionAnnounced = false;
+
   Future<void> _grade(StudySession session, StudySessionItem item, String qid,
       String grade) async {
     setState(() => _busy.add(qid));
     try {
       final res =
           await Api.instance.submitStudyAnswer(session.id, qid, grade);
+      // The grade, which is a closed set of four; never the question, the
+      // answer or which document it came from (INV-25b).
+      Analytics.track('study_answer_submitted', {'grade': grade});
       if (!mounted) return;
       setState(() {
         // Non-optimistic: the outcome is whatever the server reports.
@@ -131,6 +141,11 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
                   'another account.',
             ),
           );
+        }
+
+        if (!_sessionAnnounced) {
+          _sessionAnnounced = true;
+          Analytics.track('study_session_started');
         }
 
         return KitPage(

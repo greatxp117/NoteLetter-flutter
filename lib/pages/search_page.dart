@@ -21,6 +21,7 @@ import 'search/reading_pane.dart';
 import 'search/result_card.dart';
 import 'search/scripture_results.dart';
 import 'search/search_field.dart';
+import '../services/analytics.dart';
 
 /// **Search** (`spec/screens/search.md`) — semantic search over the library.
 ///
@@ -488,11 +489,21 @@ class _SearchPageState extends State<SearchPage> {
     final list = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final r in shown)
+        for (final (i, r) in shown.indexed)
             SearchResultCard(
               result: r,
               selected: _selected?.chunk.chunkId == r.chunk.chunkId,
-              onTap: () => _select(r),
+              onTap: () {
+                // Which RANK a reader opens, bucketed — never which passage,
+                // which document or which query (INV-25b). Only on the open: a
+                // second tap on the card already showing is not a second open,
+                // and the reference guards it the same way.
+                if (_selected?.chunk.chunkId != r.chunk.chunkId) {
+                  final rank = Analytics.bucket(i + 1);
+                  Analytics.track('result_opened', {'rank_bucket': rank});
+                }
+                _select(r);
+              },
               onOpenSource: () => _openSource(r),
               shelfTitle: _shelfFor(r, shelves)?.title,
               shelfColorToken: _shelfFor(r, shelves)?.color,

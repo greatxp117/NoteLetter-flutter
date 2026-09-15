@@ -3,6 +3,7 @@ import '../models/upload_file.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/analytics.dart';
 
 class UploadNotifier extends ChangeNotifier {
   final List<UploadFile> _files = [];
@@ -48,6 +49,8 @@ class UploadNotifier extends ChangeNotifier {
     _files.add(file);
     notifyListeners();
 
+    // An image set is one capture from the upload surface, not twenty.
+    Analytics.track('capture_started', {'surface': 'upload'});
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.1);
       final filesMeta = set
@@ -68,6 +71,7 @@ class UploadNotifier extends ChangeNotifier {
       // Signal only after every image PUT succeeded (uploads.md).
       await Api.instance.signalUploadsComplete(docId);
       _patch(file.id, status: UploadStatus.completed, progress: 1.0);
+      Analytics.track('capture_completed', {'surface': 'upload'});
     } on UnauthorizedException {
       await AuthService.instance.signOut();
       _patch(file.id,
@@ -150,6 +154,10 @@ class UploadNotifier extends ChangeNotifier {
     final bytes = _pendingBytes[file.id];
     if (bytes == null) return;
 
+    // `surface` is WHERE a capture came from, and it is the whole payload: no
+    // filename, no mime type, no size. Started and completed are two events on
+    // purpose — the gap between them is the abandonment this measures.
+    Analytics.track('capture_started', {'surface': 'upload'});
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.1);
 
@@ -163,6 +171,7 @@ class UploadNotifier extends ChangeNotifier {
       await ApiService.instance.putBytes(uploadUrl, bytes, file.mimeType);
 
       _patch(file.id, status: UploadStatus.completed, progress: 1.0);
+      Analytics.track('capture_completed', {'surface': 'upload'});
     } on UnauthorizedException {
       await AuthService.instance.signOut();
       _patch(file.id, status: UploadStatus.error, errorMessage: 'Session expired.');
@@ -177,6 +186,10 @@ class UploadNotifier extends ChangeNotifier {
   }
 
   Future<void> _ingestUrl(UploadFile file, String url, String type) async {
+    // The URL itself is never sent. It is somebody's reading, and a URL is
+    // legible where a Firestore id is not — the worst of the fields ADR-081
+    // found on the wire (INV-25b).
+    Analytics.track('capture_started', {'surface': 'url'});
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.5);
 
@@ -189,6 +202,7 @@ class UploadNotifier extends ChangeNotifier {
           progress: 1.0,
           docId: result['docId'] as String?,
           docIds: docIds);
+      Analytics.track('capture_completed', {'surface': 'url'});
     } on UnauthorizedException {
       await AuthService.instance.signOut();
       _patch(file.id, status: UploadStatus.error, errorMessage: 'Session expired.');

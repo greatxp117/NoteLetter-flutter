@@ -24,6 +24,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
+import '../../services/analytics.dart';
 
 /// Offered only at >= 5 documents — ABSENT below that, not disabled, because
 /// the endpoint 400s there and a control that cannot work is worse than none.
@@ -125,6 +126,9 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
             'documentIds': p.documentIds,
           }
       ]);
+      // That a shelf was split, and nothing about into what: every part carries
+      // a title the reader wrote.
+      Analytics.track('shelf_split');
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;

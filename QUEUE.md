@@ -292,24 +292,47 @@ a new obligation on a finished screen is a new item.
 - route: none
 - spec: spec/features/analytics-events.md; spec/invariants.md
 - web: src/analytics.js; src/firebase.js
-- flutter: lib/services/analytics.dart (new); pubspec.yaml; lib/main.dart
+- flutter: lib/services/analytics.dart (new); test/contract/analytics_test.dart (new);
+  pubspec.yaml; lib/main.dart; lib/router.dart; lib/services/api_service.dart;
+  lib/state/theme_notifier.dart; lib/state/search_notifier.dart; lib/state/chat_notifier.dart;
+  lib/state/upload_notifier.dart; lib/state/cloud_notifier.dart; lib/pages/reader_page.dart;
+  lib/pages/search_page.dart; lib/pages/letters_page.dart; lib/pages/letter_settings_page.dart;
+  lib/pages/tags_page.dart; lib/pages/support_page.dart; lib/pages/onboarding/wizard.dart;
+  lib/pages/study/session_player.dart; lib/pages/tags/split_shelf_sheet.dart;
+  ios/Runner/Info.plist; android/app/src/main/AndroidManifest.xml
 - folds: 4.41.0; 4.42.0; 4.42.1; 4.43.0
 - device_test: signs in and reaches the library
 - shots: none
-- extra_gates: none
-- notes: ASKED and decided 2026-09-15 — it does not bind, and the RECORD branch was taken.
-  INV-25's two clauses are constraints on a provider that EXISTS: (a) governs where one may be
-  constructed, (b) what its hits may carry. A client with no provider satisfies both vacuously,
-  and nothing in `analytics-events.md` obliges a client to emit — 5q reads the web reference
-  alone and names no other client. Recorded in BOTH halves, because a status in one table and a
-  decision in the other is this workspace's most-repeated defect: `flutter.md` §Out of scope
-  carries the reasoning, and `analytics-events.md` §Client coverage no longer reads "pending".
-  What decided it was not the dependency. The mobile SDK auto-collects `screen_view` carrying
-  `firebase_screen_class` — the widget class name — which is the mobile shape of exactly the
-  `page_location` leak ADR-081 needed a live wire read to find, and it would need its own gate
-  before the first hit. Against that: this client is distributed to nobody, and an operator
-  question about what people use cannot be answered by a build nobody runs. Revisit on
-  distribution. No code changed, so no device run and no shots.
+- extra_gates: python3 ../NoteLetter-contracts/harness/analytics_vocab_check.py (5q)
+- notes: ASKED, decided to RECORD, then Xavier reversed it: BUILT 2026-09-15. The mirror of
+  `src/analytics.js`: the same 19 names, the same closed sets, 26 call sites, and the reference's
+  own `screen_name` tokens rather than this client's route spellings — one vocabulary, one
+  membership. Three things this platform makes different, and the first is the whole job.
+  (1) **On mobile a provider is not something you construct.** The SDK collects on Firebase init
+  — `first_open`, `session_start`, `user_engagement` — with NO call site anywhere, so the
+  emulator build law 1 requires would post development sessions into the production property
+  with nothing in the bundle to find. Collection therefore ships OFF in both native manifests
+  and `Analytics.start()` is the only thing that turns it on, behind the same two conditions the
+  reference tests. INV-25(a) inverted: the guard is a default, not an `if`.
+  (2) **`screen_name` is keyed on go_router's route PATTERN** (`/reader/:docId`), never on the
+  location — the reference's `buildPath`-with-no-ids argument transposed, so a route that gains
+  an id later cannot carry one onto the wire. `analytics_test.dart` walks the REAL `appRoutes()`
+  and fails on a pattern with no token, which is the direction no Python reader can take: the
+  route table is a list of closures.
+  (3) **Automatic screen reporting is off** because it stamps `firebase_screen_class` from the
+  platform view, which is one `FlutterViewController` for every screen here. Recorded honestly:
+  that is NOT the mobile shape of ADR-081's `page_location` leak (no id is involved) — it is a
+  constant reported as though it were a measurement.
+  Gated by 5q's new FLUTTER directions plus COLLECTION-DEFAULT, AUTO-SCREENVIEW, SCREEN-TOKEN and
+  READER-INCOMPLETE; 19 gate mutations and 4 test mutations, all red. `firebase_analytics` is
+  pinned EXACTLY at 12.4.6, the newest that pairs with the `firebase_core 4.13.0` already locked:
+  12.5.0+ moves the Firebase iOS SDK 12.17.0 -> 12.19.0 under Auth, Firestore and Installations,
+  and adding a member is not a reason to move the family.
+  **Still owed and it is the acceptance gate**: no hit has ever been seen. The fakes cannot help
+  here — there is nothing to fake — and prod's GA4 property may have no APP data stream at all
+  (`IS_ANALYTICS_ENABLED` reads false in this client's generated `GoogleService-Info.plist`).
+  That is a console question only Xavier can answer, and until it is answered this is a client
+  that measures into a property that may not be listening.
 
 ## F-17 · Raw-primitive lint + kit goldens
 - status: open

@@ -23,6 +23,7 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
+import '../services/analytics.dart';
 
 /// Reader — one-shot doc + chunks (`chunk_index` asc), fires `logReadEvent`
 /// on open (INV-03). Six panels (Summary/Manuscript/SpeedRead/Listen/Original/
@@ -126,6 +127,12 @@ class _ReaderPageState extends State<ReaderPage> {
         _chunks = result.$2;
         _loading = false;
       });
+      // WHAT was opened, in the §6.4.1 kind vocabulary — never which document.
+      // Here rather than in `_reload`, for the same reason `_load` is the only
+      // path that logs `doc_opened`: a content edit rewriting the chunks under
+      // the reader is not a second opening.
+      final kind = kitDocKind(result.$1.type);
+      Analytics.track('reader_opened', {'kind': kind});
       // The document above is the PRE-INCREMENT snapshot: `doc_opened` is
       // logged after it is read. Fold in what the write actually committed,
       // once it confirms — never optimistically before (ADR-022). A null
@@ -323,7 +330,14 @@ class _ReaderPageState extends State<ReaderPage> {
             ReaderPanelTabs(
               panels: _panels(doc),
               selected: _tab,
-              onSelect: (id) => setState(() => _tab = id),
+              onSelect: (id) {
+                // Which panel the reader actually reads in. Only on a change:
+                // tapping the tab already open is not a use of a mode.
+                if (id != _tab) {
+                  Analytics.track('reader_mode_used', {'mode': id});
+                }
+                setState(() => _tab = id);
+              },
             ),
             const SizedBox(height: 22),
             if (!complete && _tab != 'summary')
@@ -726,6 +740,12 @@ class _ReaderPageState extends State<ReaderPage> {
     });
     try {
       await Api.instance.setReadState(widget.docId, finished);
+      // Only the finishing direction, as the reference has it: un-finishing is
+      // a correction, and counting it as a completion would make the number
+      // read the wrong way.
+      if (finished && _document != null) {
+        Analytics.track('doc_finished', {'kind': kitDocKind(_document!.type)});
+      }
       // Re-read rather than mint a timestamp locally: the endpoint is the sole
       // writer of finished_at and the server clock is the one that counts.
       await _reload();

@@ -10,6 +10,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
 import 'tags/shelf_parts.dart';
+import '../services/analytics.dart';
 
 /// **Shelves — the index** (`screens/library.md` §Shelf color, §Shelf
 /// granularity and splitting; composition per `screens/sources.md`
@@ -192,6 +193,9 @@ class _NewShelfFormState extends State<_NewShelfForm> {
       });
       return;
     }
+    // `origin` says HOW a shelf came to exist — a reader typing a name, the
+    // librarian's suggestion accepted, or a split. Never the name itself.
+    Analytics.track('shelf_created', {'origin': 'manual'});
     widget.onCreated();
   }
 

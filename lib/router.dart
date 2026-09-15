@@ -1,4 +1,7 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+
+import 'services/analytics.dart';
 import 'state/auth_notifier.dart';
 import 'widgets/app_layout.dart';
 import 'widgets/support_shell.dart';
@@ -37,6 +40,37 @@ GoRouter createRouter(AuthNotifier authNotifier) {
     errorBuilder: (context, state) => const NotFoundPage(),
     routes: appRoutes(),
   );
+}
+
+/// `screen_view` for every navigation, keyed on the route PATTERN.
+///
+/// Here rather than in `services/analytics.dart` because this is where the
+/// route table is — the reference emits it from its route effect for the same
+/// reason. Keyed on the pattern (`/reader/:docId`), never on the location, so a
+/// route that gains an id later cannot carry one onto the wire: that is the
+/// reference's `buildPath`-with-no-ids argument, transposed.
+///
+/// Deduped on the pattern, because the delegate notifies on rebuilds as well as
+/// navigations and a `screen_view` per rebuild measures how often Flutter
+/// rebuilt. The post-frame call is for the FIRST screen, which is already
+/// configured before anything can listen.
+void attachAnalytics(GoRouter router) {
+  String? last;
+  void report() {
+    String? pattern;
+    try {
+      pattern = router.state.fullPath;
+    } catch (_) {
+      return; // no configuration yet
+    }
+    if (pattern == last) return;
+    last = pattern;
+    final token = Analytics.screenName(pattern);
+    if (token != null) Analytics.track('screen_view', {'screen_name': token});
+  }
+
+  router.routerDelegate.addListener(report);
+  WidgetsBinding.instance.addPostFrameCallback((_) => report());
 }
 
 /// **The route table itself**, separated from [createRouter] so INV-22's gate
