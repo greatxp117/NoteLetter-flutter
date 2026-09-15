@@ -142,9 +142,11 @@ class _SearchPageState extends State<SearchPage> {
     // nothing because `parseCitation` still rejects it, and being conservative
     // is what keeps an ordinary search from being hijacked (a bare `acts` is a
     // word, not a book).
-    final citation = LocalFlags.scripture.value && looksLikeCitation(query)
-        ? parseCitation(query)
-        : null;
+    final citation =
+        LocalFlags.scripture.value && looksLikeCitation(query) &&
+                !search.rejectedAsCitation(query)
+            ? parseCitation(query)
+            : null;
 
     setState(() {
       _submitted = query;
@@ -685,13 +687,16 @@ class _CitationCount extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final label = loading
-        ? 'Reading…'
-        : failed
-            ? 'Lookup unavailable'
-            : reference != null
-                ? '$reference · verse by verse'
-                : 'Not a citation';
+    // Three states, and **no `Not a citation`**: that answer is the server
+    // saying the query parsed as ordinary text, and it releases the branch
+    // rather than being rendered in it — so a label for it would only ever
+    // appear as a flash on the frame between the branch opening and the
+    // request going out, naming the one outcome that cannot be true here.
+    final label = failed
+        ? 'Lookup unavailable'
+        : reference != null && !loading
+            ? '$reference · verse by verse'
+            : 'Reading…';
     return Text(
       label,
       style: AppTheme.mono(
