@@ -465,3 +465,19 @@ a new obligation on a finished screen is a new item.
 - shots: ask-turn-failed
 - extra_gates: failure_pattern_check.py
 - notes: Two rules from 4.61.0. (1) The turn the reader sent is rendered from send until its own STORED message arrives to replace it — counted against the copies the thread already held, so asking the same question twice does not clear the new turn against the old one's message — and a refusal leaves it in place with the server's sentence (§14.2) plus a retry that re-sends that turn, never back in the composer. (2) The transcript and the rail are two subscriptions and each renders §14.1 in its own region when it cannot be READ; neither may fall back to an empty state, which asserts the reader has asked nothing. Flutter's streams already pass onError (INV-24's third layer) — what it owes is the consumer and both regions. The fourth layer added at 4.61.0 (a React state setter is not a consumer) is JS-specific and has no Dart analogue.
+
+## F-26 · Reader — one continuous scroll, §19 Section rail
+- status: open
+- screen: reader
+- route: /reader/seed-doc-pdf-complete
+- spec: spec/screens/reader.md §Continuous scroll §Composition §Deep link to a passage §Opening at a shared carousel slide; spec/component-kit.md §19; spec/decisions/ADR-100-a-panel-is-not-a-place.md
+- web: src/pages/ReaderView.jsx; src/styles/app-source.css
+- flutter: lib/pages/reader_page.dart; lib/pages/reader/reader_ui.dart; lib/widgets/kit/kit_section_rail.dart (new); lib/widgets/kit/kit.dart
+- folds: 4.64.0 (ADR-100 — six sections in one scroll, the rail reports scroll position, nothing is hidden)
+- device_test: the reader scrolls from Summary to History without a tap, and the rail's current jump follows the scroll
+- shots: reader
+- extra_gates: none
+- notes: A new item rather than a fold into F-09/F-10/F-11 because all three are done and this changes the frame they were built into.
+  The acceptance test is the DEEP LINK, not the scroll: open /reader/{doc}?p={chunk} cold and the passage must come into view. On web that had never worked, because the panel holding the anchor was not mounted until the reader picked its tab (CHANGELOG 4.64.0). Flutter must not reproduce it — check the cold open, not the tap.
+  Order is normative (Summary · Manuscript · Speed read · Listen · Original · History). Deferred mount on approach is allowed; mount-on-tap is the defect.
+  Speed read's keyboard bindings, if any, are scoped to its own section.
