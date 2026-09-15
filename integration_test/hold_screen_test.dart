@@ -26,6 +26,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter_app/app.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
+import 'package:flutter_app/state/chat_notifier.dart';
+import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
@@ -209,6 +211,50 @@ Future<void> reachState(WidgetTester tester) async {
         expect(find.byIcon(Icons.delete_outline), findsWidgets,
             reason: 'no §9.1 entry actions — this frame would be the old rail');
       }
+      return;
+    // ask.md §States — a turn the endpoint REFUSED (4.61.0, ADR-097). The
+    // question stays in the transcript with the server's sentence and a retry;
+    // it is never returned to the composer. No route reaches this state and no
+    // fake produces it, so it is driven by a REAL refusal — and which refusal
+    // is not a free choice. It is held on `/ask/shelf/{id}` for a shelf that
+    // does not exist, whose turn is the endpoint's own documented 404 ("Shelf
+    // not found.", `api/ask.md`).
+    //
+    // NOT on `/ask/thread/{id}` for a missing thread, which was the first
+    // attempt: the messages subscription is denied by the rules before any
+    // turn is sent, so the screen correctly draws INV-24's "This conversation
+    // could not be read." and the frame would have been that state under this
+    // one's filename. (Which is itself worth recording: that is the thread
+    // half of INV-24 rendering against a real permission-denied.) A dead
+    // functions port would work too and would render OUR fallback sentence
+    // instead of the server's — and the server's words, verbatim, are the half
+    // of §14.2 that matters.
+    case 'ask-turn-failed':
+      final failField = find.byType(TextField).last;
+      await tester.enterText(failField, 'Which of these recipes can use steak?');
+      await settle();
+      await tester.tap(find.bySemanticsLabel('Send'));
+      for (var i = 0; i < 200; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.text('Try again').evaluate().isNotEmpty) break;
+      }
+      await settle();
+      // Say which branch this run took, the way the device run does: a frame
+      // that is not the state its filename claims is false evidence, and the
+      // notifier is the only thing that can say which state it is.
+      final chat = Provider.of<ChatNotifier>(
+        tester.element(find.byType(KitComposerDock)),
+        listen: false,
+      );
+      debugPrint('HOLD ask-turn-failed: sent=${chat.sentQuestion} '
+          'err=${chat.sentError} msgs=${chat.messages.length} '
+          'thread=${chat.activeId}');
+      expect(find.text('Try again'), findsOneWidget,
+          reason: 'the turn was not refused — this frame would be an answer, '
+              'under a filename claiming otherwise');
+      expect(find.text('Which of these recipes can use steak?'), findsOneWidget,
+          reason: 'the question left the screen — the frame would show the '
+              'defect ADR-097 closed rather than the state it requires');
       return;
     // reader.md §Panels — the manuscript is a BODY SWAP under the reader's one
     // header, not a route, so no URL reaches it and the frame has to select the

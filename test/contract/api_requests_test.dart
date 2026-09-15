@@ -198,6 +198,7 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
         threadId: b['threadId'] as String?,
         sourceTypes: _strs(b['sourceTypes']),
         limit: (b['limit'] as num?)?.toInt(),
+        tagId: b['tagId'] as String?,
       ),
   'fn_search_notes': (b) => Api.instance.searchNotes(b['query'],
       sourceTypes: _strs(b['sourceTypes']), limit: b['limit'] ?? 10),

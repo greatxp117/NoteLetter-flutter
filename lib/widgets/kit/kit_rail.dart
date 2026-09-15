@@ -198,6 +198,17 @@ class KitRailEntry extends StatefulWidget {
   final String title;
   final String? time;
   final String? preview;
+
+  /// §9.2 (4.62.0, ADR-098) — a mono caps label naming what this entry is
+  /// SCOPED to, in the title row before the time. Reuses the rail's own idiom:
+  /// the header title and the group labels are already mono caps, so a scope
+  /// reads as rail furniture and not as content.
+  ///
+  /// **Null renders nothing** — never "All", never "Library". An absent scope
+  /// is not a value, and a label saying so would put a word on every entry to
+  /// distinguish the few that have one.
+  final String? scope;
+
   final bool active;
   final VoidCallback onTap;
 
@@ -226,6 +237,7 @@ class KitRailEntry extends StatefulWidget {
   const KitRailEntry({
     super.key,
     required this.title,
+    this.scope,
     this.time,
     this.preview,
     this.active = false,
@@ -359,6 +371,30 @@ class _KitRailEntryState extends State<KitRailEntry> {
                                   ),
                                 ),
                         ),
+                        // §9.2: the scope sits between the title and the
+                        // time, and YIELDS its width to the title — which is
+                        // the entry's subject. It survives the actions
+                        // cluster, unlike the time: a shelf-scoped
+                        // conversation and a library-wide one are otherwise
+                        // identical in the rail while being answers about
+                        // different libraries.
+                        if (widget.scope != null &&
+                            widget.scope!.isNotEmpty &&
+                            !widget.renaming) ...[
+                          const SizedBox(width: AppSpacing.s2),
+                          Flexible(
+                            child: Text(
+                              widget.scope!.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.mono(
+                                fontSize: 9.5,
+                                letterSpacing: 0.1 * 9.5,
+                                color: t.accentText,
+                              ),
+                            ),
+                          ),
+                        ],
                         // §9.1: the time YIELDS to the cluster. It is not
                         // squeezed beside it — 320px holds a truncating title
                         // and one of the two, and the one that can be acted on

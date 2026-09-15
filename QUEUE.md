@@ -454,7 +454,7 @@ a new obligation on a finished screen is a new item.
 - notes: F-15 changed kit_shell.dart, kit_headers.dart, sidebar.dart, nav_drawer.dart, local_flags.dart and both harness files, so every item listing one of them went STALE-PAIR — six pairs. Four were re-shot and committed (activity, library, reader-manuscript, search, notifications, shelves); these four were not, because the disk filled mid-run. Nothing about these screens changed — the §2.1 row F-15 rewrote is the WIDE branch and every frame here is compact — but the gate cannot tell a shared-file touch from a redesign, and that is exactly why it is not waived. Routes: shelf-color-picker `/shelves/seed-tag-recipes` HOLD_STATE color-picker; ask `/ask`; ask-thread `/ask` HOLD_STATE ask-thread; ask-rail `/ask` HOLD_STATE ask-rail (the last two run a REAL turn through the shim on 5099). Delete each target PNG before capturing: simctl refuses to overwrite one of these files in place (`Operation not permitted`) and writes happily once the path is free.
 
 ## F-25 · Ask: a sent turn stays, and a failed read says so
-- status: open
+- status: done 2026-09-15
 - screen: ask
 - route: /ask
 - spec: spec/screens/ask.md §States; spec/invariants.md; spec/decisions/ADR-097-a-state-setter-is-not-a-consumer.md
@@ -481,3 +481,26 @@ a new obligation on a finished screen is a new item.
   The acceptance test is the DEEP LINK, not the scroll: open /reader/{doc}?p={chunk} cold and the passage must come into view. On web that had never worked, because the panel holding the anchor was not mounted until the reader picked its tab (CHANGELOG 4.64.0). Flutter must not reproduce it — check the cold open, not the tap.
   Order is normative (Summary · Manuscript · Speed read · Listen · Original · History). Deferred mount on approach is allowed; mount-on-tap is the defect.
   Speed read's keyboard bindings, if any, are scoped to its own section.
+
+## F-27 · Re-shoot every pair F-16 staled
+- status: open
+- screen: none
+- route: none
+- spec: spec/decisions/ADR-041-composition-is-contract.md
+- web: scripts/theme-shots.mjs
+- flutter: screenshots/README.md
+- folds: none
+- device_test: none
+- shots: ask; ask-thread; letters; letter-settings; letter-reader; notifications; support; study; shelves; shelf-color-picker; reader; reader-manuscript; recipe; source-file; source-set; search; activity; library
+- extra_gates: screenshot_pair_check.py
+- notes: F-16 (measurement) added a track() call to almost every page file, so
+    almost every pair in this repo is now OLDER than the screen it photographs and
+    screenshot_pair_check reports 22 STALE-PAIR. None of them is wrong in what it SHOWS
+    — an analytics call renders nothing — but a frame older than its code is exactly
+    what the gate refuses to trust, and a standing red is a gate nobody reads.
+    Re-shoot each with tool/shots.sh + tool/web_frames.sh; ~2.5 min apiece on the
+    simulator. Six were already re-shot while F-25 was landing (ask-rail, onboarding,
+    sources, proc-affordances, source-file-stage, and F-25's own ask-turn-failed),
+    so those are current unless a later commit touches their screens.
+    LOOK at each set of four while re-shooting: the ritual is the comparison, not the
+    capture, and a re-shoot that only refreshes timestamps is the gate being fed.

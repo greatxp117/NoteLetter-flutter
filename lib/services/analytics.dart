@@ -89,6 +89,12 @@ const Map<String, String> screenNames = <String, String>{
   '/library': 'library',
   '/search': 'search',
   '/ask': 'ask',
+  // Ask's other two forms (ADR-098, ADR-101). Both are the SAME screen to the
+  // property: the reference's `screenName()` maps every ask route to `ask`,
+  // and a scope or a thread id is the reader's own content (INV-25b) — which
+  // is exactly why the id stays a `:parameter` here and is never spelled out.
+  '/ask/shelf/:tagId': 'ask',
+  '/ask/thread/:threadId': 'ask',
   '/chat': 'ask',
   '/activity': 'activity',
   '/sources': 'sources',

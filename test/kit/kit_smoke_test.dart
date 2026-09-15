@@ -1031,6 +1031,51 @@ void main() {
       expect(find.text('8:18 PM'), findsWidgets);
     });
 
+    testWidgets('§9.2 — a scoped entry names its shelf, an unscoped one is '
+        'silent', (tester) async {
+      // Both directions in one frame, because the defect is the pair: a
+      // conversation scoped to a shelf and a library-wide one were identical
+      // in the rail while being answers about different libraries (ADR-098) —
+      // and a label on the unscoped one would put a word on every entry to
+      // distinguish the few that have one.
+      await pumpBoth(
+        tester,
+        SizedBox(
+          height: 600,
+          child: KitInspectorRail(
+            title: 'Conversations',
+            newLabel: 'New conversation',
+            onNew: () {},
+            groups: [
+              KitRailGroup(
+                label: 'Today',
+                entries: [
+                  KitRailEntry(
+                    title: 'What should I cook?',
+                    scope: 'Recipes',
+                    time: '1:15 PM',
+                    onTap: () {},
+                  ),
+                  KitRailEntry(
+                    title: 'Systems thinking',
+                    time: 'Sep 3',
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      // Mono CAPS, the rail's own idiom — the widget upper-cases it, so a
+      // caller passing the shelf's stored title cannot get a lowercase label.
+      expect(find.text('RECIPES'), findsWidgets);
+      expect(find.text('Recipes'), findsNothing);
+      // The unscoped entry renders no scope of any kind.
+      expect(find.text('ALL'), findsNothing);
+      expect(find.text('LIBRARY'), findsNothing);
+    });
+
     testWidgets('the notice stands INSTEAD of the entries', (tester) async {
       // INV-24: a rail that could not be READ is not an empty rail. If both
       // rendered, the failure would sit above a list asserting there is

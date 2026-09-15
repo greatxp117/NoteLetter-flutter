@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+
+import '../shared/source_host.dart';
 import '../models/chunk.dart';
 import '../models/document.dart';
 import '../services/firestore_service.dart';
@@ -479,7 +481,7 @@ class _ReaderPageState extends State<ReaderPage> {
     final published = _fmtPublishDate(doc.publishDate);
     if (published != null) parts.add(published);
 
-    final host = _sourceHost(doc.sourceUrl);
+    final host = sourceHost(doc.sourceUrl);
     if (host != null) parts.add(host);
 
     // max(1, ceil(word_count / 220)) — normative, so every client says the
@@ -543,14 +545,6 @@ class _ReaderPageState extends State<ReaderPage> {
     final mo = int.parse(m.group(2)!);
     if (mo < 1 || mo > 12) return null;
     return '${int.parse(m.group(3)!)} ${months[mo - 1]} ${m.group(1)}';
-  }
-
-  /// The hostname, `www.` stripped. Null when there is no parseable host.
-  static String? _sourceHost(String? url) {
-    if (url == null) return null;
-    final h = Uri.tryParse(url)?.host;
-    if (h == null || h.isEmpty) return null;
-    return h.startsWith('www.') ? h.substring(4) : h;
   }
 
   /// §8, **separated row** — serif numerals over mono caps labels, each closed

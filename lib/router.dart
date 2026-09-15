@@ -136,9 +136,28 @@ List<RouteBase> appRoutes() {
               path: '/activity',
               builder: (context, state) => const ActivityPage(),
             ),
+            // Ask's three forms (4.65.0, ADR-101) — a new conversation, one
+            // SCOPED to a shelf (4.62.0, ADR-098), and an OPEN one. The thread
+            // form takes no shelf segment: a thread carries the scope it was
+            // created with, and that scope wins over the route's.
+            //
+            // The open conversation was screen state until 4.65.0, so a reload
+            // — and every return from a Reader a citation opened — drew the
+            // new-conversation state over a transcript the reader was reading
+            // a second earlier.
             GoRoute(
               path: '/ask',
               builder: (context, state) => const ChatPage(),
+            ),
+            GoRoute(
+              path: '/ask/shelf/:tagId',
+              builder: (context, state) =>
+                  ChatPage(scopeTagId: state.pathParameters['tagId']),
+            ),
+            GoRoute(
+              path: '/ask/thread/:threadId',
+              builder: (context, state) =>
+                  ChatPage(threadId: state.pathParameters['threadId']),
             ),
             // Study (2.34.0). `/study/session/:id` is where the session
             // email's CTA lands, so it must be a real route, not a tab.

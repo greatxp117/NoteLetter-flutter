@@ -161,9 +161,13 @@ class _ShelfPageState extends State<ShelfPage> {
                     : shelf.description,
                 rule: false,
                 actions: [
+                  // A control that says "this shelf" and asks the whole
+                  // library is the control lying (4.62.0, ADR-098). The scope
+                  // rides the URL, so a reload keeps it and the screen never
+                  // claims a scope it is not sending.
                   KitButton.ghost('Ask this shelf',
                       icon: Icons.forum_outlined,
-                      onPressed: () => context.go('/ask')),
+                      onPressed: () => context.go('/ask/shelf/${shelf.id}')),
                   _settings
                       ? KitButton.secondary('Settings',
                           icon: Icons.tune,

@@ -128,7 +128,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
               const SizedBox(height: AppSpacing.s3),
               Row(
                 children: [
-                  SearchPassageAction(
+                  KitPassageAction(
                     icon: Icons.visibility_outlined,
                     label: 'Open source',
                     onTap: widget.onOpenSource,
@@ -204,63 +204,6 @@ class _ScoreMeter extends StatelessWidget {
           Text(clamped.toStringAsFixed(2),
               style: AppTheme.mono(fontSize: 10, color: t.fgMuted)),
         ],
-      ),
-    );
-  }
-}
-
-/// A footer action on a passage card: sans 12 at `--fg-lede` with a 13px icon.
-///
-/// Public because the cohesive column's passage card (4.40.0) has the same
-/// action bar. One spelling of a pattern, not two — the reference draws both
-/// from `.pact`.
-class SearchPassageAction extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const SearchPassageAction({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<SearchPassageAction> createState() => _PassageActionState();
-}
-
-class _PassageActionState extends State<SearchPassageAction> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    final color = _hover ? t.fg : t.fgLede;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        // The card itself is tappable, so this action must claim its own tap
-        // rather than letting it fall through and toggle the selection too.
-        onTap: widget.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(widget.icon, size: 13, color: color),
-            const SizedBox(width: 5),
-            Text(
-              widget.label,
-              style: TextStyle(
-                fontFamily: AppTheme.fontSans,
-                fontSize: 12,
-                color: color,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

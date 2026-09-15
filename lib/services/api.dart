@@ -264,11 +264,18 @@ class Api {
     String? threadId,
     List<String>? sourceTypes,
     int? limit,
+    String? tagId,
   }) {
     final body = <String, dynamic>{'question': question};
     if (threadId != null) body['threadId'] = threadId;
     if (sourceTypes != null) body['sourceTypes'] = sourceTypes;
     if (limit != null) body['limit'] = limit;
+    // The shelf this turn is scoped to (4.62.0, ADR-098). Omitted, never null:
+    // the key set is closed and an unknown or null-valued key is a 400. Sent
+    // WITH a threadId it must equal that thread's own scope, so a follow-up
+    // sends the threadId alone and inherits it — which is why the caller
+    // passes the scope only when it is starting the conversation.
+    if (tagId != null) body['tagId'] = tagId;
     return _http.post('/fn_ask_turn', data: body);
   }
 

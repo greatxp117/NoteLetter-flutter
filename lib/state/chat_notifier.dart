@@ -29,12 +29,17 @@ class ChatNotifier extends ChangeNotifier {
   List<AskMessage> _messages = const [];
   String? _activeId;
 
-  /// The question currently in flight. Not a transcript entry: it is the one
-  /// thing on this screen that has not been recorded yet.
-  String? _pending;
-
-  /// The last turn's rejection, rendered as §14.2 beside the composer.
-  String? _error;
+  /// The turn the reader has SENT (4.61.0, ADR-097).
+  ///
+  /// It is on screen from the moment it is sent until its own stored message
+  /// arrives to replace it — never until the request settles, which is a
+  /// different moment, and the gap between them is where the question used to
+  /// disappear. A refusal leaves it here with the server's sentence and a
+  /// retry; it is never returned to the composer as though it had not been
+  /// asked. Clients do not write `ask_threads` (INV-04), so there is no
+  /// document to reconcile against, which is exactly why the screen may not
+  /// drop the only record of what the reader did.
+  _SentTurn? _sent;
 
   /// A failure of the SUBSCRIPTIONS, which is a different sentence: the rail
   /// could not be read, as against a question that was refused (INV-24).
@@ -42,6 +47,12 @@ class ChatNotifier extends ChangeNotifier {
   String? _threadError;
 
   bool _loadingThreads = true;
+
+  /// The shelf the ROUTE asked for (`/ask/shelf/{tagId}`, 4.62.0, ADR-098).
+  /// An OPEN thread's own scope wins over it: a thread carries the shelf it was
+  /// created with, and opening a library-wide conversation from a shelf-scoped
+  /// screen must not label it with a shelf it never searched.
+  String? _routeTagId;
 
   /// §9.1 entry actions (4.55.0, ADR-091). All three are about ONE entry: the
   /// rename in flight, the call in flight, and the rejection of either — which
@@ -54,9 +65,48 @@ class ChatNotifier extends ChangeNotifier {
   List<AskThread> get threads => _threads;
   List<AskMessage> get messages => _messages;
   String? get activeId => _activeId;
-  String? get pending => _pending;
-  bool get sending => _pending != null;
-  String? get error => _error;
+
+  /// The sent turn's question, or null when nothing is in flight or refused.
+  String? get sentQuestion => _sent?.question;
+
+  /// The server's sentence for the sent turn, verbatim (§14.2), or null while
+  /// it is still searching.
+  String? get sentError => _sent?.error;
+
+  /// Searching: a turn is sent and has not been refused. NOT "a request is
+  /// open" — a recorded turn stays in this state until its stored message
+  /// arrives, which is what keeps the question on screen.
+  bool get searching => _sent != null && _sent!.error == null;
+
+  /// The composer is closed to a second question only while one is in flight.
+  bool get sending => searching;
+
+  /// The thread that is open, if the rail has it yet.
+  AskThread? get activeThread {
+    for (final t in _threads) {
+      if (t.id == _activeId) return t;
+    }
+    return null;
+  }
+
+  /// The shelf this screen is asking. The open thread's own scope first, the
+  /// route's only when nothing is open (ADR-098).
+  String? get scopeTagId =>
+      _activeId != null ? activeThread?.tagId : _routeTagId;
+
+  /// The shelf's NAME, for the header, the empty state and the composer. A
+  /// scoped thread whose shelf title is not known yet falls back to a word
+  /// rather than to no scope at all: the turn IS scoped either way.
+  String? scopeName(String? routeTitle) {
+    final id = scopeTagId;
+    if (id == null) return null;
+    if (_activeId != null) {
+      final title = activeThread?.tagTitle;
+      if (title != null && title.isNotEmpty) return title;
+    }
+    if (routeTitle != null && routeTitle.isNotEmpty) return routeTitle;
+    return 'this shelf';
+  }
   String? get railError => _railError;
   String? get threadError => _threadError;
   bool get loadingThreads => _loadingThreads;
@@ -87,41 +137,64 @@ class ChatNotifier extends ChangeNotifier {
     );
   }
 
-  /// Open a stored conversation.
+  /// Follow the ROUTE (4.65.0, ADR-101).
   ///
-  /// This issues **no request** and must never draw the searching state
-  /// (`screens/ask.md` §States): a spinner over an answer the reader already
-  /// has says the app is asking again, and it is not.
-  void openThread(String id) {
-    if (_activeId == id) return;
-    _activeId = id;
-    _error = null;
-    _threadError = null;
-    _messages = const [];
-    _messagesSub?.cancel();
-    _messagesSub =
-        FirestoreService.instance.subscribeAskMessages(id).listen((m) {
-      _messages = m;
-      _threadError = null;
-      notifyListeners();
-    }, onError: (Object e) {
-      _threadError = e is ApiException ? e.message : e.toString();
-      notifyListeners();
-    });
-    notifyListeners();
-  }
-
-  /// Start a new conversation — local only. The thread is created by ASKING
-  /// something (`fn_ask_turn` with no `threadId`); there is no create endpoint
-  /// and no empty shell waiting for a first question.
-  void newConversation() {
-    _activeId = null;
-    _error = null;
+  /// The open conversation is `/ask/thread/{threadId}` and the screen's scope
+  /// is `/ask/shelf/{tagId}` — neither lives here any more. Held in the screen,
+  /// the open thread was dropped by a reload and by every return from the
+  /// Reader a citation opened, and the screen then drew the NEW-conversation
+  /// state: the app saying the reader had asked nothing, over a transcript
+  /// they were reading a second earlier.
+  ///
+  /// Opening a stored conversation issues **no request** and must never draw
+  /// the searching state (`screens/ask.md` §States): a spinner over an answer
+  /// the reader already has says the app is asking again, and it is not.
+  void syncRoute({String? threadId, String? tagId}) {
+    if (_routeTagId != tagId) {
+      _routeTagId = tagId;
+      scheduleMicrotask(notifyListeners);
+    }
+    if (_activeId == threadId) return;
+    _activeId = threadId;
     _threadError = null;
     _messages = const [];
     _messagesSub?.cancel();
     _messagesSub = null;
-    notifyListeners();
+    // A turn belongs to the conversation it was asked in, so a navigation
+    // drops it — EXCEPT the navigation the turn itself caused. The first turn
+    // of a new conversation moves the screen to the thread the endpoint just
+    // created (ADR-101), and clearing it there would take the question off the
+    // screen for the moment between the navigation and the subscription's
+    // first delivery: ADR-097's own gap, reopened by the fix for something
+    // else. It is retired by its stored message, here as everywhere.
+    if (_sent?.threadId != threadId) _sent = null;
+    if (threadId != null) {
+      _messagesSub =
+          FirestoreService.instance.subscribeAskMessages(threadId).listen((m) {
+        _messages = m;
+        _threadError = null;
+        _retireSentTurn();
+        notifyListeners();
+      }, onError: (Object e) {
+        _threadError = e is ApiException ? e.message : e.toString();
+        notifyListeners();
+      });
+    }
+    scheduleMicrotask(notifyListeners);
+  }
+
+  /// The sent turn retires when ITS OWN stored message arrives — one more copy
+  /// of that question than the thread already held. Counting is what makes
+  /// asking the same question twice work: without it the new turn clears
+  /// against the old one's message, before its answer exists.
+  void _retireSentTurn() {
+    final sent = _sent;
+    if (sent == null || sent.error != null) return;
+    var stored = 0;
+    for (final m in _messages) {
+      if (m.role == AskRole.user && m.text == sent.question) stored++;
+    }
+    if (stored > sent.asked) _sent = null;
   }
 
   // ── §9.1 entry actions ─────────────────────────────────────────────────────
@@ -193,7 +266,11 @@ class ChatNotifier extends ChangeNotifier {
     notifyListeners();
     try {
       await Api.instance.deleteAskThread(id);
-      if (_activeId == id) newConversation();
+      // Deleting the OPEN conversation returns the screen to the
+      // new-conversation state (`screens/ask.md`). That is a NAVIGATION now
+      // (ADR-101) — the screen pushes `/ask` when this reports the thread it
+      // deleted was the open one — because a URL naming a deleted thread is
+      // the address bar pointing at nothing.
       return null;
     } on UnauthorizedException {
       await AuthService.instance.signOut();
@@ -213,55 +290,93 @@ class ChatNotifier extends ChangeNotifier {
     _entryError = message;
   }
 
-  /// Withdraw the last rejection — the text it referred to is being changed.
-  void clearError() {
-    if (_error == null) return;
-    _error = null;
-    notifyListeners();
+  /// Re-send the turn that is already on screen. It is not a draft, and
+  /// putting it back in the composer would be the screen saying it was never
+  /// asked (ADR-097).
+  Future<String?> retry() async {
+    final sent = _sent;
+    if (sent == null || sent.error == null) return null;
+    return ask(sent.question);
   }
 
-  /// One turn. Returns true when the endpoint recorded it.
-  Future<bool> ask(String text) async {
+  /// One turn.
+  ///
+  /// Returns the **threadId the endpoint recorded** when that is a thread this
+  /// screen is not already on — the screen navigates to it (ADR-101) — and
+  /// null otherwise, including on a refusal. Write before you move (ADR-022):
+  /// a URL naming a thread the server has not recorded is the rail pointing at
+  /// nothing.
+  Future<String?> ask(String text) async {
     final question = text.trim();
-    if (question.isEmpty || _pending != null) return false;
+    if (question.isEmpty || searching) return null;
 
-    _pending = question;
-    _error = null;
+    // How many copies of this question the thread ALREADY holds, counted
+    // before the turn is sent — see [_retireSentTurn].
+    var asked = 0;
+    for (final m in _messages) {
+      if (m.role == AskRole.user && m.text == question) asked++;
+    }
+    _sent = _SentTurn(question: question, asked: asked);
     notifyListeners();
 
+    final Map<String, dynamic> data;
     try {
-      final data =
-          await Api.instance.askTurn(question, threadId: _activeId, limit: 5);
-      // Write BEFORE you move (ADR-022): the conversation becomes the active
-      // one only once the server has recorded it. Setting it first would point
-      // the rail at a thread that does not exist when the call fails.
-      final id = data['threadId'] as String?;
-      if (id != null && id != _activeId) openThread(id);
-      // The question is never sent, the same reason a search query is not. How
-      // many passages the answer stood on is what an operator can act on.
-      final message = data['message'];
-      final citations =
-          message is Map ? (message['citations'] as List?) ?? const [] : const [];
-      Analytics.track('ask_run', {
-        'results_bucket': Analytics.bucket(citations.length),
-      });
-      return true;
+      data = await Api.instance.askTurn(
+        question,
+        threadId: _activeId,
+        limit: 5,
+        // The scope is sent only when this turn CREATES the conversation. A
+        // follow-up sends the threadId alone and inherits the thread's own
+        // scope; sending both is a 400 unless they agree, and the thread is
+        // the authority on what it searched (ADR-098).
+        tagId: _activeId == null ? _routeTagId : null,
+      );
     } on UnauthorizedException {
       await AuthService.instance.signOut();
-      _error = 'Your session expired. Sign in again.';
-      return false;
+      _refuse(question, asked, 'Your session expired. Sign in again.');
+      return null;
     } on ApiException catch (e) {
       // The server's sentence, verbatim (§14.2). Never pattern-matched into
       // copy of ours, and never dropped for a generic one.
-      _error = e.message;
-      return false;
-    } catch (e) {
-      _error = 'Could not reach your library. Check your connection.';
-      return false;
-    } finally {
-      _pending = null;
-      notifyListeners();
+      _refuse(question, asked, e.message);
+      return null;
+    } catch (_) {
+      _refuse(question, asked,
+          'Could not reach your library. Check your connection.');
+      return null;
     }
+
+    // Everything past here is about a turn that SUCCEEDED, and it is outside
+    // the catch on purpose: nothing below may paint a recorded answer as a
+    // refusal.
+    //
+    // The question is never sent, the same reason a search query is not. How
+    // many passages the answer stood on is what an operator can act on.
+    final message = data['message'];
+    final citations =
+        message is Map ? (message['citations'] as List?) ?? const [] : const [];
+    Analytics.track('ask_run', {
+      'results_bucket': Analytics.bucket(citations.length),
+    });
+
+    final id = data['threadId'] as String?;
+    // Remember which conversation this turn was recorded in, so the navigation
+    // it is about to cause does not drop it (see [syncRoute]).
+    if (id != null && _sent?.question == question) {
+      _sent = _SentTurn(question: question, asked: _sent!.asked, threadId: id);
+    }
+    // No clearing of the sent turn here. It is retired by its own stored
+    // message arriving, not by the request settling — the two are different
+    // moments (ADR-097). On a thread already open, the subscription delivers
+    // it; on a new one, [syncRoute] takes over when the screen navigates.
+    if (id != null && id != _activeId) return id;
+    notifyListeners();
+    return null;
+  }
+
+  void _refuse(String question, int asked, String message) {
+    _sent = _SentTurn(question: question, asked: asked, error: message);
+    notifyListeners();
   }
 
   @override
@@ -270,4 +385,25 @@ class ChatNotifier extends ChangeNotifier {
     _messagesSub?.cancel();
     super.dispose();
   }
+}
+
+/// The turn the reader sent: the question, how many copies of it the thread
+/// already held when it went (so it can be retired against its OWN stored
+/// message), and the server's sentence if it was refused.
+class _SentTurn {
+  final String question;
+  final int asked;
+  final String? error;
+
+  /// The conversation the endpoint recorded it in, once it has answered. The
+  /// screen navigates to that thread, and this is what tells [syncRoute] the
+  /// navigation is the turn's own rather than the reader leaving.
+  final String? threadId;
+
+  const _SentTurn({
+    required this.question,
+    required this.asked,
+    this.error,
+    this.threadId,
+  });
 }

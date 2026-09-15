@@ -1029,19 +1029,29 @@ void main() {
     // test above was green through for a whole release.
     debugPrint(
       'DEVICE-RUN ask: ${ask.messages.length} stored message(s), '
-      'thread=${ask.activeId}, error=${ask.error}',
+      'thread=${ask.activeId}, error=${ask.sentError}',
     );
 
-    if (ask.error != null) {
+    if (ask.sentError != null) {
       // The shim's dummy OpenAI key is the expected failure here. What is NOT
-      // allowed is silence: §14.2 says so, beside the composer, in the
-      // server's own words, with the question still in the box.
+      // allowed is silence — and, since 4.61.0 (ADR-097), what is not allowed
+      // either is the QUESTION disappearing: the turn stays on screen with the
+      // server's sentence and a retry, and it is never put back in the
+      // composer as though it had never been asked.
       expect(find.byType(KitFailureInline), findsWidgets,
           reason: 'a refused turn says so (§14.2) — never an empty answer');
       expect(
+        find.text('pasta cooking'),
+        findsOneWidget,
+        reason: 'the sent turn STAYS on screen — it is the only record of '
+            'what the reader did (ADR-097)',
+      );
+      expect(find.text('Try again'), findsOneWidget,
+          reason: 'the retry re-sends THAT turn');
+      expect(
         tester.widget<TextField>(find.byType(TextField).last).controller?.text,
-        'pasta cooking',
-        reason: 'write before move: a rejected question stays in the box',
+        '',
+        reason: 'a refused question is never returned to the composer',
       );
       return;
     }
@@ -1094,9 +1104,18 @@ void main() {
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
+    debugPrint('DEVICE-RUN ask §9.1 edit tapped: renaming=${ask.renamingId}, '
+        'fields=${find.byType(TextField).evaluate().length}, '
+        'rail=${find.byType(KitInspectorRail).evaluate().length}');
     expect(find.byType(TextField), findsWidgets,
         reason: '§9.1 renames IN PLACE — the title becomes a field');
-    await tester.enterText(find.byType(TextField).first, 'Pasta, from the top');
+    // The field INSIDE the rail, not `.first` of every TextField on the screen
+    // — the composer is one too, and an ordering that happens to hold is not
+    // an assertion about the entry.
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(KitInspectorRail), matching: find.byType(TextField)),
+        'Pasta, from the top');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     for (var i = 0; i < 60; i++) {
       await tester.pump(const Duration(milliseconds: 250));
@@ -1134,6 +1153,68 @@ void main() {
     expect(ask.threads.length, before - 1);
     expect(ask.activeId, isNull,
         reason: 'deleting the OPEN conversation returns to new-conversation');
+  });
+
+  // ── ADR-097 / ADR-101 ──────────────────────────────────────────────────────
+  // The two rules about a turn that did NOT come back, on the real renderer.
+  // Neither is visible to Tier-1: one is what stays on SCREEN after a request
+  // settles, the other is which ROUTE the screen is at afterwards.
+  testWidgets('a refused turn stays on screen, with a retry', (tester) async {
+    final router = await pumpApp(tester);
+    // A shelf that does not exist. The queue wrote this as "with the network
+    // off"; the endpoint's own 404 is better, because it is deterministic AND
+    // it carries the SERVER's sentence, which is the half of §14.2 that a
+    // connection failure cannot exercise (`api/ask.md` — a tagId that is not
+    // the caller's is a 404).
+    router.go('/ask/shelf/no-such-shelf');
+    for (var i = 0; i < 16; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    // The scope is NAMED, all through the screen — that is ADR-098's rule and
+    // it holds for a shelf whose title is not known yet: the turn is scoped
+    // either way, and dropping the scope from the copy would be the screen
+    // claiming it searched the library.
+    expect(find.text('GROUNDED IN ONE SHELF'), findsOneWidget);
+
+    await tester.enterText(
+        find.byType(TextField).last, 'Which of these recipes can use steak?');
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    await tester.tap(find.bySemanticsLabel('Send'));
+    for (var i = 0; i < 120; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+      if (find.text('Try again').evaluate().isNotEmpty) break;
+    }
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+
+    final ask = Provider.of<ChatNotifier>(
+      tester.element(find.byType(KitComposerDock)),
+      listen: false,
+    );
+    debugPrint('DEVICE-RUN ask refusal: err=${ask.sentError}, '
+        'sent=${ask.sentQuestion}, thread=${ask.activeId}');
+    expect(ask.sentError, isNotNull,
+        reason: 'the turn was not refused — every assertion below would be '
+            'green about the wrong state');
+    // The question STAYS, in the transcript, with the server's own words and a
+    // retry beside it — and NOT in the composer, which is where a client that
+    // treats a refused question as a draft puts it back (ADR-097).
+    expect(find.text('Which of these recipes can use steak?'), findsOneWidget);
+    expect(find.byType(KitFailureInline), findsWidgets);
+    expect(find.text('Shelf not found.'), findsOneWidget,
+        reason: "§14.2 quotes the server verbatim — never our own copy");
+    expect(find.text('Try again'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField).last).controller?.text,
+      '',
+      reason: 'a refused question is never returned to the composer',
+    );
+    // And the screen stayed where it was: a refused turn records nothing, so
+    // there is no thread to move to (ADR-101/ADR-022).
+    expect(ask.activeId, isNull);
   });
 
   // ── INV-22 (4.18.0, ADR-054) ───────────────────────────────────────────────

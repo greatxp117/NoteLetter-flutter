@@ -8,7 +8,6 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
-import 'result_card.dart' show SearchPassageAction;
 import 'score_explainer.dart';
 
 /// **Cohesive body** (`spec/screens/search.md` §Composition, 4.40.0, ADR-078).
@@ -280,13 +279,13 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
             const SizedBox(height: 10),
             Row(
               children: [
-                SearchPassageAction(
+                KitPassageAction(
                   icon: Icons.visibility_outlined,
                   label: 'Open in context',
                   onTap: widget.onOpenInContext,
                 ),
                 const SizedBox(width: AppSpacing.s4),
-                SearchPassageAction(
+                KitPassageAction(
                   icon: Icons.bookmark_border,
                   label: 'Open source',
                   onTap: widget.onOpenSource,

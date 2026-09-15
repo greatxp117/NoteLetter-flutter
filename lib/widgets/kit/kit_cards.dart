@@ -944,3 +944,62 @@ class KitThreadNote extends StatelessWidget {
         ),
       );
 }
+
+/// §5.2's action-bar action: sans 12 at `--fg-lede` with a 13px icon.
+///
+/// It lived in `pages/search/result_card.dart` until 4.63.0, which is the
+/// reference's own defect ported: `.pact` was scoped to `.passage` there, so
+/// Ask's three uses of the same control rendered as unstyled browser buttons.
+/// A pattern that lives in a page is a pattern the next screen re-invents —
+/// Ask's citations and Search's results draw one control, and it is this one.
+class KitPassageAction extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const KitPassageAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<KitPassageAction> createState() => _KitPassageActionState();
+}
+
+class _KitPassageActionState extends State<KitPassageAction> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final color = _hover ? t.fg : t.fgLede;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        // The card itself is tappable, so this action must claim its own tap
+        // rather than letting it fall through and toggle the selection too.
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(widget.icon, size: 13, color: color),
+            const SizedBox(width: 5),
+            Text(
+              widget.label,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 12,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

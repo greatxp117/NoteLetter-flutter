@@ -8,7 +8,6 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
-import 'result_card.dart' show SearchPassageAction;
 
 /// **Verse search** (`spec/screens/search.md`, `spec/api/scripture.md`;
 /// 2.28.0 / 4.9.0, ADR-027 §2 + ADR-045) — a citation read verse by verse,
@@ -351,7 +350,7 @@ class _PassageCard extends StatelessWidget {
                 ),
               ),
               if (p.documentId.isNotEmpty)
-                SearchPassageAction(
+                KitPassageAction(
                   icon: Icons.visibility_outlined,
                   label: 'Open source',
                   onTap: () => onOpenSource(p.documentId),
