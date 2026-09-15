@@ -460,7 +460,7 @@ a new obligation on a finished screen is a new item.
 - spec: spec/screens/ask.md §States; spec/invariants.md; spec/decisions/ADR-097-a-state-setter-is-not-a-consumer.md
 - web: src/pages/AskView.jsx
 - flutter: lib/pages/chat_page.dart; lib/state/chat_notifier.dart
-- folds: 4.62.0 / ADR-098 — Ask scoped to a shelf: `tagId` on fn_ask_turn (a property of the THREAD, fixed at creation, inherited by a follow-up), the shelf named on the header, empty state and composer, component-kit §9.2 scope label in the rail entry, and the TWO empty answers told apart (searched the shelf exhaustively vs filtered out of a truncated pool)
+- folds: 4.62.0 / ADR-098 — Ask scoped to a shelf: `tagId` on fn_ask_turn (a property of the THREAD, fixed at creation, inherited by a follow-up), the shelf named on the header, empty state and composer, component-kit §9.2 scope label in the rail entry, and the TWO empty answers told apart (searched the shelf exhaustively vs filtered out of a truncated pool) · 4.63.0 / ADR-099 — an Ask citation carries `source_url` (copied from the document, null for a stored file and an image set) and offers it named by HOST; the kit's `.pact` inline action was scoped to `.passage` on web and Ask's three uses rendered as browser buttons — check the Flutter equivalent is the kit's own control and not a raw TextButton
 - device_test: sends a question with the network off: the question stays on screen with the failure and a retry, and never returns to the composer
 - shots: ask-turn-failed
 - extra_gates: failure_pattern_check.py
