@@ -328,11 +328,16 @@ a new obligation on a finished screen is a new item.
   pinned EXACTLY at 12.4.6, the newest that pairs with the `firebase_core 4.13.0` already locked:
   12.5.0+ moves the Firebase iOS SDK 12.17.0 -> 12.19.0 under Auth, Firestore and Installations,
   and adding a member is not a reason to move the family.
-  **Still owed and it is the acceptance gate**: no hit has ever been seen. The fakes cannot help
-  here — there is nothing to fake — and prod's GA4 property may have no APP data stream at all
-  (`IS_ANALYTICS_ENABLED` reads false in this client's generated `GoogleService-Info.plist`).
-  That is a console question only Xavier can answer, and until it is answered this is a client
-  that measures into a property that may not be listening.
+  **The streams already existed**: `analyticsDetails` reports GA4 property 535275995 with a
+  mapping for all four apps, this one at stream `15444020564`. `IS_ANALYTICS_ENABLED` is a legacy
+  key the modern SDK does not read — proven here, the SDK started with it false — so it was never
+  the signal it looked like. **The guard is proven live in both directions** from one launch of a
+  prod build: `I-ACS023013 Analytics collection disabled` at init, `I-ACS023012 Analytics
+  collection enabled` 1.6s later from `start()`, and only `disabled` on the emulator device run.
+  What is still owed is a real hit with real params on the wire — every catalogued event lives
+  inside the authenticated shell, so that needs a signed-in PROD session and Xavier's account.
+  Drive it with `-FIRAnalyticsDebugEnabled`, not DebugView: ADR-081 found what it did by reading
+  what the client SENT.
 
 ## F-17 · Raw-primitive lint + kit goldens
 - status: open
