@@ -148,10 +148,11 @@ class SummaryPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // No eyebrow of its own: the reader's §19 rail stacks this section
-        // under a §3 section header that says `Summary` (4.64.0, ADR-100), and
-        // two headers on one section is the panel and the page each thinking
-        // it opens the scroll.
+        // Every section opens on its OWN eyebrow — §19's rail jumps to it, and
+        // it is the label that does the work the tab label used to (ADR-100).
+        // The page draws none: it tried to at 4.64.0 and every section got two,
+        // which is what the fidelity pair caught.
+        ui.intro('Summary'),
         if (doc.summary?.isNotEmpty ?? false) ui.note(doc.summary!),
         const SizedBox(height: 20),
         if (doc.themes.isNotEmpty) ...[

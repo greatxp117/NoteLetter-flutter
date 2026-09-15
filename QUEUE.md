@@ -441,7 +441,7 @@ a new obligation on a finished screen is a new item.
 - notes: Adds `scanCloudFolder` (GET `fn_scan_cloud_folder`) and the per-folder disclosure on every folder row of the picker, in BOTH modes. Two things must not be merged: `excluded_by_settings` is a setting and carries the affordance back to the type pills; `unreadable` is a fact and carries none — merging them reports a folder of decks as unreadable when it is one toggle from working (pptx is off by default). `held_for_review` qualifies the importable line, it is not a fourth bucket. On `complete: false` the counts are a FLOOR ("at least N") and are never extrapolated. A refusal renders as §14.2 `.fail-inline`, never as a zero — a zero the scan did not measure is what this whole surface is against. NEVER scan the rows the picker lists; the scan is per-folder, on expand. Also: `sync_settings_panel.dart` needs the empty-`include_types` inert note — at 4.59.0 an empty list means nothing imports, where before it silently imported everything.
 
 ## F-24 · Re-shoot the four pairs F-15 staled
-- status: blocked: tool/shots.sh: Unable to start the app on the device — `lipo: can't write to output file … (No space left on device)`; the volume has ~200MB free of 228GB, so no iOS debug build can land
+- status: done 2026-09-15
 - screen: none
 - route: none
 - spec: spec/decisions/ADR-041-composition-is-contract.md
@@ -483,7 +483,7 @@ a new obligation on a finished screen is a new item.
   Speed read's keyboard bindings, if any, are scoped to its own section.
 
 ## F-27 · Re-shoot every pair F-16 staled
-- status: open
+- status: blocked: tool/shots.sh source-set: lipo: can't write to output file … (No space left on device) — 16 of 17 pairs re-shot and committed; only `source-set` remains. 175G of 228G used; this repo's own DerivedData (4.4G) and build/ were cleared to get the 16, and the rebuild took the space straight back. What is left belongs to other projects (10MB-mobile's Runner 4.2G, iConfess 4.3G) or is the shared ModuleCache (2.8G), none of which is this repo's to delete.
 - screen: none
 - route: none
 - spec: spec/decisions/ADR-041-composition-is-contract.md

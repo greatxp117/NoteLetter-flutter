@@ -484,10 +484,12 @@ class _ReaderPageState extends State<ReaderPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Each section opens on its own §3 header: it is the
-                      // label the rail jumps to, and it does the work the tab
-                      // label used to do.
-                      SectionHeader(_sectionEyebrow(id, doc), first: true),
+                      // No section header here: every panel already opens on
+                      // its own §3 eyebrow, and several carry a measured detail
+                      // in it (the transcript's duration, the original's host,
+                      // the history's event count) that the page cannot know.
+                      // Drawing one here gave every section TWO — caught by the
+                      // pair, which is what the pair is for.
                       if (!complete && id != 'summary')
                         ReaderUi(context).empty(
                           Icons.hourglass_empty,
@@ -586,27 +588,6 @@ class _ReaderPageState extends State<ReaderPage> {
     ),
     const KitSectionRailItem('history', 'History', Icons.history),
   ];
-
-  /// The §3 eyebrow each section opens with. The reference's own labels — the
-  /// manuscript's says what the section IS, because "Manuscript" alone reads as
-  /// a synonym for the document.
-  String _sectionEyebrow(String id, Document doc) {
-    switch (id) {
-      case 'manuscript':
-        return 'Manuscript · the extracted text';
-      case 'speedread':
-        return 'Speed read';
-      case 'listen':
-        return 'Listen';
-      case 'original':
-        return 'Original · ${doc.type.toUpperCase()}';
-      case 'history':
-        return 'Reading history';
-      case 'summary':
-      default:
-        return 'Summary';
-    }
-  }
 
   Widget _section(String id) {
     switch (id) {
