@@ -553,3 +553,35 @@ a new obligation on a finished screen is a new item.
     screenshots/ were updated with the web ones, so look at all four per screen and ask
     whether the Flutter lede and the Flutter link carry the same type role. If they do,
     close this by re-shooting nothing.
+
+## F-30 · A batch that partly failed reads as a batch that worked
+- status: open
+- screen: sources (import review queue)
+- route: /sources
+- spec: spec/api/cloud-storage.md §fn_review_import_jobs · spec/decisions/ADR-103-a-record-moved-before-its-task-is-a-record-nobody-owns.md §Decision 4 (as amended) · spec/component-kit.md §14.2
+- web: src/api.js; src/pages/sources/CloudImportPanel.jsx
+- flutter: lib/services/api.dart; lib/state/cloud_notifier.dart; lib/pages/sources_page.dart
+- folds: 4.69.0 (`failed` on `fn_review_import_jobs`)
+- device_test: none
+- shots: sources
+- extra_gates: none
+- notes: Contract 4.69.0. `reviewJobs` awaits the call and reads **nothing out of the
+    response** — not `skipped`, and now not `failed` either. Both are id lists and they
+    mean opposite things, which is why reading neither is worse than it looks: a batch
+    where the queue refused returns **202**, so the current code returns `null` (its
+    "success") and the reader is told nothing at all. The two lists:
+      `skipped` — a JUDGEMENT about an id (already triaged elsewhere, foreign, gone).
+        Not an error; the row leaves the queue on the next snapshot. Web renders a
+        measured count in `.proc-note`.
+      `failed`  — the task QUEUE refused, so the approve started nothing. The row is
+        `error` with a sentence and retries through `retryImportJob`. Web names the
+        FILE, not a count: "something went wrong" and "reading-pack.pdf could not be
+        started" are different sentences and only one says which file to retry.
+    Third fact, derived rather than sent: the server STOPS at the first `failed` id, so
+    the four buckets do not cover every id sent. Anything past it was not attempted and
+    is still `awaiting_review` — `sent − approved − dismissed − |failed| − |skipped|`.
+    Web stops sending further chunks once a chunk comes back with `failed`.
+    `failed` is §14.2 inline and sits BESIDE the skipped note rather than replacing the
+    section — what the batch did do is real and already on the rows. Mind the §14.2
+    trap: a failure line composed from the kit can be outdrawn by its host and render as
+    body copy (ADR-070, 4.34.2).
