@@ -317,6 +317,8 @@ class FirestoreService {
             // 2.19.0 (ADR-024) — which half of the pipeline is running.
             // Meaningful only while status == processing.
             'processing_stage': data['processing_stage'],
+            // 4.74.0 (ADR-108) — the moment this run stops being believable.
+            'processing_stalls_at': tsMs(data['processing_stalls_at']),
           },
           createdAt: tsMs(data['created_at']),
         );

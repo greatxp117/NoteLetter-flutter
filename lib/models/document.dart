@@ -97,6 +97,28 @@ class Document {
   /// neutrally, never as an error, and never render the raw token to a user.
   final String? processingStage;
 
+  /// 4.74.0 (ADR-108) — the moment this `processing` run stops being
+  /// believable, in epoch millis. Computed and stored by the BACKEND from its
+  /// own deploy deadlines, so no client carries a threshold and no client can
+  /// drift from the endpoint that referees the retry. Meaningful ONLY while
+  /// [status] is processing, cleared at every terminal write. `null` on every
+  /// pre-4.74.0 document and on every document that is not mid-pipeline, and
+  /// null is **not** stalled: absence is not evidence.
+  final int? processingStallsAt;
+
+  /// Is this run past its own stall moment? One comparison, no threshold.
+  ///
+  /// `fn_chunk_and_embed` is Pub/Sub-triggered with no retry, so a run its host
+  /// kills is simply gone and the document stays `processing` for ever. Drawn
+  /// as a live spinner it is indistinguishable from work in progress — which is
+  /// what this answers. Pass [now] so one clock moves every row together.
+  bool isStalled([DateTime? now]) {
+    if (status != DocumentStatus.processing) return false;
+    final at = processingStallsAt;
+    if (at == null) return false;
+    return (now ?? DateTime.now()).millisecondsSinceEpoch > at;
+  }
+
   /// 3.1.0 (ADR-039) — the reader finished this document. Written ONLY by
   /// `fn_set_read_state`, never by a client, and reversible. Deliberately not
   /// derivable from chunk coverage: reading every passage and declaring
@@ -180,6 +202,7 @@ class Document {
     this.author,
     this.publishDate,
     this.processingStage,
+    this.processingStallsAt,
     this.finishedAt,
     this.nextLetterRequestedAt,
     this.errorMessage,
@@ -226,6 +249,7 @@ class Document {
       author: author,
       publishDate: publishDate,
       processingStage: processingStage,
+      processingStallsAt: processingStallsAt,
       finishedAt: finishedAt,
       nextLetterRequestedAt: nextLetterRequestedAt,
       errorMessage: errorMessage,
@@ -273,6 +297,7 @@ class Document {
       author: author,
       publishDate: publishDate,
       processingStage: processingStage,
+      processingStallsAt: processingStallsAt,
       finishedAt: finishedAt,
       nextLetterRequestedAt: nextLetterRequestedAt,
       errorMessage: errorMessage,
@@ -313,6 +338,7 @@ class Document {
       // NOT tsMs(): publish_date is an ISO date STRING, not a Timestamp.
       publishDate: json['publish_date'] as String?,
       processingStage: json['processing_stage'] as String?,
+      processingStallsAt: tsMs(json['processing_stalls_at']),
       finishedAt: tsMs(json['finished_at']),
       nextLetterRequestedAt: tsMs(json['next_letter_requested_at']),
       errorMessage: json['error_message'] as String?,

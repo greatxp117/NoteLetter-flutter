@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -281,6 +283,43 @@ class _ProcessingRowState extends State<_ProcessingRow> {
   String? _error;
   bool _busy = false;
 
+  /// A row crosses its stall moment with NO Firestore write behind it, so
+  /// nothing would rebuild it and the stage label would keep claiming progress
+  /// for as long as the screen stayed open — the defect surviving the fix
+  /// (4.74.0, ADR-108). The timer runs only while this document is actually
+  /// mid-pipeline, and stops the moment it is not.
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTick();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProcessingRow old) {
+    super.didUpdateWidget(old);
+    _syncTick();
+  }
+
+  void _syncTick() {
+    final watching = widget.doc.status == DocumentStatus.processing;
+    if (watching && _tick == null) {
+      _tick = Timer.periodic(const Duration(seconds: 15), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!watching) {
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
   /// **The row's one primary** (4.47.0, ADR-085), chosen by `status`:
   ///
   /// * `error` → **Retry** (`fn_retry_document`, re-enters at `failed_stage`)
@@ -299,6 +338,10 @@ class _ProcessingRowState extends State<_ProcessingRow> {
   /// could. The two branches are disjoint by construction.
   (String, bool)? _primary(Document doc) {
     if (doc.status == DocumentStatus.error) return ('Retry', false);
+    // A stalled `processing` row gets the same primary (4.74.0, ADR-108).
+    // `fn_retry_document` accepts it — the widened status is reachable from
+    // here, which is the whole reason the backend half was not shipped alone.
+    if (doc.isStalled()) return ('Retry', false);
     if (doc.status == DocumentStatus.skipped &&
         (doc.skipReason == 'unresolved_article' || !doc.forceProcess)) {
       return ('Index it anyway', true);
@@ -334,9 +377,17 @@ class _ProcessingRowState extends State<_ProcessingRow> {
     // The failure message is shown VERBATIM: there is no error reason code, and
     // a client that pattern-matches the message to substitute its own copy is
     // inventing a classification the backend never made.
+    // There is no `error_message` on a stalled document — nothing failed, a run
+    // stopped existing — so it needs copy of its own, saying the two things the
+    // reader cannot see: that waiting will not help, and that Retry costs them
+    // nothing already spent. Mirrors web's STALLED_PROC_MSG verbatim.
+    const stalledMsg =
+        'Indexing stopped before it finished. Waiting will not help — Retry to start it again.';
     final subtitle = failed
         ? (doc.errorMessage ?? _stageLabel(doc))
-        : _stageLabel(doc);
+        : doc.isStalled()
+            ? stalledMsg
+            : _stageLabel(doc);
     final primary = _primary(doc);
 
     final row = KitSourceRow(
@@ -395,6 +446,10 @@ String _stageLabel(Document doc) {
     case DocumentStatus.queued:
       return 'Queued';
     case DocumentStatus.processing:
+      // Checked BEFORE the stage: a stage label on a run that ended is the
+      // defect ADR-108 exists to end. "Stalled", not "Error" — nothing
+      // reported a failure and saying one would be inventing it.
+      if (doc.isStalled()) return 'Stalled';
       switch (doc.processingStage) {
         case 'extraction':
           return 'Extracting text';
