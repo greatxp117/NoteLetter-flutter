@@ -530,3 +530,26 @@ a new obligation on a finished screen is a new item.
     and keep `«uuid#N»` identity across an embedded and a whole-value occurrence.
     Mutation check: removing the embedded dispatch must fail the positive cases
     (it fails 3 of 7 on web).
+
+## F-29 · Look again: the web reference moved on three screens
+- status: open
+- screen: support · notifications · reader (Summary)
+- route: /support · /settings/notifications · /reader/{id}
+- spec: spec/component-kit.md §How to read a pattern ("a pattern may not be scoped to its first host") · §2
+- web: src/pages/SupportView.jsx · src/pages/NotificationSettings.jsx · src/pages/reader/SummaryPanel.jsx
+- flutter: lib/screens/support_screen.dart · lib/screens/notification_settings_screen.dart · reader summary section
+- folds: none
+- device_test: none
+- shots: support; notifications; reader
+- extra_gates: screenshot_pair_check.py
+- notes: Contract 4.66.2. Three web screens changed what they DRAW, not what they do:
+    Support and Notification settings each open with the eyebrow/lede pair and were
+    mounting a class whose only rule lived on another screen, so the lede rendered as
+    bare body copy; it is the kit's standalone italic-serif lede now (`.sources-sub`,
+    §2). The reader's Summary panel's "Edit your summary style" was the same shape and
+    is the underlined muted-sans link it was always meant to be.
+    Nothing here is a Flutter DEFECT — there is no cascade, so this failure mode cannot
+    happen in a widget kit. What is owed is the comparison: the reference frames in
+    screenshots/ were updated with the web ones, so look at all four per screen and ask
+    whether the Flutter lede and the Flutter link carry the same type role. If they do,
+    close this by re-shooting nothing.
