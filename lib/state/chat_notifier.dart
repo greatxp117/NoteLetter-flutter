@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/ask_thread.dart';
+import 'sent_turn.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -36,9 +37,11 @@ class ChatNotifier extends ChangeNotifier {
   /// different moment, and the gap between them is where the question used to
   /// disappear. A refusal leaves it here with the server's sentence and a
   /// retry; it is never returned to the composer as though it had not been
-  /// asked. Clients do not write `ask_threads` (INV-04), so there is no
-  /// document to reconcile against, which is exactly why the screen may not
-  /// drop the only record of what the reader did.
+  /// asked. It is retired only by its own stored message arriving — a refusal
+  /// included, because a refusal claims nothing was recorded and a record
+  /// disproves it (ADR-102). A turn that genuinely failed wrote nothing, so no
+  /// record can arrive and the screen keeps the only record of what the reader
+  /// did.
   _SentTurn? _sent;
 
   /// A failure of the SUBSCRIPTIONS, which is a different sentence: the rail
@@ -183,18 +186,20 @@ class ChatNotifier extends ChangeNotifier {
     scheduleMicrotask(notifyListeners);
   }
 
-  /// The sent turn retires when ITS OWN stored message arrives — one more copy
-  /// of that question than the thread already held. Counting is what makes
-  /// asking the same question twice work: without it the new turn clears
-  /// against the old one's message, before its answer exists.
+  /// The sent turn retires when ITS OWN stored message arrives — including a
+  /// turn this screen was told had FAILED (ADR-097 §3 as amended by ADR-102).
+  /// The rule, and why retiring a refusal is safe, lives beside the predicate
+  /// in `sent_turn.dart`, which is also where it is asserted.
   void _retireSentTurn() {
     final sent = _sent;
-    if (sent == null || sent.error != null) return;
-    var stored = 0;
-    for (final m in _messages) {
-      if (m.role == AskRole.user && m.text == sent.question) stored++;
+    if (sent == null) return;
+    if (retiresSentTurn(
+        question: sent.question,
+        asked: sent.asked,
+        messages: _messages,
+        error: sent.error)) {
+      _sent = null;
     }
-    if (stored > sent.asked) _sent = null;
   }
 
   // ── §9.1 entry actions ─────────────────────────────────────────────────────
