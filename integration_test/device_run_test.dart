@@ -516,6 +516,33 @@ void main() {
     // not following the scroll.
     expect(seen.length, greaterThan(2), reason: 'reported only $seen');
 
+    // A JUMP arrives, and the rail reports where it arrived (§19). This is the
+    // half nothing asserted: the drag above proves the report follows a real
+    // scroll, and a jump is the other way the reader moves. It also pins the
+    // landing — §19 is explicit that a jump leaving a section's header under
+    // the sticky rail has not arrived at it.
+    // The rail scrolls HORIZONTALLY (§19: labels are names and stay on one
+    // line), so the jump being tapped has to be brought into the rail's own
+    // viewport first — and `warnIfMissed` stays ON, because the first run of
+    // this assertion tapped nothing, the scroll never moved, and the rail
+    // answered `history` perfectly correctly from the end of the scroll. A
+    // silent miss reads exactly like a rail that marks the wrong section.
+    await tester.ensureVisible(find.text('Listen'));
+    await tester.pump();
+    await tester.tap(find.text('Listen'));
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    // Both numbers BEFORE either assertion: a run that fails has to say where
+    // the jump actually landed, or the next attempt is a guess.
+    final railBottom = tester.getBottomLeft(find.byType(KitSectionRail)).dy;
+    final head = tester.getTopLeft(find.text('LISTEN')).dy;
+    debugPrint('DEVICE-RUN reader jump: current=${current()} '
+        'head=$head railBottom=$railBottom');
+    expect(current(), 'listen',
+        reason: 'the rail marked a section the jump did not land on');
+    expect(head, greaterThanOrEqualTo(railBottom - 1),
+        reason: "the section's own header landed UNDER the rail, which §19 "
+            'says is not arriving at it');
+
     // Cold open on a passage link — no tap anywhere, which is the condition
     // the web defect survived under for 49 versions.
     final chunks = await FirebaseFirestore.instance

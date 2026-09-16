@@ -483,7 +483,7 @@ a new obligation on a finished screen is a new item.
   Speed read's keyboard bindings, if any, are scoped to its own section.
 
 ## F-27 · Re-shoot every pair F-16 staled
-- status: blocked: tool/shots.sh source-set: lipo: can't write to output file … (No space left on device) — 16 of 17 pairs re-shot and committed; only `source-set` remains. 175G of 228G used; this repo's own DerivedData (4.4G) and build/ were cleared to get the 16, and the rebuild took the space straight back. What is left belongs to other projects (10MB-mobile's Runner 4.2G, iConfess 4.3G) or is the shared ModuleCache (2.8G), none of which is this repo's to delete.
+- status: done 2026-09-15
 - screen: none
 - route: none
 - spec: spec/decisions/ADR-041-composition-is-contract.md

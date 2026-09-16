@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -123,6 +124,15 @@ class _ReaderPageState extends State<ReaderPage> {
 
   final ScrollController _scroll = ScrollController();
 
+  /// The scroll VIEWPORT, so the rail's line can be measured rather than
+  /// computed. It was `KitSectionRail.height + MediaQuery.paddingOf(context).top`
+  /// — and this screen sits under a `SafeArea` that has already consumed that
+  /// padding, so the value was 0 and the line sat 59px too high: every report
+  /// named the section BEFORE the one the reader was in, and a jump to Listen
+  /// marked Speed read. The web reference measures the same way
+  /// (`scrollerTop(scroller) + RAIL_H`), for the same reason.
+  final GlobalKey _viewportKey = GlobalKey();
+
   /// One key per section, for the jump and for the report. They are the only
   /// thing that knows where a section IS: heights here are the panels' own and
   /// nothing may guess them (a guessed offset lands a jump in the middle of the
@@ -152,8 +162,10 @@ class _ReaderPageState extends State<ReaderPage> {
   /// position it had invented.
   void _reportCurrent() {
     if (!mounted) return;
+    final viewport = _viewportKey.currentContext?.findRenderObject();
+    if (viewport is! RenderBox || !viewport.attached) return;
     final railBottom =
-        (context.findRenderObject() as RenderBox?) == null ? 0.0 : KitSectionRail.height + MediaQuery.paddingOf(context).top;
+        viewport.localToGlobal(Offset.zero).dy + KitSectionRail.height;
     // At the END of the scroll the rule's line is unreachable: the last
     // sections sit in the tail of the viewport, below the rail, and no amount
     // of scrolling can bring their heads under it — so a reader looking at
@@ -186,20 +198,31 @@ class _ReaderPageState extends State<ReaderPage> {
   /// has not arrived at it (§19).
   Future<void> _jumpTo(String id) async {
     final ctx = _sectionKeys[id]?.currentContext;
-    if (ctx == null) return;
-    await Scrollable.ensureVisible(
-      ctx,
-      alignment: 0,
-      alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+    final box = ctx?.findRenderObject();
+    if (box is! RenderBox || !_scroll.hasClients) return;
+    // Computed, not nudged. `Scrollable.ensureVisible` followed by "and now
+    // scroll back by the rail's height" overshot by exactly that much —
+    // ensureVisible ALREADY lands below a pinned header, so the correction
+    // landed the reader a whole section early (tapped `Listen`, arrived in
+    // `Speed read`, which is what the device run reported). `getOffsetToReveal`
+    // ignores pinned slivers by contract, so the rail's height is subtracted
+    // once, here, against a number that never included it.
+    // `getOffsetToReveal` ALREADY clears the pinned rail — it counts a pinned
+    // sliver's obstruction extent — so the offset it returns is the one that
+    // lands this section's head just under the rail. Subtracting the rail's
+    // height on top of that scrolled one section too far, twice over: first
+    // after `ensureVisible`, then after this. The device run said so both
+    // times, in the same words — tapped `Listen`, arrived in `Speed read`.
+    final target = RenderAbstractViewport.of(box)
+        .getOffsetToReveal(box, 0)
+        .offset
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    await _scroll.animateTo(
+      target,
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
     );
     if (!mounted) return;
-    // `ensureVisible` stops with the section's top at the viewport's top,
-    // which on this screen is under the rail.
-    final target = (_scroll.offset - KitSectionRail.height)
-        .clamp(0.0, _scroll.position.maxScrollExtent);
-    _scroll.jumpTo(target);
     _reportCurrent();
   }
 
@@ -392,6 +415,7 @@ class _ReaderPageState extends State<ReaderPage> {
     return SafeArea(
       bottom: false,
       child: CustomScrollView(
+        key: _viewportKey,
         controller: _scroll,
         slivers: [
           SliverToBoxAdapter(
