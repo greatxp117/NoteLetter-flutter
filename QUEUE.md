@@ -504,3 +504,29 @@ a new obligation on a finished screen is a new item.
     so those are current unless a later commit touches their screens.
     LOOK at each set of four while re-shooting: the ritual is the comparison, not the
     capture, and a re-shoot that only refreshes timestamps is the gate being fed.
+
+## F-28 · The comparator matches an EMBEDDED token
+- status: open
+- screen: none
+- route: none
+- spec: fixtures/normalization.md (rule 3) · fixtures/tokens.json
+- web: tests/contract/helpers/match.js · tests/contract/fixture-tokens.test.js
+- flutter: test/contract/api_requests_test.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Contract 4.66.1. `normalization.md` says a token's predicate replaces string
+    equality, and `_match` dispatches on `startsWith('«')` — so a token EMBEDDED in a
+    longer string never reaches a predicate at all. Three shapes are embedded today:
+    a signed URL (`…?«sig»`), a gcs path carrying `«uuid#1»`, and the new `«seconds»`
+    countdown inside a 429 RATE_LIMITED sentence. Each one falls through to string
+    equality AGAINST THE TOKEN TEXT and would fail the moment anything compared one.
+    Nothing is red because no suite deep-compares such a value today — they all live
+    in `api/*` response bodies, which this client FEEDS to the client rather than
+    compares. That is why this is debt and not an outage.
+    Mirror the reference: split the expected string on `«[^»]*»`, apply each token's
+    predicate to the span it stands for, match the literal text between them exactly,
+    and keep `«uuid#N»` identity across an embedded and a whole-value occurrence.
+    Mutation check: removing the embedded dispatch must fail the positive cases
+    (it fails 3 of 7 on web).
