@@ -585,3 +585,33 @@ a new obligation on a finished screen is a new item.
     section — what the batch did do is real and already on the rows. Mind the §14.2
     trap: a failure line composed from the kit can be outdrawn by its host and render as
     body copy (ADR-070, 4.34.2).
+
+## F-31 · A refused read draws zeros, and the type cannot say otherwise
+- status: open
+- screen: library · sources · shelves · reader · study
+- route: /
+- spec: spec/component-kit.md §8 · spec/decisions/ADR-109-an-unmeasured-figure-is-not-a-zero.md
+- web: src/shared/Stat.jsx; src/App.jsx; src/shell/AppShell.jsx; src/pages/ShelvesView.jsx; src/pages/AdminMetricsView.jsx
+- flutter: lib/widgets/kit/kit_cards.dart; lib/pages/tags/shelf_page.dart; lib/pages/reader_page.dart; lib/state/documents_notifier.dart; test/kit/kit_smoke_test.dart
+- folds: 4.75.0 (§8 unmeasured figure)
+- device_test: none
+- shots: library, shelves
+- extra_gates: `python3 ../NoteLetter-contracts/harness/stat_figure_check.py --target flutter`
+- notes: Contract 4.75.0, and the gate already reports this client as *behind* every run —
+    it becomes a FAILURE the day the pin reaches VERSION. `KitStat` takes
+    `final String value`, so a screen **cannot express** "this was not measured": every
+    cluster draws a refused or unarrived subscription as whatever its caller computed,
+    which is `0` everywhere it is a count. Web's frame of the defect is
+    `NoteLetter-web/screenshots/reader-error.web.light.png` — the §14.1 block and three
+    confident zeros in one picture.
+    Make `value` nullable and render `—` for null: the numeral's own face and size at
+    `t.fgSubtle`, the label unchanged, the **denominator dropped with it** (`— / 12` is a
+    claim about a total nothing read), and any state the value decides (a level tint, an
+    unread highlight) suppressed. `0` must still draw `0` — an empty library is a real
+    measurement and §7's offer beside it needs that figure true; assert both directions,
+    because a `?? '0'` at the call site passes a test that only checks the dash.
+    Then the call sites: every page computing a figure out of a notifier passes `null`
+    while `error != null` or the first snapshot has not arrived. `DocumentsNotifier`
+    already carries the error (C2's subject) — this is the same read, one layer out.
+    Gate: the extra_gate above stops saying "behind", and `flutter test test/kit` —
+    the cluster's cases go in `kit_smoke_test.dart` beside the kit's others.
