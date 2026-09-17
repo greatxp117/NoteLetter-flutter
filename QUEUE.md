@@ -615,3 +615,28 @@ a new obligation on a finished screen is a new item.
     already carries the error (C2's subject) — this is the same read, one layer out.
     Gate: the extra_gate above stops saying "behind", and `flutter test test/kit` —
     the cluster's cases go in `kit_smoke_test.dart` beside the kit's others.
+
+## F-32 · A refused rename keeps the name the server refused
+- status: open
+- screen: shelves
+- route: /shelves/{id}
+- spec: spec/component-kit.md §Rules (*write before you move*, text-field clause) · §14.2
+- web: src/pages/ShelvesView.jsx (`saveName`); tests/contract/optimistic-revert.test.js
+- flutter: lib/pages/tags/shelf_page.dart; test/kit/…
+- folds: 4.75.2 (the text field's half of ADR-022)
+- device_test: none
+- shots: shelves
+- notes: Contract 4.75.2. This client is **already better than web was** — `_saveName`
+    awaits, records `_nameError` and moves `_savedName` only on success, so a refusal
+    never reads as a rename. What it does not do is the other half: `_name` (the
+    `TextEditingController`) keeps the refused text, so the field still SHOWS a name the
+    shelf does not have, under a sentence saying it could not be saved. §Rules' new
+    clause is explicit — the field goes back to the value the server still holds.
+    Fix: in the `err != null` branch, `_name.text = _savedName` (and leave the cursor
+    at the end). Then assert it: a widget test with `updateTag` returning a message,
+    asserting the controller's text is the OLD name AND `KitFailureInline` carries the
+    server's sentence — plus the control direction, an ACCEPTED rename that keeps the
+    new text, because a revert that fires on success would be worse than none (4.34.8).
+    `letter_settings_page.dart` is NOT in scope and was checked: its fields are
+    controller-backed behind an explicit Save, so there is no debounced optimistic
+    write to revert — web's `putReadings` has no counterpart here.
