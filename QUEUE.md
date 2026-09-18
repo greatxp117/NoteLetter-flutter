@@ -677,3 +677,16 @@ a new obligation on a finished screen is a new item.
     sentence asking for a `request_id` that §14.2 cannot draw.
     Gate: `flutter test test/contract test/kit -x pin`, the device test above, and the
     pair — `tool/shots.sh scripture-day` beside the web frames already committed.
+
+## F-34 · Re-shoot the pairs a shared kit file staled
+- status: open
+- screen: activity
+- route: /
+- spec: spec/decisions/ADR-041-composition-is-contract.md
+- web: scripts/theme-shots.mjs
+- flutter: tool/shots.sh; tool/web_frames.sh
+- folds: none
+- device_test: none
+- shots: activity; library; letters; letter-settings; notifications; ask; ask-thread; ask-rail; ask-turn-failed; search; reader-manuscript; recipe; source-file; source-set; sources; proc-affordances; source-file-stage
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: `screenshot_pair_check.py` is RED on 18 pairs and it is right to be: a pair older than the code is a pair nobody has looked at since. Two are older than this item — F-20 `ask-rail` and F-25 `ask-turn-failed` went stale on 2026-09-15 and were already failing before F-33 started (verified by stashing every change and re-running). The other 16 were staled by F-33's commit, which touched `kit_shell.dart` and `kit_headers.dart` — files many items list, so the gate's timestamp rule fires on all of them. **What the change can actually reach was measured, and it is not these.** `ChapterOpening.footnote` is null-default and additive. `KitUtilityBar`'s crumb floor fires only where a crumb exists, and the bar is mounted in three places: the day view, `letter_reader.dart`, and `AppLayout` — whose bar renders in the WIDE branch only and is passed a crumb by NO page. Both reachable screens were re-shot and looked at. So this item is the honest cost of a time-based gate, not a list of suspected defects — which is also why it must not be closed by touching the files: re-shoot each pair, LOOK at all four frames, and fix whatever looking finds. A pair refreshed without being read is the ritual not having run, which is the thing this gate exists to catch. Do it in one pass after the next kit change rather than per item, and expect it to recur every time a shared kit file moves — if that proves too noisy to act on, the gate needs a direction that reads WHAT changed rather than WHEN, and that is a change to the gate, booked here, not a reason to ignore a red run.
