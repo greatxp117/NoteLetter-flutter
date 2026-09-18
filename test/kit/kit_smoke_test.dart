@@ -1672,6 +1672,41 @@ void main() {
     });
   });
 
+  group('§1.3 utility bar', () {
+    // A crumb squeezed to a stub is worse than no crumb — `§ LET…` and
+    // `READI…` are what this bar drew on the readings day view at phone
+    // width, where a back control and one action leave about six characters.
+    // BOTH directions, because a rule that also hides a crumb which FITS is
+    // the worse defect of the two (4.34.8).
+    //
+    // The width is set on the bar itself rather than by composing real
+    // buttons: what the rule reads is the room the crumb GOT, and button
+    // metrics in a test harness are not the app's — a case built from them
+    // would be measuring the font fallback.
+    Widget bar(double width) => MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: SizedBox(
+              width: width,
+              child: const KitUtilityBar(
+                  crumb: 'Readings · Thursday, September 10'),
+            ),
+          ),
+        );
+
+    testWidgets('keeps a crumb there is room for', (tester) async {
+      await tester.pumpWidget(bar(600));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('READINGS'), findsOneWidget);
+    });
+
+    testWidgets('drops one there is not', (tester) async {
+      await tester.pumpWidget(bar(80));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('READINGS'), findsNothing);
+    });
+  });
+
   group('support footer (§13, INV-22)', () {
     testWidgets('the two required parts, and the optional count', (
       tester,

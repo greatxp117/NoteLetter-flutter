@@ -1661,6 +1661,70 @@ void main() {
     expect(find.text('LATEST LETTER'), findsOneWidget);
   });
 
+  testWidgets('the readings day view opens from a letter and composes from '
+      'the kit', (tester) async {
+    // QUEUE F-33. The live "See all" (ADR-029 §5) — the screen this client did
+    // not have. Needs the same `tool/seed_letters.py` run the letters test
+    // above documents: the canonical seed holds no `kind: "scripture"` record,
+    // so without it there is no readings letter to open and nothing here runs.
+    final router = await pumpApp(tester);
+    router.go('/letters');
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.text('THE READINGS LETTER').evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+
+    // Open the readings letter from its ARCHIVE ROW — by the row's own type,
+    // not by the text, which also appears in the card above it and is not a
+    // control there. The row is far down a phone screen, and a tap at an
+    // off-screen offset lands on whatever IS there, silently.
+    final row = find.byWidgetPredicate((w) =>
+        w is KitSourceRow && w.title.contains('Thursday of week 23'));
+    expect(row, findsOneWidget,
+        reason: 'run tool/seed_letters.py first — no readings letter to open');
+    await tester.ensureVisible(row);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    await tester.tap(row);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(find.text('All letters'), findsOneWidget,
+        reason: 'the letter did not open — everything below would be the list');
+
+    // The control that did not exist here. The seed's letter found 6.
+    final seeAll = find.textContaining('See all 6 passages for this day');
+    expect(seeAll, findsOneWidget,
+        reason: 'the letter offers its live day (ADR-029 §5)');
+    await tester.ensureVisible(seeAll);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    await tester.tap(seeAll);
+    // Three live searches, not a replay of the stored passages.
+    await pumpFor(tester, total: const Duration(seconds: 6));
+
+    // §Composition — §1.3 utility bar naming where it returns to, then the
+    // chapter opening. Not the bespoke Letters header: this is a document
+    // view, not an index.
+    expect(find.text('Back to the letter'), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsOneWidget);
+    expect(find.textContaining('Thursday of week 23'), findsWidgets);
+    expect(find.byType(Card), findsNothing);
+    expect(find.byType(ListTile), findsNothing);
+
+    // The Live statement is present and states a MEASURED count — the page
+    // says what it just found, never what the letter stored.
+    expect(find.text('Live'), findsOneWidget);
+    expect(find.textContaining('passages'), findsWidgets);
+
+    // One section per reading, each naming its own citation.
+    expect(find.text('Col 3:12-17'), findsOneWidget);
+    expect(find.text('Ps 150'), findsOneWidget);
+    expect(find.text('Lk 6:27-38'), findsOneWidget);
+
+    // …and the way back out of it returns to the LETTER, not the index.
+    await tester.tap(find.text('Back to the letter'));
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(find.text('All letters'), findsOneWidget);
+  });
+
   testWidgets('shelves composes from the kit', (tester) async {
     // Screen 9/11 (QUEUE F-08). The seed holds three shelves — Recipes (2
     // volumes), Finance (1) and Stories (1, carrying a LEGACY HEX colour,

@@ -25,10 +25,15 @@ class LetterReaderView extends StatelessWidget {
   final Newsletter letter;
   final VoidCallback onBack;
 
+  /// Opens the readings letter's live day view; null for a daily letter, which
+  /// has no such surface.
+  final VoidCallback? onSeeAll;
+
   const LetterReaderView({
     super.key,
     required this.letter,
     required this.onBack,
+    this.onSeeAll,
   });
 
   @override
@@ -75,7 +80,9 @@ class LetterReaderView extends StatelessWidget {
 
   /// The §11 sheet this client draws around a frame-less body.
   Widget _framed(BuildContext context, Newsletter n) {
-    if (n.isScripture) return ReadingsLetterDocument(letter: n);
+    if (n.isScripture) {
+      return ReadingsLetterDocument(letter: n, onSeeAll: onSeeAll);
+    }
 
     final count = n.chunkIds.length;
     return KitLetterSheet(

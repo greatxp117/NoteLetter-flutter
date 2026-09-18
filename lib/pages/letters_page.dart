@@ -17,6 +17,7 @@ import 'letters/delivery.dart';
 import 'letters/letter_reader.dart';
 import 'letters/pinned_sources.dart';
 import 'letters/readings_letter.dart';
+import 'letters/scripture_day_page.dart';
 import '../services/analytics.dart';
 
 /// Letters (`spec/screens/letters.md` §Composition, ADR-041).
@@ -36,6 +37,12 @@ class _LettersPageState extends State<LettersPage> {
   /// The letter being read, or null for the list. A state rather than a route
   /// because the archive row is what opens it — the reference does the same.
   Newsletter? _open;
+
+  /// The readings letter whose LIVE day is being shown (ADR-029 §5). A second
+  /// state rather than a route, for the same reason [_open] is one: the letter
+  /// is what opens it. It takes precedence over [_open] — the day view is
+  /// entered FROM the letter and returns to it.
+  Newsletter? _dayIssue;
 
   /// One setter rather than three call sites, so the preview, the archive row
   /// and anything that opens a letter later count the same way by construction
@@ -122,11 +129,23 @@ class _LettersPageState extends State<LettersPage> {
     final letters = context.watch<NewsletterNotifier>();
     final settings = context.watch<SettingsNotifier>();
 
+    final day = _dayIssue;
+    if (day != null) {
+      return ScriptureDayView(
+        letter: day,
+        onBack: () => setState(() => _dayIssue = null),
+        onLibrary: () => context.go('/sources'),
+      );
+    }
+
     final open = _open;
     if (open != null) {
       return LetterReaderView(
         letter: open,
         onBack: () => _openLetter(null),
+        onSeeAll: open.isScripture
+            ? () => setState(() => _dayIssue = open)
+            : null,
       );
     }
 

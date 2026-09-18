@@ -431,6 +431,37 @@ Future<void> reachState(WidgetTester tester) async {
           reason: 'the drawer did not open — this frame would be the screen '
               'behind it');
       return;
+    // letters.md §"See all" — the LIVE day behind a readings letter (ADR-029
+    // §5, QUEUE F-33). Two states deep and reachable by no route: the letter
+    // is opened from its archive row, and the day from the letter. The three
+    // searches are real (fn_search_notes through the shim), which is what the
+    // frame is of — a replay of the stored passages would be a picture of the
+    // letter.
+    case 'scripture-day':
+      // By the ROW's own type: the same text is in the card above it, where
+      // it is not a control, and a tap that lands on nothing is silent.
+      final row = find.byWidgetPredicate((w) =>
+          w is KitSourceRow && w.title.contains('Thursday of week 23'));
+      expect(row, findsOneWidget,
+          reason: 'run tool/seed_letters.py first — no readings letter to '
+              'open');
+      await tester.ensureVisible(row);
+      await settle();
+      await tester.tap(row);
+      await settle();
+      final seeAll = find.textContaining('passages for this day');
+      expect(seeAll, findsOneWidget,
+          reason: 'the letter did not open — this frame would be the list');
+      await tester.ensureVisible(seeAll);
+      await settle();
+      await tester.tap(seeAll);
+      // Three live searches, each a round trip through the shim.
+      await settle();
+      await settle();
+      await settle();
+      expect(find.text('Back to the letter'), findsOneWidget,
+          reason: 'the day did not open — this frame would be the letter');
+      return;
     default:
       fail('hold_screen_test knows no HOLD_STATE "$holdState"');
   }

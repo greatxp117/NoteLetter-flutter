@@ -361,7 +361,15 @@ class _OnCard extends StatelessWidget {
 class ReadingsLetterDocument extends StatelessWidget {
   final Newsletter letter;
 
-  const ReadingsLetterDocument({super.key, required this.letter});
+  /// Opens the live day view (ADR-029 §5). Null where there is nothing to
+  /// open into — the control is not drawn rather than drawn inert.
+  final VoidCallback? onSeeAll;
+
+  const ReadingsLetterDocument({
+    super.key,
+    required this.letter,
+    this.onSeeAll,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -414,6 +422,23 @@ class ReadingsLetterDocument extends StatelessWidget {
           }
         }
       }
+    }
+
+    // The live day (ADR-029 §5). It counts the passages the letter FOUND, not
+    // the ones it sent — that is the number the day view re-measures, and
+    // saying "see all 5" under a letter that carried 3 is the whole point.
+    if (n.readings.isNotEmpty && onSeeAll != null) {
+      body.add(Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.s6),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: KitButton(
+            'See all ${n.passagesFound ?? 0} passages for this day',
+            variant: KitButtonVariant.ghost,
+            onPressed: onSeeAll,
+          ),
+        ),
+      ));
     }
 
     return KitLetterSheet(

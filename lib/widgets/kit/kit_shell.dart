@@ -553,6 +553,10 @@ class KitRailFooter extends StatelessWidget {
 
 /// §1.3 — the utility rail at the top of the main pane: a mono caps breadcrumb,
 /// a flexible gap, then trailing controls. 48px, closed by a `--rule`.
+/// The narrowest a crumb may be and still be one — about a dozen mono caps
+/// at 10.5px. Under it the bar draws none.
+const double _crumbFloor = 108;
+
 class KitUtilityBar extends StatelessWidget {
   final String? crumb;
   final List<Widget> actions;
@@ -578,15 +582,37 @@ class KitUtilityBar extends StatelessWidget {
           ],
           if (crumb != null)
             Flexible(
-              child: Text(
-                crumb!.toUpperCase(),
-                overflow: TextOverflow.ellipsis,
-                style: KitText.capsLabel(
-                  context,
-                  fontSize: 10.5,
-                  letterSpacing: 0.13,
-                  color: t.fgSubtle,
-                ),
+              // A crumb squeezed to a stub is worse than no crumb: `§ LET…`
+              // and `READI…` are what this bar drew on the readings day view
+              // at phone width, where the back control and one action leave
+              // about six characters. They read as a rendering fault and say
+              // nothing, and the back control beside them has already named
+              // the parent. Below the floor the crumb is dropped; above it
+              // the ellipsis still earns its place, because a truncated
+              // `READINGS · THURSDAY, SEPTEMB…` is a crumb.
+              //
+              // The LayoutBuilder sits INSIDE the Flexible deliberately: its
+              // `maxWidth` is the room the crumb actually got, after the
+              // leading control and the actions have taken theirs. Measured
+              // at the outer bar it would be the whole width, and the rule
+              // would fire on screens where the crumb fits perfectly well
+              // — a detector red on correct code is worse than none.
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < _crumbFloor) {
+                    return const SizedBox.shrink();
+                  }
+                  return Text(
+                    crumb!.toUpperCase(),
+                    overflow: TextOverflow.ellipsis,
+                    style: KitText.capsLabel(
+                      context,
+                      fontSize: 10.5,
+                      letterSpacing: 0.13,
+                      color: t.fgSubtle,
+                    ),
+                  );
+                },
               ),
             ),
           const Spacer(),

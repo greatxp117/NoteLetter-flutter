@@ -643,7 +643,7 @@ a new obligation on a finished screen is a new item.
     write to revert — web's `putReadings` has no counterpart here.
 
 ## F-33 · The readings day view — a screen this client does not have
-- status: open
+- status: done 2026-09-18
 - screen: scripture-day
 - route: /letters
 - spec: spec/screens/letters.md §"See all" is a live search, and says so; spec/decisions/ADR-029-readings-letter-is-a-second-newsletter.md §5; spec/component-kit.md §14.1

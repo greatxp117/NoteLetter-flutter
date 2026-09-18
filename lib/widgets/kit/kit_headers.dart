@@ -38,6 +38,12 @@ class ChapterOpening extends StatelessWidget {
   /// Suppressible where the header runs straight into a control bar.
   final bool rule;
 
+  /// A note UNDER the rule and inside the block — the day's cycle line on the
+  /// readings day view (`.rl-fnote`, reference `margin-top: 10`). It belongs
+  /// to the opening: set outside it, it clears the block's own 30px foot and
+  /// reads as a caption on whatever comes next.
+  final String? footnote;
+
   const ChapterOpening({
     super.key,
     this.mark,
@@ -46,6 +52,7 @@ class ChapterOpening extends StatelessWidget {
     this.standfirst,
     this.actions = const [],
     this.rule = true,
+    this.footnote,
   });
 
   @override
@@ -138,6 +145,10 @@ class ChapterOpening extends StatelessWidget {
             if (rule) ...[
               const SizedBox(height: 22),
               const ChapterRule(),
+            ],
+            if (footnote != null) ...[
+              const SizedBox(height: 10),
+              Text(footnote!, style: KitText.meta(context)),
             ],
           ],
         ),
