@@ -509,8 +509,8 @@ a new obligation on a finished screen is a new item.
 - status: open
 - screen: none
 - route: none
-- spec: fixtures/normalization.md (rule 3) · fixtures/tokens.json
-- web: tests/contract/helpers/match.js · tests/contract/fixture-tokens.test.js
+- spec: fixtures/normalization.md (rule 3); fixtures/tokens.json
+- web: tests/contract/helpers/match.js; tests/contract/fixture-tokens.test.js
 - flutter: test/contract/api_requests_test.dart
 - folds: none
 - device_test: none
@@ -536,8 +536,8 @@ a new obligation on a finished screen is a new item.
 - screen: support · notifications · reader (Summary)
 - route: /support · /settings/notifications · /reader/{id}
 - spec: spec/component-kit.md §How to read a pattern ("a pattern may not be scoped to its first host") · §2
-- web: src/pages/SupportView.jsx · src/pages/NotificationSettings.jsx · src/pages/reader/SummaryPanel.jsx
-- flutter: lib/screens/support_screen.dart · lib/screens/notification_settings_screen.dart · reader summary section
+- web: src/pages/SupportView.jsx; src/pages/NotificationSettings.jsx; src/pages/reader/SummaryPanel.jsx
+- flutter: lib/pages/support_page.dart; lib/pages/notification_settings_page.dart; lib/pages/reader/summary_panel.dart
 - folds: none
 - device_test: none
 - shots: support; notifications; reader
@@ -595,7 +595,7 @@ a new obligation on a finished screen is a new item.
 - flutter: lib/widgets/kit/kit_cards.dart; lib/pages/tags/shelf_page.dart; lib/pages/reader_page.dart; lib/state/documents_notifier.dart; test/kit/kit_smoke_test.dart
 - folds: 4.75.0 (§8 unmeasured figure)
 - device_test: none
-- shots: library, shelves
+- shots: library; shelves
 - extra_gates: `python3 ../NoteLetter-contracts/harness/stat_figure_check.py --target flutter`
 - notes: Contract 4.75.0, and the gate already reports this client as *behind* every run —
     it becomes a FAILURE the day the pin reaches VERSION. `KitStat` takes
@@ -622,10 +622,11 @@ a new obligation on a finished screen is a new item.
 - route: /shelves/{id}
 - spec: spec/component-kit.md §Rules (*write before you move*, text-field clause) · §14.2
 - web: src/pages/ShelvesView.jsx (`saveName`); tests/contract/optimistic-revert.test.js
-- flutter: lib/pages/tags/shelf_page.dart; test/kit/…
+- flutter: lib/pages/tags/shelf_page.dart; test/kit/shelf_rename_test.dart (new)
 - folds: 4.75.2 (the text field's half of ADR-022)
 - device_test: none
 - shots: shelves
+- extra_gates: none
 - notes: Contract 4.75.2. This client is **already better than web was** — `_saveName`
     awaits, records `_nameError` and moves `_savedName` only on success, so a refusal
     never reads as a rename. What it does not do is the other half: `_name` (the
@@ -640,3 +641,39 @@ a new obligation on a finished screen is a new item.
     `letter_settings_page.dart` is NOT in scope and was checked: its fields are
     controller-backed behind an explicit Save, so there is no debounced optimistic
     write to revert — web's `putReadings` has no counterpart here.
+
+## F-33 · The readings day view — a screen this client does not have
+- status: open
+- screen: scripture-day
+- route: /letters
+- spec: spec/screens/letters.md §"See all" is a live search, and says so; spec/decisions/ADR-029-readings-letter-is-a-second-newsletter.md §5; spec/component-kit.md §14.1
+- web: src/pages/letters/ScriptureDayView.jsx; src/pages/LettersView.jsx; src/styles/app-scripture.css; tests/contract/scripture-day-partial-failure.test.js
+- flutter: lib/pages/letters/scripture_day_page.dart (new); lib/pages/letters/readings_letter.dart; lib/pages/letters_page.dart; test/kit/scripture_day_test.dart (new)
+- folds: 2.24.0 (ADR-029 §5, the live "See all"); 4.75.3 (§14.1 per reading)
+- device_test: the readings day view opens from a letter and composes from the kit
+- shots: scripture-day
+- extra_gates: none
+- notes: **Xavier's call, 2026-09-18: this is a parity gap, not a web-only surface.**
+    It was neither — the screen exists only on the reference, is named in no §Out of
+    scope row and was in no queue, which is exactly the standing `spec/clients/flutter.md`
+    §Out of scope calls "a fixture nothing drives and nothing owns".
+    `ReadingsLetterSection` renders the letter and its archive rows; what it has no
+    counterpart for is `rl-seeall` → `ScriptureDayView`. Build the day view: the folio,
+    the day name (`liturgical_day.name`, and note `liturgical_day` is a **MAP** — the
+    field that threw a Dart cast when it was modelled as `String?`), the stand, the Live
+    banner, then one section per reading.
+    **It re-runs the search NOW** (ADR-029 §5) — one `Api.searchNotes(r.ref, limit: 50)`
+    per reading, never a replay of the stored `passages`, because freezing it shows a
+    reader fewer passages than their library now holds. The stored `passages_found` is
+    what makes the count honest AS SENT, and the banner states the difference.
+    The four states the web frames show, all of which came out of B7 and are the reason
+    this item exists at all (`NoteLetter-web/screenshots/scripture-day{,-failed}.web.*`):
+    a reading that could not be searched **answered nothing, not zero** — it draws
+    `KitFailureBlock` (naming line, the server's sentence, the `request_id`, one Retry
+    that re-runs **that one reading**) where §7's offer would be, `—` in the count slot,
+    stays OUT of the live tally, and suppresses the drift claim in favour of a partial
+    sentence. A reading that genuinely found nothing still gets §7's offer. Do not
+    reproduce web's first shape: it used §14.2, and the frame showed the server's own
+    sentence asking for a `request_id` that §14.2 cannot draw.
+    Gate: `flutter test test/contract test/kit -x pin`, the device test above, and the
+    pair — `tool/shots.sh scripture-day` beside the web frames already committed.
