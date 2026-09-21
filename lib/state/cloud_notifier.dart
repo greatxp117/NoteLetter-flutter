@@ -170,6 +170,22 @@ class CloudNotifier extends ChangeNotifier {
     _sawWorking = false;
   }
 
+  /// The integrations read's failure (C4).
+  ///
+  /// It was swallowed as *"leave the prior list"* — true on a refresh and
+  /// false on the only load that matters, because on first load the prior list
+  /// is EMPTY. `integrationFor` then answers null for every provider and
+  /// `_ProviderCard` draws each one as not connected, with a Connect button:
+  /// a reader with a live Notion integration is invited to re-run OAuth
+  /// against a service they are already connected to.
+  String? _integrationsError;
+  String? get integrationsError => _integrationsError;
+
+  /// Whether the list on screen came from a read that SUCCEEDED. An empty list
+  /// that was never read is not an account with nothing connected.
+  bool _integrationsLoaded = false;
+  bool get integrationsLoaded => _integrationsLoaded;
+
   Future<void> loadIntegrations() async {
     _loadingIntegrations = true;
     _notify();
@@ -179,10 +195,14 @@ class CloudNotifier extends ChangeNotifier {
       _integrations = raw
           .map((e) => CloudIntegration.fromJson(e as Map<String, dynamic>))
           .toList();
+      _integrationsError = null;
+      _integrationsLoaded = true;
     } on UnauthorizedException {
       await AuthService.instance.signOut();
-    } on ApiException {
-      // Non-fatal — leave the prior list.
+    } on ApiException catch (e) {
+      // The prior list is still shown — but the screen is told it is stale,
+      // which is the half that was missing.
+      _integrationsError = e.message;
     } finally {
       _loadingIntegrations = false;
       _notify();

@@ -43,13 +43,32 @@ class OrgNotifier extends ChangeNotifier {
     loadSettings();
   }
 
+  /// Whether the stored settings have actually been READ (C4).
+  ///
+  /// This mattered more than the notice does. `_settings` starts at
+  /// `const OrganizationSettings()` — the defaults — and a swallowed read left
+  /// it there, indistinguishable from an account that really is on the
+  /// defaults. The panel then drew those defaults as though they were stored,
+  /// and `updateSettings` sends a PARTIAL: one nudge of the threshold slider
+  /// wrote the default MODE over whatever the reader had chosen, from a screen
+  /// that had never seen their settings. A read that cannot fail is
+  /// indistinguishable from one that works, and here it silently destroyed the
+  /// thing it was supposed to be showing.
+  bool _settingsLoaded = false;
+  bool get settingsLoaded => _settingsLoaded;
+
+  String? _settingsError;
+  String? get settingsError => _settingsError;
+
   Future<void> loadSettings() async {
     try {
       _settings = await FirestoreService.instance.getOrganizationSettings();
-      notifyListeners();
-    } catch (_) {
-      // Non-fatal — keep defaults.
+      _settingsError = null;
+      _settingsLoaded = true;
+    } catch (e) {
+      _settingsError = '$e';
     }
+    notifyListeners();
   }
 
   /// Approve/decline pending suggestions (≤20 per call). On success the rows
@@ -71,7 +90,17 @@ class OrgNotifier extends ChangeNotifier {
   }
 
   /// Partial update of org settings; returns the merged doc into local state.
+  ///
+  /// **Refuses before a successful read** (C4). The guard belongs here and not
+  /// only on the screen: a partial write composed against unread state sends
+  /// the DEFAULTS for every key the reader did not touch, and a screen that
+  /// forgets the guard would do that damage silently. Two callers cannot each
+  /// be trusted to remember; the writer can.
   Future<String?> updateSettings(Map<String, dynamic> partial) async {
+    if (!_settingsLoaded) {
+      return 'These settings have not been read yet, so saving would write '
+          'defaults over what is stored. Reload and try again.';
+    }
     try {
       final data = await Api.instance.updateOrganizationSettings(partial);
       _settings = OrganizationSettings.fromJson(data);

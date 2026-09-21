@@ -251,16 +251,39 @@ class _SourcesPageState extends State<SourcesPage> {
 
               // ── Connect a service ──────────────────────────────────────
               const SectionHeader('Connect a service'),
-              KitCardGrid(
-                children: [
-                  for (final e in _providers.entries)
-                    _ProviderCard(
-                      providerId: e.key,
-                      spec: e.value,
-                      integration: cloud.integrationFor(e.key),
-                    ),
-                ],
-              ),
+
+              // A card's whole meaning is whether that service is connected,
+              // and an unread list answers "no" for all of them (C4). The
+              // cards are withheld rather than drawn wrong: inviting someone
+              // to connect a service they are already connected to is not a
+              // missing notice, it is an instruction to re-run OAuth.
+              if (cloud.integrationsError != null &&
+                  !cloud.integrationsLoaded)
+                KitFailureBlock(
+                  sentence: 'Your connected services could not be read.',
+                  detail: cloud.integrationsError!,
+                  onRetry: () =>
+                      context.read<CloudNotifier>().loadIntegrations(),
+                )
+              else ...[
+                // A read that failed AFTER one succeeded keeps its cards —
+                // they were true a moment ago — with the notice above them.
+                if (cloud.integrationsError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: KitFailureInline(cloud.integrationsError!),
+                  ),
+                KitCardGrid(
+                  children: [
+                    for (final e in _providers.entries)
+                      _ProviderCard(
+                        providerId: e.key,
+                        spec: e.value,
+                        integration: cloud.integrationFor(e.key),
+                      ),
+                  ],
+                ),
+              ],
 
               if (cloud.browseProvider != null) ...[
                 const SizedBox(height: 14),

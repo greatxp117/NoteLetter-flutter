@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/newsletter_settings.dart';
-import '../models/cloud_integration.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -9,14 +8,11 @@ import '../services/firestore_service.dart';
 
 class SettingsNotifier extends ChangeNotifier {
   NewsletterSettings? _newsletter;
-  List<CloudIntegration> _integrations = [];
   bool _isLoading = false;
   bool _isSaving = false;
   String? _error;
 
   NewsletterSettings? get newsletter => _newsletter;
-  List<CloudIntegration> get integrations =>
-      List.unmodifiable(_integrations);
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   String? get error => _error;
@@ -26,7 +22,7 @@ class SettingsNotifier extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      await Future.wait([_loadNewsletter(), _loadIntegrations()]);
+      await _loadNewsletter();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -44,27 +40,22 @@ class SettingsNotifier extends ChangeNotifier {
     }
   }
 
-  Future<void> loadIntegrations() async {
-    await _loadIntegrations();
-    notifyListeners();
-  }
-
-  Future<void> _loadIntegrations() async {
-    try {
-      final data = await Api.instance.getCloudIntegrations();
-      final rawList = data['integrations'] as List? ?? [];
-      _integrations = rawList
-          .map((e) =>
-              CloudIntegration.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } on UnauthorizedException {
-      await AuthService.instance.signOut();
-    } on ApiException {
-      // Non-fatal
-    } catch (_) {
-      // Ignore
-    }
-  }
+  // The third site C4 names, and it needed DELETING rather than a notice.
+  //
+  // It was not one swallow but a whole unreachable cluster: the list, the
+  // loader, `isConnected`, `integrationFor` and `disconnectProvider`. Sources
+  // reads every one of those off `CloudNotifier`, which is where the screen
+  // that draws them lives; nothing anywhere called this copy.
+  //
+  // The read swallowed `ApiException` under `// Non-fatal` and everything
+  // else under `// Ignore`, and both were accurate — nothing downstream could
+  // tell the difference, because nothing downstream existed.
+  //
+  // So the swallow could not be surfaced, because there was no screen to
+  // surface it on. Exposing an error for data nothing renders is a dead branch
+  // added on purpose — the shape this workspace keeps finding and calling a
+  // spec nobody wrote. The request is gone with the state it fed, one fewer
+  // call on every visit to letter settings.
 
   /// The raw body of the last `fn_newsletter_settings` PUT, so the screen can
   /// read `activationSend` (2.30.0). Null until a save happens.
@@ -196,33 +187,6 @@ class SettingsNotifier extends ChangeNotifier {
       return e.message;
     } catch (_) {
       return 'Failed to start cloud storage connection.';
-    }
-  }
-
-  Future<String?> disconnectProvider(String provider) async {
-    try {
-      await Api.instance.disconnectCloudStorage(provider);
-      _integrations.removeWhere((i) => i.provider == provider);
-      notifyListeners();
-      return null;
-    } on UnauthorizedException {
-      await AuthService.instance.signOut();
-      return 'Session expired.';
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (_) {
-      return 'Failed to disconnect. Please try again.';
-    }
-  }
-
-  bool isConnected(String provider) =>
-      _integrations.any((i) => i.provider == provider && i.tokenValid);
-
-  CloudIntegration? integrationFor(String provider) {
-    try {
-      return _integrations.firstWhere((i) => i.provider == provider);
-    } catch (_) {
-      return null;
     }
   }
 }

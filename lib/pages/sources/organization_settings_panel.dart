@@ -40,6 +40,29 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
     final t = Tokens.of(context);
     final org = context.watch<OrgNotifier>();
     final settings = org.settings;
+    // §14 BEFORE the vanish (C4, ORDER). `settings.providers` is empty on the
+    // defaults, so a failed read took this panel off the screen entirely —
+    // the reader lost the controls and the reason in one step, and nothing
+    // said either had happened.
+    if (org.settingsError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeader('Organization'),
+          KitFailureBlock(
+            sentence: 'Your organization settings could not be read.',
+            detail: org.settingsError!,
+            onRetry: () => context.read<OrgNotifier>().loadSettings(),
+          ),
+        ],
+      );
+    }
+
+    // Not yet read is not "on the defaults". Drawing the controls here would
+    // show a threshold and a mode this reader has never chosen, and the first
+    // nudge would save them.
+    if (!org.settingsLoaded) return const SizedBox.shrink();
+
     final enabledProviders = settings.providers.entries
         .where((e) => e.value.enabled)
         .map((e) => e.key)

@@ -8,6 +8,7 @@ import 'package:flutter_app/models/activity_item.dart';
 import 'package:flutter_app/models/cloud_folder.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/import_job.dart';
+import 'package:flutter_app/models/organization_settings.dart';
 import 'package:flutter_app/models/organization_suggestion.dart';
 import 'package:flutter_app/models/tag.dart';
 import 'package:flutter_app/pages/sources_page.dart';
@@ -37,12 +38,19 @@ class SourcesStubService extends FirestoreService {
     this.jobs,
     this.suggestions,
     this.folders,
+    this.orgSettings,
+    this.orgSettingsFail = false,
   }) : super.stub();
 
   final Stream<List<Document>>? documents;
   final Stream<List<ImportJob>>? jobs;
   final Stream<List<OrganizationSuggestion>>? suggestions;
   final Stream<List<CloudFolder>>? folders;
+
+  /// C4: the one-shot org-settings read, which `OrgNotifier.start` kicks off
+  /// and which used to be swallowed into the defaults.
+  final OrganizationSettings? orgSettings;
+  final bool orgSettingsFail;
 
   int documentsSubscribed = 0;
 
@@ -69,6 +77,12 @@ class SourcesStubService extends FirestoreService {
   @override
   Stream<List<CloudFolder>> subscribeCloudFolders(String provider) =>
       folders ?? Stream.value(const []);
+
+  @override
+  Future<OrganizationSettings> getOrganizationSettings() async {
+    if (orgSettingsFail) throw StateError('settings-unreadable');
+    return orgSettings ?? const OrganizationSettings();
+  }
 }
 
 /// The real notifiers, with only their HTTP reads quieted.
@@ -82,9 +96,29 @@ class QuietCloud extends CloudNotifier {
   Future<void> loadIntegrations() async {}
 }
 
-class QuietOrg extends OrgNotifier {
+/// `OrgNotifier` unmodified. Its `loadSettings` goes through the doubled
+/// Firestore layer, not `Api`, so there is no socket to quiet — and C4's
+/// subject is precisely what that read does when it fails.
+typedef QuietOrg = OrgNotifier;
+
+/// A `CloudNotifier` whose integrations read has already failed.
+///
+/// The real `loadIntegrations` goes through `Api`, not Firestore, and this
+/// client has no seam at that layer yet (C5 and C8 are where that lands), so
+/// the NOTIFIER half of C4's cloud site is not gated here — only the screen's
+/// answer to it. Saying which half is gated is the point: an unstated gap
+/// reads as coverage.
+class UnreadCloud extends CloudNotifier {
+  UnreadCloud(this.message);
+
+  final String message;
+
   @override
-  Future<void> loadSettings() async {}
+  Future<void> loadIntegrations() async {}
+  @override
+  String? get integrationsError => message;
+  @override
+  bool get integrationsLoaded => false;
 }
 
 class StubTags extends TagsNotifier {
@@ -104,7 +138,7 @@ class StubActivity extends ActivityNotifier {
 /// Mounts [SourcesPage] with the real `CloudNotifier`, `OrgNotifier` and
 /// `DocumentsNotifier` over [service].
 Future<void> pumpSources(WidgetTester tester, SourcesStubService service,
-    {DocumentsNotifier? documents}) async {
+    {DocumentsNotifier? documents, CloudNotifier? cloud}) async {
   FirestoreService.instance = service;
   // The harness that swaps the singleton puts it back. Leaving that to each
   // caller is what `test_isolation_test` refuses, and it was right to: this
@@ -116,7 +150,7 @@ Future<void> pumpSources(WidgetTester tester, SourcesStubService service,
       ChangeNotifierProvider<DocumentsNotifier>(
           create: (_) => documents ?? DocumentsNotifier()),
       ChangeNotifierProvider<TagsNotifier>(create: (_) => StubTags()),
-      ChangeNotifierProvider<CloudNotifier>(create: (_) => QuietCloud()),
+      ChangeNotifierProvider<CloudNotifier>(create: (_) => cloud ?? QuietCloud()),
       ChangeNotifierProvider<OrgNotifier>(create: (_) => QuietOrg()),
       ChangeNotifierProvider<ActivityNotifier>(create: (_) => StubActivity()),
       ChangeNotifierProvider<UploadNotifier>(create: (_) => UploadNotifier()),
