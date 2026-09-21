@@ -123,8 +123,11 @@ class _ListenPanelState extends State<ListenPanel> {
         setState(() => _audioUrl = url);
         await _player.setSourceUrl(url);
       } else {
-        setState(() =>
-            _error = 'Audio is being generated — check back shortly.');
+        // `fn_generate_audio` is synchronous: a 200 always carries `audio_url`
+        // (api/audio.md). A 200 without one is a failure, not a queue — the
+        // "check back shortly" this used to write was a success sentence in
+        // the failure slot for a state the backend cannot produce (C9/D6/F2).
+        setState(() => _error = 'Narration could not be generated. Please try again.');
       }
     } on ApiException catch (e) {
       setState(() {

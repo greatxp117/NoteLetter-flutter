@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
@@ -24,7 +25,17 @@ class SourceFreshness extends StatefulWidget {
   const SourceFreshness({super.key, required this.docId, required this.doc});
 
   /// Session cache: docId → freshness result (or null = checked & irrelevant).
+  /// **Only a check that ANSWERED is cached** — see the `catchError` below.
   static final Map<String, Map<String, dynamic>?> _cache = {};
+
+  /// The cache is a process-lifetime static, so a suite that fills it leaks
+  /// into whatever runs next — the same one-way door `test_isolation_test`
+  /// refuses for the service singletons.
+  @visibleForTesting
+  static void resetCacheForTest() => _cache.clear();
+
+  @visibleForTesting
+  static bool debugCacheHas(String docId) => _cache.containsKey(docId);
 
   @override
   State<SourceFreshness> createState() => _SourceFreshnessState();
@@ -51,8 +62,13 @@ class _SourceFreshnessState extends State<SourceFreshness> {
       SourceFreshness._cache[widget.docId] = res;
       if (mounted) setState(() => _freshness = res);
     }).catchError((_) {
-      // Degrade silently — the reader never blocks on the freshness check.
-      SourceFreshness._cache[widget.docId] = null;
+      // Degrade silently — the reader never blocks on the freshness check —
+      // but do NOT cache the failure. A cached `null` is indistinguishable
+      // from "checked, nothing to say", and it lasted the whole process: one
+      // dropped request meant this document could never show its banner again
+      // until the app was restarted. Not caching means the next mount asks
+      // again, which is still at most once per open (INV-02 forbids a poll,
+      // not a retry).
     });
   }
 

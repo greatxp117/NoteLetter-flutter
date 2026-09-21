@@ -8,17 +8,26 @@ import '../services/analytics.dart';
 class UploadNotifier extends ChangeNotifier {
   final List<UploadFile> _files = [];
   final Map<String, Uint8List> _pendingBytes = {};
+  int _seq = 0;
 
   List<UploadFile> get files => List.unmodifiable(_files);
 
-  Future<void> addFile(
+  /// Row identity. A timestamp alone is not unique: `_pickFiles` starts every
+  /// dropped file in one synchronous loop, and two of them can land in the
+  /// same microsecond.
+  String _newId() => '${DateTime.now().microsecondsSinceEpoch}-${_seq++}';
+
+  /// Returns the **row id**, so the caller can find its own row again. Two
+  /// drops of the same filename are two rows, and a name is not an identity:
+  /// looking one up by name reported the later row's status for both.
+  Future<String> addFile(
     String name,
     int size,
     Uint8List bytes,
     String mimeType,
   ) async {
     final file = UploadFile(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: _newId(),
       name: name,
       size: size,
       mimeType: mimeType,
@@ -27,21 +36,24 @@ class UploadNotifier extends ChangeNotifier {
     _pendingBytes[file.id] = bytes;
     notifyListeners();
     await _uploadFile(file);
+    return file.id;
   }
 
   /// Batch image-set upload (contract 1.1.0): one `image_set` doc over up to 20
   /// images. createMultiImageSession → per-image bare PUT (INV-08) →
   /// signalUploadsComplete. Represented as a single upload row.
-  Future<void> addImageSet(
+  /// Returns the row id (null when there was nothing to send) — same reason
+  /// as `addFile`: `image/*` is a shape, not an identity.
+  Future<String?> addImageSet(
     List<({String name, int size, Uint8List bytes, String mimeType})> images, {
     String? title,
   }) async {
-    if (images.isEmpty) return;
+    if (images.isEmpty) return null;
     final set = images.take(20).toList(); // hard cap ≤20 (uploads.md)
     final setName =
         (title != null && title.trim().isNotEmpty) ? title.trim() : '${set.length} images';
     final file = UploadFile(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: _newId(),
       name: setName,
       size: set.fold<int>(0, (a, im) => a + im.size),
       mimeType: 'image/*',
@@ -83,6 +95,7 @@ class UploadNotifier extends ChangeNotifier {
           status: UploadStatus.error,
           errorMessage: 'Image upload failed. Please try again.');
     }
+    return file.id;
   }
 
   /// Add a link. Returns a **rejection message**, or null when the request was
@@ -109,7 +122,7 @@ class UploadNotifier extends ChangeNotifier {
         type == 'youtube' ? 'YouTube: ${_truncate(url)}' : _truncate(url);
 
     final file = UploadFile(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: _newId(),
       name: displayName,
       size: 0,
       mimeType: 'text/html',

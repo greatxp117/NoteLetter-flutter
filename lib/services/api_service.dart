@@ -103,6 +103,7 @@ class ApiService {
   @visibleForTesting
   void resetTestSeams() {
     _client.httpClientAdapter = _defaultAdapter;
+    _rawClient.httpClientAdapter = _defaultRawAdapter;
     tokenProvider = _defaultTokenProvider;
   }
 
@@ -111,6 +112,17 @@ class ApiService {
     sendTimeout: const Duration(minutes: 5),
     receiveTimeout: const Duration(minutes: 5),
   ));
+
+  /// Test seam for the GCS direct-upload client (INV-08's bare PUT).
+  ///
+  /// Separate from [httpClientAdapter] because `_rawClient` is a separate Dio
+  /// with no auth header and no base URL: a suite that canned only the `fn_*`
+  /// transport still went to the real network here, so the half of an upload
+  /// that actually moves the bytes could not be driven at all.
+  set rawClientAdapter(HttpClientAdapter adapter) =>
+      _rawClient.httpClientAdapter = adapter;
+
+  late final HttpClientAdapter _defaultRawAdapter;
 
   ApiService._() {
     _client = Dio(BaseOptions(
@@ -130,6 +142,7 @@ class ApiService {
     // and a reset that builds a new one is a reset to something that was
     // never there.
     _defaultAdapter = _client.httpClientAdapter;
+    _defaultRawAdapter = _rawClient.httpClientAdapter;
     _defaultTokenProvider = tokenProvider;
   }
 

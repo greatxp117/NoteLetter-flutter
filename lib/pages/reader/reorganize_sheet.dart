@@ -49,7 +49,12 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
     super.initState();
     FirestoreService.instance.getOrganizationSettings().then((s) {
       if (mounted) setState(() => _defaultMode = s.defaultReorgMode);
-    }).catchError((_) {});
+    })
+        // Deliberately quiet (§14 asks why), and the reference says the same:
+        // this only pre-selects a radio the reader is about to choose anyway,
+        // and 'split' is the same default the backend applies. Nothing on the
+        // sheet states it as a fact.
+        .catchError((_) {});
     Api.instance.analyzeReorganization(widget.docId).then((p) {
       if (!mounted) return;
       setState(() {
@@ -117,6 +122,13 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
         if (!mounted) return;
         setState(() => _live = p ?? _live);
         if (p?['status'] == 'done') widget.onExecuted();
+      }, onError: (e) {
+        // INV-24 (ADR-071): without this the sheet sits on "executing" forever
+        // for a plan that may well have finished. The stream is the ONLY thing
+        // that ever moves `_live` off the execute response.
+        if (!mounted) return;
+        setState(() => _error =
+            e is ApiException ? e.message : 'The plan could not be followed.');
       });
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -169,8 +181,11 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 18),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ui.note(msg),
-        const SizedBox(height: 16),
+        // Once the subscription has failed, `_live` is frozen at whatever it
+        // last saw: the progress sentence would be a claim this sheet can no
+        // longer back. The failure above it is the only thing it still knows.
+        if (_error == null) ui.note(msg),
+        if (_error == null) const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
           child: FilledButton(

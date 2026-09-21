@@ -98,10 +98,14 @@ class FileUploaderState extends State<FileUploader> {
         _reject(refused);
         continue;
       }
-      notifier.addFile(file.name, file.size, bytes, mimeType).then((_) {
+      // By ROW ID, never by name: two drops of the same filename are two rows,
+      // and `lastWhere(name)` reported the later row's status for both — a
+      // failed upload read as complete because a later one of the same name
+      // succeeded.
+      notifier.addFile(file.name, file.size, bytes, mimeType).then((rowId) {
         if (!mounted) return;
-        final match = notifier.files.lastWhere(
-          (f) => f.name == file.name,
+        final match = notifier.files.firstWhere(
+          (f) => f.id == rowId,
           orElse: () => UploadFile(id: '', name: '', size: 0),
         );
         if (match.status == UploadStatus.completed) {
@@ -136,9 +140,9 @@ class FileUploaderState extends State<FileUploader> {
     }
     if (images.isEmpty) return;
 
-    await notifier.addImageSet(images);
-    if (!mounted) return;
-    final match = notifier.files.lastWhere((f) => f.mimeType == 'image/*',
+    final rowId = await notifier.addImageSet(images);
+    if (!mounted || rowId == null) return;
+    final match = notifier.files.firstWhere((f) => f.id == rowId,
         orElse: () => UploadFile(id: '', name: '', size: 0));
     if (match.status == UploadStatus.completed) {
       widget.onUploadComplete?.call();

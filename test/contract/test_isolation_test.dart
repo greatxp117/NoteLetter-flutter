@@ -66,7 +66,7 @@ void main() {
         .where((f) => f.path.endsWith('.dart'));
 
     final seam = RegExp(
-        r'ApiService\.instance\.(httpClientAdapter|tokenProvider)\s*=');
+        r'ApiService\.instance\.(httpClientAdapter|rawClientAdapter|tokenProvider)\s*=');
     final offenders = <String>[];
     var checked = 0;
     for (final f in files) {
