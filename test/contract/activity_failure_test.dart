@@ -39,7 +39,7 @@ class _StubActivity extends ActivityNotifier {
       : _items = items,
         _error = error;
 
-  List<ActivityItem> _items;
+  final List<ActivityItem> _items;
   String? _error;
 
   @override

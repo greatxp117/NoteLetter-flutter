@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/activity_item.dart';
 import '../models/ask_thread.dart';
 import '../models/chunk.dart';
@@ -39,12 +40,47 @@ class ReadLogged {
 /// subscriptions; newsletters/settings/import jobs are one-shot reads.
 /// Every query filters `where('user_id', '==', uid)` — mirrors web `api.js`.
 class FirestoreService {
-  static final FirestoreService instance = FirestoreService._();
+  static FirestoreService _instance = FirestoreService._();
+
+  /// The one every notifier and screen reads — 33 call sites, all of them
+  /// `FirestoreService.instance.subscribeX()`.
+  static FirestoreService get instance => _instance;
+
+  /// **The test seam** (C1). Every screen on this client gets its data from a
+  /// subscription, and INV-24 says a failed subscription is a failure STATE —
+  /// so what a notifier does with a stream error is behaviour, and it was
+  /// behaviour nothing could reach: there is no Firebase app in a plain widget
+  /// test and this client has no fake Firestore, so a notifier could only be
+  /// tested by replacing its getters, which tests the stub. C1's page half was
+  /// gated that way and its notifier half was not; §C is four more items of
+  /// the same shape.
+  ///
+  /// Swap in a subclass, drive the stream, and **reset in `tearDown`** — a
+  /// static that outlives its test is the leak that makes the next one flaky,
+  /// which is why [resetInstance] exists rather than a bare setter.
+  @visibleForTesting
+  static set instance(FirestoreService service) => _instance = service;
+
+  @visibleForTesting
+  static void resetInstance() => _instance = FirestoreService._();
+
   FirestoreService._();
+
+  /// The constructor a test double calls. The private one cannot be reached
+  /// from outside this library, so without this the seam above has nothing to
+  /// put through it.
+  @visibleForTesting
+  FirestoreService.stub();
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
-  String? get _uid => AuthService.instance.currentUser?.uid;
+  /// The signed-in caller, as ONE overridable point. Every query here filters
+  /// on it, and a double that cannot answer it can subscribe to nothing.
+  @protected
+  @visibleForTesting
+  String? get currentUid => AuthService.instance.currentUser?.uid;
+
+  String? get _uid => currentUid;
 
   /// Realtime document list, newest first. Strips `embedding` if present.
   Stream<List<Document>> subscribeDocuments({int limit = 200}) {
@@ -255,107 +291,76 @@ class FirestoreService {
   Stream<List<ActivityItem>> subscribeActivity({int maxItems = 100}) {
     final uid = _uid;
     if (uid == null) return Stream.value(const []);
-
-    final controller = StreamController<List<ActivityItem>>.broadcast();
-    List<ActivityItem> eventItems = [];
-    List<ActivityItem> docItems = [];
-    late final StreamSubscription<dynamic> eventsSub;
-    late final StreamSubscription<dynamic> docsSub;
-    var failed = false;
-
-    void emitMerged() {
-      if (failed) return;
-      controller.add(mergeActivity(eventItems, docItems, maxItems: maxItems));
-    }
-
-    // Both halves ERROR the merged stream (C1). They answered
-    // `controller.add(const [])`, which is the empty library said by the one
-    // path that never read it: `ActivityNotifier.start`'s `onError` was dead
-    // code for as long as that was true, and `activity_page` drew its §7 empty
-    // state on a rules or index failure.
-    //
-    // Terminal, and deliberately. A snapshot error here is permission-denied
-    // or a missing index, neither of which clears on the next tick; letting
-    // the surviving half go on emitting would draw a feed quietly missing
-    // every event, or every document, with nothing on screen to say which. A
-    // merge of two sources is only as true as its thinner half.
-    void fail(Object e, StackTrace st) {
-      if (failed) return;
-      failed = true;
-      controller.addError(e, st);
-      eventsSub.cancel();
-      docsSub.cancel();
-    }
-
-    eventsSub = _db
-        .collection('activity_events')
-        .where('user_id', isEqualTo: uid)
-        .orderBy('created_at', descending: true)
-        .limit(maxItems)
-        .snapshots()
-        .listen((snap) {
-      eventItems = snap.docs.map((d) {
-        final data = d.data();
-        return ActivityItem(
-          kind: 'event',
-          id: d.id,
-          type: data['type'] as String? ?? '',
-          status: data['status'] as String? ?? '',
-          level: ActivityItem.eventLevel(
-              data['level'] as String?, data['status'] as String?),
-          title: data['title'] as String? ?? '',
-          provider: data['provider'] as String?,
-          errorMessage: null,
-          metadata: data['metadata'] as Map<String, dynamic>?,
-          createdAt: tsMs(data['created_at']),
-        );
-      }).toList();
-      emitMerged();
-    }, onError: fail);
-
-    docsSub = _db
-        .collection('documents')
-        .where('user_id', isEqualTo: uid)
-        .orderBy('created_at', descending: true)
-        .limit(maxItems)
-        .snapshots()
-        .listen((snap) {
-      docItems = snap.docs.map((d) {
-        final data = d.data();
-        final docStatus = data['status'] as String? ?? '';
-        return ActivityItem(
-          kind: 'document',
-          id: d.id,
-          type: data['type'] as String? ?? '',
-          status: docStatus,
-          level: ActivityItem.docLevel(docStatus),
-          title: data['title'] as String? ?? 'Untitled',
-          provider: null,
-          errorMessage: data['error_message'] as String?,
-          metadata: {
-            'chunk_count': data['chunk_count'],
-            'word_count': data['word_count'],
-            'thumbnail_url': data['thumbnail_url'],
-            'processed_at': tsMs(data['processed_at']),
-            // 2.19.0 (ADR-024) — which half of the pipeline is running.
-            // Meaningful only while status == processing.
-            'processing_stage': data['processing_stage'],
-            // 4.74.0 (ADR-108) — the moment this run stops being believable.
-            'processing_stalls_at': tsMs(data['processing_stalls_at']),
-          },
-          createdAt: tsMs(data['created_at']),
-        );
-      }).toList();
-      emitMerged();
-    }, onError: fail);
-
-    controller.onCancel = () {
-      eventsSub.cancel();
-      docsSub.cancel();
-    };
-
-    return controller.stream;
+    return mergeActivityStreams(
+      events: _activityEventRows(uid, maxItems),
+      documents: _activityDocumentRows(uid, maxItems),
+      maxItems: maxItems,
+    );
   }
+
+  /// The events half, already shaped. Separated from the fan-in (C1) so that
+  /// the fan-in — which is the part that decides what a FAILURE looks like —
+  /// can be exercised over plain streams; a Firestore query is the one piece
+  /// no widget test here can reach.
+  Stream<List<ActivityItem>> _activityEventRows(String uid, int maxItems) => _db
+      .collection('activity_events')
+      .where('user_id', isEqualTo: uid)
+      .orderBy('created_at', descending: true)
+      .limit(maxItems)
+      .snapshots()
+      .map((snap) => snap.docs.map((d) {
+            final data = d.data();
+            return ActivityItem(
+              kind: 'event',
+              id: d.id,
+              type: data['type'] as String? ?? '',
+              status: data['status'] as String? ?? '',
+              level: ActivityItem.eventLevel(
+                  data['level'] as String?, data['status'] as String?),
+              title: data['title'] as String? ?? '',
+              provider: data['provider'] as String?,
+              errorMessage: null,
+              metadata: data['metadata'] as Map<String, dynamic>?,
+              createdAt: tsMs(data['created_at']),
+            );
+          }).toList());
+
+  /// The documents half — the fallback rows for documents that predate the
+  /// events feed, and the source of every row an event's `doc_id` covers.
+  Stream<List<ActivityItem>> _activityDocumentRows(String uid, int maxItems) =>
+      _db
+          .collection('documents')
+          .where('user_id', isEqualTo: uid)
+          .orderBy('created_at', descending: true)
+          .limit(maxItems)
+          .snapshots()
+          .map((snap) => snap.docs.map((d) {
+                final data = d.data();
+                final docStatus = data['status'] as String? ?? '';
+                return ActivityItem(
+                  kind: 'document',
+                  id: d.id,
+                  type: data['type'] as String? ?? '',
+                  status: docStatus,
+                  level: ActivityItem.docLevel(docStatus),
+                  title: data['title'] as String? ?? 'Untitled',
+                  provider: null,
+                  errorMessage: data['error_message'] as String?,
+                  metadata: {
+                    'chunk_count': data['chunk_count'],
+                    'word_count': data['word_count'],
+                    'thumbnail_url': data['thumbnail_url'],
+                    'processed_at': tsMs(data['processed_at']),
+                    // 2.19.0 (ADR-024) — which half of the pipeline is running.
+                    // Meaningful only while status == processing.
+                    'processing_stage': data['processing_stage'],
+                    // 4.74.0 (ADR-108) — the moment this run stops being
+                    // believable.
+                    'processing_stalls_at': tsMs(data['processing_stalls_at']),
+                  },
+                  createdAt: tsMs(data['created_at']),
+                );
+              }).toList());
 
   /// Realtime notification channels (2.5.0, ADR-014): `/users/{uid}/
   /// notification_channels`, newest first. Subscribed (INV-02); writes go
