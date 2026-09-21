@@ -199,17 +199,37 @@ class _SourcesPageState extends State<SourcesPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ChapterOpening(
-                folio: _plural(volumes.length, 'volume'),
+                // UNREAD IS NOT ZERO (§8, ADR-109). Both figures are derived
+                // from a subscription that may have failed, and `0 volumes ·
+                // Nothing indexed yet` is the most consequential wrong
+                // sentence this screen can say to someone who has added
+                // things. A figure whose signal has not been read is not
+                // drawn; the §14 block below says why.
+                folio: docs.error != null
+                    ? null
+                    : _plural(volumes.length, 'volume'),
                 title: 'Your *library*',
                 // Both figures come from the subscription already loaded, so
                 // the standfirst costs no extra read — and it states what is
                 // measured, not what would be impressive.
-                standfirst: volumes.isEmpty
-                    ? 'Nothing indexed yet. Add a file or connect a service, '
-                        'and the passages start arriving within a minute.'
-                    : '${_count(passages)} passages, indexed and searchable — '
-                        'add a volume, or connect a service.',
+                standfirst: docs.error != null
+                    ? null
+                    : volumes.isEmpty
+                        ? 'Nothing indexed yet. Add a file or connect a '
+                            'service, and the passages start arriving within '
+                            'a minute.'
+                        : '${_count(passages)} passages, indexed and '
+                            'searchable — add a volume, or connect a service.',
               ),
+
+              // §14.1 for the subscription every figure on this screen is
+              // derived from (C2, INV-24).
+              if (docs.error != null)
+                KitFailureBlock(
+                  sentence: 'Your sources could not be loaded.',
+                  detail: docs.error!,
+                  onRetry: () => context.read<DocumentsNotifier>().refresh(),
+                ),
 
               if (_errorBanner != null)
                 _Banner(

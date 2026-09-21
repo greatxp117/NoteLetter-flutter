@@ -129,7 +129,15 @@ class _BrowseSectionState extends State<BrowseSection> {
               ),
             ],
 
-            SectionHeader('In your library · ${_plural(all.length, 'volume')}'),
+            // The SECOND unread figure on this screen, and the one the
+            // header fix above would have left behind (C2). `all.length` is
+            // derived from the same subscription, so on a failure this said
+            // "In your library · 0 volumes" beside a §14 block saying the
+            // library could not be read. Unread is not zero (§8, ADR-109):
+            // the label stays, the figure goes.
+            SectionHeader(docs.error != null
+                ? 'In your library'
+                : 'In your library · ${_plural(all.length, 'volume')}'),
 
             KitControlBar(
               filters: [
@@ -157,11 +165,23 @@ class _BrowseSectionState extends State<BrowseSection> {
               ],
             ),
 
-            if (all.isEmpty)
+            // §7 may only speak when nothing failed (C2). `all.isEmpty` is
+            // true of a failed subscription exactly as it is of a library with
+            // nothing in it, so _NothingYet — an OFFER — stood in for the
+            // hole, and `DocumentsNotifier` has carried the error since F-08.
+            //
+            // The notice itself belongs to `sources_page`, which mounts this
+            // section and draws §14.1 above it: one failure gets one notice,
+            // and a block here would be the second drawing of the same
+            // sentence on one screen. Suppressing the offer is this section's
+            // whole half of the rule.
+            if (all.isEmpty && docs.error == null)
               _NothingYet(
                 onAddFile: widget.onAddFile,
                 onAddLink: widget.onAddLink,
               )
+            else if (all.isEmpty)
+              const SizedBox.shrink()
             else if (_sort == 'type')
               ..._grouped(filtered, tags.tags)
             else ...[

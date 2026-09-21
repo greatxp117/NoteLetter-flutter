@@ -44,11 +44,21 @@ class DocumentsNotifier extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }, onError: (e) {
+      // Retry has to be able to work. `start` is idempotent on `_sub` and the
+      // subscription survives its own error, so leaving it in place makes the
+      // §14 block's Retry a control that does nothing and says nothing — the
+      // same defect C1 had one notifier over.
+      _sub?.cancel();
+      _sub = null;
       _error = '$e';
       _loading = false;
       notifyListeners();
     });
   }
+
+  /// What the §14 block's Retry calls. `start` re-subscribes because the error
+  /// path dropped the subscription; without that this is a no-op.
+  Future<void> refresh() async => start();
 
   @override
   void dispose() {

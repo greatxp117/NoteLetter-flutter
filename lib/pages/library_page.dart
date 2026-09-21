@@ -57,18 +57,41 @@ class _LibraryPageState extends State<LibraryPage> {
         }
 
         final complete = docs.complete;
+        final home = _LibraryHome(
+          complete: complete,
+          shelves: tags.tags,
+          // A `generating`/`error`/`empty` record is history, not a letter to
+          // lead the screen with: the hero's figures and preview would all be
+          // about something that was never sent.
+          letter: letters.latest?.status == 'sent' ? letters.latest : null,
+        );
+
+        // §14 before §7, and above whatever did load (C2). `complete.isEmpty`
+        // is true of a library that FAILED to load exactly as it is of one
+        // with nothing in it, and §7 is an offer: drawn here it tells a reader
+        // who has added things that they have added nothing. INV-24 has been
+        // in `DocumentsNotifier` since F-08 and this screen never read it.
+        if (docs.error != null) {
+          return KitPage(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                KitFailureBlock(
+                  sentence: 'Your library could not be loaded.',
+                  detail: docs.error!,
+                  onRetry: () => context.read<DocumentsNotifier>().refresh(),
+                ),
+                // What did arrive is still true, and is kept — but it is no
+                // longer the whole library, which is what the block says.
+                if (complete.isNotEmpty) home,
+              ],
+            ),
+          );
+        }
+
         if (complete.isEmpty) return const _LibraryEmpty();
 
-        return KitPage(
-          child: _LibraryHome(
-            complete: complete,
-            shelves: tags.tags,
-            // A `generating`/`error`/`empty` record is history, not a letter to
-            // lead the screen with: the hero's figures and preview would all be
-            // about something that was never sent.
-            letter: letters.latest?.status == 'sent' ? letters.latest : null,
-          ),
-        );
+        return KitPage(child: home);
       },
     );
   }
