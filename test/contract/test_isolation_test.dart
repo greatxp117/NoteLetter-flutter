@@ -48,4 +48,39 @@ void main() {
         reason: 'these swap the singleton and never put it back, so the file '
             'that fails is the one AFTER them: ${offenders.join(", ")}');
   });
+
+  /// The same rule for the HTTP seams (C4g).
+  ///
+  /// `ApiService.instance` is a static singleton with two mutable seams —
+  /// `httpClientAdapter` and `tokenProvider` — and until C4g there was no way
+  /// to undo either. A suite that installed a canned transport left it
+  /// installed for everything that ran after it in the same process: green as
+  /// long as nothing else made a request, and a mystery on the day something
+  /// did. That is the same one-way door the check above exists for, and a
+  /// second settable static needs the same rule in the same place or the rule
+  /// is about one name rather than about the hazard.
+  test('a test that installs an HTTP seam also resets it', () {
+    final files = Directory('test')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'));
+
+    final seam = RegExp(
+        r'ApiService\.instance\.(httpClientAdapter|tokenProvider)\s*=');
+    final offenders = <String>[];
+    var checked = 0;
+    for (final f in files) {
+      final src = f.readAsStringSync();
+      if (!seam.hasMatch(src)) continue;
+      checked++;
+      if (!src.contains('resetTestSeams')) offenders.add(f.path);
+    }
+
+    expect(checked, greaterThan(0),
+        reason: 'no file installs an HTTP seam — either the suite moved or '
+            'the seam was renamed, and both read like a clean result');
+    expect(offenders, isEmpty,
+        reason: 'these install a canned transport on the shared singleton and '
+            'never remove it: ${offenders.join(", ")}');
+  });
 }

@@ -1,7 +1,7 @@
 import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'auth_service.dart';
 import 'analytics.dart';
 
@@ -76,10 +76,28 @@ class ApiService {
   TokenProvider tokenProvider = () => AuthService.instance.getIdToken();
 
   /// Test seam: inject a Dio adapter that captures the outgoing request and
-  /// returns a canned response, so the api/* conformance suite can assert
-  /// request construction without touching the network.
+  /// returns a canned response, so a suite can assert request construction —
+  /// or answer with a real status and body — without touching the network.
   set httpClientAdapter(HttpClientAdapter adapter) =>
       _client.httpClientAdapter = adapter;
+
+  late final HttpClientAdapter _defaultAdapter;
+  late final TokenProvider _defaultTokenProvider;
+
+  /// Puts both seams back (C4g).
+  ///
+  /// This was a **one-way door**: `ApiService.instance` is a static singleton,
+  /// both seams are set on it, and nothing could undo either. `api_requests_
+  /// test` set the adapter and the token provider in `setUpAll` and left them
+  /// there, so every suite that ran after it in the same process inherited a
+  /// canned transport — green for as long as nothing else made a request, and
+  /// a mystery on the day something did. It is the shape `test_isolation_test`
+  /// already refuses for `FirestoreService.instance`, one layer over.
+  @visibleForTesting
+  void resetTestSeams() {
+    _client.httpClientAdapter = _defaultAdapter;
+    tokenProvider = _defaultTokenProvider;
+  }
 
   // Separate client for GCS direct uploads — no auth header, no base URL.
   final Dio _rawClient = Dio(BaseOptions(
@@ -95,6 +113,11 @@ class ApiService {
       headers: {'Content-Type': 'application/json'},
     ));
     _client.interceptors.add(_AuthInterceptor());
+    // Captured rather than reconstructed: Dio picks its adapter by platform,
+    // and a reset that builds a new one is a reset to something that was
+    // never there.
+    _defaultAdapter = _client.httpClientAdapter;
+    _defaultTokenProvider = tokenProvider;
   }
 
   Future<Map<String, dynamic>> get(

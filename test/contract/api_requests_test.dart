@@ -448,6 +448,11 @@ void main() {
     ApiService.instance.httpClientAdapter = capture;
   });
 
+  // `ApiService.instance` is a static singleton and both seams above are set
+  // on it, so leaving them installed hands a canned transport to every suite
+  // that runs after this one in the same process (C4g).
+  tearDownAll(ApiService.instance.resetTestSeams);
+
   // Every endpoint this run actually skipped for want of a builder, so the
   // declaration above can be checked in the direction a hand-written list
   // cannot check itself.

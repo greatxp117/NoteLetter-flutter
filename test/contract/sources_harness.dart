@@ -103,11 +103,11 @@ typedef QuietOrg = OrgNotifier;
 
 /// A `CloudNotifier` whose integrations read has already failed.
 ///
-/// The real `loadIntegrations` goes through `Api`, not Firestore, and this
-/// client has no seam at that layer yet (C5 and C8 are where that lands), so
-/// the NOTIFIER half of C4's cloud site is not gated here — only the screen's
-/// answer to it. Saying which half is gated is the point: an unstated gap
-/// reads as coverage.
+/// This stubs the getters so the SCREEN can be pumped in the state they
+/// describe. The notifier's own half — that a refused read reaches
+/// `integrationsError` at all rather than being swallowed — is gated
+/// separately in `api_failure_test`, over the real `loadIntegrations` and a
+/// canned transport (C4g). Two halves, two places, both asserted.
 class UnreadCloud extends CloudNotifier {
   UnreadCloud(this.message);
 
