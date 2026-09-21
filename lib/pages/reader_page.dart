@@ -29,6 +29,7 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 import '../services/analytics.dart';
+import '../services/error_text.dart';
 
 /// Reader — one-shot doc + chunks (`chunk_index` asc), fires `logReadEvent`
 /// on open (INV-03). Six sections + source-freshness banner + Reorganize
@@ -291,7 +292,7 @@ class _ReaderPageState extends State<ReaderPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = describeFirestoreError(e);
         _loading = false;
       });
     }

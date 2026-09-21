@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/models/activity_item.dart';
@@ -141,10 +142,10 @@ void main() {
       FirestoreService.instance = _StubService(source.stream);
 
       final n = ActivityNotifier()..start();
-      source.addError(StateError('permission-denied'));
+      source.addError(FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'));
       await pumpEventQueue();
 
-      expect(n.error, contains('permission-denied'),
+      expect(n.error, contains('Sign out and back in'),
           reason: "§14 PARTS — the block draws this UNDER a sentence of ours, "
               'so a constant here quotes nothing');
       expect(n.isLoading, isFalse);

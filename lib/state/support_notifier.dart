@@ -6,6 +6,7 @@ import '../models/support.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
+import '../services/error_text.dart';
 
 /// The support conversation (4.18.0, ADR-054; `spec/screens/support.md`).
 ///
@@ -59,7 +60,7 @@ class SupportNotifier extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }, onError: (e) {
-      _subError = '$e';
+      _subError = describeFirestoreError(e);
       _loading = false;
       notifyListeners();
     });
@@ -69,7 +70,7 @@ class SupportNotifier extends ChangeNotifier {
       _subError = null;
       notifyListeners();
     }, onError: (e) {
-      _subError = '$e';
+      _subError = describeFirestoreError(e);
       notifyListeners();
     });
   }

@@ -7,6 +7,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/error_text.dart';
 
 /// Drives the auto-organization surface (INV-13): the pending suggestion queue
 /// (live subscription), org settings, and the resolve/enable/scan actions.
@@ -37,7 +38,7 @@ class OrgNotifier extends ChangeNotifier {
     // INV-24 (ADR-071): no suggestions and unreadable suggestions are the same
     // empty list downstream.
     }, onError: (e) {
-      _suggestionsError = '$e';
+      _suggestionsError = describeFirestoreError(e);
       notifyListeners();
     });
     loadSettings();
@@ -66,7 +67,7 @@ class OrgNotifier extends ChangeNotifier {
       _settingsError = null;
       _settingsLoaded = true;
     } catch (e) {
-      _settingsError = '$e';
+      _settingsError = describeFirestoreError(e);
     }
     notifyListeners();
   }

@@ -5,6 +5,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 import 'schedule.dart';
+import '../services/error_text.dart';
 
 /// `/users/{uid}/settings/scripture_newsletter` — the readings letter's own
 /// settings document (2.24.0, ADR-029; 4.24.0, ADR-061).
@@ -41,7 +42,7 @@ class ScriptureLetterNotifier extends ChangeNotifier {
           await FirestoreService.instance.getScriptureNewsletterSettings();
       _error = null;
     } catch (e) {
-      _error = '$e';
+      _error = describeFirestoreError(e);
     }
     notifyListeners();
   }
@@ -75,7 +76,7 @@ class ScriptureLetterNotifier extends ChangeNotifier {
     } on ApiException catch (e) {
       _saveError = e.message;
     } catch (e) {
-      _saveError = '$e';
+      _saveError = describeFirestoreError(e);
     } finally {
       _isSaving = false;
       notifyListeners();

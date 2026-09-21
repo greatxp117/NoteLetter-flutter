@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -80,7 +81,7 @@ class SourcesStubService extends FirestoreService {
 
   @override
   Future<OrganizationSettings> getOrganizationSettings() async {
-    if (orgSettingsFail) throw StateError('settings-unreadable');
+    if (orgSettingsFail) throw FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied');
     return orgSettings ?? const OrganizationSettings();
   }
 }

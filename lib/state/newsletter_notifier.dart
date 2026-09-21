@@ -3,6 +3,7 @@ import '../models/newsletter.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
+import '../services/error_text.dart';
 
 /// Newsletter history (INV-09: query by recency, never construct IDs) +
 /// "send now" via `fn_request_newsletter`. See spec/screens/letters.md.
@@ -51,7 +52,7 @@ class NewsletterNotifier extends ChangeNotifier {
       _all = await FirestoreService.instance.listAllNewsletters(limit: limit);
       _loaded = true;
     } catch (e) {
-      _error = '$e';
+      _error = describeFirestoreError(e);
     } finally {
       _isLoading = false;
       notifyListeners();

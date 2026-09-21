@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/analytics.dart';
+import '../services/error_text.dart';
 
 /// Import caps enforced by the picker (mirror `fn_import_from_cloud`).
 const int kMaxImportFolders = 20;
@@ -124,7 +125,7 @@ class CloudNotifier extends ChangeNotifier {
     // which is exactly what a reader watching an import wants to know is
     // false.
     }, onError: (e) {
-      _jobsError = '$e';
+      _jobsError = describeFirestoreError(e);
       _notify();
     });
     loadIntegrations();

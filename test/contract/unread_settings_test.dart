@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -36,7 +37,7 @@ class _StubService extends FirestoreService {
 
   @override
   Future<OrganizationSettings> getOrganizationSettings() async {
-    if (fail) throw StateError('permission-denied');
+    if (fail) throw FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied');
     return settings ?? const OrganizationSettings();
   }
 }
@@ -49,7 +50,7 @@ void main() {
     final org = OrgNotifier();
     await org.loadSettings();
 
-    expect(org.settingsError, contains('permission-denied'));
+    expect(org.settingsError, contains('Sign out and back in'));
     expect(org.settingsLoaded, isFalse,
         reason: 'the defaults are what it kept; the question is whether '
             'anything can tell that from a real read');
@@ -112,7 +113,7 @@ void main() {
     // `enabledProviders.isEmpty` check took it off the screen entirely: the
     // reader lost the controls AND the reason in one step.
     expect(find.byType(KitFailureBlock), findsWidgets);
-    expect(find.textContaining('settings-unreadable'), findsOneWidget);
+    expect(find.textContaining('Sign out and back in'), findsOneWidget);
   });
 
   testWidgets('and draws no controls at all until a read succeeded',

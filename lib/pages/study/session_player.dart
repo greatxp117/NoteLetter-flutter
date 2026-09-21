@@ -20,6 +20,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import '../../services/analytics.dart';
+import '../../services/error_text.dart';
 
 /// Grades in SM-2 order, with the promise each one makes.
 const _gradeLabels = {
@@ -129,7 +130,7 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
             width: KitFrameWidth.reading,
             child: KitFailureBlock(
               sentence: 'The connection dropped.',
-              detail: '${snap.error}',
+              detail: describeFirestoreError(snap.error!),
               onRetry: () => setState(() {}),
               retryLabel: 'Try again',
             ),

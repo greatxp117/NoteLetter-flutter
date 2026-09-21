@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
+import '../../services/error_text.dart';
 
 const _providerName = {
   'google_drive': 'Google Drive',
@@ -230,7 +231,7 @@ class OrganizedFoldersPanel extends StatelessWidget {
         if (snap.hasError) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
-            child: KitFailureInline('${snap.error}'),
+            child: KitFailureInline(describeFirestoreError(snap.error!)),
           );
         }
 

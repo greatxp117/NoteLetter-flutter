@@ -16,6 +16,7 @@ import '../../services/firestore_service.dart';
 import '../../widgets/kit/kit.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
+import '../../services/error_text.dart';
 
 class PinnedSources extends StatefulWidget {
   const PinnedSources({super.key, required this.settings});
@@ -77,7 +78,7 @@ class _PinnedSourcesState extends State<PinnedSources> {
         if (snap.hasError) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 20),
-            child: KitFailureInline('${snap.error}'),
+            child: KitFailureInline(describeFirestoreError(snap.error!)),
           );
         }
 

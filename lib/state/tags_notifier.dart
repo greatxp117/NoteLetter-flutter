@@ -4,6 +4,7 @@ import '../models/tag.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
+import '../services/error_text.dart';
 
 /// Tags surface — the live tags subscription (INV-02) plus the function-mediated
 /// mutations (INV-04; tags are written only through `fn_*`).
@@ -28,7 +29,7 @@ class TagsNotifier extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }, onError: (e) {
-      _error = '$e';
+      _error = describeFirestoreError(e);
       _loading = false;
       notifyListeners();
     });

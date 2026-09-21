@@ -12,6 +12,7 @@ import '../services/firestore_service.dart';
 import '../theme/app_spacing.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
+import '../services/error_text.dart';
 
 /// Notification channels editor (`screens/notifications.md`; contract 2.5.0
 /// ADR-014, push 2.6.0 ADR-015). A user adds any number of channels, each a
@@ -274,7 +275,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       return KitRowList(raised: true, rows: [
         KitRowSlot(
           child: KitFailureInline(
-              'Your channels could not be read — ${snap.error}'),
+              'Your channels could not be read — '
+              '${describeFirestoreError(snap.error!)}'),
         ),
       ]);
     }

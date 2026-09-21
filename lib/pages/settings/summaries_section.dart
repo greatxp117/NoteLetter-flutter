@@ -7,6 +7,7 @@ import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/kit/kit.dart';
 import 'summary_prompt.dart';
+import '../../services/error_text.dart';
 
 /// Settings → Summaries (spec/screens/settings.md 4.3.0 + 4.4.0, ADR-040):
 /// the summary-style prompt, in two modes over **one stored value**.
@@ -61,7 +62,7 @@ class _SummariesSectionState extends State<SummariesSection> {
     }, onError: (e) {
       if (!mounted) return;
       setState(() {
-        _subError = '$e';
+        _subError = describeFirestoreError(e);
         _loaded = true;
       });
     });

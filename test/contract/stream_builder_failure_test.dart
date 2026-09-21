@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -80,12 +81,12 @@ void main() {
       FirestoreService.instance = _StubService(pinned: source.stream);
 
       await _pump(tester, const PinnedSources(settings: null));
-      source.addError(StateError('permission-denied'));
+      source.addError(FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'));
       await tester.pump();
 
       expect(find.byType(KitFailureInline), findsOneWidget,
           reason: 'the panel removing itself reads as having pinned nothing');
-      expect(find.textContaining('permission-denied'), findsOneWidget);
+      expect(find.textContaining('Sign out and back in'), findsOneWidget);
     });
 
     testWidgets('and still vanishes when there is genuinely nothing pinned',
@@ -159,13 +160,13 @@ void main() {
       final jobs = StreamController<List<ImportJob>>.broadcast();
       await pumpSources(tester, SourcesStubService(jobs: jobs.stream));
 
-      jobs.addError(StateError('jobs-unavailable'));
+      jobs.addError(FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'));
       await tester.pump();
       await tester.pump();
 
       expect(textLike('Import activity'), findsOneWidget,
           reason: 'the section vanished entirely, which reads as no imports');
-      expect(find.textContaining('jobs-unavailable'), findsOneWidget);
+      expect(find.textContaining('You appear to be offline'), findsOneWidget);
       // Unread is not zero (§8, ADR-109) — the label stays, the count goes.
       expect(textLike('Import activity · '), findsNothing);
     });
@@ -188,12 +189,12 @@ void main() {
       final sug = StreamController<List<OrganizationSuggestion>>.broadcast();
       await pumpSources(tester, SourcesStubService(suggestions: sug.stream));
 
-      sug.addError(StateError('suggestions-unavailable'));
+      sug.addError(FirebaseException(plugin: 'cloud_firestore', code: 'failed-precondition'));
       await tester.pump();
       await tester.pump();
 
       expect(textLike('Organization suggestions'), findsOneWidget);
-      expect(find.textContaining('suggestions-unavailable'), findsOneWidget);
+      expect(find.textContaining('not ready on the server yet'), findsOneWidget);
       expect(textLike('Organization suggestions · '), findsNothing);
     });
   });

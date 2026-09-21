@@ -4,6 +4,7 @@ import '../models/activity_item.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
+import '../services/error_text.dart';
 
 /// The rail's unread count (`spec/screens/activity.md` §Toasts and unread,
 /// 2.5.0/ADR-014): **events** newer than the last time the feed was viewed.
@@ -79,7 +80,7 @@ class ActivityNotifier extends ChangeNotifier {
       // §14's detail UNDER a sentence of ours, so a canned string here says
       // the same thing twice and quotes nothing (ADR-070, PARTS). This is the
       // shape `SupportNotifier` already uses for the same kind of failure.
-      _error = '$e';
+      _error = describeFirestoreError(e);
       _isLoading = false;
       notifyListeners();
     });

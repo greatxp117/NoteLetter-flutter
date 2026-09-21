@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -169,7 +170,7 @@ void main() {
     final source = StreamController<List<Document>>.broadcast();
     await _pumpLibrary(tester, source.stream);
 
-    source.addError(StateError('permission-denied'));
+    source.addError(FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'));
     await tester.pump();
     await tester.pump();
 
@@ -177,7 +178,9 @@ void main() {
     expect(find.byType(KitDropZone), findsNothing,
         reason: '§7 here is the drop zone — an offer to add a first source — on an account that '
             'may be full of them');
-    expect(find.textContaining('permission-denied'), findsOneWidget);
+    expect(find.textContaining('Sign out and back in'), findsOneWidget,
+        reason: 'C7 — the SDK\'s bracketed code is not a sentence, and the '
+            'mapped one still proves the rejection reached the slot');
   });
 
   testWidgets('Library — §7 still speaks for a library that really is empty',

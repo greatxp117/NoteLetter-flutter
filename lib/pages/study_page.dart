@@ -26,6 +26,7 @@ import '../state/study_schedule.dart';
 import '../theme/app_spacing.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
+import '../services/error_text.dart';
 
 class StudyPage extends StatefulWidget {
   const StudyPage({super.key});
@@ -113,7 +114,7 @@ class _StudyPageState extends State<StudyPage> {
           return KitPage(
             child: KitFailureBlock(
               sentence: 'Your programs could not be read.',
-              detail: '${snap.error}',
+              detail: describeFirestoreError(snap.error!),
             ),
           );
         }
@@ -359,7 +360,7 @@ class _Sessions extends StatelessWidget {
             padding: const EdgeInsets.only(top: AppSpacing.s6),
             child: KitFailureBlock(
               sentence: 'Your sessions could not be read.',
-              detail: '${snap.error}',
+              detail: describeFirestoreError(snap.error!),
             ),
           );
         }

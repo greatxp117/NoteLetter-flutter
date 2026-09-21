@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
+import '../../services/error_text.dart';
 
 /// Reader → Original panel: the document's own source, and the extraction
 /// beside it.
@@ -94,7 +95,7 @@ class _OriginalPanelState extends State<OriginalPanel> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = describeFirestoreError(e);
         _loading = false;
       });
     }

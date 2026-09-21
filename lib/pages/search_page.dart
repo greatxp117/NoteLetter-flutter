@@ -22,6 +22,7 @@ import 'search/result_card.dart';
 import 'search/scripture_results.dart';
 import 'search/search_field.dart';
 import '../services/analytics.dart';
+import '../services/error_text.dart';
 
 /// **Search** (`spec/screens/search.md`) — semantic search over the library.
 ///
@@ -286,7 +287,7 @@ class _SearchPageState extends State<SearchPage> {
       // silence as a swallowed search catch, one pane over.
       setState(() {
         _context = const [];
-        _contextError = '$e';
+        _contextError = describeFirestoreError(e);
         _contextLoading = false;
       });
     }

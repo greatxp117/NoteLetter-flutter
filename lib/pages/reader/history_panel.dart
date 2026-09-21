@@ -3,6 +3,7 @@ import '../../models/chunk.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
+import '../../services/error_text.dart';
 
 /// Reader → History panel: `read_events` for the doc, `created_at desc`,
 /// limit 50 (reader.md). Read-only.
@@ -82,7 +83,7 @@ class _HistoryPanelState extends State<HistoryPanel> {
         ui.intro('Reading history'),
         KitFailureBlock(
           sentence: 'This source’s reading history could not be loaded.',
-          detail: '$_error',
+          detail: describeFirestoreError(_error!),
           onRetry: _load,
         ),
       ]);

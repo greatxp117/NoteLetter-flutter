@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/document.dart';
 import '../services/firestore_service.dart';
+import '../services/error_text.dart';
 
 /// The documents subscription itself (INV-02, `screens/library.md` §Data) —
 /// `List<Document>`, not the activity merge.
@@ -50,7 +51,7 @@ class DocumentsNotifier extends ChangeNotifier {
       // same defect C1 had one notifier over.
       _sub?.cancel();
       _sub = null;
-      _error = '$e';
+      _error = describeFirestoreError(e);
       _loading = false;
       notifyListeners();
     });
