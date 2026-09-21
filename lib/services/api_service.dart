@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'auth_service.dart';
+import 'endpoint_budgets.dart';
 import 'analytics.dart';
 
 /// Resolves the Firebase ID token for INV-01. Defaults to the signed-in user;
@@ -109,7 +110,13 @@ class ApiService {
     _client = Dio(BaseOptions(
       baseUrl: _baseUrl,
       connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30),
+      // No flat receive deadline (C5). It was 30s, which is SHORTER than every
+      // deadline this backend deploys — 47 endpoints at 60s and 13 above it —
+      // so the client gave up first on every slow request and reported a
+      // failure the server never had. The budget is per call now, from
+      // `clientTimeoutFor`, and a request with no entry falls back to the
+      // fleet norm rather than to the old 30s.
+      receiveTimeout: kDefaultTimeout,
       headers: {'Content-Type': 'application/json'},
     ));
     _client.interceptors.add(_AuthInterceptor());
@@ -120,13 +127,18 @@ class ApiService {
     _defaultTokenProvider = tokenProvider;
   }
 
+  /// The per-call receive budget (C5). Kept as one helper so every verb reads
+  /// the same table — six call sites each doing their own lookup is six places
+  /// for one to be forgotten.
+  Options _budget(String path) =>
+      Options(receiveTimeout: clientTimeoutFor(path));
+
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParameters,
   }) async {
     try {
-      final response =
-          await _client.get(path, queryParameters: queryParameters);
+      final response = await _client.get(path, queryParameters: queryParameters, options: _budget(path));
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handle(e);
@@ -138,7 +150,7 @@ class ApiService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      final response = await _client.post(path, data: data);
+      final response = await _client.post(path, data: data, options: _budget(path));
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handle(e);
@@ -150,7 +162,7 @@ class ApiService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      final response = await _client.put(path, data: data);
+      final response = await _client.put(path, data: data, options: _budget(path));
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handle(e);
@@ -162,7 +174,7 @@ class ApiService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      final response = await _client.patch(path, data: data);
+      final response = await _client.patch(path, data: data, options: _budget(path));
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handle(e);
@@ -175,8 +187,8 @@ class ApiService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      final response =
-          await _client.delete(path, queryParameters: queryParameters, data: data);
+      final response = await _client.delete(path,
+          queryParameters: queryParameters, data: data, options: _budget(path));
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handle(e);
