@@ -24,8 +24,14 @@ class ApiException implements Exception {
 }
 
 class UnauthorizedException extends ApiException {
-  const UnauthorizedException()
-      : super(401, 'Session expired. Please log in again.', errorCode: 'UNAUTHORIZED');
+  /// The server's own sentence, where the 401 carried one (C8). It stays a
+  /// distinct TYPE because notifiers catch it by type to route to sign-in —
+  /// but the constant it used to hold unconditionally threw away the only
+  /// words that could tell an expired session from a revoked token or a clock
+  /// that has drifted, which are three different next moves (ADR-070).
+  const UnauthorizedException([String? serverSentence])
+      : super(401, serverSentence ?? 'Session expired. Please log in again.',
+            errorCode: 'UNAUTHORIZED');
 }
 
 class ApiService {
@@ -133,13 +139,43 @@ class ApiService {
   Options _budget(String path) =>
       Options(receiveTimeout: clientTimeoutFor(path));
 
+  /// A 2xx body this client can read, or a rejection — never an empty answer.
+  ///
+  /// This was `response.data as Map<String, dynamic>` at five call sites (C8).
+  /// A 2xx whose body is not JSON — a proxy's error page, a truncated
+  /// response, a deploy serving something else — threw a `TypeError` from the
+  /// cast: not an `ApiException`, so no screen could render it as §14 and the
+  /// one place that counts `request_failed` never saw it. ADR-112 makes it an
+  /// ordinary rejection, carrying the status it arrived with.
+  Map<String, dynamic> _decode(Response<dynamic> response, String path) {
+    final data = response.data;
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    final status = response.statusCode ?? 0;
+    _trackFailure(path, null, status);
+    throw ApiException(status, _noEnvelope(status));
+  }
+
+  /// `api/endpoints.md` §A body that is NOT this envelope (ADR-112). The words
+  /// are the contract's, the same in all four clients, gated by NON-ENVELOPE.
+  static String _noEnvelope(int status) =>
+      'The server did not answer as expected (HTTP $status).';
+
+  void _trackFailure(String path, String? errorCode, int status) {
+    Analytics.track('request_failed', {
+      'endpoint': Analytics.endpointName(path),
+      'error_code': errorCode ?? 'NONE',
+      'status': status,
+    });
+  }
+
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParameters,
   }) async {
     try {
       final response = await _client.get(path, queryParameters: queryParameters, options: _budget(path));
-      return response.data as Map<String, dynamic>;
+      return _decode(response, path);
     } on DioException catch (e) {
       throw _handle(e);
     }
@@ -151,7 +187,7 @@ class ApiService {
   }) async {
     try {
       final response = await _client.post(path, data: data, options: _budget(path));
-      return response.data as Map<String, dynamic>;
+      return _decode(response, path);
     } on DioException catch (e) {
       throw _handle(e);
     }
@@ -163,7 +199,7 @@ class ApiService {
   }) async {
     try {
       final response = await _client.put(path, data: data, options: _budget(path));
-      return response.data as Map<String, dynamic>;
+      return _decode(response, path);
     } on DioException catch (e) {
       throw _handle(e);
     }
@@ -175,7 +211,7 @@ class ApiService {
   }) async {
     try {
       final response = await _client.patch(path, data: data, options: _budget(path));
-      return response.data as Map<String, dynamic>;
+      return _decode(response, path);
     } on DioException catch (e) {
       throw _handle(e);
     }
@@ -189,7 +225,7 @@ class ApiService {
     try {
       final response = await _client.delete(path,
           queryParameters: queryParameters, data: data, options: _budget(path));
-      return response.data as Map<String, dynamic>;
+      return _decode(response, path);
     } on DioException catch (e) {
       throw _handle(e);
     }
@@ -230,32 +266,47 @@ class ApiService {
     // and the params of `fn_list_cloud_files` and `fn_check_source_freshness`
     // are the reader's own cloud folder ids (INV-25b).
     final body = e.response?.data is Map ? e.response!.data as Map : const {};
-    Analytics.track('request_failed', {
-      'endpoint': Analytics.endpointName(e.requestOptions.path),
-      'error_code': (body['error_code'] as String?) ?? 'NONE',
-      'status': e.response?.statusCode ?? 0,
-    });
+    final status = e.response?.statusCode ?? 0;
+    final errorCode = body['error_code'] as String?;
+    final requestId = body['request_id'] as String?;
+    // The envelope's own sentence, where the response carried one. Read BEFORE
+    // the 401 exit so that branch can quote it too (C8).
+    final errField = body['error'] ?? body['message'];
+    final serverSentence =
+        errField is String && errField.isNotEmpty ? errField : null;
 
-    if (e.response?.statusCode == 401) return const UnauthorizedException();
+    _trackFailure(e.requestOptions.path, errorCode, status);
 
-    String message = 'Something went wrong. Please try again.';
-    String? errorCode;
-    String? requestId;
-    if (e.response?.data is Map) {
-      final body = e.response!.data as Map;
-      final errField = body['error'] ?? body['message'];
-      if (errField is String && errField.isNotEmpty) message = errField;
-      errorCode = body['error_code'] as String?;
-      requestId = body['request_id'] as String?;
+    if (status == 401) return UnauthorizedException(serverSentence);
+
+    // One choice, not an `else if` chain over the BODY. The old first arm was
+    // `data is Map`, so a timeout or a dropped connection that happened to
+    // carry a Map with no `error` in it fell into that arm, found nothing, and
+    // kept the generic constant — losing its own sentence to a branch that had
+    // no answer either (C8).
+    final String message;
+    if (serverSentence != null) {
+      message = serverSentence;
     } else if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||
         e.type == DioExceptionType.sendTimeout) {
       message = 'Request timed out. Check your connection and try again.';
     } else if (e.type == DioExceptionType.connectionError) {
       message = 'Could not connect to the server. Check your internet connection.';
+    } else if (e.response != null) {
+      // ADR-112: the server answered, and what it sent is not our envelope — a
+      // load-balancer's HTML 504, a proxy's error page. This was "Something
+      // went wrong. Please try again.": no status, no words, and a 504
+      // indistinguishable from a malformed body in a support thread.
+      message = _noEnvelope(status);
+    } else {
+      // No response at all, and not a timeout or a refused connection. Saying
+      // the server answered unexpectedly would be a claim about a server we
+      // never heard from.
+      message = 'Something went wrong. Please try again.';
     }
 
-    return ApiException(e.response?.statusCode ?? 0, message,
+    return ApiException(status, message,
         errorCode: errorCode, requestId: requestId);
   }
 }
