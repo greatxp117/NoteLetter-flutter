@@ -201,6 +201,16 @@ class OrganizedFoldersPanel extends StatelessWidget {
     return StreamBuilder<List<CloudFolder>>(
       stream: FirestoreService.instance.subscribeCloudFolders(provider),
       builder: (context, snap) {
+        // §14.2 first (C3). "No organized folders yet." is an answer about the
+        // account; on a failed subscription it is an answer about nothing, and
+        // the reader is told the opposite of what happened.
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: KitFailureInline('${snap.error}'),
+          );
+        }
+
         final folders =
             (snap.data ?? const []).where((f) => f.organized).toList();
         if (folders.isEmpty) {

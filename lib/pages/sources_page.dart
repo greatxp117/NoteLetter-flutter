@@ -282,7 +282,7 @@ class _SourcesPageState extends State<SourcesPage> {
                   ),
 
               _ReviewQueue(held: cloud.heldJobs),
-              _ImportActivity(jobs: cloud.jobs),
+              _ImportActivity(jobs: cloud.jobs, error: cloud.jobsError),
               const OrganizationSettingsPanel(),
               const _OrganizationSection(),
 
@@ -601,15 +601,47 @@ class _FileRow extends StatelessWidget {
 
 class _ImportActivity extends StatelessWidget {
   final List<ImportJob> jobs;
-  const _ImportActivity({required this.jobs});
+
+  /// `CloudNotifier.jobsError` — set since the notifier was written, read by
+  /// nothing until C3. Its own comment says why it matters: an unread job list
+  /// renders as "no imports running", which is exactly what a reader watching
+  /// an import wants to know is false.
+  final String? error;
+
+  const _ImportActivity({required this.jobs, this.error});
 
   @override
   Widget build(BuildContext context) {
+    // Hiding the section was the failure mode, not a symptom of it: an empty
+    // list and an unreadable one both collapsed to `SizedBox.shrink()`, so the
+    // one reader who needed the difference — someone watching an import — got
+    // the same blank space either way (INV-24, ADR-071).
+    if (error != null && jobs.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // No count: the figure is derived from a list nothing read, and
+          // unread is not zero (§8, ADR-109).
+          const SectionHeader('Import activity'),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: KitFailureInline(error!),
+          ),
+        ],
+      );
+    }
     if (jobs.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader('Import activity · ${jobs.length}'),
+        SectionHeader(error != null
+            ? 'Import activity'
+            : 'Import activity · ${jobs.length}'),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: KitFailureInline(error!),
+          ),
         KitRowList(
           rows: [for (final j in jobs) _JobRow(job: j)],
         ),
@@ -886,12 +918,36 @@ class _OrganizationSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final org = context.watch<OrgNotifier>();
     final pending = org.suggestions;
+    final error = org.suggestionsError;
+
+    // Same shape as Import activity above, and the notifier's own comment says
+    // it: no suggestions and unreadable suggestions are the same empty list
+    // downstream, and this section's answer to empty is to vanish (C3).
+    if (error != null && pending.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeader('Organization suggestions'),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: KitFailureInline(error),
+          ),
+        ],
+      );
+    }
     if (pending.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader('Organization suggestions · ${pending.length}'),
+        SectionHeader(error != null
+            ? 'Organization suggestions'
+            : 'Organization suggestions · ${pending.length}'),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: KitFailureInline(error),
+          ),
         for (final s in pending) _SuggestionCard(suggestion: s),
       ],
     );

@@ -12,6 +12,7 @@ import '../../models/document.dart';
 import '../../models/newsletter_settings.dart';
 import '../../services/api.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/kit/kit.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/tokens.dart';
@@ -58,6 +59,19 @@ class _PinnedSourcesState extends State<PinnedSources> {
     return StreamBuilder<List<Document>>(
       stream: FirestoreService.instance.subscribePinnedDocuments(),
       builder: (context, snap) {
+        // §14.2 before the empty check (C3). `snap.data ?? const []` made a
+        // failed stream and an empty one one value, and the panel's answer to
+        // empty is to REMOVE ITSELF — so a reader who had pinned sources for
+        // the next letter saw no panel at all, which reads as having pinned
+        // nothing. A StreamBuilder that never asks `hasError` cannot tell the
+        // two apart (INV-24, ADR-071).
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: KitFailureInline('${snap.error}'),
+          );
+        }
+
         final pinned = snap.data ?? const <Document>[];
         if (pinned.isEmpty) return const SizedBox.shrink();
 
