@@ -68,8 +68,18 @@ class ActivityNotifier extends ChangeNotifier {
       _error = null;
       _isLoading = false;
       notifyListeners();
-    }, onError: (_) {
-      _error = 'Could not load activity. Please try again.';
+    }, onError: (e) {
+      // The subscription survives its own error and `start` is idempotent on
+      // `_sub`, so leaving it in place made the §14 block's Retry a control
+      // that does nothing and says nothing (C1). Dropping it is what lets
+      // `refresh()` re-subscribe.
+      _sub?.cancel();
+      _sub = null;
+      // The server's own sentence, not a constant: the block draws this as
+      // §14's detail UNDER a sentence of ours, so a canned string here says
+      // the same thing twice and quotes nothing (ADR-070, PARTS). This is the
+      // shape `SupportNotifier` already uses for the same kind of failure.
+      _error = '$e';
       _isLoading = false;
       notifyListeners();
     });

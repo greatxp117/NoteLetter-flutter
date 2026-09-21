@@ -259,12 +259,35 @@ class FirestoreService {
     final controller = StreamController<List<ActivityItem>>.broadcast();
     List<ActivityItem> eventItems = [];
     List<ActivityItem> docItems = [];
+    late final StreamSubscription<dynamic> eventsSub;
+    late final StreamSubscription<dynamic> docsSub;
+    var failed = false;
 
     void emitMerged() {
+      if (failed) return;
       controller.add(mergeActivity(eventItems, docItems, maxItems: maxItems));
     }
 
-    final eventsSub = _db
+    // Both halves ERROR the merged stream (C1). They answered
+    // `controller.add(const [])`, which is the empty library said by the one
+    // path that never read it: `ActivityNotifier.start`'s `onError` was dead
+    // code for as long as that was true, and `activity_page` drew its §7 empty
+    // state on a rules or index failure.
+    //
+    // Terminal, and deliberately. A snapshot error here is permission-denied
+    // or a missing index, neither of which clears on the next tick; letting
+    // the surviving half go on emitting would draw a feed quietly missing
+    // every event, or every document, with nothing on screen to say which. A
+    // merge of two sources is only as true as its thinner half.
+    void fail(Object e, StackTrace st) {
+      if (failed) return;
+      failed = true;
+      controller.addError(e, st);
+      eventsSub.cancel();
+      docsSub.cancel();
+    }
+
+    eventsSub = _db
         .collection('activity_events')
         .where('user_id', isEqualTo: uid)
         .orderBy('created_at', descending: true)
@@ -288,9 +311,9 @@ class FirestoreService {
         );
       }).toList();
       emitMerged();
-    }, onError: (_) => controller.add(const []));
+    }, onError: fail);
 
-    final docsSub = _db
+    docsSub = _db
         .collection('documents')
         .where('user_id', isEqualTo: uid)
         .orderBy('created_at', descending: true)
@@ -324,7 +347,7 @@ class FirestoreService {
         );
       }).toList();
       emitMerged();
-    }, onError: (_) => controller.add(const []));
+    }, onError: fail);
 
     controller.onCancel = () {
       eventsSub.cancel();
@@ -686,9 +709,16 @@ class FirestoreService {
   ///
   /// **Absent is a normal state, not an error** — it means no conversation has
   /// started. It arrives as `null` and the screen renders its empty composer.
-  /// An error is also reported as `null` rather than thrown: this stream feeds
-  /// the shell's footer badge on every screen, and a badge is cosmetic — it may
-  /// never take a screen down with it.
+  ///
+  /// An error is NOT reported as `null` (C1). It was, on the reasoning that
+  /// this stream feeds the shell's footer badge on every screen and a badge is
+  /// cosmetic — true, and it is the CONSUMER's answer to give: `unreadForUser`
+  /// reads an absent thread as 0 either way, so the badge was never the thing
+  /// at risk. What the swallow did was make `SupportNotifier._subError`
+  /// unreachable from this half, on the one screen whose whole purpose is that
+  /// the reader can reach a person — INV-24 (ADR-071), which `support_page`
+  /// has drawn a §14 block for since 4.34.0 and could not reach. The messages
+  /// half never swallowed; the two behave alike now.
   Stream<SupportThread?> subscribeSupportThread() {
     final uid = _uid;
     if (uid == null) return Stream.value(null);
@@ -700,7 +730,6 @@ class FirestoreService {
             ? SupportThread.fromJson(
                 snap.id, Map<String, dynamic>.from(snap.data()!))
             : null)
-        .handleError((_) {})
         .cast<SupportThread?>();
   }
 

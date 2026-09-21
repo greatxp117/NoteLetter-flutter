@@ -98,68 +98,78 @@ class _ActivityPageState extends State<ActivityPage> {
               // §14.1 (ADR-070). It was a KitCard with the message in meta
               // and a ghost button — the app's ninth failure shape, and the
               // reason the pattern is now in the kit.
-              else if (activity.error != null && rows.isEmpty)
-                KitFailureBlock(
-                  sentence: 'Your activity could not be loaded.',
-                  detail: activity.error!,
-                  onRetry: () => context.read<ActivityNotifier>().refresh(),
-                )
-              else if (rows.isEmpty)
-                const _ActivityEmpty()
+              //
+              // Whenever there IS an error, and above the rows (C1). It was
+              // `error != null && rows.isEmpty` — the ORDER defect one
+              // condition further on: a feed that loaded once and then failed
+              // kept its stale rows and said nothing, so the screen stayed a
+              // confident record of a moment that had passed.
               else ...[
-                KitControlBar(
-                  filters: [
-                    // Disabled, not hidden: the families are a vocabulary, and
-                    // a bar that changes shape per account puts the same filter
-                    // in a different place for every reader. `other` is the one
-                    // exception — it is a bucket rather than a family, and its
-                    // chip appearing at all is the visible form of this build
-                    // being older than the backend.
-                    for (final f in _families.entries)
-                      if (f.key != 'other' || (counts['other'] ?? 0) > 0)
-                        KitFilterChip(
-                          f.value,
-                          count: counts[f.key] ?? 0,
-                          selected: _filter == f.key,
-                          onPressed: f.key == 'all' || (counts[f.key] ?? 0) > 0
-                              ? () => setState(() => _filter = f.key)
-                              : null,
-                        ),
-                  ],
-                ),
-                if (shown.isEmpty)
-                  KitCard(
-                    child: Text('Nothing of that kind yet.',
-                        style: KitText.meta(context)),
-                  )
-                else
-                  for (final bucket in _buckets) ...[
-                    if (shown.any((r) => r.bucket == bucket)) ...[
-                      SectionHeader(bucket, first: bucket == _buckets.first),
-                      KitTimeline(
-                        rows: [
-                          for (final r
-                              in shown.where((r) => r.bucket == bucket))
-                            KitTimelineRow(
-                              icon: r.icon,
-                              tone: r.tone,
-                              chip: r.chip,
-                              subject: r.subject,
-                              badge: r.badgeKind == null
-                                  ? null
-                                  : KitFileBadge(kitDocKind(r.badgeKind!),
-                                      size: KitBadgeSize.inline),
-                              detail: r.detail,
-                              time: r.time,
-                              live: r.live,
-                              onTap: r.target == null
-                                  ? null
-                                  : () => _open(context, r.target!),
-                            ),
-                        ],
-                      ),
+                if (activity.error != null)
+                  KitFailureBlock(
+                    sentence: 'Your activity could not be loaded.',
+                    detail: activity.error!,
+                    onRetry: () => context.read<ActivityNotifier>().refresh(),
+                  ),
+                // §7 is an offer and §14 is a hole. The empty state may only
+                // speak when nothing failed, or it asserts an empty library.
+                if (rows.isEmpty && activity.error == null)
+                  const _ActivityEmpty()
+                else if (rows.isNotEmpty) ...[
+                  KitControlBar(
+                    filters: [
+                      // Disabled, not hidden: the families are a vocabulary, and
+                      // a bar that changes shape per account puts the same filter
+                      // in a different place for every reader. `other` is the one
+                      // exception — it is a bucket rather than a family, and its
+                      // chip appearing at all is the visible form of this build
+                      // being older than the backend.
+                      for (final f in _families.entries)
+                        if (f.key != 'other' || (counts['other'] ?? 0) > 0)
+                          KitFilterChip(
+                            f.value,
+                            count: counts[f.key] ?? 0,
+                            selected: _filter == f.key,
+                            onPressed: f.key == 'all' || (counts[f.key] ?? 0) > 0
+                                ? () => setState(() => _filter = f.key)
+                                : null,
+                          ),
                     ],
-                  ],
+                  ),
+                  if (shown.isEmpty)
+                    KitCard(
+                      child: Text('Nothing of that kind yet.',
+                          style: KitText.meta(context)),
+                    )
+                  else
+                    for (final bucket in _buckets) ...[
+                      if (shown.any((r) => r.bucket == bucket)) ...[
+                        SectionHeader(bucket, first: bucket == _buckets.first),
+                        KitTimeline(
+                          rows: [
+                            for (final r
+                                in shown.where((r) => r.bucket == bucket))
+                              KitTimelineRow(
+                                icon: r.icon,
+                                tone: r.tone,
+                                chip: r.chip,
+                                subject: r.subject,
+                                badge: r.badgeKind == null
+                                    ? null
+                                    : KitFileBadge(kitDocKind(r.badgeKind!),
+                                        size: KitBadgeSize.inline),
+                                detail: r.detail,
+                                time: r.time,
+                                live: r.live,
+                                onTap: r.target == null
+                                    ? null
+                                    : () => _open(context, r.target!),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                ],
               ],
             ],
           ),
