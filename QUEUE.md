@@ -692,12 +692,12 @@ a new obligation on a finished screen is a new item.
 - notes: `screenshot_pair_check.py` is RED on 18 pairs and it is right to be: a pair older than the code is a pair nobody has looked at since. Two are older than this item — F-20 `ask-rail` and F-25 `ask-turn-failed` went stale on 2026-09-15 and were already failing before F-33 started (verified by stashing every change and re-running). The other 16 were staled by F-33's commit, which touched `kit_shell.dart` and `kit_headers.dart` — files many items list, so the gate's timestamp rule fires on all of them. **What the change can actually reach was measured, and it is not these.** `ChapterOpening.footnote` is null-default and additive. `KitUtilityBar`'s crumb floor fires only where a crumb exists, and the bar is mounted in three places: the day view, `letter_reader.dart`, and `AppLayout` — whose bar renders in the WIDE branch only and is passed a crumb by NO page. Both reachable screens were re-shot and looked at. So this item is the honest cost of a time-based gate, not a list of suspected defects — which is also why it must not be closed by touching the files: re-shoot each pair, LOOK at all four frames, and fix whatever looking finds. A pair refreshed without being read is the ritual not having run, which is the thing this gate exists to catch. Do it in one pass after the next kit change rather than per item, and expect it to recur every time a shared kit file moves — if that proves too noisy to act on, the gate needs a direction that reads WHAT changed rather than WHEN, and that is a change to the gate, booked here, not a reason to ignore a red run.
 
 ## F-35 · The summary regen constant, where the server sent a sentence
-- status: open
+- status: done 2026-09-21
 - screen: reader
 - route: /reader/{docId}
 - spec: spec/component-kit.md §14 · spec/decisions/ADR-070-failure-is-a-pattern.md
 - web: src/pages/reader/SummaryPanel.jsx (`cooldownSentence`); tests/contract/cooldown-sentence.test.js
-- flutter: lib/pages/reader/summary_panel.dart; test/kit/summary_regen_test.dart (new)
+- flutter: lib/pages/reader/summary_panel.dart; lib/pages/study_page.dart; lib/state/org_notifier.dart; lib/services/api_service.dart; test/contract/cooldown_sentence_test.dart
 - folds: 4.71.0 (§14's SUBSTITUTED shape); TODO B5 and B11 on the reference
 - device_test: none
 - shots: reader-manuscript
@@ -722,3 +722,26 @@ a new obligation on a finished screen is a new item.
     Assert both: a 429 carrying `Please wait 43 seconds…` renders **43**, and the
     control direction — a 429 with no parsable seconds keeps the fallback, because a
     parser that invents a number would be worse than the constant it replaces.
+    **Closed 2026-09-21 as TODO C11**, which is the same defect counted across the
+    client rather than at one site: the reader's regenerate, the study card's
+    Study now, and the organized-folder rescan (a **409** COOLDOWN, not a 429).
+    Two departures from the note above, each because the note was written before
+    the client's own half was understood. (1) The helper does **not** parse the
+    seconds — it renders the server's sentence verbatim, exactly as the reference
+    does. A parser is a second place for the copy to be wrong and it invents the
+    one thing it cannot know; quoting gives you the 43 either way. (2) It is
+    **not** `KitFailureInline` for the cooldown, and §14.2 is the reason: it draws
+    no `request_id`, so routing a wait through it buys nothing the caption slot
+    does not already do, and it paints a correct panel as a failure. The split
+    is the reference's — 429 to the calm caption, everything else to §14.2 beside
+    the button, with "The existing one is unchanged." as the caption under it.
+    What this client needed FIRST is what the reference never did:
+    `ApiException.message` held either the envelope's sentence or one of
+    `_handle`'s own constants with nothing able to tell them apart, so
+    `serverSentence` had to exist before a helper could mean anything — and every
+    case in `test/contract/cooldown_sentence_test.dart` carries its CONTROL, the
+    same status with no envelope, because a helper that renders `message`
+    unconditionally passes the first half of all of them and puts "The server did
+    not answer as expected (HTTP 429)." where a wait belongs. Mutation-proven both
+    ways (fallback-always and flag-ignored each kill 4 of 10). The `reader-manuscript`
+    pair is owed for the new §14.2 line and rides F-34, which already lists it.

@@ -18,6 +18,13 @@ import 'reader_ui.dart';
 /// error state**: the summary on screen is still correct. Any failure leaves
 /// the existing summary visible and untouched — the backend guarantees it
 /// wrote nothing (ADR-040 §6), so there is nothing to roll back.
+///
+/// The two outcomes are drawn apart deliberately, as on the reference. A
+/// cooldown is a condition the backend measured and the panel is still
+/// correct, so it stays the calm note in the caption slot; anything else is a
+/// request that did not complete, which is §14.2 beside the button that
+/// refused it — carrying the server's own sentence, never a constant of ours
+/// standing in for one (component-kit §14, ADR-070, C11).
 class _RegenerateControl extends StatefulWidget {
   final String docId;
   final ValueChanged<Map<String, dynamic>> onRegenerated;
@@ -31,11 +38,16 @@ class _RegenerateControlState extends State<_RegenerateControl> {
   bool _busy = false;
   String? _note;
 
+  /// §14.2's line, composed once. Null on the cooldown branch — a wait is not
+  /// a failure.
+  String? _failure;
+
   Future<void> _regenerate() async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _note = null;
+      _failure = null;
     });
     try {
       final res = await Api.instance.regenerateSummary(widget.docId);
@@ -46,10 +58,26 @@ class _RegenerateControlState extends State<_RegenerateControl> {
       // SERVER's, because the endpoint knows how long is left and a constant
       // here ("give it a minute") is a guess that goes stale invisibly the
       // day the window changes. ADR-070 — quote what was sent, never
-      // pattern-match a status into copy of ours.
+      // pattern-match a status into copy of ours. The constant survives for
+      // exactly one case: a 429 that carried no sentence at all, which
+      // `e.message` then fills with a phrase of `_handle`'s own that says
+      // nothing about the wait (C11).
       if (!mounted) return;
-      setState(() => _note = e.message);
+      setState(() {
+        if (e.statusCode == 429) {
+          _note = cooldownSentence(
+              e, 'Just regenerated — give it a minute before trying again.');
+        } else {
+          _failure = 'The summary could not be regenerated — ${e.message}';
+          // The reassurance goes in the caption, not after the sentence: the
+          // server's half is often a fragment with no full stop and §14.2
+          // renders it verbatim, so nothing may follow it on the line.
+          _note = 'The existing one is unchanged.';
+        }
+      });
     } catch (_) {
+      // A request that never reached a server has no sentence to quote, so
+      // this arm keeps its constant and is right to.
       if (!mounted) return;
       setState(() => _note =
           'The summary could not be regenerated just now; the existing one is unchanged.');
@@ -82,6 +110,10 @@ class _RegenerateControlState extends State<_RegenerateControl> {
                   onTap: () => context.go('/settings')),
             ],
           ),
+          if (_failure != null) ...[
+            const SizedBox(height: 8),
+            KitFailureInline(_failure!),
+          ],
           const SizedBox(height: 6),
           // The 429 is the 60s cooldown and reads as CALM COPY in the note's
           // own voice — never a §14 failure, because the summary on screen is

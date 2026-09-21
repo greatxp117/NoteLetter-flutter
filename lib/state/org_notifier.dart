@@ -147,12 +147,19 @@ class OrgNotifier extends ChangeNotifier {
   }
 
   /// Manual rescan. 409 COOLDOWN copy (5-minute window) is user-facing.
+  ///
+  /// A cooldown arrives here as a `409`, not a `429`, and its sentence names
+  /// the exact remaining wait — so it is rendered verbatim, and our own
+  /// 5-minute phrasing stands in only for a refusal that carried no sentence
+  /// at all (C11; the reference does the same in `OrganizationPanel`).
   Future<String?> scan(String provider, {String? folderId}) async {
     try {
       await Api.instance.scanOrganization(provider, folderId: folderId);
       return null;
     } on ApiException catch (e) {
-      return e.message;
+      return e.errorCode == 'COOLDOWN'
+          ? cooldownSentence(e, 'Scanned recently — try again in a few minutes.')
+          : e.message;
     } catch (_) {
       return 'Could not start a rescan.';
     }

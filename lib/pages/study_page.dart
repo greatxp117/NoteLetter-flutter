@@ -88,10 +88,16 @@ class _StudyPageState extends State<StudyPage> {
     } on ApiException catch (e) {
       if (!mounted) return;
       // A 429 is a COOLDOWN, not a failure: it reads as the system working.
+      // The wait is the SERVER's to state — the endpoint names the exact
+      // remaining seconds, and the constant below is a 60s guess that goes
+      // stale invisibly the day the window moves. It survives only for a 429
+      // that carried no sentence at all (C11).
       setState(() {
         if (e.statusCode == 429) {
-          _notes[p.id] = 'Just a moment — a session for this program was '
-              'requested less than a minute ago.';
+          _notes[p.id] = cooldownSentence(
+              e,
+              'Just a moment — a session for this program was '
+              'requested less than a minute ago.');
         } else {
           _errors[p.id] = e.message;
         }

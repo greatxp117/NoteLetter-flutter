@@ -17,10 +17,43 @@ class ApiException implements Exception {
   final String? errorCode;
   final String? requestId;
 
-  const ApiException(this.statusCode, this.message, {this.errorCode, this.requestId});
+  /// True exactly when [message] is the ENVELOPE's own sentence — the `error`
+  /// or `message` the backend wrote — and false when it is one of `_handle`'s
+  /// constants standing in for a body that carried none (C11).
+  ///
+  /// Without this a site cannot tell the two apart: both arrive in the same
+  /// field, so "Please wait 43 seconds before regenerating again." and
+  /// "Something went wrong. Please try again." are one value, and a screen
+  /// that wants to render the server's words verbatim has no way to ask
+  /// whether there are any. That is what [cooldownSentence] asks.
+  final bool serverSentence;
+
+  const ApiException(this.statusCode, this.message,
+      {this.errorCode, this.requestId, this.serverSentence = false});
 
   @override
   String toString() => 'ApiException($statusCode, $errorCode): $message';
+}
+
+/// A cooldown's sentence is the SERVER's (audit B11 on the reference, C11
+/// here). Mirrors `cooldownSentence` in `NoteLetter-web/src/api.js`.
+///
+/// Every cooldown branch in the backend computes the exact remaining wait and
+/// says it — "Please wait 43 seconds before regenerating again." — and this
+/// client overwrote that with a constant guess: "give it a minute" (60s),
+/// "less than a minute ago" (60s), "try again in a few minutes" (300s). A
+/// guess is wrong in both directions at once (it reads as a minute when three
+/// seconds remain, and as a minute when fifty-five do) and it goes stale
+/// silently the day a cooldown constant moves — nothing ties the two numbers
+/// together. So: render what came back.
+///
+/// [fallback] covers only the refusal that carried no sentence at all, where
+/// `message` is a constant of ours and quoting it would say nothing about the
+/// wait.
+String cooldownSentence(ApiException e, String fallback) {
+  if (!e.serverSentence) return fallback;
+  final sentence = e.message.trim();
+  return sentence.isEmpty ? fallback : sentence;
 }
 
 class UnauthorizedException extends ApiException {
@@ -31,7 +64,7 @@ class UnauthorizedException extends ApiException {
   /// that has drifted, which are three different next moves (ADR-070).
   const UnauthorizedException([String? serverSentence])
       : super(401, serverSentence ?? 'Session expired. Please log in again.',
-            errorCode: 'UNAUTHORIZED');
+            errorCode: 'UNAUTHORIZED', serverSentence: serverSentence != null);
 }
 
 class ApiService {
@@ -320,7 +353,11 @@ class ApiService {
     }
 
     return ApiException(status, message,
-        errorCode: errorCode, requestId: requestId);
+        errorCode: errorCode,
+        requestId: requestId,
+        // Only the first arm above quoted the envelope; every other one is a
+        // constant of ours (C11).
+        serverSentence: serverSentence != null);
   }
 }
 
