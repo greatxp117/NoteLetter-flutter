@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'services/analytics.dart';
+import 'shared/leave_guard.dart';
 import 'state/auth_notifier.dart';
 import 'widgets/app_layout.dart';
 import 'widgets/support_shell.dart';
@@ -102,6 +103,15 @@ List<RouteBase> appRoutes() {
       routes: [
         GoRoute(
           path: '/reader/:docId',
+          // **The unsaved-edit guard hangs HERE, on the route** (C10, the
+          // Flutter half of B13). `onExit` is the one place every way out of
+          // the reader passes through: a `pop()` from the back control, a
+          // `go()` that replaces the stack, the platform's back button and the
+          // iOS swipe gesture. Guarding the back control instead would cover
+          // the one exit this client draws and miss the ones nobody writes
+          // code for. `LeaveGuard` answers yes when nothing is registered, so
+          // a reader with no edits never sees a frame of this.
+          onExit: (context, state) => LeaveGuard.mayLeave(context),
           // `?p=` is the passage a link asked for (INV-21) — the id-built
           // target the daily letter, the cohesive reading and search all hand
           // out. It was parsed by nothing on this client until 4.40.0, so

@@ -7,6 +7,7 @@ import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../shared/extraction_markers.dart';
+import '../../shared/leave_guard.dart';
 import '../../theme/app_radius.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
@@ -102,6 +103,42 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     super.initState();
     _chunks = _initFrom(widget.chunks);
     _scheduleAnchor();
+    // Registered ONCE, for the life of the panel, and it answers by reading
+    // `_dirty` at the moment it is asked. The alternative — pushing a dirty
+    // flag up to the screen on every change — is a second copy of a fact this
+    // state already holds, kept in step by a hand-written list of the places
+    // that mutate it: there are seven, and the eighth is the one that gets
+    // added later (C10).
+    _unguard = LeaveGuard.register(_askBeforeLeaving);
+  }
+
+  VoidCallback? _unguard;
+
+  /// §18 for leaving with unsaved edits — the same words the reference uses.
+  ///
+  /// It names what is lost AND what is not, and the safe choice is labelled
+  /// with the alternative it takes rather than a bare "Cancel" beside a
+  /// destructive verb.
+  ///
+  /// confirm-ok: this confirmation calls no endpoint. The destructive act IS
+  /// the navigation, which nothing can refuse, so there is no rejection for
+  /// §18's `error` slot to carry. That slot is required because four confirms
+  /// that DID call something could not report a refusal; an empty one here
+  /// would be a part of the pattern that can never fill.
+  Future<bool> _askBeforeLeaving(BuildContext context) async {
+    if (!_dirty) return true;
+    final ok = await KitConfirm.show(
+      context,
+      title: 'Discard your edits?',
+      body: 'Your unsaved changes to this manuscript will be lost. Nothing has '
+          'been sent yet, so the stored passages are exactly as they were. '
+          'Staying takes you back to the manuscript, where Save & re-index '
+          'keeps them.',
+      confirmLabel: 'Discard and leave',
+      cancelLabel: 'Stay and keep editing',
+      onConfirm: () async => null,
+    );
+    return ok == true;
   }
 
   @override
@@ -188,6 +225,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
   @override
   void dispose() {
+    _unguard?.call();
     for (final t in _dwellTimers.values) {
       t.cancel();
     }
