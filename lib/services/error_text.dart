@@ -4,7 +4,12 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'api_service.dart' show ApiException;
 
 /// A sentence a reader can act on, for a failure that came from the SDK rather
-/// than from one of our endpoints (C7).
+/// than from one of our endpoints — component-kit §14.3, ADR-111.
+///
+/// **The sentences below are the contract's, word for word.** Gated both ways
+/// by ENVELOPE-LESS (`failure_pattern_check.py`): a code the table names that
+/// this file does not carry, a code here the table does not name, and any
+/// sentence that differs by a character. Do not edit one without the table.
 ///
 /// Half this app's data arrives by subscription (INV-02), and a subscription
 /// failure carries no envelope of ours: no `error`, no `request_id`, nothing
@@ -18,9 +23,9 @@ import 'api_service.dart' show ApiException;
 /// own brackets, and no next move for the person reading them. Fifteen screens
 /// and notifiers put that string on the glass.
 ///
-/// Only the three codes a client listener actually raises are named. A map of
-/// every code in the SDK would be a list of sentences nothing can produce, and
-/// the ones that stay unproven are the ones that end up wrong:
+/// Only the three codes a client listener actually raises are named (§14.3). A
+/// map of every code in the SDK would be a list of sentences nothing can
+/// produce, and the ones that stay unproven are the ones that end up wrong:
 ///
 ///   * `permission-denied` — the rules refused this read. From a signed-in
 ///     reader that is a stale token far more often than a real ownership
@@ -39,8 +44,8 @@ import 'api_service.dart' show ApiException;
 /// The raw text is not thrown away: it goes to the debug log, once per call.
 /// Some call sites are inside `build`, so in release it is not printed at all
 /// rather than printed on every rebuild.
-String describeFirestoreError(Object e) {
-  if (kDebugMode) debugPrint('describeFirestoreError: $e');
+String describeSdkError(Object e) {
+  if (kDebugMode) debugPrint('describeSdkError: $e');
   if (e is ApiException) return e.message;
   if (e is FirebaseException) {
     switch (e.code) {

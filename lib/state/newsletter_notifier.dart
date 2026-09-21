@@ -52,7 +52,7 @@ class NewsletterNotifier extends ChangeNotifier {
       _all = await FirestoreService.instance.listAllNewsletters(limit: limit);
       _loaded = true;
     } catch (e) {
-      _error = describeFirestoreError(e);
+      _error = describeSdkError(e);
     } finally {
       _isLoading = false;
       notifyListeners();

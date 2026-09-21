@@ -60,7 +60,7 @@ class SupportNotifier extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }, onError: (e) {
-      _subError = describeFirestoreError(e);
+      _subError = describeSdkError(e);
       _loading = false;
       notifyListeners();
     });
@@ -70,7 +70,7 @@ class SupportNotifier extends ChangeNotifier {
       _subError = null;
       notifyListeners();
     }, onError: (e) {
-      _subError = describeFirestoreError(e);
+      _subError = describeSdkError(e);
       notifyListeners();
     });
   }

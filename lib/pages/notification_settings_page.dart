@@ -276,7 +276,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         KitRowSlot(
           child: KitFailureInline(
               'Your channels could not be read — '
-              '${describeFirestoreError(snap.error!)}'),
+              '${describeSdkError(snap.error!)}'),
         ),
       ]);
     }

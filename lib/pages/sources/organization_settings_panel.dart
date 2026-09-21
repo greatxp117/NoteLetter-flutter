@@ -231,7 +231,7 @@ class OrganizedFoldersPanel extends StatelessWidget {
         if (snap.hasError) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
-            child: KitFailureInline(describeFirestoreError(snap.error!)),
+            child: KitFailureInline(describeSdkError(snap.error!)),
           );
         }
 

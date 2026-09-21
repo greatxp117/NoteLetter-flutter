@@ -25,9 +25,9 @@ import 'package:flutter_app/services/error_text.dart';
 /// Two halves here. The mapping, code by code; and the source scan, because a
 /// unit test over the helper says nothing about the twentieth site.
 void main() {
-  group('describeFirestoreError', () {
+  group('describeSdkError', () {
     test('permission-denied names the move before support', () {
-      final s = describeFirestoreError(FirebaseException(
+      final s = describeSdkError(FirebaseException(
           plugin: 'cloud_firestore',
           code: 'permission-denied',
           message: 'The caller does not have permission.'));
@@ -38,14 +38,14 @@ void main() {
 
     test('unavailable is the reader\'s own connection', () {
       expect(
-          describeFirestoreError(FirebaseException(
+          describeSdkError(FirebaseException(
               plugin: 'cloud_firestore', code: 'unavailable')),
           'You appear to be offline.');
     });
 
     test('failed-precondition is ours, and says so', () {
       // The missing-index shape: nothing the reader can do about it.
-      final s = describeFirestoreError(FirebaseException(
+      final s = describeSdkError(FirebaseException(
           plugin: 'cloud_firestore',
           code: 'failed-precondition',
           message: 'The query requires an index.'));
@@ -55,13 +55,13 @@ void main() {
 
     test('an unnamed code falls back rather than guessing', () {
       expect(
-          describeFirestoreError(FirebaseException(
+          describeSdkError(FirebaseException(
               plugin: 'cloud_firestore', code: 'aborted')),
           'This could not be read right now. Please try again.');
     });
 
     test('a plain error falls back too — no `Instance of`', () {
-      final s = describeFirestoreError(StateError('bad state'));
+      final s = describeSdkError(StateError('bad state'));
       expect(s, 'This could not be read right now. Please try again.');
       expect(s, isNot(contains('bad state')));
     });
@@ -70,7 +70,7 @@ void main() {
       // The belt for a site that routes here without a typed arm above it: our
       // own endpoint's words are never replaced by copy of ours.
       expect(
-          describeFirestoreError(const ApiException(
+          describeSdkError(const ApiException(
               409, 'That shelf name is already taken.',
               errorCode: 'CONFLICT')),
           'That shelf name is already taken.');
@@ -101,7 +101,7 @@ void main() {
       }
     }
     expect(offenders, isEmpty,
-        reason: 'route these through describeFirestoreError (C7):\n'
+        reason: 'route these through describeSdkError (C7):\n'
             '${offenders.join('\n')}');
   });
 }

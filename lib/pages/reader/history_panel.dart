@@ -83,7 +83,7 @@ class _HistoryPanelState extends State<HistoryPanel> {
         ui.intro('Reading history'),
         KitFailureBlock(
           sentence: 'This source’s reading history could not be loaded.',
-          detail: describeFirestoreError(_error!),
+          detail: describeSdkError(_error!),
           onRetry: _load,
         ),
       ]);

@@ -287,7 +287,7 @@ class _SearchPageState extends State<SearchPage> {
       // silence as a swallowed search catch, one pane over.
       setState(() {
         _context = const [];
-        _contextError = describeFirestoreError(e);
+        _contextError = describeSdkError(e);
         _contextLoading = false;
       });
     }

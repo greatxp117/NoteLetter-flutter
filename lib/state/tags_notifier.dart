@@ -29,7 +29,7 @@ class TagsNotifier extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }, onError: (e) {
-      _error = describeFirestoreError(e);
+      _error = describeSdkError(e);
       _loading = false;
       notifyListeners();
     });

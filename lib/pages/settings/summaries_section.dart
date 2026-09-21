@@ -62,7 +62,7 @@ class _SummariesSectionState extends State<SummariesSection> {
     }, onError: (e) {
       if (!mounted) return;
       setState(() {
-        _subError = describeFirestoreError(e);
+        _subError = describeSdkError(e);
         _loaded = true;
       });
     });

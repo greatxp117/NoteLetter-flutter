@@ -51,7 +51,7 @@ class DocumentsNotifier extends ChangeNotifier {
       // same defect C1 had one notifier over.
       _sub?.cancel();
       _sub = null;
-      _error = describeFirestoreError(e);
+      _error = describeSdkError(e);
       _loading = false;
       notifyListeners();
     });

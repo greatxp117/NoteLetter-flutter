@@ -130,7 +130,7 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
             width: KitFrameWidth.reading,
             child: KitFailureBlock(
               sentence: 'The connection dropped.',
-              detail: describeFirestoreError(snap.error!),
+              detail: describeSdkError(snap.error!),
               onRetry: () => setState(() {}),
               retryLabel: 'Try again',
             ),

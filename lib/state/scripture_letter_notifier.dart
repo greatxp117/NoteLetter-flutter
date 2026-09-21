@@ -42,7 +42,7 @@ class ScriptureLetterNotifier extends ChangeNotifier {
           await FirestoreService.instance.getScriptureNewsletterSettings();
       _error = null;
     } catch (e) {
-      _error = describeFirestoreError(e);
+      _error = describeSdkError(e);
     }
     notifyListeners();
   }
@@ -76,7 +76,7 @@ class ScriptureLetterNotifier extends ChangeNotifier {
     } on ApiException catch (e) {
       _saveError = e.message;
     } catch (e) {
-      _saveError = describeFirestoreError(e);
+      _saveError = describeSdkError(e);
     } finally {
       _isSaving = false;
       notifyListeners();

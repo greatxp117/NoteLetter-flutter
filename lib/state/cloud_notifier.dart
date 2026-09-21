@@ -125,7 +125,7 @@ class CloudNotifier extends ChangeNotifier {
     // which is exactly what a reader watching an import wants to know is
     // false.
     }, onError: (e) {
-      _jobsError = describeFirestoreError(e);
+      _jobsError = describeSdkError(e);
       _notify();
     });
     loadIntegrations();

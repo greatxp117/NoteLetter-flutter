@@ -114,7 +114,7 @@ class _StudyPageState extends State<StudyPage> {
           return KitPage(
             child: KitFailureBlock(
               sentence: 'Your programs could not be read.',
-              detail: describeFirestoreError(snap.error!),
+              detail: describeSdkError(snap.error!),
             ),
           );
         }
@@ -360,7 +360,7 @@ class _Sessions extends StatelessWidget {
             padding: const EdgeInsets.only(top: AppSpacing.s6),
             child: KitFailureBlock(
               sentence: 'Your sessions could not be read.',
-              detail: describeFirestoreError(snap.error!),
+              detail: describeSdkError(snap.error!),
             ),
           );
         }

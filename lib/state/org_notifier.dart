@@ -38,7 +38,7 @@ class OrgNotifier extends ChangeNotifier {
     // INV-24 (ADR-071): no suggestions and unreadable suggestions are the same
     // empty list downstream.
     }, onError: (e) {
-      _suggestionsError = describeFirestoreError(e);
+      _suggestionsError = describeSdkError(e);
       notifyListeners();
     });
     loadSettings();
@@ -67,7 +67,7 @@ class OrgNotifier extends ChangeNotifier {
       _settingsError = null;
       _settingsLoaded = true;
     } catch (e) {
-      _settingsError = describeFirestoreError(e);
+      _settingsError = describeSdkError(e);
     }
     notifyListeners();
   }

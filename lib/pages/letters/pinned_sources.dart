@@ -78,7 +78,7 @@ class _PinnedSourcesState extends State<PinnedSources> {
         if (snap.hasError) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 20),
-            child: KitFailureInline(describeFirestoreError(snap.error!)),
+            child: KitFailureInline(describeSdkError(snap.error!)),
           );
         }
 

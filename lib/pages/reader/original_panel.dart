@@ -95,7 +95,7 @@ class _OriginalPanelState extends State<OriginalPanel> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = describeFirestoreError(e);
+        _error = describeSdkError(e);
         _loading = false;
       });
     }

@@ -80,7 +80,7 @@ class ActivityNotifier extends ChangeNotifier {
       // §14's detail UNDER a sentence of ours, so a canned string here says
       // the same thing twice and quotes nothing (ADR-070, PARTS). This is the
       // shape `SupportNotifier` already uses for the same kind of failure.
-      _error = describeFirestoreError(e);
+      _error = describeSdkError(e);
       _isLoading = false;
       notifyListeners();
     });
