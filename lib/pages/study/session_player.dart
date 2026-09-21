@@ -11,6 +11,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_html/flutter_html.dart';
 import '../../models/study.dart';
 import '../../services/api.dart';
+import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../shared/extraction_markers.dart';
 import '../../state/study_schedule.dart';
@@ -87,9 +88,19 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
               : 'Recorded — $back.';
         }
       });
+    } on ApiException catch (e) {
+      // C6: this said "Could not record that — try again" for everything, and
+      // the three answers it flattened want three different next moves. A 404
+      // means this item is no longer in the session and trying again cannot
+      // help; a 409 means it is already recorded, so trying again would be
+      // asking twice; a 401 means the session expired and the answer is to
+      // sign in. The endpoint says which; the constant said none of them.
+      if (mounted) setState(() => _outcome[qid] = e.message);
     } catch (_) {
       if (mounted) {
-        setState(() => _outcome[qid] = 'Could not record that — try again.');
+        setState(() => _outcome[qid] =
+            'That could not be recorded. Please check your connection and '
+            'try again.');
       }
     } finally {
       if (mounted) setState(() => _busy.remove(qid));

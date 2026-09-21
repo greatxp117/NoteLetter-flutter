@@ -42,10 +42,13 @@ class _RegenerateControlState extends State<_RegenerateControl> {
       if (!mounted) return;
       widget.onRegenerated(res);
     } on ApiException catch (e) {
+      // C6. The 429 branch was the sharper half: the cooldown sentence is the
+      // SERVER's, because the endpoint knows how long is left and a constant
+      // here ("give it a minute") is a guess that goes stale invisibly the
+      // day the window changes. ADR-070 — quote what was sent, never
+      // pattern-match a status into copy of ours.
       if (!mounted) return;
-      setState(() => _note = e.statusCode == 429
-          ? 'Just regenerated — give it a minute before trying again.'
-          : 'The summary could not be regenerated just now; the existing one is unchanged.');
+      setState(() => _note = e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _note =

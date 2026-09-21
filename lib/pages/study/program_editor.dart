@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/document.dart';
 import '../../models/study.dart';
 import '../../services/api.dart';
+import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../state/schedule.dart';
 import '../../theme/app_colors.dart';
@@ -36,6 +37,16 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
   int _newPerSession = 5;
   int _maxReviews = 10;
   bool _saving = false;
+
+  /// The server's own sentence about the last save (C6).
+  ///
+  /// It was `AppToast.show(context, 'Could not save that.')`: a constant in
+  /// place of the message the endpoint sent, in a surface that dismisses
+  /// itself after four seconds. Both halves fail the same reader — the one
+  /// who has to CORRECT something. A 400 naming the field, a 409 naming the
+  /// conflict and a 429 naming the wait all arrived and all rendered as the
+  /// same four words, then disappeared.
+  String? _saveError;
 
   StudyProgram? _program;
   List<Document> _docs = const [];
@@ -82,7 +93,10 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
 
   Future<void> _save() async {
     if (_title.text.trim().isEmpty || _selected.isEmpty) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
     try {
       if (_isNew) {
         final res = await Api.instance.createStudyProgram({
@@ -114,9 +128,15 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
         if (!mounted) return;
         AppToast.show(context, 'Saved.', type: ToastType.success);
       }
-    } catch (e) {
+    } on ApiException catch (e) {
+      // Beside the control, not in a toast: this is something the reader has
+      // to act on, and §14.2's whole job is to still be there when they look.
+      if (mounted) setState(() => _saveError = e.message);
+    } catch (_) {
       if (mounted) {
-        AppToast.show(context, 'Could not save that.', type: ToastType.error);
+        setState(() => _saveError =
+            'That could not be saved. Please check your connection and try '
+            'again.');
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -188,6 +208,11 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
                     ? 'Saving…'
                     : (_isNew ? 'Create program' : 'Save')),
               ),
+              if (_saveError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: KitFailureInline(_saveError!),
+                ),
 
               if (!_isNew && _program != null) ...[
                 const SizedBox(height: 28),
@@ -343,6 +368,12 @@ class _UnitPanelState extends State<_UnitPanel> {
   final Map<String, int?> _positions = {};
   bool _busy = false;
 
+  /// C6: this was a constant in a toast. Starting a unit is deliberately not
+  /// idempotent — it is confirmed before it is called — so a reader told only
+  /// "Could not start the unit" cannot tell a refusal from a timeout, and the
+  /// one thing they must not do is guess and press it again.
+  String? _error;
+
   Future<void> _advance() async {
     final readings = widget.program.documentIds
         .where((id) => widget.program.kindFor(id) == 'reading')
@@ -368,7 +399,10 @@ class _UnitPanelState extends State<_UnitPanel> {
     );
     // Deliberately not idempotent, so it is confirmed before it is called.
     if (confirmed != true || !mounted) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       await Api.instance.advanceStudyUnit(widget.program.id,
           positions: {
@@ -380,10 +414,12 @@ class _UnitPanelState extends State<_UnitPanel> {
         AppToast.show(context, 'Unit ${widget.program.unitNumber + 1} started.',
             type: ToastType.success);
       }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) {
-        AppToast.show(context, 'Could not start the unit.',
-            type: ToastType.error);
+        setState(() => _error =
+            'The unit could not be started. Nothing has changed.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -428,6 +464,11 @@ class _UnitPanelState extends State<_UnitPanel> {
           onPressed: _busy ? null : _advance,
           child: Text(_busy ? 'Starting…' : 'Start a new unit'),
         ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: KitFailureInline(_error!),
+          ),
       ],
     );
   }
@@ -452,6 +493,12 @@ class _SyllabusPanel extends StatefulWidget {
 
 class _SyllabusPanelState extends State<_SyllabusPanel> {
   bool _busy = false;
+
+  /// C6. Both of this panel's calls answer with something the reader acts on
+  /// — a syllabus the model could not parse, a plan the endpoint refused —
+  /// and both rendered the same kind of constant in a surface that dismisses
+  /// itself after four seconds.
+  String? _error;
   String? _sourceId;
   List<Map<String, dynamic>> _units = [];
   List<Map<String, dynamic>> _assessments = [];
@@ -477,10 +524,12 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
             .toList();
         _proposed = true;
       });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) {
-        AppToast.show(context, 'Could not read that syllabus.',
-            type: ToastType.error);
+        setState(() =>
+            _error = 'That syllabus could not be read. Nothing was changed.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -497,10 +546,12 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
         setState(() => _proposed = false);
         AppToast.show(context, 'Syllabus attached.', type: ToastType.success);
       }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) {
-        AppToast.show(context, 'Could not apply that plan.',
-            type: ToastType.error);
+        setState(() =>
+            _error = 'That plan could not be applied. Nothing was changed.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -530,6 +581,12 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
           style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),
         const SizedBox(height: 8),
+        // One failure slot for the whole panel: its two calls are two steps of
+        // one action, and a reader only ever has one of them in flight.
+        if (_error != null) ...[
+          KitFailureInline(_error!),
+          const SizedBox(height: 8),
+        ],
         if (attached != null && !_proposed) ...[
           Text('${attached.units.length} topics · '
               '${attached.assessments.length} assessments',

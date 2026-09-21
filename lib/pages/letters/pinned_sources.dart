@@ -11,11 +11,11 @@ import 'package:flutter/material.dart';
 import '../../models/document.dart';
 import '../../models/newsletter_settings.dart';
 import '../../services/api.dart';
+import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/kit/kit.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
-import '../../theme/tokens.dart';
 
 class PinnedSources extends StatefulWidget {
   const PinnedSources({super.key, required this.settings});
@@ -42,8 +42,17 @@ class _PinnedSourcesState extends State<PinnedSources> {
       await Api.instance.setNextLetter(doc.id, false);
       // The subscription removes the row. Deliberately NOT optimistic: a row
       // that vanishes and comes back is worse than one that takes a moment.
-    } catch (e) {
-      if (mounted) setState(() => _error = 'Could not unpin that.');
+    } on ApiException catch (e) {
+      // C6: the server's sentence, not four words of ours. A pin that is
+      // already gone, one that belongs to a letter already sent, and an
+      // expired session are three different answers, and this rendered one.
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error =
+            'That could not be unpinned. Please check your connection and '
+            'try again.');
+      }
     } finally {
       if (mounted) setState(() => _busy = null);
     }
@@ -151,9 +160,10 @@ class _PinnedSourcesState extends State<PinnedSources> {
                 ),
               if (_error != null) ...[
                 const SizedBox(height: 6),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Tokens.of(context).criticalText)),
+                // The kit's §14.2, not a hand-spelled one. A screen drawing
+                // its own failure shape is what ADR-070 exists to stop, and
+                // this one had been spelling the tone by hand.
+                KitFailureInline(_error!),
               ],
             ],
           ),
