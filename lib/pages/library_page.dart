@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/document.dart';
 import '../models/newsletter.dart';
 import '../models/tag.dart';
+import '../shared/upload_types.dart';
 import '../state/documents_notifier.dart';
 import '../state/newsletter_notifier.dart';
 import '../state/tags_notifier.dart';
@@ -246,17 +247,30 @@ class _LibraryEmpty extends StatelessWidget {
                 'the text, makes it searchable, and starts writing you a '
                 'daily letter from your own notes.',
           ),
+          // This said "PDF, EPUB, Markdown, plain text, or images" and tagged
+          // EPUB (C2b). No extractor has ever supported EPUB and
+          // `application/epub+zip` is a hard 400 since 4.10.0, so the FIRST
+          // screen a new reader sees promised a format the front door refuses
+          // — while omitting Word, PowerPoint, audio and video, which are
+          // real. component-kit §3 rule 3: a `pending` kind may be RENDERED
+          // and must not be ADVERTISED.
+          //
+          // The reference fixed this exact string and made it read from the
+          // constant beside the accepted list so the two cannot drift again.
+          // This client already HAD that constant — `uploadAcceptHelp`, used
+          // by `file_uploader` — and this screen was the second place the copy
+          // was written by hand, which is how it stayed a release behind.
           KitDropZone(
             icon: Icons.upload_outlined,
             title: 'Drop files to begin',
-            help: 'PDF, EPUB, Markdown, plain text, or images — '
-                'or open Sources to browse',
+            help: '$uploadAcceptHelp — or open Sources to browse',
             formats: const [
               KitTag('PDF'),
-              KitTag('EPUB'),
+              KitTag('Word'),
               KitTag('Markdown'),
               KitTag('TXT'),
               KitTag('PNG / JPG'),
+              KitTag('Audio'),
             ],
             onTap: () => context.go('/sources'),
           ),
