@@ -745,3 +745,31 @@ a new obligation on a finished screen is a new item.
     not answer as expected (HTTP 429)." where a wait belongs. Mutation-proven both
     ways (fallback-always and flag-ignored each kill 4 of 10). The `reader-manuscript`
     pair is owed for the new §14.2 line and rides F-34, which already lists it.
+
+## F-36 · The Plan row, and a refusal the server now sends
+- status: open
+- screen: settings
+- route: /settings
+- spec: spec/screens/settings.md §Plan row · spec/api/plans.md · spec/decisions/ADR-113-a-plan-limit-is-enforced-where-the-resource-is-created.md · spec/component-kit.md §12
+- web: src/api.js (`getPlanStatus`, `subscribeProfile`); src/shared/plan.js; src/shared/Notice.jsx; src/pages/SettingsView.jsx (`PlanRow`); tests/contract/plan-row.test.js
+- flutter: lib/services/api_service.dart; lib/pages/settings_page.dart; lib/pages/reader/listen_panel.dart
+- folds: 4.79.0 (fn_plan_status; 403 PLAN_LIMIT; `plan_limit_reached` — the chip landed on 2026-09-22 because 5f reads every client)
+- device_test: Settings shows the Plan row with the endpoint's figures; a free account at a cap of 1 shows the §12 notice and its one action opens support
+- shots: settings; reader-manuscript
+- extra_gates: python3 ../NoteLetter-contracts/harness/failure_pattern_check.py; python3 ../NoteLetter-contracts/harness/stat_figure_check.py
+- notes: Three touches, all measured. (1) `getPlanStatus()` — GET `fn_plan_status`, the ONLY
+    source of a limit; never draw a count of the documents subscription (§12: a notice is
+    measured, not decorative — and this client already shipped one fabricated figure, F-00).
+    (2) The Plan row in Settings › Account, above Sign out: title `Free plan`/`Paid plan`,
+    description `{documents} of {max} sources · {ingests} of {max} added this month ·
+    resets {1 October}` (null = `Unlimited sources`; `Listen included` when
+    `audio_narration`), and at a cap a §12 notice under the row with ONE action, **Ask
+    about upgrading** → the support thread — there is no checkout. Mirror web's
+    `planSummary()` word for word, including the unanswered state: title `Plan`, NO
+    figures (ADR-109). Refetch after any `PLAN_LIMIT` rejection anywhere in the app
+    (web dispatches an event from the one `call()` seam; `ApiService._handle` is this
+    client's). (3) Every ingest surface and the Listen control already render the
+    server's sentence as `KitFailureInline`; verify the 403 reaches them unaltered
+    (`failure_pattern_check` SUBSTITUTED direction) and add nothing of our own. Do NOT hide
+    Listen for a free account — a hidden control cannot say why.
+

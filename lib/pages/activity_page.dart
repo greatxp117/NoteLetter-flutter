@@ -280,6 +280,7 @@ const _kinds = <String, _Kind>{
   'service_disconnected': (family: 'sources', chip: 'Disconnected', icon: Icons.link_off),
   'sync_session': (family: 'sources', chip: 'Synced', icon: Icons.sync),
   'cloud_sync_failed': (family: 'sources', chip: 'Sync failed', icon: Icons.sync_problem),
+  'plan_limit_reached': (family: 'sources', chip: 'Plan limit', icon: Icons.error_outline),
   'integration_reconnect_required': (family: 'sources', chip: 'Reconnect', icon: Icons.error_outline),
   'organization_move': (family: 'sources', chip: 'Moved', icon: Icons.drive_file_move_outlined),
   'organization_placement': (family: 'sources', chip: 'Filed', icon: Icons.drive_file_move_outlined),
