@@ -854,6 +854,26 @@ void main() {
       );
       expect(find.text('Upload a PDF'), findsOneWidget);
     });
+
+    testWidgets('a *clause* in the title is set, never drawn as asterisks',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const KitEmptyState(
+          icon: Icons.timeline_outlined,
+          title: 'Nothing has happened *yet.*',
+          standfirst: 'This is the record of your account.',
+        ),
+      );
+      final title = find.byType(AccentTitle);
+      expect(title, findsOneWidget);
+      final rich = tester.widget<Text>(
+          find.descendant(of: title, matching: find.byType(Text)));
+      final spans = (rich.textSpan! as TextSpan).children!.cast<TextSpan>();
+      expect(spans.map((s) => s.text).join(), 'Nothing has happened yet.');
+      final clause = spans.singleWhere((s) => s.text == 'yet.');
+      expect(clause.style!.fontStyle, FontStyle.italic);
+    });
   });
 
   group('frame', () {

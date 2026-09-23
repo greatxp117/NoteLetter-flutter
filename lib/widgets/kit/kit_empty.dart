@@ -137,7 +137,11 @@ class KitEmptyState extends StatelessWidget {
             children: [
               KitMark(icon),
               const SizedBox(height: AppSpacing.s5),
-              Text(
+              // AccentTitle, not Text: callers write the reference's `<em>` as
+              // `*clause*`, and a plain Text drew the asterisks — "Nothing has
+              // happened *yet.*" on the activity feed — from the day §7's
+              // titles grew one.
+              AccentTitle(
                 title,
                 textAlign: TextAlign.center,
                 style: AppTheme.serif(
