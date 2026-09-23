@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show Icons, ThemeMode;
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../build_info.dart';
+import '../services/api.dart';
+import '../services/api_service.dart';
 import '../shared/local_flags.dart';
+import '../shared/plan.dart';
+import '../shared/plan_limit_signal.dart';
 import '../state/auth_notifier.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_spacing.dart';
@@ -220,6 +226,7 @@ class _SettingsPageState extends State<SettingsPage> {
           KitRowList(
             raised: true,
             rows: [
+              const _PlanRow(),
               KitSettingRow(
                 icon: Icons.person_outline,
                 leading: KitAvatarPlate(KitAvatarPlate.initialsOf(who)),
@@ -243,6 +250,97 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: AppSpacing.s8),
         ],
       ),
+    );
+  }
+}
+
+/// The Plan row (4.79.0, ADR-113, INV-28 — `screens/settings.md` §Plan row).
+///
+/// Three rules, each of which is a way to get this wrong:
+///
+///  * **Every figure comes from `fn_plan_status`.** This client already
+///    shipped one fabricated figure (F-00); a count of the documents
+///    subscription is a number nothing checked, and §12 is explicit that a
+///    notice is measured, not decorative.
+///  * **Unread is not zero** (ADR-109). Until the endpoint answers, the title
+///    is `Plan` and there are NO figures — never `0 of 100`.
+///  * **A failed read is a §14.1 failure block in the control cluster**, never
+///    zeros (INV-24). The sentence is ours, the detail is the server's.
+///
+/// It refetches on [PlanLimitSignal] — a refusal anywhere in the app means the
+/// figures here are stale — and never learns a number from the refusal itself.
+class _PlanRow extends StatefulWidget {
+  const _PlanRow();
+
+  @override
+  State<_PlanRow> createState() => _PlanRowState();
+}
+
+class _PlanRowState extends State<_PlanRow> {
+  Map<String, dynamic>? _status;
+  ApiException? _err;
+  StreamSubscription<void>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _sub = PlanLimitSignal.stream.listen((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    // Write before move: the request is awaited, and only then does state
+    // change. Clearing `_status` first would blank a row that is still correct
+    // every time a refusal arrived.
+    try {
+      final s = await Api.instance.getPlanStatus();
+      if (!mounted) return;
+      setState(() {
+        _status = s;
+        _err = null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _err = e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = planSummary(_status);
+    final err = _err;
+    return KitSettingRow(
+      icon: Icons.menu_book_outlined,
+      title: summary.title,
+      description: summary.description,
+      trailing: [
+        if (err != null)
+          KitFailureBlock(
+            sentence: 'Your plan could not be read.',
+            detail: err.message,
+            requestId: err.requestId,
+            onRetry: _load,
+          ),
+      ],
+      wideControl: err != null,
+      // §12 under the row, inside the row's own width: the condition the
+      // backend measured, with ONE action. There is no checkout, so the
+      // honest action is the support thread (§13). No dismiss — the notice
+      // leaves when the endpoint says the condition ended.
+      below: summary.notice == null
+          ? null
+          : KitNotice(
+              // The glyph is the pattern's own (kit_notice.dart).
+              text: summary.notice!,
+              actionLabel: 'Ask about upgrading',
+              onAction: () => context.go('/support'),
+            ),
     );
   }
 }

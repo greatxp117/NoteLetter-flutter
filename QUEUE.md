@@ -747,7 +747,7 @@ a new obligation on a finished screen is a new item.
     pair is owed for the new §14.2 line and rides F-34, which already lists it.
 
 ## F-36 · The Plan row, and a refusal the server now sends
-- status: open
+- status: done 2026-09-22
 - screen: settings
 - route: /settings
 - spec: spec/screens/settings.md §Plan row · spec/api/plans.md · spec/decisions/ADR-113-a-plan-limit-is-enforced-where-the-resource-is-created.md · spec/component-kit.md §12
@@ -773,3 +773,15 @@ a new obligation on a finished screen is a new item.
     (`failure_pattern_check` SUBSTITUTED direction) and add nothing of our own. Do NOT hide
     Listen for a free account — a hidden control cannot say why.
 
+## F-37 · The stale-pair debt — 7 screens the ritual has outrun
+- status: open
+- screen: various
+- route: various
+- spec: ../NoteLetter-contracts/spec/decisions/ADR-041-composition-is-contract.md
+- web: ../NoteLetter-web/screenshots
+- flutter: screenshots
+- folds: none — no contract version; this is the fidelity ritual catching up
+- device_test: none
+- shots: source-file-stage; onboarding; activity; library; ask-rail; ask-turn-failed; reader
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: screenshot_pair_check.py has been RED at HEAD since before F-36, with 28 STALE-PAIR findings across F-13, F-14, F-15 (activity + library), F-20, F-25 and F-26: each screen's code was committed after its pair was shot, so the frames show a screen that no longer exists. F-36 refreshed its own two (settings, reader-manuscript) and added nothing to the list. This item is the rest. A stale pair is not cosmetic debt — the pair IS the composition gate (ADR-041), and a frame older than its screen is the ritual not having run, whatever any task summary said. One shoot at a time: Xcode refuses concurrent builds and two overlapping tool/shots.sh runs both fail at the 12-minute test timeout with the real cause ('Xcode build failed due to concurrent builds') only visible if the script's output is NOT piped through tail.

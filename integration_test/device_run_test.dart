@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -1987,6 +1988,109 @@ void main() {
         await FirebaseAuth.instance.signInWithEmailAndPassword(
             email: seedEmail, password: seedPassword);
       }
+    }
+  });
+
+  // F-36 · settings.md §Plan row (4.79.0, ADR-113, INV-28). The Tier-1 suite
+  // proves the WORDS over the captured fixtures; this proves the row is on the
+  // screen, drawing what the endpoint measured, and that the §12 notice's one
+  // action goes where it says.
+  //
+  // The cap is driven by writing `config/plans` — a document no client may read
+  // or write (INV-28), so it goes in through the emulator's REST API with the
+  // `owner` bearer, the same bypass the harness and theme-shots.mjs use.
+  //
+  // `_plan_limits()` caches that document for 60s PER BACKEND INSTANCE, so a
+  // write is not visible to the next request: the poll below is that TTL, not
+  // slack. Racing it would make this test pass or fail on where in the minute
+  // it happened to start.
+  testWidgets(
+      "Settings shows the Plan row with the endpoint's figures; a free account "
+      'at a cap of 1 shows the §12 notice and its one action opens support',
+      (tester) async {
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    Future<void> writeCap(int maxDocuments) => rest.patch('/config/plans', data: {
+          'fields': {
+            'free': {
+              'mapValue': {
+                'fields': {
+                  'max_documents': {'integerValue': '$maxDocuments'},
+                  'max_ingests_per_month': {'integerValue': '40'},
+                  'audio_narration': {'booleanValue': false},
+                },
+              },
+            },
+          },
+        });
+
+    try {
+      final router = await pumpApp(tester);
+      router.go('/settings');
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // The row, with figures the endpoint measured. `\d+ of \d+ sources` is
+      // the assertion that matters: the unanswered state draws the title
+      // `Plan` and NO figures (ADR-109), so a row that never got an answer
+      // cannot satisfy this.
+      final figures = find.textContaining(RegExp(r'\d+ of \d+ sources'));
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        if (figures.evaluate().isNotEmpty) break;
+      }
+      expect(figures, findsOneWidget,
+          reason: 'the Plan row drew no measured figure — fn_plan_status did '
+              'not answer, or the row counted nothing of its own');
+      expect(find.text('Free plan'), findsOneWidget);
+      await tester.ensureVisible(figures);
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Now the cap. One source is below the seed library, so the condition is
+      // real rather than simulated.
+      await writeCap(1);
+      final notice = find.textContaining("Your library is at the free plan's");
+      // Up to ~75s: the 60s limits cache plus a margin. Each pass remounts the
+      // row by leaving the screen and coming back, which re-issues the request
+      // — the row does not poll, and nothing else would make it ask again.
+      for (var i = 0; i < 15 && notice.evaluate().isEmpty; i++) {
+        router.go('/');
+        await tester.pump(const Duration(milliseconds: 600));
+        router.go('/settings');
+        for (var j = 0; j < 18; j++) {
+          await tester.pump(const Duration(milliseconds: 250));
+          if (notice.evaluate().isNotEmpty) break;
+        }
+      }
+      expect(notice, findsOneWidget,
+          reason: 'at the cap the §12 notice is the surface that says why — '
+              'the row alone states a figure and no consequence');
+      expect(find.byType(KitNotice), findsWidgets);
+
+      // Its ONE action, and where it goes. There is no checkout, so support is
+      // the honest destination (§13) — and a notice whose action went nowhere
+      // would look identical on a screenshot.
+      final action = find.widgetWithText(KitButton, 'Ask about upgrading');
+      expect(action, findsOneWidget);
+      await tester.ensureVisible(action);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(action);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        if (router.routerDelegate.currentConfiguration.uri.path == '/support') {
+          break;
+        }
+      }
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/support');
+    } finally {
+      // Put the plan back. A left-over cap of 1 would refuse every ingest in
+      // whichever test ran next, and the emulator suite outlives this file.
+      await rest.delete('/config/plans');
     }
   });
 }

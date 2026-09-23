@@ -57,6 +57,7 @@ const Map<String, int> kEndpointDeadlineSeconds = {
   'fn_retry_document': 60,
   'fn_retry_import_job': 60,
   'fn_review_import_jobs': 60,
+  'fn_plan_status': 60,
   'fn_scan_organization': 60,
   'fn_scripture_lookup': 60,
   'fn_scripture_newsletter_settings': 60,

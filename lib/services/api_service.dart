@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'auth_service.dart';
 import 'endpoint_budgets.dart';
 import 'analytics.dart';
+import '../shared/plan_limit_signal.dart';
 
 /// Resolves the Firebase ID token for INV-01. Defaults to the signed-in user;
 /// swappable in the conformance harness so request construction is testable
@@ -322,6 +323,13 @@ class ApiService {
         errField is String && errField.isNotEmpty ? errField : null;
 
     _trackFailure(e.requestOptions.path, errorCode, status);
+
+    // A plan refusal (4.79.0, ADR-113) is the one rejection another screen
+    // draws a consequence of: the Settings Plan row refetches its measured
+    // figures on this signal rather than counting anything itself. Fired here,
+    // beside the measurement, because this is the one place every verb's
+    // failure passes through — a call site would cover the surface it knows.
+    if (errorCode == 'PLAN_LIMIT') PlanLimitSignal.fire();
 
     if (status == 401) return UnauthorizedException(serverSentence);
 

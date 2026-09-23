@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
@@ -211,10 +212,13 @@ class _ListenPanelState extends State<ListenPanel> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Center(
-              child: Text(_error!,
-                  style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText)),
-            ),
+            // §14.2 — the inline rejection at the control that asked, in the
+            // kit's widget. This composed its own TextStyle until F-36, which
+            // is inline composition by definition (ADR-041) and drew the
+            // sentence a step off the pattern; the PLAN_LIMIT refusal (4.79.0)
+            // is the case that made it visible, since that sentence is the
+            // server's and is meant to read exactly as it does everywhere else.
+            child: Center(child: KitFailureInline(_error!)),
           ),
       ]);
     }

@@ -343,6 +343,14 @@ class Api {
   Future<Map<String, dynamic>> requestNewsletter() =>
       _http.post('/fn_request_newsletter', data: const {});
 
+  // ── Plans (4.79.0, ADR-113, INV-28) ───────────────────────────────────────
+
+  /// The ONLY way a client learns a limit — `config/plans` is denied to every
+  /// client — so any figure the Settings Plan row draws came from here, never
+  /// from a count of the documents subscription (§12: measured, not
+  /// decorative). `null` in `limits` is unlimited.
+  Future<Map<String, dynamic>> getPlanStatus() => _http.get('/fn_plan_status');
+
   // ── Summaries (4.3.0, ADR-040) ────────────────────────────────────────────
 
   /// Closed key set — `summaryPrompt` only. `null` RESETS to the default (the

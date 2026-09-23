@@ -344,6 +344,27 @@ Future<void> reachState(WidgetTester tester) async {
           reason: 'no results came back — this frame would be the idle offer, '
               'and every part the pair compares is drawn only under results');
       return;
+    // settings.md §Plan row (4.79.0, ADR-113) — the Account section, which is
+    // the bottom of Settings and is never in the screen's own top frame. The
+    // reference shoots the same state for the same reason, clipped to the
+    // section (`theme-shots.mjs` `settings-plan`), so the pair compares the
+    // row rather than two pictures of a header.
+    //
+    // The assertion is what makes this a frame OF something: `fn_plan_status`
+    // has to have ANSWERED. Without it the row draws the title `Plan` and no
+    // figures (ADR-109) — correct behaviour, and a photograph of the loading
+    // state under the name of the row.
+    case 'settings-plan':
+      await settle();
+      expect(find.textContaining(RegExp(r'\d+ of \d+ sources')), findsOneWidget,
+          reason: 'the Plan row has no measured figures — fn_plan_status did '
+              'not answer, so this frame would be the unread state under the '
+              "row's name");
+      await Scrollable.ensureVisible(
+          tester.element(find.textContaining(RegExp(r'\d+ of \d+ sources'))),
+          alignment: 0.5, duration: Duration.zero);
+      await settle();
+      return;
     // sources.md §Document processing — the tray's affordances. The frame is
     // the processing section: the seed carries a failed docx (`file` — View
     // file), a queued article (`link` — Open the link) and an uploading image,

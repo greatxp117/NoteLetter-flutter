@@ -280,6 +280,11 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
         platform: b['platform'] ?? 'flutter',
       ),
   'fn_mark_support_read': (b) => Api.instance.markSupportRead(),
+  // 4.79.0 (ADR-113, INV-28). A GET, so the loop below skips it as a read —
+  // naming the builder is what takes it out of the debt list, exactly as the
+  // three cloud reads above.
+  'fn_plan_status': (_) => Api.instance.getPlanStatus(),
+  'fn_generate_audio': (b) => Api.instance.generateAudio(b['docId']),
   'fn_execute_reorganization': (b) => Api.instance
       .executeReorganization(b['plan_id'], b['operations'] as List),
 };
@@ -314,6 +319,13 @@ const _suites = [
   'api/support',
   // 4.53.0 (ADR-090) — Ask conversation history.
   'api/ask',
+  // 4.79.0 (ADR-113, INV-28) — the plan status and the refusals it explains.
+  // Added by F-36, and it had been captured since 4.79.0 with this list never
+  // naming it: the accounting below runs both ways over the cases INSIDE a
+  // suite, and could not see a suite that was never iterated. A fixture suite
+  // absent from here is the same silence the `_noBuilder` note describes, one
+  // level up.
+  'api/plans',
 ];
 
 // ── What this client does NOT drive, declared ───────────────────────────────
@@ -492,7 +504,13 @@ void main() {
               (skipped['a read or a preflight, not a builder call'] ?? 0) + 1;
           continue;
         }
-        if (id.contains('mismatch') || id.contains('missing-url')) {
+        // A 405 case pins the SERVER's method rejection: the request it
+        // describes is one no client builder can make, because the builder
+        // knows the endpoint's verb. Driving it would compare a GET builder
+        // against a POST fixture and fail for being right.
+        if (id.endsWith('-405') ||
+            id.contains('mismatch') ||
+            id.contains('missing-url')) {
           skipped['a negative fixture pinning server validation'] =
               (skipped['a negative fixture pinning server validation'] ?? 0) + 1;
           continue;
