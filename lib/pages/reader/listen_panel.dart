@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../services/error_text.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
@@ -42,6 +43,13 @@ class ListenPanel extends StatefulWidget {
   State<ListenPanel> createState() => _ListenPanelState();
 }
 
+/// One sentence for every way a recording fails to reach the ear — web's own,
+/// word for word. Before it, `setSourceUrl` ran unawaited here, so a dead or
+/// expired URL drew 0:00 under a Play button that did nothing; and a load that
+/// failed after a successful generation was reported as the GENERATION failing
+/// (TODO D, 2026-09-22).
+const _loadFailed = 'This recording could not be loaded.';
+
 class _ListenPanelState extends State<ListenPanel> {
   final AudioPlayer _player = AudioPlayer();
   String? _audioUrl;
@@ -70,23 +78,33 @@ class _ListenPanelState extends State<ListenPanel> {
     super.initState();
     _pendingSeek = widget.seekTo;
     // Podcast/video: the real episode is already available — load it directly,
-    // no "Generate audio" step.
-    final src = _sourceAudio;
+    // no "Generate audio" step. Otherwise a narration generated before is
+    // played, as web does (`sourceAudio || doc.audio_url`); asking to generate
+    // one that exists would pay for the same audio twice.
+    final src = _sourceAudio ??
+        ((widget.doc.audioUrl?.isNotEmpty ?? false) ? widget.doc.audioUrl : null);
     if (src != null) {
       _audioUrl = src;
-      _player.setSourceUrl(src);
+      _load(src);
     }
+    // The player reports a source it cannot play as an ERROR on these
+    // streams. With no `onError` that error was uncaught — a zone error on a
+    // device, and no word on the screen.
+    void failed(Object _) {
+      if (mounted) setState(() => _error = _loadFailed);
+    }
+
     _player.onPositionChanged.listen((p) {
       if (mounted) setState(() => _pos = p);
-    });
+    }, onError: failed);
     _player.onDurationChanged.listen((d) {
       if (!mounted) return;
       setState(() => _dur = d);
       _applyPendingSeek();
-    });
+    }, onError: failed);
     _player.onPlayerStateChanged.listen((s) {
       if (mounted) setState(() => _playing = s == PlayerState.playing);
-    });
+    }, onError: failed);
   }
 
   @override
@@ -112,6 +130,28 @@ class _ListenPanelState extends State<ListenPanel> {
     super.dispose();
   }
 
+  /// Awaits the player's own answer: `setSourceUrl` completes when the source
+  /// is prepared and throws when it cannot be.
+  Future<void> _load(String url) async {
+    try {
+      await _player.setSourceUrl(url);
+    } catch (_) {
+      if (mounted) setState(() => _error = _loadFailed);
+    }
+  }
+
+  Future<void> _toggle() async {
+    if (_playing) {
+      await _player.pause();
+      return;
+    }
+    try {
+      await _player.resume();
+    } catch (_) {
+      if (mounted) setState(() => _error = _loadFailed);
+    }
+  }
+
   Future<void> _generate() async {
     setState(() {
       _generating = true;
@@ -122,7 +162,8 @@ class _ListenPanelState extends State<ListenPanel> {
       final url = (res['audio_url'] ?? res['audioUrl'] ?? res['url']) as String?;
       if (url != null && url.isNotEmpty) {
         setState(() => _audioUrl = url);
-        await _player.setSourceUrl(url);
+        // Its own failure, not this call's: the narration WAS generated.
+        await _load(url);
       } else {
         // `fn_generate_audio` is synchronous: a 200 always carries `audio_url`
         // (api/audio.md). A 200 without one is a failure, not a queue — the
@@ -140,8 +181,11 @@ class _ListenPanelState extends State<ListenPanel> {
           _error = e.message;
         }
       });
-    } catch (_) {
-      setState(() => _error = 'Failed to generate audio.');
+    } catch (e) {
+      // Not an `ApiException`: a request that never reached the endpoint.
+      // "Failed to generate audio." named the narration failing when it was
+      // never asked for — web and iOS say what the SDK said (D6, §14.3).
+      setState(() => _error = describeSdkError(e));
     } finally {
       if (mounted) setState(() => _generating = false);
     }
@@ -287,6 +331,16 @@ class _ListenPanelState extends State<ListenPanel> {
               ],
             ),
           ),
+          // §14.2 under the times, as web and iOS draw it. The player branch
+          // had no failure slot at all, so a recording that would not load had
+          // nowhere to say so even once something noticed.
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: KitFailureInline(_error!)),
+            ),
           const SizedBox(height: 8),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             IconButton(
@@ -296,7 +350,7 @@ class _ListenPanelState extends State<ListenPanel> {
             ),
             const SizedBox(width: 12),
             IconButton.filled(
-              onPressed: () => _playing ? _player.pause() : _player.resume(),
+              onPressed: _toggle,
               icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
               style: IconButton.styleFrom(
                 backgroundColor: ui.primary,

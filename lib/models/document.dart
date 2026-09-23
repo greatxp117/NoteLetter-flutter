@@ -72,6 +72,12 @@ class Document {
   /// timestamps. Null for every other type and every pre-2.7.0 doc.
   final String? sourceAudioUrl;
 
+  /// The TTS narration `fn_generate_audio` wrote (`audio_url`). This model did
+  /// not read it until 2026-09-22, so a narration that already existed was
+  /// never loaded: the Listen panel offered "Generate audio" again — a paid
+  /// call, Listen being paid-only since 4.79.0 — where web and iOS play it.
+  final String? audioUrl;
+
   /// article-from-screenshot only (2.8.0, ADR-017): a durable, directly
   /// renderable URL to the captured screenshot, carried as the document's
   /// SECOND source alongside [sourceUrl]. Provenance, not content — never in
@@ -198,6 +204,7 @@ class Document {
     this.tagIds = const [],
     this.thumbnailUrl,
     this.sourceAudioUrl,
+    this.audioUrl,
     this.sourceImageUrl,
     this.author,
     this.publishDate,
@@ -245,6 +252,7 @@ class Document {
       tagIds: tagIds,
       thumbnailUrl: thumbnailUrl,
       sourceAudioUrl: sourceAudioUrl,
+      audioUrl: audioUrl,
       sourceImageUrl: sourceImageUrl,
       author: author,
       publishDate: publishDate,
@@ -293,6 +301,7 @@ class Document {
       tagIds: tagIds,
       thumbnailUrl: thumbnailUrl,
       sourceAudioUrl: sourceAudioUrl,
+      audioUrl: audioUrl,
       sourceImageUrl: sourceImageUrl,
       author: author,
       publishDate: publishDate,
@@ -333,6 +342,7 @@ class Document {
       tagIds: (json['tag_ids'] as List?)?.cast<String>() ?? [],
       thumbnailUrl: json['thumbnail_url'] as String?,
       sourceAudioUrl: json['source_audio_url'] as String?,
+      audioUrl: json['audio_url'] as String?,
       sourceImageUrl: json['source_image_url'] as String?,
       author: json['author'] as String?,
       // NOT tsMs(): publish_date is an ISO date STRING, not a Timestamp.
