@@ -498,8 +498,7 @@ class _PickerPanel extends StatelessWidget {
           else if (cloud.browseError != null)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(cloud.browseError!,
-                  style: KitText.meta(context).copyWith(color: t.criticalText)),
+              child: KitFailureInline(cloud.browseError!),
             )
           else if (listing == null || listing.items.isEmpty)
             Padding(

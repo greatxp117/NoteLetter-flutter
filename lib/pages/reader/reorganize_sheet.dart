@@ -5,6 +5,7 @@ import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
+import '../../widgets/kit/kit_failure.dart';
 
 /// Reader "Reorganize document" plan sheet (reader.md 1.2.0). Analyze → editable
 /// plan (per-section destination + split/copy) → explicit confirm for any split
@@ -154,10 +155,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                 children: [
                   ui.eyebrow('Reorganize this document'),
                   const SizedBox(height: 12),
-                  if (_error != null)
-                    Text(_error!,
-                        style:
-                            TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText)),
+                  if (_error != null) KitFailureInline(_error!),
                   if (_plan == null && _error == null)
                     ui.note('Reading the document and drafting a plan…'),
                   if (_live != null)

@@ -128,9 +128,7 @@ class _SourceFreshnessState extends State<SourceFreshness> {
                   'Update queued — this source is being re-imported from $provider. Its content will refresh when processing finishes.',
                   style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg))
               : _error != null
-                  ? Text(_error!,
-                      style:
-                          TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText))
+                  ? KitFailureInline(_error!)
                   : Text('A newer version of this file exists in $provider.',
                       style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg)),
         ),

@@ -6,8 +6,8 @@ import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
-import '../../theme/tokens.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/kit/kit_failure.dart';
 
 /// Library document-detail affordances (library.md): edit `sourcePriority` and
 /// `tagIds` via `fn_update_document`. Priority is propagated to the document's
@@ -201,9 +201,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                   ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
-                  Text(_error!,
-                      style: TextStyle(fontFamily: 'Geist', 
-                          fontSize: 13, color: Tokens.of(context).criticalText)),
+                  KitFailureInline(_error!),
                 ],
                 const SizedBox(height: 24),
                 Row(children: [
