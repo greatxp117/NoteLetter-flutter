@@ -326,9 +326,12 @@ class _ReaderPageState extends State<ReaderPage> {
   /// Decided PER CHUNK on what the html actually holds, never per document and
   /// never on the contract version: one library holds both shapes permanently.
   ///
-  /// A chunk carrying non-`<p>` blocks (a mixed carousel's figures, ADR-019
-  /// §Amendment) also stays whole — splitting it to its timed paragraphs would
-  /// drop the photo slides out of the transcript list entirely.
+  /// A chunk carrying OTHER blocks (a mixed carousel's photo figures between
+  /// `<hr>`-joined slides, ADR-019 §Amendment) stays whole — splitting it to
+  /// its timed paragraphs would drop the photo slides out of the transcript
+  /// list entirely. A keyframe `<figure>` (4.82.0, ADR-116) is the exception:
+  /// it follows its sentence and has no words of its own, so a reel with one
+  /// keeps its per-sentence lines.
   ///
   /// Until this existed the client took `firstMatch` per chunk, which is the
   /// chunk's own start under both shapes and therefore never wrong — it simply
@@ -343,8 +346,9 @@ class _ReaderPageState extends State<ReaderPage> {
           .where((el) =>
               el.localName == 'p' && el.attributes['data-start'] != null)
           .toList();
-      final allParagraphs =
-          blocks.isNotEmpty && blocks.every((el) => el.localName == 'p');
+      final allParagraphs = blocks.isNotEmpty &&
+          blocks.every(
+              (el) => el.localName == 'p' || el.localName == 'figure');
       if (timed.length > 1 && allParagraphs) {
         for (final p in timed) {
           out.add(_ListenLine(markersForSpeech(p.text),
