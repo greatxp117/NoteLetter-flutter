@@ -606,6 +606,9 @@ const _filters = <String, String>{
   'pdf': 'Books & PDFs',
   'note': 'My notes',
   'web': 'Web',
+  'youtube': 'YouTube',
+  'instagram': 'Instagram',
+  'tiktok': 'TikTok',
   'podcast': 'Audio',
   'video': 'Video',
 };

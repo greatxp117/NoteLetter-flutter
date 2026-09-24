@@ -350,10 +350,14 @@ class _PassageCard extends StatelessWidget {
                 ),
               ),
               if (p.documentId.isNotEmpty)
-                KitPassageAction(
-                  icon: Icons.visibility_outlined,
-                  label: 'Open source',
-                  onTap: () => onOpenSource(p.documentId),
+                KitSourceLink(
+                  docId: p.documentId,
+                  onOpen: () => onOpenSource(p.documentId),
+                  builder: (context, open) => KitPassageAction(
+                    icon: Icons.visibility_outlined,
+                    label: 'Open source',
+                    onTap: open,
+                  ),
                 ),
             ],
           ),

@@ -593,6 +593,13 @@ class _CitationPill extends StatelessWidget {
     return '/reader/${citation.documentId}${q.isEmpty ? '' : '?$q'}';
   }
 
+  /// [_readerRoute]'s query alone, for the §6.4.3 link's address.
+  String _readerQuery() {
+    final r = _readerRoute();
+    final i = r.indexOf('?');
+    return i < 0 ? '' : r.substring(i + 1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
@@ -659,10 +666,14 @@ class _CitationPill extends StatelessWidget {
                     Row(
                       children: [
                         if (citation.documentId != null)
-                          KitPassageAction(
-                            icon: Icons.visibility_outlined,
-                            label: 'Open',
-                            onTap: () => context.push(_readerRoute()),
+                          KitSourceLink(
+                            docId: citation.documentId!,
+                            query: _readerQuery(),
+                            builder: (context, open) => KitPassageAction(
+                              icon: Icons.visibility_outlined,
+                              label: 'Open',
+                              onTap: open,
+                            ),
                           ),
                         // The passage's own source, when there IS one (4.63.0,
                         // ADR-099). A stored file and an image set have no URL

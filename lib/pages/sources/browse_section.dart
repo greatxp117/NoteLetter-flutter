@@ -58,6 +58,9 @@ const _kinds = <String, String>{
   'pdf': 'PDFs',
   'epub': 'Books',
   'web': 'Web',
+  'youtube': 'YouTube',
+  'instagram': 'Instagram',
+  'tiktok': 'TikTok',
   'note': 'Notes',
   'unread': 'Unread',
 };
@@ -74,9 +77,14 @@ const _kindName = <String, String>{
   'pdf': 'PDFs',
   'epub': 'Books',
   'web': 'Web clips',
+  'youtube': 'YouTube',
+  'instagram': 'Instagram',
+  'tiktok': 'TikTok',
   'note': 'Notes',
 };
-const _kindOrder = ['pdf', 'epub', 'web', 'note'];
+const _kindOrder = [
+  'pdf', 'epub', 'web', 'youtube', 'instagram', 'tiktok', 'note', //
+];
 
 class _BrowseSectionState extends State<BrowseSection> {
   String _filter = 'all';
@@ -263,18 +271,21 @@ class _VolumeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KitSourceRow(
-      leading: KitFileBadge(kitDocKind(doc.type)),
-      title: doc.title.isEmpty ? 'Untitled' : doc.title,
-      subtitle: _shelfLabel(doc, shelves),
-      count: _plural(doc.chunkCount ?? 0, 'passage'),
-      date: _rowDate(doc.createdAt),
-      // Unread is view_count == 0 — "you have not opened this in the reader".
-      // Expanding this source out of a search result does not clear it
-      // (INV-03a); that writes chunk_viewed and touches no document counter.
-      unread: doc.viewCount == 0,
-      onTap: () => context.push('/reader/${doc.id}'),
-      trailing: _RowMenu(doc: doc),
+    return KitSourceLink(
+      docId: doc.id,
+      builder: (context, open) => KitSourceRow(
+        leading: KitFileBadge(kitDocKind(doc.type)),
+        title: doc.title.isEmpty ? 'Untitled' : doc.title,
+        subtitle: _shelfLabel(doc, shelves),
+        count: _plural(doc.chunkCount ?? 0, 'passage'),
+        date: _rowDate(doc.createdAt),
+        // Unread is view_count == 0 — "you have not opened this in the reader".
+        // Expanding this source out of a search result does not clear it
+        // (INV-03a); that writes chunk_viewed and touches no document counter.
+        unread: doc.viewCount == 0,
+        onTap: open,
+        trailing: _RowMenu(doc: doc),
+      ),
     );
   }
 }

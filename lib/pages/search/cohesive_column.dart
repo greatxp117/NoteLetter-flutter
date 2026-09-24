@@ -285,10 +285,14 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
                   onTap: widget.onOpenInContext,
                 ),
                 const SizedBox(width: AppSpacing.s4),
-                KitPassageAction(
-                  icon: Icons.bookmark_border,
-                  label: 'Open source',
-                  onTap: widget.onOpenSource,
+                KitSourceLink(
+                  docId: p.documentId,
+                  onOpen: widget.onOpenSource,
+                  builder: (context, open) => KitPassageAction(
+                    icon: Icons.bookmark_border,
+                    label: 'Open source',
+                    onTap: open,
+                  ),
                 ),
               ],
             ),

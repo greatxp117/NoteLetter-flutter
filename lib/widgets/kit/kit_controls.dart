@@ -292,7 +292,7 @@ enum KitBadgeSize {
 }
 
 class KitFileBadge extends StatelessWidget {
-  /// `pdf` · `epub` · `web` · `podcast` · `note` — anything else renders
+  /// `pdf` · `epub` · `web` · `youtube` · `instagram` · `tiktok` · `podcast` · `note` — anything else renders
   /// neutral. Build it from a document's `type` with [kitDocKind].
   final String kind;
   final KitBadgeSize size;
@@ -307,6 +307,11 @@ class KitFileBadge extends StatelessWidget {
     'pdf': 'PDF',
     'epub': 'EPUB',
     'web': 'WEB',
+    // Platform plates abbreviate (4.84.0): a plate is too narrow for a brand
+    // name; every surface with room spells it.
+    'youtube': 'YT',
+    'instagram': 'IG',
+    'tiktok': 'TT',
     'podcast': 'AUDIO',
     'note': 'NOTE',
   };
@@ -330,6 +335,9 @@ class KitFileBadge extends StatelessWidget {
         fg = t.positiveChipFg;
         border = t.positiveChipBorder;
       case 'web':
+      case 'youtube':
+      case 'instagram':
+      case 'tiktok':
       case 'note':
       case 'podcast':
         bg = t.surfaceSunken;
@@ -565,13 +573,20 @@ class _KitFilterChipState extends State<KitFilterChip> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: fg,
+                // Flexible (4.84.0): a chip wider than the whole chip column
+                // (a brand label at a narrow bar) ellipsises instead of
+                // painting the overflow stripe.
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: AppTheme.fontSans,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
+                    ),
                   ),
                 ),
                 if (widget.count != null) ...[
@@ -1015,14 +1030,17 @@ const Map<String, String> kKindByType = <String, String>{
   'image': 'note',
   'image_set': 'note',
 
-  // Every web-ish source shares one plate: it says where a source came from,
-  // not which service it came through.
+  // A web page shares one plate with its legacy alias.
   'article': 'web',
-  'youtube': 'web',
-  'instagram': 'web',
-  'tiktok': 'web',
   // Legacy alias of `article`, kept so pre-2.0 documents render (§6.4.1).
   'url': 'web',
+
+  // The platforms are their OWN kinds (4.84.0, ADR-118), named by brand. They
+  // were `web` until then, so a reel filed beside an essay under "Web" and the
+  // Web chip returned both. The brand IS the kind.
+  'youtube': 'youtube',
+  'instagram': 'instagram',
+  'tiktok': 'tiktok',
 
   // `audio` (4.10.0) shares the podcast kind: both are timestamped transcripts
   // with real audio behind them, and the badge already reads AUDIO.

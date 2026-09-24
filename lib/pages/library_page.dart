@@ -176,14 +176,17 @@ class _LibraryHome extends StatelessWidget {
         KitRowList(
           rows: [
             for (final d in recent)
-              KitSourceRow(
-                leading: KitFileBadge(kitDocKind(d.type)),
-                title: d.title.isEmpty ? 'Untitled' : d.title,
-                subtitle: '${_shelfLabel(d, shelves)} · '
-                    '${_plural(d.chunkCount ?? 0, 'passage')}',
-                count: '${d.chunkCount ?? 0}',
-                date: _rowDate(d.createdAt),
-                onTap: () => context.push('/reader/${d.id}'),
+              KitSourceLink(
+                docId: d.id,
+                builder: (context, open) => KitSourceRow(
+                  leading: KitFileBadge(kitDocKind(d.type)),
+                  title: d.title.isEmpty ? 'Untitled' : d.title,
+                  subtitle: '${_shelfLabel(d, shelves)} · '
+                      '${_plural(d.chunkCount ?? 0, 'passage')}',
+                  count: '${d.chunkCount ?? 0}',
+                  date: _rowDate(d.createdAt),
+                  onTap: open,
+                ),
               ),
           ],
         ),

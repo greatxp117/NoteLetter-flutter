@@ -222,13 +222,16 @@ class _ShelfPageState extends State<ShelfPage> {
                 KitRowList(
                   rows: [
                     for (final d in _ordered(vols))
-                      KitSourceRow(
-                        leading: KitFileBadge(kitDocKind(d.type)),
-                        title: d.title.isEmpty ? 'Untitled' : d.title,
-                        subtitle: plural(d.chunkCount ?? 0, 'passage', 'passages'),
-                        count: '${d.chunkCount ?? 0}',
-                        date: shortDate(d.createdAt),
-                        onTap: () => context.push('/reader/${d.id}'),
+                      KitSourceLink(
+                        docId: d.id,
+                        builder: (context, open) => KitSourceRow(
+                          leading: KitFileBadge(kitDocKind(d.type)),
+                          title: d.title.isEmpty ? 'Untitled' : d.title,
+                          subtitle: plural(d.chunkCount ?? 0, 'passage', 'passages'),
+                          count: '${d.chunkCount ?? 0}',
+                          date: shortDate(d.createdAt),
+                          onTap: open,
+                        ),
                       ),
                   ],
                 ),

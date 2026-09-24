@@ -812,3 +812,16 @@ a new obligation on a finished screen is a new item.
 - shots: reader
 - extra_gates: none
 - notes: Contract 4.83.0. Under the reader's header, a mono caps `Shelves` label and a §20 Shelf chip editor over `doc.tag_ids`: × removes, `+ Shelf` opens a menu of the shelves not on it. Each change is one `updateDocument(docId, tagIds: …)` built from the list last READ ± one id; the row is busy meanwhile, chips move only when the call resolves, and a refusal is a dense §14.2 line beside the row with the chips unchanged. `document_detail_sheet.dart` already sends `tagIds` — reuse that call, not its all-at-once save. Build §20 as a kit widget: `chunk_shelves.dart` (the per-passage chips, not yet built here) is its second consumer. Shown when status == complete and at least one shelf exists.
+
+## F-40 · Brand kinds + source links (4.84.0)
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/component-kit.md §6.4.1 §6.4.3
+- web: src/shared/FileBadge.jsx; src/pages/SourcesBrowse.jsx; src/pages/SearchView.jsx; src/pages/sources/ShelfView.jsx
+- flutter: lib/widgets/kit/kit_controls.dart; lib/widgets/kit/kit_source_link.dart (new); lib/pages/sources/browse_section.dart; lib/pages/search_page.dart; lib/pages/library_page.dart; lib/pages/tags/shelf_page.dart; lib/pages/search/result_card.dart; lib/pages/search/cohesive_column.dart; lib/pages/search/scripture_results.dart; lib/pages/chat_page.dart
+- folds: 4.84.0 (ADR-118)
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/doc_kind_check.py
+- notes: Contract 4.84.0. youtube/instagram/tiktok are their own kinds (plates YT/IG/TT; chips/groups YouTube/Instagram/TikTok after web). Every control that opens a source in the reader is a url_launcher `Link` (KitSourceLink) with the reader route, plain tap = in-app push, modifier tap = browser follows the anchor. Flutter has no shelf spine view, so the SHELF_KIND_LONG/SPINE_KIND_ICON/cloth rows have no consumer here.

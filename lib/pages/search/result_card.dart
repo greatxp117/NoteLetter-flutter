@@ -128,10 +128,14 @@ class _SearchResultCardState extends State<SearchResultCard> {
               const SizedBox(height: AppSpacing.s3),
               Row(
                 children: [
-                  KitPassageAction(
-                    icon: Icons.visibility_outlined,
-                    label: 'Open source',
-                    onTap: widget.onOpenSource,
+                  KitSourceLink(
+                    docId: r.chunk.documentId,
+                    onOpen: widget.onOpenSource,
+                    builder: (context, open) => KitPassageAction(
+                      icon: Icons.visibility_outlined,
+                      label: 'Open source',
+                      onTap: open,
+                    ),
                   ),
                   if (widget.shelfTitle != null) ...[
                     const Spacer(),
