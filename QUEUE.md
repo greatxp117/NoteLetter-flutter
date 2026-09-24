@@ -642,6 +642,7 @@ a new obligation on a finished screen is a new item.
     controller-backed behind an explicit Save, so there is no debounced optimistic
     write to revert — web's `putReadings` has no counterpart here.
 
+
 ## F-33 · The readings day view — a screen this client does not have
 - status: done 2026-09-18
 - screen: scripture-day
@@ -785,3 +786,29 @@ a new obligation on a finished screen is a new item.
 - shots: source-file-stage; onboarding; activity; library; ask-rail; ask-turn-failed; reader
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: screenshot_pair_check.py has been RED at HEAD since before F-36, with 28 STALE-PAIR findings across F-13, F-14, F-15 (activity + library), F-20, F-25 and F-26: each screen's code was committed after its pair was shot, so the frames show a screen that no longer exists. F-36 refreshed its own two (settings, reader-manuscript) and added nothing to the list. This item is the rest. A stale pair is not cosmetic debt — the pair IS the composition gate (ADR-041), and a frame older than its screen is the ritual not having run, whatever any task summary said. One shoot at a time: Xcode refuses concurrent builds and two overlapping tool/shots.sh runs both fail at the 12-minute test timeout with the real cause ('Xcode build failed due to concurrent builds') only visible if the script's output is NOT piped through tail.
+
+## F-38 · Create a shelf from the rail, and fill it from the library
+- status: open
+- screen: shelves
+- route: /shelves
+- spec: spec/screens/library.md §Creating a shelf §Backfill review; spec/component-kit.md §15 §14.1 §14.2; spec/api/tags.md §fn_suggest_shelf_backfill §fn_apply_shelf_backfill; spec/invariants.md §INV-29
+- web: src/shared/ShelfForm.jsx; src/shell/AppShell.jsx; src/pages/ShelvesView.jsx; src/api.js
+- flutter: lib/widgets/sidebar.dart; lib/pages/tags_page.dart; lib/pages/tags/shelf_page.dart; lib/services/api.dart; lib/services/endpoint_budgets.dart; lib/pages/tags/shelf_sheet.dart (new)
+- folds: 4.83.0 (ADR-117)
+- device_test: none
+- shots: shelf-create-sheet; shelf-backfill-review
+- extra_gates: python3 ../NoteLetter-contracts/harness/client_timeout_check.py --target flutter
+- notes: Contract 4.83.0. Three pieces, one form. (1) The rail's Shelves group gains a `+` ("New shelf") beside its label; `sidebar.dart` today shows only an "All shelves" item, so this is the first shelf control the rail has — do NOT also start listing every shelf there, that is a separate parity question. (2) One form for the rail sheet and `_NewShelfForm`: name, optional "What belongs here?" description (it is embedded, and it is what the backfill reads), the ten colours, and "Find sources that belong here" (checked; absent when no complete source exists). Write before you move: `createTag` resolves, THEN the sheet moves on. (3) The review: `suggestShelfBackfill` → reading (no figure — there is none until the answer) / proposal (all checked, title + reason, "File N sources") / nothing-fits sentence / §14.1 block with retry. INV-29: a failed suggest is NEVER the nothing-fits sentence. Apply holds the sheet open (barrier and back dismissal included) until `applyShelfBackfill` resolves; a refusal stays with the sentence. Also offered from `shelf_page.dart` as "Find sources for this shelf". Budgets: fn_suggest_shelf_backfill 120s, fn_apply_shelf_backfill 60s — add both to endpoint_budgets.dart or 5ak goes red.
+
+## F-39 · Reader — a Shelves row that edits the source's shelves
+- status: open
+- screen: reader
+- route: /reader/{id}
+- spec: spec/screens/reader.md §Document shelves §Composition; spec/component-kit.md §20 §14.2; spec/api/documents.md §fn_update_document
+- web: src/pages/ReaderView.jsx; src/shared/ShelfChipEditor.jsx; src/styles/app-source.css
+- flutter: lib/pages/reader_page.dart; lib/pages/library/document_detail_sheet.dart; lib/widgets/kit/kit_shelf_chips.dart (new)
+- folds: 4.83.0 (ADR-117)
+- device_test: none
+- shots: reader
+- extra_gates: none
+- notes: Contract 4.83.0. Under the reader's header, a mono caps `Shelves` label and a §20 Shelf chip editor over `doc.tag_ids`: × removes, `+ Shelf` opens a menu of the shelves not on it. Each change is one `updateDocument(docId, tagIds: …)` built from the list last READ ± one id; the row is busy meanwhile, chips move only when the call resolves, and a refusal is a dense §14.2 line beside the row with the chips unchanged. `document_detail_sheet.dart` already sends `tagIds` — reuse that call, not its all-at-once save. Build §20 as a kit widget: `chunk_shelves.dart` (the per-passage chips, not yet built here) is its second consumer. Shown when status == complete and at least one shelf exists.
