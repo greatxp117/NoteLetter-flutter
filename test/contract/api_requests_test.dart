@@ -166,6 +166,10 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   'fn_suggest_shelf_split': (b) => Api.instance.suggestShelfSplit(b['tagId']),
   'fn_split_shelf': (b) =>
       Api.instance.splitShelf(b['tagId'], _maps(b['parts'])),
+  'fn_suggest_shelf_backfill': (b) =>
+      Api.instance.suggestShelfBackfill(b['tagId']),
+  'fn_apply_shelf_backfill': (b) => Api.instance.applyShelfBackfill(
+      b['tagId'], (b['documentIds'] as List).cast<String>()),
   'fn_cancel_document': (b) => Api.instance.cancelDocument(b['docId']),
   // Batch triage of held import jobs (4.45.0, ADR-083). `job_ids` and `action`
   // are snake_case on this endpoint, unlike most of the surface — the fixture

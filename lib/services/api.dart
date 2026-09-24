@@ -323,6 +323,18 @@ class Api {
           String tagId, List<Map<String, dynamic>> parts) =>
       _http.post('/fn_split_shelf', data: {'tagId': tagId, 'parts': parts});
 
+  /// Propose the caller's complete sources that belong on a shelf (4.83.0,
+  /// ADR-117). Writes nothing; a failed model read is a 502, never an empty
+  /// `candidates`.
+  Future<Map<String, dynamic>> suggestShelfBackfill(String tagId) =>
+      _http.post('/fn_suggest_shelf_backfill', data: {'tagId': tagId});
+
+  /// File the REVIEWED ids on the shelf. Only adds, and is idempotent.
+  Future<Map<String, dynamic>> applyShelfBackfill(
+          String tagId, List<String> documentIds) =>
+      _http.post('/fn_apply_shelf_backfill',
+          data: {'tagId': tagId, 'documentIds': documentIds});
+
   Future<Map<String, dynamic>> deleteTag(String tagId) =>
       _http.post('/fn_delete_tag', data: {'tagId': tagId});
 
