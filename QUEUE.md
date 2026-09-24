@@ -838,3 +838,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/client_timeout_check.py; python3 ../NoteLetter-contracts/harness/failure_pattern_check.py; python3 ../NoteLetter-contracts/harness/confirm_check.py
 - notes: Contract 4.85.0. Delete confirmation names sources on no other shelf and offers a checked-by-default re-shelve (only with >=1 complete source AND another shelf); ids captured before fn_delete_tag; the review opens on the root navigator after go('/shelves'). Review in slices of 150; three answers kept apart (failure / nothing fits / nowhere to go); apply per shelf sequentially, filed shelves skipped on retry; KitOverlaySheet gained `holding` to stay open while filing. KitCheckRow added to the kit (F-38's form is its second consumer).
+
+## F-42 · Bare address is a link (4.86.0)
+- status: done 2026-09-24
+- screen: upload
+- route: /upload
+- spec: spec/api/ingest.md §Normalize, then detect
+- web: src/api.js
+- flutter: lib/state/upload_notifier.dart; test/contract/url_detection_test.dart
+- folds: 4.86.0 (ADR-120)
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: normalizeUrl + detectUrlType top-level; shared table fixtures/url-detection/cases.json

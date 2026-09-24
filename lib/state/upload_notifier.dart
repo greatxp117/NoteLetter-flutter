@@ -109,11 +109,13 @@ class UploadNotifier extends ChangeNotifier {
   /// vanished. Here the local INV-07 refusal did the same thing one step
   /// earlier, by returning silently.
   Future<String?> addUrl(String rawUrl) async {
-    final url = rawUrl.trim();
-    if (url.isEmpty) return null;
+    if (rawUrl.trim().isEmpty) return null;
 
-    final type = _detectUrlType(url);
-    if (type == null) {
+    // Normalize, then detect (4.86.0, ADR-120): the normalized string is what
+    // fn_ingest_url is sent, verbatim.
+    final url = normalizeUrl(rawUrl);
+    final type = url == null ? null : detectUrlType(url);
+    if (url == null || type == null) {
       return 'That doesn’t look like a link NoteLetter can read. Paste a full '
           'web address, or a YouTube, Instagram, TikTok or podcast link.';
     }
@@ -134,19 +136,6 @@ class UploadNotifier extends ChangeNotifier {
     // still looking at can say so and keep what they typed.
     final row = _files.firstWhere((f) => f.id == file.id, orElse: () => file);
     return row.status == UploadStatus.error ? row.errorMessage : null;
-  }
-
-  /// Canonical client-side detection table (INV-07) — mirrors web `detectUrlType()`.
-  String? _detectUrlType(String rawUrl) {
-    final uri = Uri.tryParse(rawUrl);
-    if (uri == null || uri.host.isEmpty) return null;
-    final host = uri.host.replaceFirst(RegExp(r'^www\.'), '');
-    if (host == 'youtube.com' || host == 'youtu.be') return 'youtube';
-    if (host == 'instagram.com') return 'instagram';
-    if (host == 'tiktok.com' || host == 'vm.tiktok.com') return 'tiktok';
-    if (host == 'podcasts.apple.com') return 'podcast';
-    if (host == 'open.spotify.com' && uri.path.startsWith('/episode/')) return 'podcast';
-    return 'article';
   }
 
   void removeFile(String id) {
@@ -254,4 +243,45 @@ class UploadNotifier extends ChangeNotifier {
     if (url.length <= 60) return url;
     return '${url.substring(0, 57)}...';
   }
+}
+
+// Normalize, then detect (INV-07, 4.86.0, ADR-120 — api/ingest.md). Mirrors web
+// `normalizeUrl()`: an address bar shows `www.instagram.com/reel/…` with no
+// scheme; a leading dotted host gets `https://`. Returns the string
+// fn_ingest_url is sent (verbatim, never the parser's re-serialisation), or
+// null to reject locally. Only http(s); the host must contain a dot.
+final RegExp _bareHost =
+    RegExp(r'^[^\s/?#:]+\.[^\s/?#:]+(?::\d+)?(?:[/?#]\S*)?$');
+final RegExp _scheme = RegExp(r'^[a-z][a-z0-9+.-]*:', caseSensitive: false);
+
+String? normalizeUrl(String? input) {
+  final t = (input ?? '').trim();
+  if (t.isEmpty || RegExp(r'\s').hasMatch(t)) return null;
+  final hasScheme = _scheme.hasMatch(t) && !_bareHost.hasMatch(t);
+  final candidate = hasScheme ? t : (_bareHost.hasMatch(t) ? 'https://$t' : null);
+  if (candidate == null) return null;
+  final uri = Uri.tryParse(candidate);
+  if (uri == null) return null;
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme != 'http' && scheme != 'https') return null;
+  if (!uri.host.contains('.')) return null;
+  // Lower-case scheme and host only; path/query/fragment byte for byte.
+  return candidate.replaceFirstMapped(
+      RegExp(r'^([a-z][a-z0-9+.-]*://)([^/?#]*)', caseSensitive: false),
+      (m) => '${m[1]!.toLowerCase()}${m[2]!.toLowerCase()}');
+}
+
+/// Canonical client-side detection table (INV-07) — mirrors web `detectUrlType()`.
+String? detectUrlType(String? input) {
+  final url = normalizeUrl(input);
+  if (url == null) return null;
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.host.isEmpty) return null;
+  final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
+  if (host == 'youtube.com' || host == 'youtu.be') return 'youtube';
+  if (host == 'instagram.com') return 'instagram';
+  if (host == 'tiktok.com' || host == 'vm.tiktok.com') return 'tiktok';
+  if (host == 'podcasts.apple.com') return 'podcast';
+  if (host == 'open.spotify.com' && uri.path.startsWith('/episode/')) return 'podcast';
+  return 'article';
 }
