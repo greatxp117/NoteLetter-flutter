@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
@@ -56,6 +57,12 @@ class KitOverlaySheet extends StatelessWidget {
   final double width;
   final double heightFactor;
 
+  /// True while a write the sheet started is in flight. The sheet then cannot
+  /// be dismissed — not by the scrim, Esc, the back gesture or its own close —
+  /// so a filing cannot be closed into looking like it never ran (§15, the
+  /// reference's `busy` hold).
+  final ValueListenable<bool>? holding;
+
   const KitOverlaySheet({
     super.key,
     required this.icon,
@@ -64,6 +71,7 @@ class KitOverlaySheet extends StatelessWidget {
     this.subtitle,
     this.width = 860,
     this.heightFactor = 0.88,
+    this.holding,
   });
 
   static Future<void> show(
@@ -74,6 +82,7 @@ class KitOverlaySheet extends StatelessWidget {
     required WidgetBuilder builder,
     double width = 860,
     double heightFactor = 0.88,
+    ValueListenable<bool>? holding,
   }) =>
       showDialog<void>(
         context: context,
@@ -84,12 +93,23 @@ class KitOverlaySheet extends StatelessWidget {
           subtitle: subtitle,
           width: width,
           heightFactor: heightFactor,
+          holding: holding,
           child: Builder(builder: builder),
         ),
       );
 
   @override
   Widget build(BuildContext context) {
+    final hold = holding;
+    if (hold == null) return _sheet(context, false);
+    return ValueListenableBuilder<bool>(
+      valueListenable: hold,
+      builder: (context, held, _) =>
+          PopScope(canPop: !held, child: _sheet(context, held)),
+    );
+  }
+
+  Widget _sheet(BuildContext context, bool held) {
     final t = Tokens.of(context);
     final size = MediaQuery.sizeOf(context);
 
@@ -149,7 +169,8 @@ class KitOverlaySheet extends StatelessWidget {
                     KitIconButton(
                       Icons.close,
                       tooltip: 'Close',
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed:
+                          held ? null : () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),

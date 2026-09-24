@@ -825,3 +825,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/doc_kind_check.py
 - notes: Contract 4.84.0. youtube/instagram/tiktok are their own kinds (plates YT/IG/TT; chips/groups YouTube/Instagram/TikTok after web). Every control that opens a source in the reader is a url_launcher `Link` (KitSourceLink) with the reader route, plain tap = in-app push, modifier tap = browser follows the anchor. Flutter has no shelf spine view, so the SHELF_KIND_LONG/SPINE_KIND_ICON/cloth rows have no consumer here.
+
+## F-41 · Delete a shelf, then re-shelve its sources (4.85.0)
+- status: done 2026-09-24
+- screen: shelves
+- route: /shelves/{id}
+- spec: spec/screens/library.md §Deleting a shelf §Re-shelve review; spec/api/tags.md §fn_suggest_reshelve; spec/component-kit.md §15 §18 §14.1 §14.2; spec/invariants.md §INV-29
+- web: src/pages/ShelvesView.jsx; src/shared/ShelfForm.jsx; src/api.js
+- flutter: lib/pages/tags/shelf_page.dart; lib/pages/tags/reshelve_sheet.dart; lib/services/api.dart; lib/services/endpoint_budgets.dart; lib/widgets/kit/kit_overlay.dart; lib/widgets/kit/kit_controls.dart; test/contract/api_requests_test.dart; test/kit/reshelve_review_test.dart
+- folds: 4.85.0 (ADR-119)
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/client_timeout_check.py; python3 ../NoteLetter-contracts/harness/failure_pattern_check.py; python3 ../NoteLetter-contracts/harness/confirm_check.py
+- notes: Contract 4.85.0. Delete confirmation names sources on no other shelf and offers a checked-by-default re-shelve (only with >=1 complete source AND another shelf); ids captured before fn_delete_tag; the review opens on the root navigator after go('/shelves'). Review in slices of 150; three answers kept apart (failure / nothing fits / nowhere to go); apply per shelf sequentially, filed shelves skipped on retry; KitOverlaySheet gained `holding` to stay open while filing. KitCheckRow added to the kit (F-38's form is its second consumer).

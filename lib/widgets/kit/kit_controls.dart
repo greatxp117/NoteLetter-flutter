@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart'
     show
+        Checkbox,
         DropdownButton,
         DropdownButtonHideUnderline,
         DropdownMenuItem,
@@ -1169,6 +1170,59 @@ class KitSelect<T> extends StatelessWidget {
                         if (v != null) onChanged!(v);
                       },
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The reference's `.sf-check`: a checkbox, a title in the body role and a
+/// sub line in the description role. The whole row toggles. Used where a form
+/// offers a follow-on step (a shelf's backfill, a delete's re-shelve).
+class KitCheckRow extends StatelessWidget {
+  final bool value;
+  final String title;
+  final String? subtitle;
+  final ValueChanged<bool>? onChanged;
+
+  const KitCheckRow({
+    super.key,
+    required this.value,
+    required this.title,
+    this.subtitle,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final change = onChanged;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: change == null ? null : () => change(!value),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: Checkbox(
+              value: value,
+              onChanged: change == null ? null : (v) => change(v ?? false),
+              activeColor: t.accent,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: KitText.body(context)),
+                if (subtitle != null)
+                  Text(subtitle!, style: KitText.meta(context)),
+              ],
             ),
           ),
         ],

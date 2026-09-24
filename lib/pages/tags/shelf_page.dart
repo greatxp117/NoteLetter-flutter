@@ -7,6 +7,7 @@ import '../../models/tag.dart';
 import '../../state/documents_notifier.dart';
 import '../../state/tags_notifier.dart';
 import '../../widgets/kit/kit.dart';
+import 'reshelve_sheet.dart';
 import 'shelf_parts.dart';
 import 'split_shelf_sheet.dart';
 
@@ -107,20 +108,62 @@ class _ShelfPageState extends State<ShelfPage> {
   // answers in the panel and the panel stays open. It used to close first and
   // put the sentence in the colour picker's error slot, three controls away
   // from the button that was pressed.
-  Future<void> _delete(Tag shelf, int volumes) async {
+  //
+  // 4.85.0 (ADR-119): the confirmation names the sources left on no shelf and
+  // offers to re-shelve them. The ids are captured BEFORE the delete — after
+  // it no query can find what the shelf held — and the review sheet opens on
+  // the root navigator, because this page has nothing to render once its
+  // shelf is gone.
+  Future<void> _delete(Tag shelf, List<Document> vols, List<Tag> all) async {
     final tags = context.read<TagsNotifier>();
+    final nav = Navigator.of(context, rootNavigator: true);
+    final others = [
+      for (final s in all)
+        if (s.id != shelf.id) ReshelveItem(s.id, s.title),
+    ];
+    final canReshelve = vols.isNotEmpty && others.isNotEmpty;
+    final orphans =
+        vols.where((d) => d.tagIds.every((t) => t == shelf.id)).length;
+    final sources = [for (final d in vols) ReshelveItem(d.id, d.title)];
+    final title = shelf.title;
+    var reshelveOn = true;
+    final body = 'The shelf and its settings are removed. Its '
+        '${plural(vols.length, 'volume stays', 'volumes stay')} in your '
+        'library — they just come off this shelf.'
+        '${orphans > 0 ? ' $orphans of them ${orphans == 1 ? 'is' : 'are'} on no other shelf.' : ''}';
     final done = await KitConfirm.show(
       context,
-      title: 'Delete the “${shelf.title}” shelf?',
-      body: 'The shelf and its settings are removed. Its '
-          '${plural(volumes, 'volume stays', 'volumes stay')} in your library '
-          '— they just come off this shelf.',
+      title: 'Delete the “$title” shelf?',
+      bodyWidget: StatefulBuilder(
+        builder: (ctx, setLocal) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(body, style: KitText.meta(ctx)),
+            if (canReshelve) ...[
+              const SizedBox(height: 12),
+              KitCheckRow(
+                value: reshelveOn,
+                title: 'Suggest new shelves for its sources',
+                subtitle: 'After the delete, NoteLetter suggests one of your '
+                    'other shelves for each. Nothing is filed until you '
+                    'choose.',
+                onChanged: (v) => setLocal(() => reshelveOn = v),
+              ),
+            ],
+          ],
+        ),
+      ),
       confirmLabel: 'Delete shelf',
       cancelLabel: 'Keep it',
       onConfirm: () => tags.deleteTag(shelf.id),
     );
     if (done != true || !mounted) return;
     context.go('/shelves');
+    if (canReshelve && reshelveOn && nav.mounted) {
+      showReshelveSheet(nav.context,
+          title: title, sources: sources, shelves: others);
+    }
   }
 
   @override
@@ -190,7 +233,7 @@ class _ShelfPageState extends State<ShelfPage> {
               ]),
               if (_settings) ...[
                 const SizedBox(height: 22),
-                _settingsPanel(shelf, vols.length),
+                _settingsPanel(shelf, vols, tags.tags),
               ],
               const SizedBox(height: 12),
               SectionHeader('Volumes · ${vols.length}'),
@@ -256,7 +299,8 @@ class _ShelfPageState extends State<ShelfPage> {
         ),
       );
 
-  Widget _settingsPanel(Tag shelf, int volumes) {
+  Widget _settingsPanel(Tag shelf, List<Document> vols, List<Tag> all) {
+    final volumes = vols.length;
     return KitPanel(
       children: [
         KitPanelRow(
@@ -337,7 +381,7 @@ class _ShelfPageState extends State<ShelfPage> {
             child: KitButton.danger(
               'Delete shelf',
               icon: Icons.delete_outline,
-              onPressed: () => _delete(shelf, volumes),
+              onPressed: () => _delete(shelf, vols, all),
             ),
           ),
         ),

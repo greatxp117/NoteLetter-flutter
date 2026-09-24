@@ -335,6 +335,14 @@ class Api {
       _http.post('/fn_apply_shelf_backfill',
           data: {'tagId': tagId, 'documentIds': documentIds});
 
+  /// Propose a remaining shelf for each source a deleted shelf held (4.85.0,
+  /// ADR-119, INV-29). Stateless → `{scanned, shelves, proposals}`. A throw is
+  /// a failure, `proposals: []` with `shelves > 0` is "nothing fits", and
+  /// `shelves: 0` is "nowhere to go" — three answers, never merged. Filing is
+  /// [applyShelfBackfill], once per destination shelf.
+  Future<Map<String, dynamic>> suggestReshelve(List<String> documentIds) =>
+      _http.post('/fn_suggest_reshelve', data: {'documentIds': documentIds});
+
   Future<Map<String, dynamic>> deleteTag(String tagId) =>
       _http.post('/fn_delete_tag', data: {'tagId': tagId});
 

@@ -73,6 +73,7 @@ const Map<String, int> kEndpointDeadlineSeconds = {
   'fn_suggest_shelf_split': 120,
   'fn_suggest_shelf_backfill': 120,
   'fn_apply_shelf_backfill': 60,
+  'fn_suggest_reshelve': 120,
   'fn_suggest_syllabus_plan': 120,
   'fn_suggest_tags': 60,
   'fn_summary_settings': 60,
