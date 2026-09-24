@@ -62,6 +62,10 @@ const _kinds = <String, String>{
   'instagram': 'Instagram',
   'tiktok': 'TikTok',
   'note': 'Notes',
+  // §6.4.1 rule 2: every live kind has a chip. Audio and Video were missing
+  // here, so a recording could be sorted to but never filtered to (4.84.1).
+  'podcast': 'Audio',
+  'video': 'Video',
   'unread': 'Unread',
 };
 
@@ -81,9 +85,12 @@ const _kindName = <String, String>{
   'instagram': 'Instagram',
   'tiktok': 'TikTok',
   'note': 'Notes',
+  'podcast': 'Audio',
+  'video': 'Video',
 };
 const _kindOrder = [
   'pdf', 'epub', 'web', 'youtube', 'instagram', 'tiktok', 'note', //
+  'podcast', 'video',
 ];
 
 class _BrowseSectionState extends State<BrowseSection> {

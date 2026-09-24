@@ -820,7 +820,7 @@ a new obligation on a finished screen is a new item.
 - spec: spec/component-kit.md §6.4.1 §6.4.3
 - web: src/shared/FileBadge.jsx; src/pages/SourcesBrowse.jsx; src/pages/SearchView.jsx; src/pages/sources/ShelfView.jsx
 - flutter: lib/widgets/kit/kit_controls.dart; lib/widgets/kit/kit_source_link.dart (new); lib/pages/sources/browse_section.dart; lib/pages/search_page.dart; lib/pages/library_page.dart; lib/pages/tags/shelf_page.dart; lib/pages/search/result_card.dart; lib/pages/search/cohesive_column.dart; lib/pages/search/scripture_results.dart; lib/pages/chat_page.dart
-- folds: 4.84.0 (ADR-118)
+- folds: 4.84.0 (ADR-118); 4.84.1 (Audio + Video chips on Sources)
 - device_test: none
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/doc_kind_check.py
