@@ -277,23 +277,27 @@ class _LatestLetter extends StatelessWidget {
           ],
           const SizedBox(height: AppSpacing.s3),
           if (n?.generatedAt != null) ...[
-            Text('Last sent · ${longDate(n!.generatedAt)}',
-                style: KitText.capsLabel(context)),
+            // `.nl-status`: mono 10 caps at 0.1em in `--accent-text`.
+            Text('Last sent · ${longDate(n!.generatedAt)}'.toUpperCase(),
+                style: KitText.capsLabel(context,
+                    fontSize: 10,
+                    letterSpacing: 0.1,
+                    color: Tokens.of(context).accentText)),
             const SizedBox(height: AppSpacing.s2),
           ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          // `.nl-masthead` is flex-wrap (gap 12): on a phone the subject drops
+          // under the title whole rather than ellipsising beside it.
+          Wrap(
+            spacing: AppSpacing.s3,
+            runSpacing: AppSpacing.s1,
+            crossAxisAlignment: WrapCrossAlignment.end,
             children: [
-              const Flexible(child: KitVersal('A Letter', fontSize: 25)),
-              if (n?.subject != null && n!.subject!.isNotEmpty) ...[
-                const SizedBox(width: AppSpacing.s3),
-                Flexible(
-                  child: Text(n.subject!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: KitText.capsLabel(context, letterSpacing: 0.04)),
-                ),
-              ],
+              const KitVersal('A Letter', fontSize: 25),
+              if (n?.subject != null && n!.subject!.isNotEmpty)
+                Text(n.subject!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: KitText.capsLabel(context, letterSpacing: 0)),
             ],
           ),
           const SizedBox(height: AppSpacing.s2),
@@ -401,7 +405,7 @@ class _ScheduleRow extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: KitText.capsLabel(context,
-                color: t.accentText, letterSpacing: 0.1),
+                color: t.accentText, fontSize: 10, letterSpacing: 0.1),
           ),
         ),
         if (cfg != null) ...[

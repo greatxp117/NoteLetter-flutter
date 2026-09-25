@@ -1072,3 +1072,16 @@ a new obligation on a finished screen is a new item.
 - shots: library; sources
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: app-responsive.css at max-width 680px: `.src-row .count { display: none; }` — the subtitle already says `N passages`, so the figure is dropped. KitSourceRow instead moves the count under the subtitle below 768 (a recorded CLAUDE.md §Composition deviation), which on the Library frame reads `Stories · 1 passage` over a lone `1`. Either retire the deviation (hide the count below the breakpoint, as the reference does) or re-argue it; the deviation list is word-capped, so a change there is a swap.
+
+## F-60 · Readings day — a passage card is the reference's `.sc-p`: a small badge, a sans title, a mono score
+- status: open
+- screen: scripture-day
+- route: /letters
+- spec: spec/screens/letters.md; spec/component-kit.md §4
+- web: src/pages/letters/ScriptureDay.jsx; src/styles/app-scripture.css
+- flutter: lib/pages/letters/scripture_day_page.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: scripture-day
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: The 2026-09-25 frame beside scripture-day.web.phone.png. `.sc-p` is --surface with --shadow-1 and NO border, padding 14/16; its head `.sc-p-h` is a content-sized FileBadge (mono 9, no fixed box), the title in SANS 13/600 and the score mono 10.5 --fg-subtle pushed right; the text serif 15/25 in --fg-lede. This client's _DayPassage draws a bordered card at 24/22, a 36x44 row badge, the title in serif h4 and body at reading size — so each passage reads as a source row rather than a quoted passage. Needs a badge size the kit does not have (a content-sized chip), which is a kit_controls change and re-stales its pairs; do it at the head of a re-shoot pass. The web frame's eyebrow is --fg-subtle where this client's is accent — check which is current before changing it.

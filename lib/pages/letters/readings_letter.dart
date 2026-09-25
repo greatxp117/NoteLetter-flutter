@@ -268,25 +268,26 @@ class _OnCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: KitText.capsLabel(context,
-                      color: t.accentText, letterSpacing: 0.1),
+                      color: t.accentText, fontSize: 10, letterSpacing: 0.1),
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.s3),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          // `.nl-masthead` is flex-wrap and `.nl-title` nowrap: on a phone the
+          // date drops under the title whole — the title is never cut
+          // ("THE READIN…" beside a cut date was the 2026-09-25 frame).
+          Wrap(
+            spacing: AppSpacing.s3,
+            runSpacing: AppSpacing.s1,
+            crossAxisAlignment: WrapCrossAlignment.end,
             children: [
-              const Flexible(child: KitVersal('The Readings', fontSize: 25)),
-              if (n?.generatedAt != null) ...[
-                const SizedBox(width: AppSpacing.s3),
-                Flexible(
-                  child: Text(longDate(n!.generatedAt),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: KitText.capsLabel(context, letterSpacing: 0.04)),
-                ),
-              ],
+              const KitVersal('The Readings', fontSize: 25),
+              if (n?.generatedAt != null)
+                Text(longDate(n!.generatedAt),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: KitText.capsLabel(context, letterSpacing: 0.04)),
             ],
           ),
           const SizedBox(height: AppSpacing.s2),

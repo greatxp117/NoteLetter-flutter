@@ -159,7 +159,18 @@ class _KitLetterPaperState extends State<KitLetterPaper> {
   /// pixels and the page is now measuring itself in its own.
   static const _measureJs = '''(function(){
   var dw = window.__nlDeviceWidth || (window.__nlDeviceWidth = window.innerWidth);
-  var need = Math.max(document.documentElement.scrollWidth, dw);
+  // scrollWidth drops the RIGHT padding of content that overflows, so a
+  // sheet with an outer margin was fitted with its left margin kept and its
+  // right one lost — the paper hung against the screen's right edge. Mirror
+  // the left margin onto the right: the page's width is the element reaching
+  // furthest right, plus that SAME element's left inset (the wrapper that
+  // holds it starts at 0, so a global minimum would mirror nothing).
+  var right = 0, inset = 0;
+  document.querySelectorAll('body *').forEach(function(e){
+    var r = e.getBoundingClientRect();
+    if (r.width > 0 && r.right > right) { right = r.right; inset = Math.max(0, r.left); }
+  });
+  var need = Math.max(document.documentElement.scrollWidth, Math.ceil(right + inset), dw);
   if (need > dw) {
     document.querySelector('meta[name=viewport]')
       .setAttribute('content', 'width=' + need);
