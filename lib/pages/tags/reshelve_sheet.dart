@@ -225,6 +225,7 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
           const TextSpan(text: 'Finding new shelves for '),
           TextSpan(
               text: '$n',
+              // kit-ok: span emphasis inside a kit role, not a type of its own
               style: const TextStyle(fontStyle: FontStyle.italic)),
           TextSpan(text: n == 1 ? ' source…' : ' sources…'),
         ]),

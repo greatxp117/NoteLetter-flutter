@@ -66,12 +66,7 @@ class ScriptureResults extends StatelessWidget {
                 child: Text(
                   'Verse text is $edition — your own notes and books are '
                   'what’s matched against it.',
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 12,
-                    height: 18 / 12,
-                    color: t.fgSubtle,
-                  ),
+                  style: KitText.small(context, color: t.fgSubtle, height: 18),
                 ),
               ),
             ],
@@ -108,12 +103,7 @@ class ScriptureResults extends StatelessWidget {
                 ? 'Nothing on your shelves answers this passage yet, or the '
                       'places it’s told again.'
                 : 'Nothing on your shelves answers this passage yet.',
-            style: TextStyle(
-              fontFamily: AppTheme.fontSans,
-              fontSize: 13,
-              height: 20 / 13,
-              color: t.fgSubtle,
-            ),
+            style: KitText.ui(context, color: t.fgSubtle, height: 20),
           ),
         ],
       ],
@@ -163,11 +153,7 @@ class _Head extends StatelessWidget {
                   '$n ${n == 1 ? 'verse' : 'verses'} · ${data.found} '
                   '${data.found == 1 ? 'passage' : 'passages'} in your library'
                   '${data.perVerse ? '' : ' · matched across the whole passage'}',
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 13,
-                    color: t.fgMuted,
-                  ),
+                  style: KitText.ui(context, color: t.fgMuted),
                 ),
               ],
             ),
@@ -233,10 +219,12 @@ class _Parallels extends StatelessWidget {
                   if (p.label != null)
                     TextSpan(
                       text: ' · ${p.label}',
+                      // kit-ok: span emphasis inside a kit role, not a type of its own
                       style: const TextStyle(fontStyle: FontStyle.italic),
                     ),
                 ],
               ),
+              // kit-ok: F-43 — chip label at sans 12.5; no kit role names it
               style: TextStyle(
                 fontFamily: AppTheme.fontSans,
                 fontSize: 12.5,
@@ -341,12 +329,7 @@ class _PassageCard extends StatelessWidget {
                   p.title ?? 'Untitled',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: t.fg,
-                  ),
+                  style: KitText.ui(context, color: t.fg, weight: FontWeight.w600),
                 ),
               ),
               if (p.documentId.isNotEmpty)
@@ -369,6 +352,7 @@ class _PassageCard extends StatelessWidget {
                   const TextSpan(text: 'matched '),
                   TextSpan(
                     text: p.matchedReference!,
+                    // kit-ok: span emphasis inside a kit role, not a type of its own
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: t.fgMuted,

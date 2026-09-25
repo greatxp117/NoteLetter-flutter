@@ -291,6 +291,7 @@ class _ListenPanelState extends State<ListenPanel> {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('NOW READING',
+                    // kit-ok: F-43 — web `.player-eyebrow` is MONO caps 10/0.14em
                     style: TextStyle(fontFamily: 'Geist', 
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
@@ -325,9 +326,9 @@ class _ListenPanelState extends State<ListenPanel> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(_fmt(_pos),
-                    style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
+                    style: KitText.small(context, color: ui.muted)),
                 Text('-${_fmt(_dur - _pos)}',
-                    style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
+                    style: KitText.small(context, color: ui.muted)),
               ],
             ),
           ),

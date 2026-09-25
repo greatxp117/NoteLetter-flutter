@@ -533,8 +533,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       // Toolbar.
       Row(children: [
         Text('${visible.length} passages · $totalWords words',
-            style: TextStyle(fontFamily: 'Geist',
-                fontSize: 11, fontWeight: FontWeight.w600, color: ui.muted)),
+            style: KitText.fine(context, color: ui.muted, weight: FontWeight.w600)),
         const Spacer(),
         _editing
             ? FilledButton.icon(
@@ -584,7 +583,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                   style: AppTheme.mono(fontSize: 11, color: ui.muted)),
               const SizedBox(width: 10),
               Text('~${_wordCount(c.text)} words',
-                  style: TextStyle(fontFamily: 'Geist', fontSize: 11, color: ui.muted)),
+                  style: KitText.fine(context, color: ui.muted)),
               if (c.userEdited) ...[
                 const SizedBox(width: 8),
                 Container(
@@ -595,6 +594,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                     borderRadius: BorderRadius.circular(AppRadius.control(20)),
                   ),
                   child: Text('edited',
+                      // kit-ok: F-43 — web draws this as `.ms-editbadge`; recompose, not respell
                       style: TextStyle(fontFamily: 'Geist', fontSize: 10, color: ui.muted)),
                 ),
               ],
@@ -660,7 +660,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text('Contains an image or table — remove only.',
-                    style: TextStyle(fontFamily: 'Geist', fontSize: 11, color: ui.muted)),
+                    style: KitText.fine(context, color: ui.muted)),
               ),
             if (_editing && !c.atomic)
               Align(
@@ -754,10 +754,9 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           child: Row(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Text edited',
-                  style: TextStyle(fontFamily: 'Geist', 
-                      fontSize: 13, fontWeight: FontWeight.w600, color: ui.fg)),
+                  style: KitText.ui(context, color: ui.fg, weight: FontWeight.w600)),
               Text('saving re-embeds changed passages',
-                  style: TextStyle(fontFamily: 'Geist', fontSize: 11, color: ui.muted)),
+                  style: KitText.fine(context, color: ui.muted)),
             ]),
             const Spacer(),
             TextButton.icon(

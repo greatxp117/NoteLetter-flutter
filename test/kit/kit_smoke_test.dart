@@ -89,6 +89,9 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
+      // Unmount first: re-pumping MaterialApp with the other theme cross-fades
+      // to it, so the light pass ran 50ms into a dark→light lerp (F-17).
+      await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpWidget(
         MaterialApp(
           theme: brightness == Brightness.dark ? AppTheme.dark : AppTheme.light,

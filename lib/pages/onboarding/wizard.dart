@@ -593,6 +593,7 @@ class _StepRow extends StatelessWidget {
                     children: [
                       Text(
                         s.label,
+                        // kit-ok: F-43 — web `.ob-step-label`; no kit role names it
                         style: TextStyle(
                           fontFamily: AppTheme.fontSans,
                           fontSize: 14,

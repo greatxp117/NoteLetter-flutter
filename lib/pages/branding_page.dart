@@ -346,6 +346,7 @@ class _TypographyCard extends StatelessWidget {
               style: (isSerif
                   ? AppTheme.serif(
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)
+                  // kit-ok: a type specimen draws the raw face on purpose
                   : TextStyle(fontFamily: 'Geist', 
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
             ),
@@ -371,6 +372,7 @@ class _TypographyCard extends StatelessWidget {
                             fontWeight: s.$2,
                             fontStyle: s.$3,
                             color: theme.colorScheme.onSurface)
+                        // kit-ok: a type specimen draws the raw face on purpose
                         : TextStyle(fontFamily: 'Geist', 
                             fontSize: 14,
                             fontWeight: s.$2,

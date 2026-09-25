@@ -66,6 +66,7 @@ class LandingPage extends StatelessWidget {
                           onPressed: () => _showAuthDialog(context, isSignUp: false),
                           child: Text(
                             'Log In',
+                            // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                             style: TextStyle(color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
                           ),
                         ),
@@ -95,6 +96,7 @@ class LandingPage extends StatelessWidget {
                       ),
                       child: Text(
                         'AI-Powered Knowledge Management',
+                        // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                         style: TextStyle(
                           color: primary,
                           fontSize: 13,
@@ -117,6 +119,7 @@ class LandingPage extends StatelessWidget {
                     Text(
                       'Upload documents, connect cloud storage, and let AI transform your research into personalized newsletters delivered straight to your inbox.',
                       textAlign: TextAlign.center,
+                      // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                       style: TextStyle(
                         fontSize: 18,
                         color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
@@ -134,6 +137,7 @@ class LandingPage extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
                           ),
                           icon: const Icon(Icons.rocket_launch_outlined, size: 18),
+                          // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                           label: const Text('Start for Free', style: TextStyle(fontSize: 16)),
                         ),
                         const SizedBox(width: 16),
@@ -143,6 +147,7 @@ class LandingPage extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
                           ),
                           icon: const Icon(Icons.login, size: 18),
+                          // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                           label: const Text('Log In', style: TextStyle(fontSize: 16)),
                         ),
                       ],
@@ -207,6 +212,7 @@ class LandingPage extends StatelessWidget {
                 child: Text(
                   '© 2025 NoteLetter. All rights reserved.',
                   textAlign: TextAlign.center,
+                  // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                   style: TextStyle(
                     color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
                     fontSize: 13,
@@ -278,6 +284,7 @@ class _FeatureCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             description,
+            // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
             style: TextStyle(
               fontSize: 14,
               color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
@@ -351,6 +358,7 @@ class _AuthDialogState extends State<_AuthDialog> {
                 _isSignUp
                     ? 'Start building your knowledge base today.'
                     : 'Sign in to access your knowledge base.',
+                // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                 style: TextStyle(
                   color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
                   fontSize: 14,
@@ -421,6 +429,7 @@ class _AuthDialogState extends State<_AuthDialog> {
                 children: [
                   Text(
                     _isSignUp ? 'Already have an account?' : "Don't have an account?",
+                    // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                     style: TextStyle(
                       color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
                       fontSize: 14,
@@ -430,6 +439,7 @@ class _AuthDialogState extends State<_AuthDialog> {
                     onPressed: () => setState(() => _isSignUp = !_isSignUp),
                     child: Text(
                       _isSignUp ? 'Log In' : 'Sign Up',
+                      // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
                       style: TextStyle(color: primary, fontWeight: FontWeight.w600),
                     ),
                   ),

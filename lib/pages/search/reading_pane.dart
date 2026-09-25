@@ -102,11 +102,7 @@ class SearchReadingPane extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     'similarity ${r.score.clamp(0.0, 1.0).toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontFamily: AppTheme.fontSans,
-                      fontSize: 12,
-                      color: t.fgMuted,
-                    ),
+                    style: KitText.small(buildContext, color: t.fgMuted),
                   ),
                 ],
               ),

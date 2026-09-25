@@ -121,10 +121,10 @@ class _HistoryPanelState extends State<HistoryPanel> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(label != null ? '$base ($label)' : base,
-                    style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg)),
+                    style: KitText.ui(context, color: ui.fg)),
               ),
               Text(_fmtWhen(e['created_at'] as int?),
-                  style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
+                  style: KitText.small(context, color: ui.muted)),
             ],
           ),
         );

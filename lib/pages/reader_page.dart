@@ -716,11 +716,7 @@ class _ReaderPageState extends State<ReaderPage> {
       padding: const EdgeInsets.only(top: 10),
       child: Text(
         parts.join('  ·  '),
-        style: TextStyle(
-          fontFamily: AppTheme.fontSans,
-          fontSize: 13,
-          color: t.fgMuted,
-        ),
+        style: KitText.ui(context, color: t.fgMuted),
       ),
     );
 
@@ -910,12 +906,8 @@ class _ReaderPageState extends State<ReaderPage> {
                     ? 'You finished this on ${_fmtDate(doc.finishedAt!)}.'
                     : 'Reaching the end marks this for you — this is for when '
                           'you got there another way.',
-                style: TextStyle(
-                  fontFamily: AppTheme.fontSans,
-                  fontSize: 12,
-                  height: 1.5,
-                  color: Tokens.of(context).fgSubtle,
-                ),
+                style: KitText.small(context,
+                    color: Tokens.of(context).fgSubtle, height: 18),
               ),
             ),
             KitSettingLink(

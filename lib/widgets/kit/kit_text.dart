@@ -117,6 +117,47 @@ class KitText {
         color: Tokens.of(context).fg,
       );
 
+  // ── UI sans below the body — the working sizes of panels, rows and sheets ─
+  //
+  // The reference sets these per element (`.reader-author` 13, `.ssub` 12, a
+  // chip label 12) rather than as named classes, so they were spelled inline
+  // on fifteen Flutter pages until F-17. One spelling each, here. No line
+  // height: the sites they replace had none, so adopting the role moves no
+  // pixel — pass [height] where the reference sets one.
+
+  /// Sans 13 at `--fg` — a panel sentence, a row label, a sheet control.
+  static TextStyle ui(BuildContext context,
+          {Color? color, FontWeight? weight, double? height}) =>
+      TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 13,
+        height: height == null ? null : height / 13,
+        fontWeight: weight,
+        color: color ?? Tokens.of(context).fg,
+      );
+
+  /// Sans 12 (ramp `xs`) at `--fg-muted` — a row's secondary line, a
+  /// timestamp in the sans, a small chip label.
+  static TextStyle small(BuildContext context,
+          {Color? color, FontWeight? weight, double? height}) =>
+      TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 12,
+        height: height == null ? null : height / 12,
+        fontWeight: weight,
+        color: color ?? Tokens.of(context).fgMuted,
+      );
+
+  /// Sans 11 at `--fg-muted` — a count or hint beside a control.
+  static TextStyle fine(BuildContext context,
+          {Color? color, FontWeight? weight}) =>
+      TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 11,
+        fontWeight: weight,
+        color: color ?? Tokens.of(context).fgMuted,
+      );
+
   /// `.body-reading` — serif 18/30. Prose. Pair with [readingMeasure].
   static TextStyle bodyReading(BuildContext context) => AppTheme.serif(
         fontSize: 18,

@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/kit/kit_failure.dart';
+import '../../widgets/kit/kit_text.dart';
 
 /// Library document-detail affordances (library.md): edit `sourcePriority` and
 /// `tagIds` via `fn_update_document`. Priority is propagated to the document's
@@ -135,6 +136,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 20),
                 Text('SOURCE PRIORITY',
+                    // kit-ok: F-43 — a sans caps label beside the kit Eyebrow
                     style: TextStyle(fontFamily: 'Geist', 
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -158,9 +160,10 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                   ),
                 ]),
                 Text(_priorityLabel(_priority),
-                    style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: muted)),
+                    style: KitText.small(context, color: muted)),
                 const SizedBox(height: 24),
                 Text('TAGS',
+                    // kit-ok: F-43 — a sans caps label beside the kit Eyebrow
                     style: TextStyle(fontFamily: 'Geist', 
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -169,7 +172,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                 const SizedBox(height: 10),
                 if (_tags.isEmpty)
                   Text('No tags yet — create some on the Tags screen.',
-                      style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: muted))
+                      style: KitText.ui(context, color: muted))
                 else
                   Wrap(
                     spacing: 8,
@@ -192,9 +195,7 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                                 Border.all(color: on ? primary : border),
                           ),
                           child: Text(t.title,
-                              style: TextStyle(fontFamily: 'Geist', 
-                                  fontSize: 13,
-                                  color: on ? accentFg : fg)),
+                              style: KitText.ui(context, color: on ? accentFg : fg)),
                         ),
                       );
                     }).toList(),

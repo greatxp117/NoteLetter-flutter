@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/kit/kit_text.dart';
 
 /// Reader → Speed read panel: RSVP (one word at a time, pinned to a fixed
 /// optical-recognition point), with a follow-along transcript. Contract data is
@@ -140,6 +141,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
                 TextSpan(text: w.substring(0, pv)),
                 TextSpan(
                     text: pv < w.length ? w.substring(pv, pv + 1) : ' ',
+                    // kit-ok: span colour only — the pivot letter
                     style: TextStyle(color: ui.primary)),
                 TextSpan(text: pv + 1 < w.length ? w.substring(pv + 1) : ''),
               ],
@@ -152,7 +154,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
             _done
                 ? 'Done'
                 : (_playing ? 'Reading' : 'Tap play to read'),
-            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted),
+            style: KitText.small(context, color: ui.muted),
           ),
         ]),
       ),
@@ -170,9 +172,9 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
       const SizedBox(height: 8),
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text(_done ? 'Finished' : '${_fmt(secsLeft)} left',
-            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
+            style: KitText.small(context, color: ui.muted)),
         Text('${(_idx + (_done ? 0 : 1)).clamp(0, _total)} / $_total words',
-            style: TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
+            style: KitText.small(context, color: ui.muted)),
       ]),
       const SizedBox(height: 16),
       // Controls.
@@ -196,6 +198,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Text('PACE',
+                  // kit-ok: F-43 — web `.pf-label` is MONO caps 10/0.1em
                   style: TextStyle(fontFamily: 'Geist', 
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -203,8 +206,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
                       color: ui.muted)),
               const Spacer(),
               Text('$_wpm wpm',
-                  style: TextStyle(fontFamily: 'Geist', 
-                      fontSize: 13, fontWeight: FontWeight.w600, color: ui.fg)),
+                  style: KitText.ui(context, color: ui.fg, weight: FontWeight.w600)),
             ]),
             Slider(
               value: _wpm.toDouble(),
@@ -230,9 +232,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
                       border: Border.all(color: on ? ui.primary : ui.border),
                     ),
                     child: Text('$p',
-                        style: TextStyle(fontFamily: 'Geist', 
-                            fontSize: 12,
-                            color: on ? ui.accentFg : ui.muted)),
+                        style: KitText.small(context, color: on ? ui.accentFg : ui.muted)),
                   ),
                 );
               }).toList(),

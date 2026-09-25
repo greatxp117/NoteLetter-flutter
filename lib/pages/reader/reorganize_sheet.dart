@@ -6,6 +6,7 @@ import '../../services/firestore_service.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
 import '../../widgets/kit/kit_failure.dart';
+import '../../widgets/kit/kit_text.dart';
 
 /// Reader "Reorganize document" plan sheet (reader.md 1.2.0). Analyze → editable
 /// plan (per-section destination + split/copy) → explicit confirm for any split
@@ -214,7 +215,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
               'Split removes those sections from this document. A snapshot of the original is kept, but the document itself will change. Continue?',
-              style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.criticalText),
+              style: KitText.ui(context, color: ui.criticalText),
             ),
             const SizedBox(height: 12),
             Row(children: [
@@ -272,13 +273,14 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(s['title'] ?? 'Section',
+                        // kit-ok: F-43 — section title at sans 14/600; no kit role names it
                         style: TextStyle(fontFamily: 'Geist', 
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: ui.fg)),
                     Text('${s['summary'] ?? ''} · $chunkCount passage${chunkCount == 1 ? '' : 's'}',
                         style:
-                            TextStyle(fontFamily: 'Geist', fontSize: 12, color: ui.muted)),
+                            KitText.small(context, color: ui.muted)),
                   ]),
             ),
           ]),
@@ -293,7 +295,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                   DropdownButton<String>(
                     value: c.destKey,
                     underline: const SizedBox.shrink(),
-                    style: TextStyle(fontFamily: 'Geist', fontSize: 13, color: ui.fg),
+                    style: KitText.ui(context, color: ui.fg),
                     dropdownColor: ui.card,
                     items: dests
                         .map<DropdownMenuItem<String>>((d) => DropdownMenuItem(
@@ -322,8 +324,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           color: on ? ui.primary : Colors.transparent,
           child: Text(label,
-              style: TextStyle(fontFamily: 'Geist', 
-                  fontSize: 12, color: on ? ui.accentFg : ui.muted)),
+              style: KitText.small(context, color: on ? ui.accentFg : ui.muted)),
         ),
       );
     }

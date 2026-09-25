@@ -484,12 +484,7 @@ class _AskMessageRow extends StatelessWidget {
           child: mine
               ? Text(
                   'Y',
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: t.chromeFg,
-                  ),
+                  style: KitText.small(context, color: t.chromeFg, weight: FontWeight.w600),
                 )
               : Icon(Icons.auto_awesome, size: 18, color: t.chromeFg),
         ),
@@ -500,12 +495,7 @@ class _AskMessageRow extends StatelessWidget {
             children: [
               Text(
                 mine ? 'You' : 'Your library',
-                style: TextStyle(
-                  fontFamily: AppTheme.fontSans,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: t.fgMuted,
-                ),
+                style: KitText.small(context, color: t.fgMuted, weight: FontWeight.w600),
               ),
               const SizedBox(height: AppSpacing.s1),
               if (failure != null) ...[
@@ -522,6 +512,7 @@ class _AskMessageRow extends StatelessWidget {
               else if (mine)
                 Text(
                   message.text ?? '',
+                  // kit-ok: F-43 — Ask's own turn at sans 15/22; no kit role names it
                   style: TextStyle(
                     fontFamily: AppTheme.fontSans,
                     fontSize: 15,
@@ -637,12 +628,7 @@ class _CitationPill extends StatelessWidget {
                     citation.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: AppTheme.fontSans,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: t.fg,
-                    ),
+                    style: KitText.ui(context, color: t.fg, weight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   // The excerpt is `chunk.text`, so `[Image: …]` reaches it.
@@ -651,12 +637,7 @@ class _CitationPill extends StatelessWidget {
                   // marker-bearing chunk (ADR-089).
                   KitMarkedText(
                     citation.excerpt,
-                    style: TextStyle(
-                      fontFamily: AppTheme.fontSans,
-                      fontSize: 13,
-                      height: 19 / 13,
-                      color: t.fgSubtle,
-                    ),
+                    style: KitText.ui(context, color: t.fgSubtle, height: 19),
                   ),
                   // §5.2's action bar, drawn with the kit's own control — the
                   // reference's three Ask actions rendered as bare browser

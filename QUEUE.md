@@ -345,7 +345,7 @@ a new obligation on a finished screen is a new item.
   has been sending since 4.41.0. Spec corrected. The scratch accounts are deleted.
 
 ## F-17 · Raw-primitive lint + kit goldens
-- status: open
+- status: done 2026-09-24
 - screen: none
 - route: none
 - spec: spec/component-kit.md §How to read a pattern; spec/decisions/ADR-041-composition-is-contract.md
@@ -851,3 +851,29 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: normalizeUrl + detectUrlType top-level; shared table fixtures/url-detection/cases.json
+
+## F-43 · Type the last pages from the kit — 9 kit-ok marks and 63 font-helper calls
+- status: open
+- screen: various
+- route: various
+- spec: spec/component-kit.md §How to read a pattern; spec/design-tokens.md §Type
+- web: src/styles/app-source.css; src/styles/app-kit.css; src/pages/reader/ListenPanel.jsx; src/pages/reader/SpeedReadPanel.jsx; src/pages/reader/HistoryPanel.jsx; src/pages/reader/ManuscriptPanel.jsx
+- flutter: lib/widgets/kit/kit_text.dart; test/kit/no_inline_composition_test.dart; lib/pages/reader/listen_panel.dart; lib/pages/reader/speed_read_panel.dart; lib/pages/reader/history_panel.dart; lib/pages/reader/manuscript_panel.dart; lib/pages/reader/reorganize_sheet.dart; lib/pages/library/document_detail_sheet.dart; lib/pages/chat_page.dart; lib/pages/search/scripture_results.dart; lib/pages/onboarding/wizard.dart
+- folds: none — found by F-17's lint
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: F-17's lint left 9 `kit-ok: F-43` sites whose metric no kit role names, and pinned 63 `AppTheme.serif(`/`AppTheme.mono(` calls across 18 page files (the same inline type in another spelling) in a ratchet that only falls. Drive both to zero, then delete the ratchet. The reader panels are not only respelled — they DRIFT from the reference: web `.player-eyebrow` and `.pf-label` are MONO caps 10 at `--fg-subtle` (Flutter: sans 10/600 at 0.8); `.player-times` and `.history-when` are mono 11 subtle (Flutter: sans 12 muted); `.history-label` is sans 14 (Flutter 13); the manuscript panel is built as `.ms-chunk-head`/`.ms-editbadge` where Flutter has its own toolbar and pill. Recompose against the web, then shoot the panels. Also: `ReaderUi`'s colour getters return raw `AppColors` steps, not `Tokens` — check each against its semantic token while there.
+
+## F-44 · The signed-out landing — the pre-redesign page is still what a new user sees
+- status: open
+- screen: landing-actual
+- route: /landing
+- spec: spec/decisions/ADR-041-composition-is-contract.md
+- web: src/pages/LandingActual.jsx; src/pages/SignIn.jsx
+- flutter: lib/pages/landing_page.dart; lib/router.dart
+- folds: none — found by F-17's lint; the web's signed-out surfaces (2026-09-10) and landing redesign (cb6ee41) were UI-only, no contract version
+- device_test: none
+- shots: landing-actual; signin
+- extra_gates: none
+- notes: Every signed-out user of this client is redirected to `/landing` (router.dart), and it is the pre-redesign page: 'AI-Powered Knowledge Management', '© 2025', raw `AppColors` isDark branches, a Material dialog for sign-in. The web replaced it with LandingActual + a SignIn screen, with phone frames. No queue item named it, because no parity pass reads signed-out routes. Rebuild from the kit against `landing-actual` and `signin`; the 10 `kit-ok: F-44` marks and the file's 5 ratchet entries leave with the old file.
