@@ -75,10 +75,13 @@ String disconnectOutcome(String provider, String name, Object? revoked) {
 /// on the metadata, before anything is downloaded — so a file no import can
 /// read is offered no checkbox, and says why in the classifier's own words.
 /// Only the TYPE is asked: size is the worker's separate `size_limit` skip, so
-/// it is withheld (0). A Google-native document is exported as PDF
-/// (`exportable`) and a Notion page is read as text; neither goes through the
-/// upload rule. `null` is not a promise — the worker still decides, and its
-/// `unsupported_type` row says so if it disagrees. Web: `cloudFileRefusal`.
+/// it is withheld (0). A Google-native document Drive can export
+/// (`exportable` — a Doc as PDF, a Slides deck as PowerPoint, 4.94.0) and a
+/// Notion page never go through the upload rule. Any other Google-native kind
+/// (Sheets, Drawings, Forms) keeps its `application/vnd.google-apps.*` mime and
+/// `exportable: false`, and the upload rule refuses it. `null` is not a
+/// promise — the worker still decides, and its `unsupported_type` row says so
+/// if it disagrees. Web: `cloudFileRefusal`.
 String? cloudFileRefusal(String provider, CloudFile file) {
   if (file.isFolder) return null;
   if (file.exportable || provider == 'notion') return null;
@@ -87,6 +90,26 @@ String? cloudFileRefusal(String provider, CloudFile file) {
     size: 0,
     mimeType: file.mimeType ?? '',
   );
+}
+
+/// What an `exportable` row imports AS, read from its `mimeType` (4.94.0,
+/// cloud-storage.md §fn_list_cloud_files): the listing reports the EXPORT
+/// type, so a Google Doc lists as PDF and a Google Slides deck as PowerPoint.
+/// The native Doc mime is kept for a backend that predates 4.94.0 (it listed
+/// Docs natively and exported only them). A mime this map does not name gets
+/// no label rather than a guessed one — "Exports as PDF" on every exportable
+/// row told a deck's reader the wrong format. Web: `cloudExportLabel`.
+const Map<String, String> _exportFormatByMime = {
+  'application/pdf': 'PDF',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+      'PowerPoint',
+  'application/vnd.google-apps.document': 'PDF',
+};
+
+String? cloudExportLabel(CloudFile file) {
+  if (!file.exportable) return null;
+  final format = _exportFormatByMime[(file.mimeType ?? '').toLowerCase()];
+  return format == null ? null : 'Exports as $format';
 }
 
 /// A triage batch's `skipped` count, said (4.90.0, ADR-124 §7). `skipped` is no

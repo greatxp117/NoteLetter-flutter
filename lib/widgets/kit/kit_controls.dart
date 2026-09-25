@@ -963,11 +963,16 @@ class _KitTextFieldState extends State<KitTextField> {
     super.dispose();
   }
 
+  // Tracking is pinned to 0 on EVERY face: a TextField merges its style over
+  // the Material 3 `bodyLarge`, whose 0.5 letter-spacing otherwise leaks in —
+  // F-38 found it on the serif and sans faces and pinned those; the mono
+  // `.timefield` kept it, so every data field (an address, a time) drew ~8%
+  // wider than web's for as long as the kit had one (F-49).
   TextStyle _style(Color color) => switch (widget.face) {
-        KitFieldFace.mono => AppTheme.mono(fontSize: 15, color: color),
-        // `.ss-input`. Tracking pinned to 0: a TextField merges its style
-        // over the Material 3 `bodyLarge`, whose 0.5 letter-spacing otherwise
-        // leaks in — the description drew ~8% wider than web's.
+        // `.timefield input`
+        KitFieldFace.mono =>
+          AppTheme.mono(fontSize: 15, color: color, letterSpacing: 0),
+        // `.ss-input`
         KitFieldFace.serif =>
           AppTheme.serif(fontSize: 15, color: color, letterSpacing: 0),
         // `.sf-desc`

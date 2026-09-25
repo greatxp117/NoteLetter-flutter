@@ -722,9 +722,10 @@ class _FileRow extends StatelessWidget {
         ),
       ),
       title: file.name,
-      // Google Docs and the like export as PDF; say so on the row that will do
-      // it rather than in a legend nobody reads.
-      subtitle: refusal ?? (file.exportable ? 'Exports as PDF' : null),
+      // A Google-native file Drive exports says what it imports AS, read from
+      // its `mimeType` (4.94.0: a Doc as PDF, a Slides deck as PowerPoint), on
+      // the row that will do it rather than in a legend nobody reads.
+      subtitle: refusal ?? cloudExportLabel(file),
       onTap: file.isFolder
           ? () => cloud.enterFolder(file)
           : refusal != null

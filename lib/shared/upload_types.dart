@@ -119,6 +119,14 @@ String? uploadRejection({
     return 'Legacy .doc files aren’t supported — re-save as .docx and upload '
         'again.';
   }
+  // A Google-native mime names a document with no bytes, whatever it
+  // contains — `…google-apps.presentation` matched the pptx row's "contains
+  // presentation" and took a Slides deck for a .pptx (uploads.md, 4.94.0).
+  // Only the cloud picker meets one; the kinds Drive exports arrive under
+  // their export type.
+  if (mime.startsWith('application/vnd.google-apps.')) {
+    return '“$name” isn’t a supported file type. $uploadAcceptHelp.';
+  }
 
   String? tooBig(String docType) {
     final cap = _capMb[docType] ?? _capMbDefault;

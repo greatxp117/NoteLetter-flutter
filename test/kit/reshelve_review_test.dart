@@ -127,6 +127,18 @@ void main() {
     expect(calls, [150, 150, 20]);
     expect(find.text('3 of 320 sources from Misc have a suggested shelf.'),
         findsOneWidget);
+
+    // `.bf-lede`: upright at fg, and only the figures and the shelf name are
+    // the italic accent `em` — not the italic, muted standfirst `.lede`.
+    final lede = tester.widget<Text>(
+        find.text('3 of 320 sources from Misc have a suggested shelf.'));
+    final ctx = tester.element(find.byType(ShelfReshelveReview));
+    expect(lede.style, KitText.reviewLede(ctx));
+    final em = [
+      for (final s in (lede.textSpan! as TextSpan).children!.cast<TextSpan>())
+        if (s.style == KitText.reviewEm(ctx)) s.text
+    ];
+    expect(em, ['3', '320', 'Misc']);
   });
 
   testWidgets('files per shelf, and a retry does not re-send a shelf already filed',

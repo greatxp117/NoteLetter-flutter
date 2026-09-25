@@ -219,17 +219,19 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
         ],
       );
     }
+    // `.bf-lede` is KitText.reviewLede (upright serif 17 at fg) with the
+    // figures and the shelf name in reviewEm — not the italic standfirst
+    // `lede`, which set the whole answer italic and muted (F-38's finding).
+    final lede = KitText.reviewLede(context);
+    final em = KitText.reviewEm(context);
     if (_reading) {
       return Text.rich(
         TextSpan(children: [
           const TextSpan(text: 'Finding new shelves for '),
-          TextSpan(
-              text: '$n',
-              // kit-ok: span emphasis inside a kit role, not a type of its own
-              style: const TextStyle(fontStyle: FontStyle.italic)),
+          TextSpan(text: '$n', style: em),
           TextSpan(text: n == 1 ? ' source…' : ' sources…'),
         ]),
-        style: KitText.lede(context),
+        style: lede,
       );
     }
     if (_shelfCount == 0) {
@@ -238,7 +240,7 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('You have no other shelves to move these sources to.',
-              style: KitText.lede(context)),
+              style: lede),
           const SizedBox(height: 14),
           _actions([KitButton.primary('Done', onPressed: widget.onDone)]),
         ],
@@ -256,13 +258,24 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          m > 0
-              ? '$m of $n sources from ${widget.title} have a suggested shelf.'
-              : 'None of your shelves looked like a clear fit — choose one '
-                  'for any source you want to file.',
-          style: KitText.lede(context),
-        ),
+        if (m > 0)
+          Text.rich(
+            TextSpan(children: [
+              TextSpan(text: '$m', style: em),
+              const TextSpan(text: ' of '),
+              TextSpan(text: '$n', style: em),
+              const TextSpan(text: ' sources from '),
+              TextSpan(text: widget.title, style: em),
+              const TextSpan(text: ' have a suggested shelf.'),
+            ]),
+            style: lede,
+          )
+        else
+          Text(
+            'None of your shelves looked like a clear fit — choose one for '
+            'any source you want to file.',
+            style: lede,
+          ),
         const SizedBox(height: 12),
         for (final s in widget.sources)
           _row(context, t, s, _choice[s.id] ?? _unshelved, reasons[s.id]),

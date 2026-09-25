@@ -1,6 +1,8 @@
 /// One item from `fn_list_cloud_files` — normalized across providers
 /// (cloud-storage.md). `modifiedAt`/`path` are provider strings, never
-/// Timestamps. `exportable` files (e.g. Google Docs) import as PDF.
+/// Timestamps. `exportable` files are Google-native files Drive exports at
+/// import, and `mimeType` is then the type they import AS — a Doc as PDF, a
+/// Slides deck as PowerPoint (4.94.0).
 class CloudFile {
   final String id;
   final String name;

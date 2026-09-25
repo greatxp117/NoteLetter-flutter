@@ -17,6 +17,7 @@ import 'package:flutter_app/pages/sources/cloud_sync_copy.dart';
 import 'package:flutter_app/pages/sources/sync_settings_panel.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/firestore_service.dart';
+import 'package:flutter_app/shared/upload_types.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
@@ -181,7 +182,7 @@ void main() {
           cloudFileRefusal('google_drive',
               f('Notes', 'application/vnd.google-apps.document', exportable: true)),
           isNull,
-          reason: 'a Google-native document is exported as PDF');
+          reason: 'a Google-native file Drive exports is never classified');
       expect(cloudFileRefusal('notion', f('Page', null)), isNull);
       expect(
           cloudFileRefusal('google_drive',
@@ -493,6 +494,97 @@ void main() {
       await tester.tap(find.text('Clear'));
       await tester.pumpAndSettle();
       expect(find.textContaining('interrupted'), findsNothing);
+    });
+  });
+
+  // 4.94.0 (ADR-125 §Note; cloud-storage.md §fn_list_cloud_files, uploads.md).
+  // Web reference NoteLetter-web@42160c1 (`cloudExportLabel`, `uploadTypes.js`).
+  group('Google-native files (4.94.0)', () {
+    const pptx =
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    CloudFile f(String name, String? mime, {bool exportable = false}) =>
+        CloudFile(
+            id: name,
+            name: name,
+            type: 'file',
+            mimeType: mime,
+            exportable: exportable);
+
+    test('an exportable row is labelled by what it imports AS', () {
+      expect(cloudExportLabel(f('Notes', 'application/pdf', exportable: true)),
+          'Exports as PDF');
+      expect(cloudExportLabel(f('Deck', pptx, exportable: true)),
+          'Exports as PowerPoint',
+          reason: 'a Slides deck lists with the PowerPoint mime');
+      expect(
+          cloudExportLabel(f('Old', 'application/vnd.google-apps.document',
+              exportable: true)),
+          'Exports as PDF',
+          reason: 'a pre-4.94.0 backend listed Docs by their native mime');
+      expect(
+          cloudExportLabel(
+              f('Odd', 'application/vnd.something', exportable: true)),
+          isNull,
+          reason: 'an unnamed mime gets no label, never a guessed one');
+      expect(cloudExportLabel(f('Essay.pdf', 'application/pdf')), isNull,
+          reason: 'only an exportable row says it exports');
+    });
+
+    test('the upload rule refuses every Google-native mime', () {
+      for (final kind in ['presentation', 'spreadsheet', 'drawing', 'form']) {
+        expect(
+            uploadRejection(
+                name: 'Thing', size: 0,
+                mimeType: 'application/vnd.google-apps.$kind'),
+            '“Thing” isn’t a supported file type. $uploadAcceptHelp.',
+            reason: '`google-apps.presentation` matched "contains presentation"');
+      }
+      expect(uploadRejection(name: 'Deck.pptx', size: 0, mimeType: pptx),
+          isNull,
+          reason: 'the export type itself is still accepted');
+      expect(
+          cloudFileRefusal('google_drive',
+              f('Budget', 'application/vnd.google-apps.spreadsheet')),
+          contains('isn’t a supported file type'),
+          reason: 'a native kind Drive does not export is refused in the picker');
+    });
+
+    (int, Object) listing(RequestOptions o) => (200, {
+          'items': [
+            {'id': 'd', 'name': 'Notes', 'type': 'file',
+             'mime_type': 'application/pdf', 'exportable': true},
+            {'id': 's', 'name': 'Deck', 'type': 'file',
+             'mime_type': pptx, 'exportable': true},
+            {'id': 'x', 'name': 'Budget', 'type': 'file',
+             'mime_type': 'application/vnd.google-apps.spreadsheet',
+             'exportable': false},
+            {'id': 'u', 'name': 'Odd', 'type': 'file',
+             'mime_type': 'application/vnd.something', 'exportable': true},
+          ],
+          'nextPageToken': null,
+        });
+
+    testWidgets(
+        'the import picker says PDF or PowerPoint by mime, and refuses a '
+        'native kind', (tester) async {
+      ApiService.instance.httpClientAdapter = _Recorder(listing);
+      final drive = _ConnectedCloud(const CloudIntegration(
+          provider: 'google_drive', tokenValid: true));
+      await pumpSources(tester, SourcesStubService(), cloud: drive);
+      unawaited(drive.openPicker('google_drive'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.text('Exports as PDF'), findsOneWidget);
+      expect(find.text('Exports as PowerPoint'), findsOneWidget,
+          reason: 'the deck was labelled PDF before 4.94.0');
+      expect(find.textContaining('Exports as'), findsNWidgets(2),
+          reason: 'the unmapped exportable row carries no label');
+      expect(find.text('“Budget” isn’t a supported file type. $uploadAcceptHelp.'),
+          findsOneWidget);
+      expect(find.byType(Checkbox), findsNWidgets(3),
+          reason: 'the refused native spreadsheet is offered no checkbox');
     });
   });
 }
