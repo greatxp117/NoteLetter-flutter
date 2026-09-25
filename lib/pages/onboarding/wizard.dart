@@ -306,7 +306,11 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
       value: SystemUiOverlayStyle.light,
       child: Material(
         color: t.chrome,
+        // On a phone the footer is the bottom of the screen, so the home
+        // indicator's inset is ITS ground (--bg), not a strip of chrome under
+        // it: SafeArea leaves the bottom to [_Footer], which pads by it.
         child: SafeArea(
+          bottom: !compact,
           child: compact
               ? Column(children: [rail, main])
               : Row(children: [rail, main]),
@@ -674,10 +678,13 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final gutter = compact ? AppSpacing.frameGutterCompact : 48.0;
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? AppSpacing.frameGutterCompact : 48,
-        vertical: AppSpacing.s4,
+      padding: EdgeInsets.fromLTRB(
+        gutter,
+        AppSpacing.s4,
+        gutter,
+        AppSpacing.s4 + (compact ? MediaQuery.paddingOf(context).bottom : 0),
       ),
       decoration: BoxDecoration(
         color: t.bg,
