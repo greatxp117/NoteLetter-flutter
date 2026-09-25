@@ -87,7 +87,8 @@ class _ActivityPageState extends State<ActivityPage> {
                 // italicising the whole title is not the same device.
                 title: 'Activity',
                 standfirst: 'Everything that has happened on your account — '
-                    'sources added, passages processed, letters sent.',
+                    'sources added, passages processed, letters sent, and '
+                    'more.',
               ),
 
               if (activity.isLoading && rows.isEmpty)
