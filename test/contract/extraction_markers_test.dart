@@ -69,6 +69,35 @@ void main() {
         'Hello On screen: you. World');
   });
 
+  // Web 1599258 (marker-speech.test.js): one stop closes a spoken marker.
+  group('a spoken marker closes with one stop, not two', () {
+    test('the seed chunk: a body that already ends a sentence', () {
+      final out = markersForSpeech('Quarterly tax figures and the operating '
+          'budget.\n[Image: A bar chart of quarterly budget figures.]');
+      expect(
+          out,
+          'Quarterly tax figures and the operating budget. '
+          'Image: A bar chart of quarterly budget figures.');
+      expect(out.contains('..'), isFalse);
+    });
+    test('a body that does not end a sentence is closed', () {
+      expect(markersForSpeech('Before. [On screen: Step two] After.'),
+          'Before. On screen: Step two. After.');
+    });
+    test('? ! … and a closing quote count as closed', () {
+      expect(markersForSpeech('[Notes: Why not?]'), 'Notes: Why not?');
+      expect(markersForSpeech('[Notes: “Stop.”]'), 'Notes: “Stop.”');
+      expect(markersForSpeech('[Chart: Up…]'), 'Chart: Up…');
+    });
+    test('the period after ] is consumed, not doubled', () {
+      expect(markersForSpeech('[Diagram: A loop.]. Next.'),
+          'Diagram: A loop. Next.');
+    });
+    test('an empty body is spoken as the label alone', () {
+      expect(markersForSpeech('[Video: ] Then.'), 'Video. Then.');
+    });
+  });
+
   test('a block that is nothing but markers takes the aside shape', () {
     expect(isAllMarkers('[On screen: a]. [Video: b].'), isTrue);
     expect(isAllMarkers('said [On screen: a].'), isFalse);

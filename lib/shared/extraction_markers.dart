@@ -107,10 +107,21 @@ List<MarkerPiece> splitMarkers(String? text) {
   return out;
 }
 
+/// A body that has already closed itself as a sentence (`. ! ? …`, with an
+/// optional closing quote or bracket). The extractor writes most bodies that
+/// way, so an unconditional `. ` spoke "figures.." — and gave the word timer a
+/// token ending in two stops (web 1599258).
+final _closedBody = RegExp('[.!?…]["\'’”)\\]]*\$');
+
+String _spokenMark(String label, String body) => body.isEmpty
+    ? ' $label. '
+    : ' $label: $body${_closedBody.hasMatch(body) ? '' : '.'} ';
+
 /// What a reader that SPEAKS says: the channel name and the body, never the
 /// brackets — `"On screen: you."`, not `"bracket on screen colon you bracket"`.
+/// One stop closes a marker, never two; an empty body is the label alone.
 String markersForSpeech(String? text) => splitMarkers(text)
-    .map((p) => p.isMark ? ' ${p.label}: ${p.body}. ' : p.text)
+    .map((p) => p.isMark ? _spokenMark(p.label, p.body) : p.text)
     .join()
     .replaceAll(RegExp(r'\s+'), ' ')
     .trim();

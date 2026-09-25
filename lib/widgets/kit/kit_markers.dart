@@ -93,34 +93,36 @@ class KitMarkerInline extends StatelessWidget {
   });
 
   /// The run as an [InlineSpan], so it sits in the line box of its host text.
+  ///
+  /// TEXT spans, not one [WidgetSpan]: a widget span is an atomic box, so a
+  /// body too long for the rest of the line jumped whole onto its own line
+  /// and took the width — a block inside the sentence, which is exactly what
+  /// §17.2 exists not to be. Web's `.x-mark-inline` breaks across lines with
+  /// its host. Only the 0.4em gaps are boxes.
   static InlineSpan span(BuildContext context, MarkerPiece piece,
       {required double hostFontSize}) {
     final t = Tokens.of(context);
     final gap = 0.4 * hostFontSize;
-    return WidgetSpan(
-      alignment: PlaceholderAlignment.baseline,
-      baseline: TextBaseline.alphabetic,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: gap),
-        child: Text.rich(
-          TextSpan(children: [
-            TextSpan(
-              text: piece.label.toUpperCase(),
-              style: KitText.capsLabel(context, fontSize: 10, color: t.fgSubtle),
-            ),
-            if (piece.body.isNotEmpty) const TextSpan(text: ' '),
-            TextSpan(
-              text: piece.body,
-              style: TextStyle(
-                fontFamily: AppTheme.fontSans,
-                fontSize: 0.88 * hostFontSize,
-                color: t.fgSubtle,
-              ),
-            ),
-          ]),
-        ),
+    InlineSpan space() => WidgetSpan(child: SizedBox(width: gap));
+    return TextSpan(children: [
+      space(),
+      TextSpan(
+        text: piece.label.toUpperCase(),
+        style: KitText.capsLabel(context, fontSize: 10, color: t.fgSubtle),
       ),
-    );
+      if (piece.body.isNotEmpty) ...[
+        space(),
+        TextSpan(
+          text: piece.body,
+          style: TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 0.88 * hostFontSize,
+            color: t.fgSubtle,
+          ),
+        ),
+      ],
+      space(),
+    ]);
   }
 
   @override

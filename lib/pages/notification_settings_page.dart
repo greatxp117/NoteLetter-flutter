@@ -244,19 +244,22 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 'Choose how you hear about what NoteLetter does — and at what '
                 'severity. Add as many channels as you like.',
           ),
-          // `.set-section` opens 34 under the header, which has paid 20 of it.
-          Padding(
-            padding: const EdgeInsets.only(top: 14),
+          // notifications.md §Composition: channel groups, each a mono caps
+          // group label over its stack — the screen's own `.cfg-label` shape
+          // (as Type / Notify me about), not the §3 section header. The
+          // group's 18 of top padding stands in for `.set-section`'s 34, of
+          // which the header has paid 20.
+          KitFieldGroup(
+            label: 'Channels',
+            first: true,
             child: StreamBuilder<List<NotificationChannel>>(
               stream: FirestoreService.instance.subscribeNotificationChannels(),
               builder: (context, snap) => _channelList(snap),
             ),
           ),
-          // 34 again; the section header's own 32 collapses into it.
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: _addForm(),
-          ),
+          // The group's 18 of bottom padding; the section header's own 32
+          // collapses into it.
+          _addForm(),
         ],
       ),
     );
