@@ -144,9 +144,19 @@ def set_status(item_id: str, new: str) -> dict:
 
 # ── commands ─────────────────────────────────────────────────────────────────
 
+PIN_BUMP = re.compile(r"^Pin bump\b")
+
+
 def cmd_next() -> int:
+    """The first unfinished item — except the pin bump, which is handed out
+    only once nothing else is open. `add` appends, so every obligation queued
+    after the bump was written sits BELOW it, and a positional `next` offered
+    the final item (spec/clients/flutter.md §Pin: "one bump at the end") with
+    fourteen items still open behind it."""
     _, items = parse(QUEUE.read_text(encoding="utf-8"))
-    for it in items:
+    rest = [it for it in items if not PIN_BUMP.match(it["title"])]
+    pin = [it for it in items if PIN_BUMP.match(it["title"])]
+    for it in rest + pin:
         k = status_kind(it)
         if k in ("open", "in-progress", "blocked"):
             print(json.dumps(public(it), indent=2))
