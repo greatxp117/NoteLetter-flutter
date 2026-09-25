@@ -1007,6 +1007,8 @@ a new obligation on a finished screen is a new item.
 - shots: library
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: The 2026-09-25 re-shoot beside the web phone frame. Under the chapter opening the reference draws (1) the setup checklist card — a chevron, a progress bar, `4 of 5 set up`, the next step as a pill (`Ask your library a question`) and Hide; this client has none; (2) a full-width SEARCH FIELD (`Search your library by meaning…`, italic serif placeholder) and, under it on a phone, a full-width `+ Add a source` primary — this client puts a ghost `Search` and an `Add a source` button in the header's actions slot instead; (3) `Recently read` with a list/shelf (spine) view toggle, and `Shelves` with a shelf/card toggle — this client has the list and the card grid only. The Today's-letter hero is absent here for a data reason, not a composition one: web's getNewsletter takes the newest record of any status/kind, this client takes the latest `sent` daily letter with an `html_body`, and the seed's two letters are pre-2.0.0 records with `html` only — so web says 'Today's letter is ready — 0 passages' where this client says the library is being read. Decide which is right before building the hero's appearance rule. Read LibraryHome.jsx for the checklist's steps and its persistence before building it.
+  2026-09-25: the hero question is answered on the reference side — NoteLetter-web ef14f8a "Library hero:
+  Today's letter is the newest DAILY letter, never a readings letter"; read it before choosing the rule.
 
 ## F-55 · Reader — the manuscript counts words from the text, not the passage html, and flattens a table
 - status: done 2026-09-25
@@ -1059,6 +1061,14 @@ a new obligation on a finished screen is a new item.
 - shots: reader; reader-manuscript; recipe; source-file; source-set
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: The 2026-09-25 re-shoot beside reader.web.phone.png: web renders the reader INSIDE the shell, so a phone keeps `.app-mobile-header` (menu · quill lockup · search) above the reader's own back control; this client mounts the reader outside AppLayout (CLAUDE.md: INV-22's footer wraps it from support_shell instead), so the phone frame opens on a bare status bar and `< Library`. Decide whether the reader joins AppLayout's compact branch (keeping its own full-bleed body and INV-22 placement) or records a deviation — the recipe/source-file/source-set frames show the same bare top.
+  2026-09-25 (not landed): the approach was written and analyze-clean — `ReaderPage.build` returns
+  `LayoutBuilder(maxWidth >= AppSpacing.compactWidth ? page : AppLayout(child: page))`, done in the
+  page rather than `router.dart` because the route table is listed by 9 done pairs (ask ×3, letters,
+  letter-reader, letter-settings, onboarding, shelf-color-picker, shelves) and the page by 3; SupportShell
+  and INV-22 untouched, wide unchanged. Reverted unshot: the NoteLetter Firestore emulator died of
+  `OutOfMemoryError: Java heap space` at 15:53 (back channel >10,000 pending listen messages) and every
+  frame after it is the onboarding gate over an unreadable library. Owes: reader, reader-manuscript,
+  recipe, source-file, source-set, library, shelves re-shot on a restarted emulator.
 
 ## F-59 · §4.1 source row — the reference hides the row's count at phone width; this client stacks it as a third line
 - status: open
