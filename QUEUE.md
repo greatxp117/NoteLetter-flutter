@@ -942,3 +942,68 @@ a new obligation on a finished screen is a new item.
 - shots: letter-settings
 - extra_gates: python3 ../NoteLetter-contracts/harness/upload_set_check.py
 - notes: (1) 4.94.0 Flutter tandem, web reference NoteLetter-web@42160c1: the import picker's exportable subtitle reads `mimeType` (cloudExportLabel) — PDF / PowerPoint / the pre-4.94.0 native Doc mime as PDF, an unmapped mime no label; `uploadRejection` refuses every `application/vnd.google-apps.*` mime with the generic unsupported-type sentence (the Slides deck's native mime matched `contains presentation`). The sync-folder picker is folders-only and draws no export label. (2) reshelve_sheet.dart (F-41) drew web's `.bf-lede` in the italic `KitText.lede`; it moves to F-38's `KitText.reviewLede`/`reviewEm` with the counts and shelf name emphasised as ShelfForm.jsx does. (3) Mono KitTextField took Material bodyLarge's 0.5 letter-spacing (F-38 pinned serif/sans only); pinned to 0 so a data field draws at web `.timefield`'s width — shot on letter-settings, whose Send-to field is the first mono field above any fold. (2026-09-25: landed. The Send-to value measures 177.0pt against web's 177.0 CSS px (was 186.3pt). The re-shelve review has NO pair: no HOLD_STATE, no web frame in theme-shots.mjs, and every state but the transient read needs fn_suggest_reshelve's model call, which the 5599 shim answers only under NL_DEV_FAKES=1 — the lede is gated by reshelve_review_test's span assertion instead.)
+
+## F-50 · Sources — the add panel as the reference composes it: Library, What can I add?, processing under the zone
+- status: done 2026-09-25
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md §Composition; spec/component-kit.md §3 §7 §15
+- web: src/pages/SourcesBrowse.jsx; src/overlays/SourcesInfoSheet.jsx; src/styles/app-sources-browse.css; src/styles/app-responsive.css
+- flutter: lib/pages/sources_page.dart; lib/pages/sources/browse_section.dart; lib/pages/sources/sources_info_sheet.dart (new); lib/widgets/file_uploader.dart; lib/widgets/kit/kit_headers.dart; lib/widgets/kit/kit_empty.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: sources
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: Four drifts the pair showed beside the web phone frame. (1) Title `Your *library*` → `Library` (§Composition Header; the rail already calls it Library). (2) The add section's header carries the trailing `What can I add?` help trigger — SectionHeader gains `actionIcon` (web `.si-open`: sans 12.5/500 at --fg-muted, 13px glyph, no underline) — opening a §15 sheet with SourcesInfoSheet.jsx's content word for word. (3) `Being processed · N` moved out of the In-your-library section to directly under the zone and link row (§Composition: 'the processing rows sit directly under it'); the note counts stalled rows as needing attention and says 'passages appear as each finishes' otherwise, as the reference does. (4) The drop zone lost its format pills and the accent upload glyph: KitDropZone now draws `.empty-dropzone` (1.5px dashed, --r-lg, 44/28 padding, glyph at --fg-subtle, serif 22/600, SANS 14 --fg-muted help); pills stay optional (Library's empty state keeps them). The link row is always visible (field + Add link, disabled on an empty field) rather than behind a 'Paste a link' ghost; the field no longer draws the theme's pill outline inside its box. Image-set capture stays as a ghost under the row — a device capability the web has no surface for. Web draws the processing rows as cards with a status pill; the spec says a processing row keeps §4.1 anatomy, so this client keeps the row (spec/web disagreement, reported, not resolved here).
+
+## F-51 · Letter settings — the reference's config form: caps group labels and the tinted schedule card
+- status: done 2026-09-25
+- screen: letter-settings
+- route: /letters/settings
+- spec: spec/screens/letters.md; spec/decisions/ADR-041-composition-is-contract.md
+- web: src/pages/LetterSettings.jsx; src/pages/letters/ReadingsLetter.jsx; src/styles/app-responsive.css; src/styles/app-scripture.css
+- flutter: lib/pages/letter_settings_page.dart; lib/widgets/kit/kit_config.dart (new); lib/widgets/kit/kit_controls.dart; lib/pages/tags/reshelve_sheet.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: letter-settings
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: The screen was a stack of Settings' icon-plate setting rows under an eyebrow title; the reference is `.letter-config`: back control, a serif 24/600 HEADING with the italic lede, then groups — each a mono caps label (`SCHEDULED DELIVERY`, `SEND TO`, `HOW OFTEN`, `ARRIVES AT`, …) over its control, a hairline --rule between them — opened by a tinted `.cfg-rl` toggle card (accent-chip ground and edge when on, sunken when off; the card writes before it moves, ADR-022). Groups are the existing KitFieldGroup (notification settings and onboarding already use it; it gains the `.cfg-second` variant for the readings letter). New kit parts in kit_config.dart: KitConfigHeading, KitConfigToggle, KitConfigHint (the `.cfg-hint`/`.cfg-note` sentence under an empty Send-to), KitConfigField + KitConfigStatic (the readings letter's `.rl-field`s). KitSelect's value was mono 15 (the text field's data face); web's `.timefield select` is sans 14 and that is now the default — the re-shelve picker passes KitFieldFace.serif for `.ss-input`. No spec section names this form (letters.md §Composition covers the Letters screen only) — reported. Still different, booked separately: the live letter preview + Send now under the form, and `Draw from` shelves. `Your librarian` stays here (the reference edits purposeText from Settings).
+
+## F-52 · Support — the quiet empty state and the accent send control
+- status: done 2026-09-25
+- screen: support
+- route: /support
+- spec: spec/screens/support.md §Composition; spec/component-kit.md §7 §10
+- web: src/pages/SupportView.jsx; src/styles/app-support.css; src/styles/app-kit.css
+- flutter: lib/pages/support_page.dart; lib/widgets/kit/kit_empty.dart; lib/widgets/kit/kit_composer.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: support
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: Re-shooting the stale pair showed two drifts. (1) The empty thread drew §7's chrome tile and 28px letterpressed title; the reference's `.sup-empty` is a 52px --accent-soft disc with a solid --accent-chip-border edge and the glyph at --seal, over serif 22/30 and a 16/24 lede — KitEmptyState gains `quiet`. (2) §10's send control drew a grey --surface-raised disc with a north-east arrow while it could not fire; the reference's is always --accent with IcoSend's RIGHT arrow, at 0.45 opacity when disabled. Fixed in KitComposerDock, so Ask's composer moves with it (its pairs are re-shot in the same pass).
+
+## F-53 · Letter settings — the live letter preview and Draw from
+- status: open
+- screen: letter-settings
+- route: /letters/settings
+- spec: spec/screens/letters.md; spec/api/newsletter.md
+- web: src/pages/LetterSettings.jsx; src/pages/letters/LetterDocument.jsx
+- flutter: lib/pages/letter_settings_page.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: letter-settings
+- extra_gates: none
+- notes: Left over after the form was recomposed (F-51). The reference puts the letter itself beside (desktop) or under (phone) the form: `.letter-preview-pane` — today's letter (getNewsletter) rendered through LetterDocument with the first `count` passages, a §14.2 line if it could not be read, and an actions row (`N passages · ~N+1 min read`, Copy, Send now with its sent/failed sentence). This client has no preview and no Send now on this screen. Also `Draw from`: a shelf list with switches whose titles save as `topicFilters` (titles, not ids) in the same PUT; SettingsNotifier.saveLetterSettings already accepts topicFilters. Build both from the kit (§11 Letter sheet for the preview).
+
+## F-54 · Library — the setup checklist, the search field row, and the spine views
+- status: open
+- screen: library
+- route: /
+- spec: spec/screens/library.md §Composition; spec/screens/onboarding.md; spec/component-kit.md §2.1 §5.3
+- web: src/pages/LibraryHome.jsx; src/styles/app-kit.css
+- flutter: lib/pages/library_page.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: library
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: The 2026-09-25 re-shoot beside the web phone frame. Under the chapter opening the reference draws (1) the setup checklist card — a chevron, a progress bar, `4 of 5 set up`, the next step as a pill (`Ask your library a question`) and Hide; this client has none; (2) a full-width SEARCH FIELD (`Search your library by meaning…`, italic serif placeholder) and, under it on a phone, a full-width `+ Add a source` primary — this client puts a ghost `Search` and an `Add a source` button in the header's actions slot instead; (3) `Recently read` with a list/shelf (spine) view toggle, and `Shelves` with a shelf/card toggle — this client has the list and the card grid only. The Today's-letter hero is absent here for a data reason, not a composition one: web's getNewsletter takes the newest record of any status/kind, this client takes the latest `sent` daily letter with an `html_body`, and the seed's two letters are pre-2.0.0 records with `html` only — so web says 'Today's letter is ready — 0 passages' where this client says the library is being read. Decide which is right before building the hero's appearance rule. Read LibraryHome.jsx for the checklist's steps and its persistence before building it.

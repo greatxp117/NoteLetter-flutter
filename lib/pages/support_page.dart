@@ -129,6 +129,7 @@ class _SupportPageState extends State<SupportPage> {
                 // The empty state IS the offer: the composer below is the
                 // action, so this pattern carries no call-to-action button.
                 const KitEmptyState(
+                  quiet: true,
                   icon: Icons.chat_bubble_outline,
                   title: 'Nothing sent yet',
                   standfirst:
