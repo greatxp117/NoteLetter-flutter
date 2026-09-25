@@ -1007,3 +1007,16 @@ a new obligation on a finished screen is a new item.
 - shots: library
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: The 2026-09-25 re-shoot beside the web phone frame. Under the chapter opening the reference draws (1) the setup checklist card — a chevron, a progress bar, `4 of 5 set up`, the next step as a pill (`Ask your library a question`) and Hide; this client has none; (2) a full-width SEARCH FIELD (`Search your library by meaning…`, italic serif placeholder) and, under it on a phone, a full-width `+ Add a source` primary — this client puts a ghost `Search` and an `Add a source` button in the header's actions slot instead; (3) `Recently read` with a list/shelf (spine) view toggle, and `Shelves` with a shelf/card toggle — this client has the list and the card grid only. The Today's-letter hero is absent here for a data reason, not a composition one: web's getNewsletter takes the newest record of any status/kind, this client takes the latest `sent` daily letter with an `html_body`, and the seed's two letters are pre-2.0.0 records with `html` only — so web says 'Today's letter is ready — 0 passages' where this client says the library is being read. Decide which is right before building the hero's appearance rule. Read LibraryHome.jsx for the checklist's steps and its persistence before building it.
+
+## F-55 · Reader — the manuscript counts words from the text, not the passage html, and flattens a table
+- status: open
+- screen: reader-manuscript
+- route: /reader/{docId}
+- spec: spec/screens/reader.md §Composition; spec/component-kit.md §17
+- web: src/pages/reader/ManuscriptPanel.jsx; src/pages/ReaderView.jsx
+- flutter: lib/pages/reader/manuscript_panel.dart; lib/pages/reader_page.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: reader-manuscript; reader
+- extra_gates: none
+- notes: The 2026-09-25 re-shoot beside the web phone frame (web frame 2026-09-18). (1) On the seed's Quarterly Tax Summary the manuscript header says `2 passages · 12 words` where web says `9 words`: web counts `htmlWords(c.html)` (ManuscriptPanel.jsx:521/801/858), this client `_wordCount(c.text)` (manuscript_panel.dart:311/524/585) — and the same count drives the dwell timer (`dwellFor(wordsIn(c.text))`, :485, vs web :521), so the read-tracking dwell differs too, not only the label. Decide the unit from the reference and port it, with a test on a passage whose text and html disagree. (2) The table passage renders as `QuarterInvoice total` / `Q2 $1,200` — cells run together with no separator — where web draws a ruled table; the image passage draws its caption as body text. (3) The reader frame lacks web's `Treat as…` action and the `LISTEN —` stat; the manuscript frame's tab indicator stays on Summary while the manuscript panel is in view. Composition of the panel itself (drop cap, `.ms-chunk-head`) is F-43's.
