@@ -680,7 +680,7 @@ a new obligation on a finished screen is a new item.
     pair — `tool/shots.sh scripture-day` beside the web frames already committed.
 
 ## F-34 · Re-shoot the pairs a shared kit file staled
-- status: open
+- status: done 2026-09-25
 - screen: activity
 - route: /
 - spec: spec/decisions/ADR-041-composition-is-contract.md
@@ -775,7 +775,7 @@ a new obligation on a finished screen is a new item.
     Listen for a free account — a hidden control cannot say why.
 
 ## F-37 · The stale-pair debt — 7 screens the ritual has outrun
-- status: open
+- status: done 2026-09-25
 - screen: various
 - route: various
 - spec: ../NoteLetter-contracts/spec/decisions/ADR-041-composition-is-contract.md
