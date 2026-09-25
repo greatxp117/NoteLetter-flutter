@@ -34,6 +34,7 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../shared/dates.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
@@ -435,6 +436,10 @@ class _ReadingSection extends StatelessWidget {
 /// matched**. It is not that card either — this screen shows the passage
 /// WHOLE (the letter's own "see all" promise) and carries the one thing no
 /// other surface does: whether this passage is the one the letter sent.
+/// `.sc-p` (app-scripture.css) — a QUOTED passage, not a source row: a
+/// --surface card on --shadow-1 with no border, 14/16 padding; its head a
+/// content-sized plate, the title in SANS 13/600 and the measured score in
+/// mono 10.5 at --fg-subtle pushed right; the text serif 15/25 at --fg-lede.
 class _DayPassage extends StatelessWidget {
   final SearchResult result;
   final bool inLetter;
@@ -446,39 +451,44 @@ class _DayPassage extends StatelessWidget {
     final t = Tokens.of(context);
     final r = result;
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: AppRadius.mdR,
-        border: Border.all(color: t.border),
+        boxShadow: AppShadows.s1,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              KitFileBadge(kitDocKind(r.document.type)),
-              const SizedBox(width: AppSpacing.s2),
+              KitFileBadge(kitDocKind(r.document.type),
+                  size: KitBadgeSize.chip),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   r.document.title.isEmpty ? 'Untitled' : r.document.title,
-                  style: KitText.h4(context),
+                  style: KitText.ui(context, weight: FontWeight.w600),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 10),
+              // Measured: the backend's own blended rank.
+              Text(r.score.toStringAsFixed(2),
+                  style: KitText.capsLabel(context,
+                      fontSize: 10.5, letterSpacing: 0.04, color: t.fgSubtle)),
               if (inLetter) ...[
-                const SizedBox(width: AppSpacing.s2),
+                const SizedBox(width: 10),
                 const KitTag('In the letter', variant: KitTagVariant.accent),
               ],
-              const SizedBox(width: AppSpacing.s2),
-              // Measured: the backend's own blended rank.
-              Text(r.score.toStringAsFixed(2), style: KitText.meta(context)),
             ],
           ),
-          const SizedBox(height: AppSpacing.s3),
-          KitMarkedText(r.chunk.text, style: KitText.bodyReading(context)),
+          const SizedBox(height: 8),
+          KitMarkedText(r.chunk.text,
+              style: KitText.lede(context, fontSize: 15, height: 25)
+                  .copyWith(fontStyle: FontStyle.normal)),
         ],
       ),
     );

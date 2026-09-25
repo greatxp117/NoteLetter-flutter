@@ -349,10 +349,17 @@ enum KitBadgeSize {
   row(36, 44, 9),
 
   /// 40×48 — in a screen header.
-  header(40, 48, 10);
+  header(40, 48, 10),
 
-  final double width;
-  final double height;
+  /// Content-sized — the plate is its label and a hairline, no fixed box: a
+  /// readings-day passage card's head (`.sc-p-h .filebadge`, which sets no
+  /// width or height), where a 36×44 row plate made each quoted passage read
+  /// as a source row.
+  chip(null, null, 9);
+
+  /// `null` for [chip]: the plate sizes to its label.
+  final double? width;
+  final double? height;
   final double fontSize;
   const KitBadgeSize(this.width, this.height, this.fontSize);
 }
@@ -418,7 +425,12 @@ class KitFileBadge extends StatelessWidget {
     return Container(
       width: size.width,
       height: size.height,
-      alignment: Alignment.center,
+      alignment: size.width == null ? null : Alignment.center,
+      // A chip's hairline sits a breath off its glyphs; the reference's
+      // content-sized plate has none, and its border touches the letters.
+      padding: size.width == null
+          ? const EdgeInsets.symmetric(horizontal: 3, vertical: 2)
+          : null,
       decoration: BoxDecoration(
         color: bg,
         borderRadius: AppRadius.xsR,

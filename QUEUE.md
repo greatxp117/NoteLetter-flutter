@@ -1084,7 +1084,7 @@ a new obligation on a finished screen is a new item.
 - notes: app-responsive.css at max-width 680px: `.src-row .count { display: none; }` — the subtitle already says `N passages`, so the figure is dropped. KitSourceRow instead moves the count under the subtitle below 768 (a recorded CLAUDE.md §Composition deviation), which on the Library frame reads `Stories · 1 passage` over a lone `1`. Either retire the deviation (hide the count below the breakpoint, as the reference does) or re-argue it; the deviation list is word-capped, so a change there is a swap.
 
 ## F-60 · Readings day — a passage card is the reference's `.sc-p`: a small badge, a sans title, a mono score
-- status: open
+- status: done 2026-09-25
 - screen: scripture-day
 - route: /letters
 - spec: spec/screens/letters.md; spec/component-kit.md §4
