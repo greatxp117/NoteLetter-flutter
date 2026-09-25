@@ -470,7 +470,7 @@ class _ShelfPageState extends State<ShelfPage> {
         ),
         KitPanelRow(
           label: 'Color',
-          alignTop: true,
+          sizedByContent: true,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

@@ -1648,36 +1648,59 @@ class KitPanel extends StatelessWidget {
 /// One row of a [KitPanel] (`.ss-row`): a fixed-width mono caps label naming
 /// the control beside it. The label column is fixed so the controls of a panel
 /// line up with each other rather than with their own labels.
+///
+/// `.ss-row` is `flex-wrap: wrap` (gap 16, row-gap 8), and which controls wrap
+/// is decided by their flex basis: a `flex: 1` control (the name field, the
+/// split body) has a zero basis, always fits, and shrinks beside the label; a
+/// control sized by its content (the swatches) wraps WHOLE onto its own line
+/// under the label when its natural width does not fit beside it — on a phone
+/// the ten swatches (312px) drop under COLOR as one row of ten instead of
+/// wrapping 7 + 3 inside the column (F-56). [sizedByContent] is that basis.
 class KitPanelRow extends StatelessWidget {
   final String label;
   final Widget child;
 
-  /// A row whose control is taller than its label (a colour row that wraps, a
-  /// split proposal) aligns to the top instead of the centre.
+  /// A row whose control is taller than its label (a split proposal) aligns
+  /// to the top instead of the centre.
   final bool alignTop;
+
+  /// The control is sized by its content (no `flex: 1`), so the row wraps it
+  /// whole under the label when it does not fit beside it.
+  final bool sizedByContent;
 
   const KitPanelRow({
     super.key,
     required this.label,
     required this.child,
     this.alignTop = false,
+    this.sizedByContent = false,
   });
 
   static const double _labelWidth = 64;
 
   @override
   Widget build(BuildContext context) {
+    final labelBox = SizedBox(
+      width: _labelWidth,
+      child: Padding(
+        padding: EdgeInsets.only(top: alignTop ? 6 : 0),
+        child: KitControlLabel(label),
+      ),
+    );
+    if (sizedByContent) {
+      return Wrap(
+        spacing: AppSpacing.s4,
+        runSpacing: 8,
+        crossAxisAlignment:
+            alignTop ? WrapCrossAlignment.start : WrapCrossAlignment.center,
+        children: [labelBox, child],
+      );
+    }
     return Row(
       crossAxisAlignment:
           alignTop ? CrossAxisAlignment.start : CrossAxisAlignment.center,
       children: [
-        SizedBox(
-          width: _labelWidth,
-          child: Padding(
-            padding: EdgeInsets.only(top: alignTop ? 6 : 0),
-            child: KitControlLabel(label),
-          ),
-        ),
+        labelBox,
         const SizedBox(width: AppSpacing.s4),
         Expanded(child: child),
       ],

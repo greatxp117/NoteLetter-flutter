@@ -1022,7 +1022,7 @@ a new obligation on a finished screen is a new item.
 - notes: The 2026-09-25 re-shoot beside the web phone frame (web frame 2026-09-18). (1) On the seed's Quarterly Tax Summary the manuscript header says `2 passages · 12 words` where web says `9 words`: web counts `htmlWords(c.html)` (ManuscriptPanel.jsx:521/801/858), this client `_wordCount(c.text)` (manuscript_panel.dart:311/524/585) — and the same count drives the dwell timer (`dwellFor(wordsIn(c.text))`, :485, vs web :521), so the read-tracking dwell differs too, not only the label. Decide the unit from the reference and port it, with a test on a passage whose text and html disagree. (2) The table passage renders as `QuarterInvoice total` / `Q2 $1,200` — cells run together with no separator — where web draws a ruled table; the image passage draws its caption as body text. (3) The reader frame lacks web's `Treat as…` action and the `LISTEN —` stat; the manuscript frame's tab indicator stays on Summary while the manuscript panel is in view. Composition of the panel itself (drop cap, `.ms-chunk-head`) is F-43's.
 
 ## F-56 · Shelf settings panel — the colour group drops whole under its label at phone width
-- status: open
+- status: done 2026-09-25
 - screen: shelf-color-picker
 - route: /shelves/seed-tag-recipes
 - spec: spec/screens/library.md; spec/component-kit.md §6
