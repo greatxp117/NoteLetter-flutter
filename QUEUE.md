@@ -1071,7 +1071,7 @@ a new obligation on a finished screen is a new item.
   recipe, source-file, source-set, library, shelves re-shot on a restarted emulator.
 
 ## F-59 · §4.1 source row — the reference hides the row's count at phone width; this client stacks it as a third line
-- status: open
+- status: done 2026-09-25
 - screen: library
 - route: /
 - spec: spec/component-kit.md §4.1

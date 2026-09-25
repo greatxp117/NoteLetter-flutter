@@ -100,13 +100,13 @@ class _KitSourceRowState extends State<KitSourceRow> {
     // Below the compact breakpoint the row's four trailing columns do not fit
     // — with a count, a date AND an affordance it overflowed by 45px on a
     // phone, which paints the yellow-and-black bars over the content and is a
-    // layout error, not a squeeze. The count is the one that moves: it is the
-    // row's own figure, so it belongs with the row's own text, and the date
-    // and the affordance keep their columns. Recorded in CLAUDE.md
-    // §Composition deviations.
+    // layout error, not a squeeze. The count is the one that goes, as the
+    // reference's does (app-responsive.css: `.src-row .count { display:
+    // none }`): the subtitle already says `N passages`, and moving it under
+    // the subtitle drew that figure a second time as a lone third line.
+    // At 768, not web's 680 — CLAUDE.md §Composition deviations.
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
-    final countInline = compact && widget.count != null;
     final stackTrailing = compact && widget.wideTrailing;
     final Widget body = MouseRegion(
       cursor: widget.onTap == null
@@ -174,18 +174,10 @@ class _KitSourceRowState extends State<KitSourceRow> {
                         ),
                       ),
                     ],
-                    if (countInline) ...[
-                      const SizedBox(height: 3),
-                      Text(widget.count!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              AppTheme.mono(fontSize: 11, color: t.fgMuted)),
-                    ],
                   ],
                 ),
               ),
-              if (widget.count != null && !countInline) ...[
+              if (widget.count != null && !compact) ...[
                 const SizedBox(width: 14),
                 Text(widget.count!,
                     style:

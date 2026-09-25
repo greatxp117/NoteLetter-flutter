@@ -70,8 +70,8 @@ inside the kit**, never per screen. Roles and proportions unchanged:
 - §1.5 gutter 56 → 20 · §2.1 title 44 → 32
 - §2/§5.3 actions stack under the whole title BLOCK, standfirst included —
   never between a title and its standfirst
-- §6.6/§6.8, §4.2's timestamp, §12's action, a setting row's control strip and
-  §4.1's count stack at 768, not web's 680/640/480 — one breakpoint, not four
+- §6.6/§6.8, §4.2's timestamp, §12's action and a setting row's control strip
+  stack, and §4.1's count hides, at 768, not web's 680/640/480 — one breakpoint
 - §16's anchor also opens on **tap**: a coarse pointer has neither trigger
 
 ## Rules that are easy to break here

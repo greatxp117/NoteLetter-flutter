@@ -628,6 +628,25 @@ void main() {
   });
 
   group('cards and rows', () {
+    // F-59: the reference hides `.src-row .count` on a phone — the subtitle
+    // already says `N passages`. This client moved it under the subtitle,
+    // which drew the same figure again as a lone third line.
+    testWidgets('§4.1: the count shows wide and is dropped on a phone',
+        (tester) async {
+      const row = KitSourceRow(
+        leading: KitFileBadge('pdf'),
+        title: 'Church Dogmatics',
+        subtitle: 'Theology · 412 passages',
+        count: '412',
+        date: 'Aug 14',
+      );
+      await pumpBoth(tester, row);
+      expect(find.text('412'), findsOneWidget);
+      await pumpBoth(tester, row, size: const Size(390, 844));
+      expect(find.text('412'), findsNothing);
+      expect(find.text('Theology · 412 passages'), findsOneWidget);
+    });
+
     testWidgets('surface, passage and hero cards', (tester) async {
       await pumpBoth(
         tester,
