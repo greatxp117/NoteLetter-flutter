@@ -788,7 +788,7 @@ a new obligation on a finished screen is a new item.
 - notes: screenshot_pair_check.py has been RED at HEAD since before F-36, with 28 STALE-PAIR findings across F-13, F-14, F-15 (activity + library), F-20, F-25 and F-26: each screen's code was committed after its pair was shot, so the frames show a screen that no longer exists. F-36 refreshed its own two (settings, reader-manuscript) and added nothing to the list. This item is the rest. A stale pair is not cosmetic debt — the pair IS the composition gate (ADR-041), and a frame older than its screen is the ritual not having run, whatever any task summary said. One shoot at a time: Xcode refuses concurrent builds and two overlapping tool/shots.sh runs both fail at the 12-minute test timeout with the real cause ('Xcode build failed due to concurrent builds') only visible if the script's output is NOT piped through tail.
 
 ## F-38 · Create a shelf from the rail, and fill it from the library
-- status: in-progress
+- status: done 2026-09-25
 - screen: shelves
 - route: /shelves
 - spec: spec/screens/library.md §Creating a shelf §Backfill review; spec/component-kit.md §15 §14.1 §14.2; spec/api/tags.md §fn_suggest_shelf_backfill §fn_apply_shelf_backfill; spec/invariants.md §INV-29

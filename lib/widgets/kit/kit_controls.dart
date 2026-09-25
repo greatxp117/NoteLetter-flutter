@@ -8,7 +8,8 @@ import 'package:flutter/material.dart'
         InputBorder,
         InputDecoration,
         TextField,
-        TextInputType;
+        TextInputType,
+        Tooltip;
 import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_colors.dart';
@@ -401,7 +402,8 @@ class KitFileBadge extends StatelessWidget {
   }
 }
 
-/// §6.5 — a 34×34 icon button. Icon 17px.
+/// §6.5 — a 34×34 icon button. Icon 17px. [tooltip] is web's `title` +
+/// `aria-label`: shown on hover (long-press on touch) and read as the label.
 ///
 /// Icon stroke weight is **1.75 everywhere**, round caps and joins. Flutter's
 /// bundled Material icons have a fixed stroke, so the app uses the `_outlined`
@@ -426,6 +428,12 @@ class _KitIconButtonState extends State<KitIconButton> {
 
   @override
   Widget build(BuildContext context) {
+    final button = _button(context);
+    final tip = widget.tooltip;
+    return tip == null ? button : Tooltip(message: tip, child: button);
+  }
+
+  Widget _button(BuildContext context) {
     final t = Tokens.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -888,8 +896,16 @@ class KitSwitch extends StatelessWidget {
 /// `--surface`, padding `10px 14px`, an optional 16px leading icon at
 /// `--fg-muted`, and the value in the **mono** face at 15 — an address, a time,
 /// a label are all data the reader typed, and the reference sets them mono.
-class KitTextField extends StatelessWidget {
+///
+/// [face] picks the typeface role for the value and its placeholder — mono by
+/// default, because that is the data-field case above. A field whose value is
+/// a *name* or a *sentence* is not data: web's shelf form sets the name in
+/// `.ss-input` (serif 15) and "What belongs here?" in `.sf-desc` (sans 13/1.45),
+/// and drawing either in mono read as a different form. The frame is the same
+/// for every face; only the type changes.
+class KitTextField extends StatefulWidget {
   final TextEditingController controller;
+  final KitFieldFace face;
   final String? placeholder;
   final IconData? icon;
   final TextInputType? keyboardType;
@@ -919,37 +935,85 @@ class KitTextField extends StatelessWidget {
     this.enabled = true,
     this.maxLength,
     this.autofocus = false,
+    this.face = KitFieldFace.mono,
   });
+
+  @override
+  State<KitTextField> createState() => _KitTextFieldState();
+}
+
+class _KitTextFieldState extends State<KitTextField> {
+  // `.ss-input:focus` draws the accent border and a 4px `--accent-soft` ring;
+  // `.timefield` (the mono data field) draws no focus state at all, so the
+  // ring belongs to the serif and sans faces only.
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocus);
+  }
+
+  void _onFocus() => setState(() {});
+
+  @override
+  void dispose() {
+    _focus.removeListener(_onFocus);
+    _focus.dispose();
+    super.dispose();
+  }
+
+  TextStyle _style(Color color) => switch (widget.face) {
+        KitFieldFace.mono => AppTheme.mono(fontSize: 15, color: color),
+        // `.ss-input`. Tracking pinned to 0: a TextField merges its style
+        // over the Material 3 `bodyLarge`, whose 0.5 letter-spacing otherwise
+        // leaks in — the description drew ~8% wider than web's.
+        KitFieldFace.serif =>
+          AppTheme.serif(fontSize: 15, color: color, letterSpacing: 0),
+        // `.sf-desc`
+        KitFieldFace.sans => TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 13,
+            height: 1.45,
+            letterSpacing: 0,
+            color: color,
+          ),
+      };
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final ring = widget.face != KitFieldFace.mono && _focus.hasFocus;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: AppRadius.smR,
-        border: Border.all(color: t.border),
+        border: Border.all(color: ring ? t.accent : t.border),
+        boxShadow: ring
+            ? [BoxShadow(color: t.accentSoft, spreadRadius: 4)]
+            : null,
       ),
       child: Row(
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 16, color: t.fgMuted),
+          if (widget.icon != null) ...[
+            Icon(widget.icon, size: 16, color: t.fgMuted),
             const SizedBox(width: 10),
           ],
           Expanded(
             child: TextField(
-              controller: controller,
-              keyboardType: keyboardType,
-              onChanged: onChanged,
-              minLines: minLines,
-              maxLines: maxLines,
-              enabled: enabled,
-              autofocus: autofocus,
-              inputFormatters: maxLength == null
+              controller: widget.controller,
+              focusNode: _focus,
+              keyboardType: widget.keyboardType,
+              onChanged: widget.onChanged,
+              minLines: widget.minLines,
+              maxLines: widget.maxLines,
+              enabled: widget.enabled,
+              autofocus: widget.autofocus,
+              inputFormatters: widget.maxLength == null
                   ? null
-                  : [LengthLimitingTextInputFormatter(maxLength)],
-              style: AppTheme.mono(fontSize: 15, color: t.fg),
+                  : [LengthLimitingTextInputFormatter(widget.maxLength)],
+              style: _style(t.fg),
               cursorColor: t.accent,
               // The frame above IS the field. `InputDecoration.collapsed`
               // clears `border` and nothing else, so `app_theme`'s
@@ -968,8 +1032,8 @@ class KitTextField extends StatelessWidget {
                 disabledBorder: InputBorder.none,
                 errorBorder: InputBorder.none,
                 focusedErrorBorder: InputBorder.none,
-                hintText: placeholder,
-                hintStyle: AppTheme.mono(fontSize: 15, color: t.fgSubtle),
+                hintText: widget.placeholder,
+                hintStyle: _style(t.fgSubtle),
               ),
             ),
           ),
@@ -977,6 +1041,19 @@ class KitTextField extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The typeface role of a [KitTextField]'s value (design-tokens.md §Type:
+/// serif for reading and names, sans for UI sentences, mono for data).
+enum KitFieldFace {
+  /// Geist Mono 15 — data the reader typed: an address, a time, a label.
+  mono,
+
+  /// Source Serif 15 (`.ss-input`) — a name: a shelf's title.
+  serif,
+
+  /// Geist 13/1.45 (`.sf-desc`) — a sentence: a shelf's description.
+  sans,
 }
 
 /// A labelled field group (`.cfg-group` + `.cfg-label`): a mono caps label,

@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import '../../theme/app_radius.dart';
@@ -95,15 +97,20 @@ class KitOverlaySheet extends StatelessWidget {
       showDialog<void>(
         context: context,
         barrierColor: Tokens.of(context).scrim,
-        builder: (ctx) => KitOverlaySheet(
-          icon: icon,
-          title: title,
-          subtitle: subtitle,
-          width: width,
-          heightFactor: heightFactor,
-          holding: holding,
-          heading: heading,
-          child: Builder(builder: builder),
+        // §15's scrim is tinted AND blurred 3px; the barrier alone is the tint,
+        // so the screen behind read sharp through it.
+        builder: (ctx) => BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+          child: KitOverlaySheet(
+            icon: icon,
+            title: title,
+            subtitle: subtitle,
+            width: width,
+            heightFactor: heightFactor,
+            holding: holding,
+            heading: heading,
+            child: Builder(builder: builder),
+          ),
         ),
       );
 
@@ -155,7 +162,10 @@ class KitOverlaySheet extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+                // `.qa-head` is `align-items: flex-start`: a subtitle that
+                // wraps grows DOWN from the mark, it does not re-centre it.
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
                       width: 36,
@@ -172,15 +182,22 @@ class KitOverlaySheet extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // `.qa-title` serif 21/1.1 600 and `.qa-sub` sans
+                          // 13 at `--fg-muted`, 3px under it. Both WRAP on the
+                          // web: a one-line ellipsis cut "Fill <shelf>"'s
+                          // subtitle mid-sentence on a phone.
                           Text(title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: KitText.h4(context)),
-                          if (subtitle != null)
+                              style: AppTheme.serif(
+                                fontSize: 21,
+                                height: 1.1,
+                                fontWeight: FontWeight.w600,
+                                color: t.fg,
+                              )),
+                          if (subtitle != null) ...[
+                            const SizedBox(height: 3),
                             Text(subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: KitText.meta(context)),
+                                style: KitText.ui(context, color: t.fgMuted)),
+                          ],
                         ],
                       ),
                     ),

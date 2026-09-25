@@ -35,18 +35,6 @@ class TagsNotifier extends ChangeNotifier {
     });
   }
 
-  Future<String?> createTag(String title,
-      {String? description, String? color}) async {
-    try {
-      await Api.instance.createTag(title, description: description, color: color);
-      return null; // the subscription reflects the new tag
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (_) {
-      return 'Could not create the tag.';
-    }
-  }
-
   Future<String?> updateTag(String tagId,
       {String? title,
       String? description,

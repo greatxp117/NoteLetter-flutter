@@ -264,6 +264,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
             key: const ValueKey('shelf-form-name'),
             controller: _name,
             placeholder: 'Shelf name…',
+            face: KitFieldFace.serif,
             maxLength: shelfTitleMax,
             autofocus: true,
             enabled: !_busy,
@@ -280,6 +281,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
             placeholder: 'Optional — a sentence helps NoteLetter recognise '
                 'what to file here.',
             maxLength: shelfDescriptionMax,
+            face: KitFieldFace.sans,
             minLines: 2,
             maxLines: 4,
             enabled: !_busy,
@@ -451,8 +453,8 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final lede = KitText.lede(context);
-    final em = lede.copyWith(color: t.accentText);
+    final lede = KitText.reviewLede(context);
+    final em = KitText.reviewEm(context);
 
     if (_readError != null) {
       final e = _readError!;
@@ -515,7 +517,7 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
           ]),
           style: lede,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14), // `.bf-review` gap
         Container(height: 1, color: t.rule),
         for (final c in _candidates) _row(t, c),
         if (_applyError != null) ...[

@@ -107,6 +107,21 @@ class KitText {
         color: color ?? Tokens.of(context).fgMuted,
       );
 
+  /// `.bf-lede` — UPRIGHT serif 17/1.4 at `--fg`: the sentence a review
+  /// answers with ("1 of your 4 sources look like they belong on Pasta.").
+  /// Not [lede]: that is the italic standfirst under a page title, and drawing
+  /// the answer in it set the whole sentence italic and muted. Only the
+  /// figures and the shelf name are emphasised — [reviewEm].
+  static TextStyle reviewLede(BuildContext context) => AppTheme.serif(
+        fontSize: 17,
+        height: 1.4,
+        color: Tokens.of(context).fg,
+      );
+
+  /// `.bf-lede em` — italic at `--accent-text`, inside a [reviewLede].
+  static TextStyle reviewEm(BuildContext context) => reviewLede(context)
+      .copyWith(fontStyle: FontStyle.italic, color: Tokens.of(context).accentText);
+
   // ── Body ─────────────────────────────────────────────────────────────────
 
   /// `.body` — sans 16/24, the UI default.
