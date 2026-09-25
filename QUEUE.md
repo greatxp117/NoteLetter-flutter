@@ -994,6 +994,7 @@ a new obligation on a finished screen is a new item.
 - shots: letter-settings
 - extra_gates: none
 - notes: Left over after the form was recomposed (F-51). The reference puts the letter itself beside (desktop) or under (phone) the form: `.letter-preview-pane` — today's letter (getNewsletter) rendered through LetterDocument with the first `count` passages, a §14.2 line if it could not be read, and an actions row (`N passages · ~N+1 min read`, Copy, Send now with its sent/failed sentence). This client has no preview and no Send now on this screen. Also `Draw from`: a shelf list with switches whose titles save as `topicFilters` (titles, not ids) in the same PUT; SettingsNotifier.saveLetterSettings already accepts topicFilters. Build both from the kit (§11 Letter sheet for the preview).
+  2026-09-25: not reached this sitting (disk, see F-61). Unchanged.
 
 ## F-54 · Library — the setup checklist, the search field row, and the spine views
 - status: open
@@ -1009,6 +1010,14 @@ a new obligation on a finished screen is a new item.
 - notes: The 2026-09-25 re-shoot beside the web phone frame. Under the chapter opening the reference draws (1) the setup checklist card — a chevron, a progress bar, `4 of 5 set up`, the next step as a pill (`Ask your library a question`) and Hide; this client has none; (2) a full-width SEARCH FIELD (`Search your library by meaning…`, italic serif placeholder) and, under it on a phone, a full-width `+ Add a source` primary — this client puts a ghost `Search` and an `Add a source` button in the header's actions slot instead; (3) `Recently read` with a list/shelf (spine) view toggle, and `Shelves` with a shelf/card toggle — this client has the list and the card grid only. The Today's-letter hero is absent here for a data reason, not a composition one: web's getNewsletter takes the newest record of any status/kind, this client takes the latest `sent` daily letter with an `html_body`, and the seed's two letters are pre-2.0.0 records with `html` only — so web says 'Today's letter is ready — 0 passages' where this client says the library is being read. Decide which is right before building the hero's appearance rule. Read LibraryHome.jsx for the checklist's steps and its persistence before building it.
   2026-09-25: the hero question is answered on the reference side — NoteLetter-web ef14f8a "Library hero:
   Today's letter is the newest DAILY letter, never a readings letter"; read it before choosing the rule.
+  2026-09-25: not reached this sitting (disk, see F-61). The hero rule to mirror (web ef14f8a):
+  getNewsletter pages `/newsletters` by generated_at desc, 10 at a time, and takes the first record
+  whose `kind != 'scripture'` CLIENT-SIDE (a `!=` query would move the first orderBy onto `kind` and
+  drop the kindless pre-2.24.0 records), paging on past a full page of readings letters; 404 when
+  none. It does NOT require `status == sent` or an `html_body` — this client's
+  `letters.latest?.status == 'sent'` gate is the other half of the difference. The standfirst takes
+  the lede by web 5d6fe8d's shared letterLede (the `data-nl-lede` rule), never a slice of
+  `text_body`. tool/seed_letters.py is now loaded in the emulator (4 letters incl. a readings one).
 
 ## F-55 · Reader — the manuscript counts words from the text, not the passage html, and flattens a table
 - status: done 2026-09-25
@@ -1108,6 +1117,15 @@ a new obligation on a finished screen is a new item.
 - shots: folder-contents
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: The 2026-09-25 frame beside folder-contents.web.phone.png. Web's picker is one sunken panel: an underlined `Root` breadcrumb with the `0/20 folders · 0/50 files` counter in italic serif at its right, folder rows that are a checkbox + underlined name + chevron with NO box around them, the scan disclosure indented under its rule, and `Import 0 items` (primary, enabled at zero, naming the count) beside a `Cancel` text button. This client titles the card `Import from Google Drive` with a close control, sets `ROOT` as a caps label, boxes each folder row, puts the counter at the foot beside a disabled `Import selected`. The data and the disclosure are right; the composition is not. Read CloudImportPanel.jsx before rebuilding — the enabled-at-zero button may be a web defect, not a rule.
+  2026-09-25 (not started — disk): the host was at 1.6 GB free with 9.6 GB of swap, and this item's
+  sources_page.dart change re-stales five pairs (sources, proc-affordances, source-file-stage,
+  folder-contents under NL_DEV_FAKES, letter-settings via F-49). Read, ready to build: the reference
+  is CloudFilePicker.jsx (not CloudImportPanel.jsx) — a --bg-2 panel, r-lg, padding 14; crumbs are
+  `.set-link` buttons (`Root` › …) with the counter as `.proc-note` at the right of the same row;
+  folder rows are checkbox + `.set-link` name + chevron + the FolderContents disclosure, no box; the
+  foot is `proc-retry` `Import N item(s)` + `proc-remove` Cancel. The button is NOT enabled at zero:
+  `disabled={saving || !canConfirm}` — the frame's proc-retry only draws disabled faintly. There is
+  no title row and no close control; Cancel is the way out.
 
 ## F-62 · Sources — Update from source on a kept refresh row (4.96.0 cloud tandem)
 - status: done 2026-09-25
