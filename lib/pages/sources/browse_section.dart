@@ -109,13 +109,6 @@ class _BrowseSectionState extends State<BrowseSection> {
         }
 
         final all = docs.complete;
-        // Everything the pipeline has not finished with, plus the terminal
-        // failures that are still waiting to be acted on (§Document
-        // processing). They lead the section: a source in flight is the thing
-        // the reader just did.
-        final inFlight = docs.documents
-            .where((d) => d.status != DocumentStatus.complete)
-            .toList();
 
         final counts = <String, int>{'all': all.length, 'unread': 0};
         for (final d in all) {
@@ -133,17 +126,6 @@ class _BrowseSectionState extends State<BrowseSection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (inFlight.isNotEmpty) ...[
-              SectionHeader(_processingLabel(inFlight),
-                  note: _processingNote(inFlight)),
-              KitRowList(
-                rows: [
-                  for (final d in inFlight)
-                    _ProcessingRow(doc: d),
-                ],
-              ),
-            ],
-
             // The SECOND unread figure on this screen, and the one the
             // header fix above would have left behind (C2). `all.length` is
             // derived from the same subscription, so on a failure this said
@@ -249,6 +231,41 @@ class _BrowseSectionState extends State<BrowseSection> {
   }
 }
 
+/// §Document processing — **Being processed**, directly under the drop zone and
+/// the link row (`screens/sources.md` §Composition body 1: "the processing rows
+/// sit directly under it"). A source you just dropped lands where you are
+/// already looking. It was the head of the *In your library* section — at the
+/// foot of the screen, under the connect grid, the import panels and the
+/// organization card — so on a phone the thing a drop produces was never in
+/// the same view as the drop.
+///
+/// Everything the pipeline has not finished with, plus the terminal failures
+/// still waiting to be acted on.
+class ProcessingSection extends StatelessWidget {
+  const ProcessingSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final docs = context.watch<DocumentsNotifier>();
+    final inFlight = docs.documents
+        .where((d) => d.status != DocumentStatus.complete)
+        .toList();
+    if (docs.loading || inFlight.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(_processingLabel(inFlight),
+            note: _processingNote(inFlight)),
+        KitRowList(
+          rows: [
+            for (final d in inFlight) _ProcessingRow(doc: d),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 /// §Document processing — the header counts the section, and **splits the count
 /// when anything has failed**: "{active} indexing now — {failed} needs
 /// attention". One number for two states would bury the half that needs a
@@ -256,17 +273,20 @@ class _BrowseSectionState extends State<BrowseSection> {
 String _processingLabel(List<Document> inFlight) =>
     'Being processed · ${inFlight.length}';
 
-/// The split, beside the total — null while nothing has failed.
-String? _processingNote(List<Document> inFlight) {
-  final failed = inFlight
+/// The split, beside the total. A STALLED row needs a person as much as a
+/// failed one (ADR-108), so it counts on the attention side, as the
+/// reference's does; with nothing needing one, the note says what to expect.
+String _processingNote(List<Document> inFlight) {
+  final attention = inFlight
       .where((d) =>
-          d.status == DocumentStatus.error || d.status == DocumentStatus.skipped)
+          d.status == DocumentStatus.error ||
+          d.status == DocumentStatus.skipped ||
+          d.isStalled())
       .length;
-  if (failed == 0) return null;
-  final active = inFlight.length - failed;
-  final needs = failed == 1 ? 'needs' : 'need';
-  if (active == 0) return '$failed $needs attention';
-  return '$active indexing now — $failed $needs attention';
+  if (attention == 0) return 'passages appear as each finishes';
+  final active = inFlight.length - attention;
+  final needs = attention == 1 ? 'needs' : 'need';
+  return '$active indexing now — $attention $needs attention';
 }
 
 /// A volume. The §4.1 row, with its per-source affordances hanging off the end.

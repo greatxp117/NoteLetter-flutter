@@ -26,11 +26,7 @@ class FileUploader extends StatefulWidget {
   final VoidCallback? onUploadComplete;
   final void Function(String message)? onUploadError;
 
-  const FileUploader({
-    super.key,
-    this.onUploadComplete,
-    this.onUploadError,
-  });
+  const FileUploader({super.key, this.onUploadComplete, this.onUploadError});
 
   @override
   State<FileUploader> createState() => FileUploaderState();
@@ -40,7 +36,6 @@ class FileUploader extends StatefulWidget {
 /// empty state offers "Add your first file", and an offer that does nothing is
 /// an apology wearing the pattern.
 class FileUploaderState extends State<FileUploader> {
-  bool _showUrlInput = false;
   final _urlCtrl = TextEditingController();
   final _urlFocus = FocusNode();
   bool _urlSubmitting = false;
@@ -55,11 +50,9 @@ class FileUploaderState extends State<FileUploader> {
   /// Open the system file picker.
   Future<void> pickFiles() => _pickFiles(context.read<UploadNotifier>());
 
-  /// Reveal the link field and put the cursor in it.
-  void revealLinkField() {
-    setState(() => _showUrlInput = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _urlFocus.requestFocus());
-  }
+  /// Put the cursor in the link field. The field is always on screen (the
+  /// reference's `.link-add`); this is the empty state's "Add a link" offer.
+  void revealLinkField() => _urlFocus.requestFocus();
 
   /// The §14.2 slot for a file or a link this client refused **before** any
   /// request. Every other ingest failure has a document row to carry its
@@ -93,7 +86,10 @@ class FileUploaderState extends State<FileUploader> {
       // `null` is not an accept, it is "worth sending". The server still
       // decides, and its message still reaches the row.
       final refused = uploadRejection(
-          name: file.name, size: file.size, mimeType: mimeType);
+        name: file.name,
+        size: file.size,
+        mimeType: mimeType,
+      );
       if (refused != null) {
         _reject(refused);
         continue;
@@ -111,8 +107,7 @@ class FileUploaderState extends State<FileUploader> {
         if (match.status == UploadStatus.completed) {
           widget.onUploadComplete?.call();
         } else if (match.status == UploadStatus.error) {
-          widget.onUploadError
-              ?.call(match.errorMessage ?? 'Upload failed.');
+          widget.onUploadError?.call(match.errorMessage ?? 'Upload failed.');
         }
       });
     }
@@ -127,7 +122,8 @@ class FileUploaderState extends State<FileUploader> {
     );
     if (result == null || result.files.isEmpty) return;
 
-    final images = <({String name, int size, Uint8List bytes, String mimeType})>[];
+    final images =
+        <({String name, int size, Uint8List bytes, String mimeType})>[];
     for (final f in result.files.take(20)) {
       final bytes = f.bytes;
       if (bytes == null) continue;
@@ -142,8 +138,10 @@ class FileUploaderState extends State<FileUploader> {
 
     final rowId = await notifier.addImageSet(images);
     if (!mounted || rowId == null) return;
-    final match = notifier.files.firstWhere((f) => f.id == rowId,
-        orElse: () => UploadFile(id: '', name: '', size: 0));
+    final match = notifier.files.firstWhere(
+      (f) => f.id == rowId,
+      orElse: () => UploadFile(id: '', name: '', size: 0),
+    );
     if (match.status == UploadStatus.completed) {
       widget.onUploadComplete?.call();
     } else if (match.status == UploadStatus.error) {
@@ -170,7 +168,6 @@ class FileUploaderState extends State<FileUploader> {
         return;
       }
       _urlCtrl.clear();
-      setState(() => _showUrlInput = false);
       widget.onUploadComplete?.call();
     } finally {
       if (mounted) setState(() => _urlSubmitting = false);
@@ -181,8 +178,9 @@ class FileUploaderState extends State<FileUploader> {
   Widget build(BuildContext context) {
     return Consumer<UploadNotifier>(
       builder: (context, notifier, _) {
-        final uploading = notifier.files
-            .any((f) => f.status == UploadStatus.uploading);
+        final uploading = notifier.files.any(
+          (f) => f.status == UploadStatus.uploading,
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -198,42 +196,33 @@ class FileUploaderState extends State<FileUploader> {
               // wrong for video by a factor of twenty, and a reader with a
               // phone-shot clip reads it as a refusal that has not happened.
               help: '$uploadAcceptHelp — up to 100 MB each, 2 GB for video',
-              formats: const [
-                KitTag('PDF'),
-                KitTag('DOCX'),
-                KitTag('PPTX'),
-                KitTag('Markdown'),
-                KitTag('PNG / JPG'),
-                KitTag('Audio'),
-                KitTag('Video'),
-              ],
+              // No format pills here: the reference's add panel has none (the
+              // help line already names every class), and "What can I add?"
+              // in the section header is where the detail lives.
               onTap: () => _pickFiles(notifier),
             ),
             const SizedBox(height: 12),
 
-            if (!_showUrlInput)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  KitButton.ghost('Paste a link or YouTube URL',
-                      icon: Icons.link, onPressed: revealLinkField),
-                  KitButton.ghost('Add an image set (up to 20)',
-                      icon: Icons.photo_library_outlined,
-                      onPressed: () => _pickImageSet(notifier)),
-                ],
-              )
-            else
-              _LinkRow(
-                controller: _urlCtrl,
-                focusNode: _urlFocus,
-                submitting: _urlSubmitting,
-                onSubmit: () => _submitUrl(notifier),
-                onCancel: () {
-                  _urlCtrl.clear();
-                  setState(() => _showUrlInput = false);
-                },
+            // The link row is the zone's sibling, not a control hidden
+            // behind a button (`screens/sources.md` §Composition body 1: "the
+            // drop zone, then the link row (a field and an Add-link button)").
+            _LinkRow(
+              controller: _urlCtrl,
+              focusNode: _urlFocus,
+              submitting: _urlSubmitting,
+              onSubmit: () => _submitUrl(notifier),
+            ),
+            // Multi-image capture (1.1.0) is a device capability the web has
+            // no surface for; it stays, as a quiet offer under the row.
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: KitButton.ghost(
+                'Add an image set (up to 20)',
+                icon: Icons.photo_library_outlined,
+                onPressed: () => _pickImageSet(notifier),
               ),
+            ),
 
             // §14.2 — the rejection this client made itself, in the place the
             // reader is looking. Dense: it sits under a control group.
@@ -264,67 +253,81 @@ class _LinkRow extends StatelessWidget {
   final FocusNode focusNode;
   final bool submitting;
   final VoidCallback onSubmit;
-  final VoidCallback onCancel;
 
   const _LinkRow({
     required this.controller,
     required this.focusNode,
     required this.submitting,
     required this.onSubmit,
-    required this.onCancel,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: t.surface,
-              borderRadius: AppRadius.controlR(38),
-              border: Border.all(color: t.border),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.link, size: 15, color: t.fgSubtle),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    style: TextStyle(
-                      fontFamily: AppTheme.fontSans,
-                      fontSize: 14,
-                      color: t.fg,
-                    ),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: 'Paste a link — article, video, or podcast…',
-                      hintStyle: TextStyle(
-                        fontFamily: AppTheme.fontSans,
-                        fontSize: 14,
-                        color: t.fgSubtle,
-                      ),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    onSubmitted: (_) => onSubmit(),
+    // `.link-add`: a plain field (no glyph — the button carries it) at
+    // `11px 14px` on `--surface`, `--r-sm`, and the Add-link button beside it.
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: ListenableBuilder(
+              listenable: focusNode,
+              builder: (context, field) => Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.centerLeft,
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  borderRadius: AppRadius.smR,
+                  border: Border.all(
+                    color: focusNode.hasFocus ? t.accent : t.border,
                   ),
                 ),
-              ],
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  keyboardType: TextInputType.url,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 14,
+                    color: t.fg,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    // The box above IS the field; the theme's own outline
+                    // would draw a second, pill-shaped one inside it.
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    hintText: 'Paste a link — article, video, or podcast…',
+                    hintStyle: TextStyle(
+                      fontFamily: AppTheme.fontSans,
+                      fontSize: 14,
+                      color: t.fgSubtle,
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onSubmitted: (_) => onSubmit(),
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        KitButton.secondary(submitting ? 'Adding…' : 'Add link',
-            icon: Icons.add, onPressed: submitting ? null : onSubmit),
-        const SizedBox(width: 4),
-        KitIconButton(Icons.close, tooltip: 'Cancel', onPressed: onCancel),
-      ],
+          const SizedBox(width: 8),
+          ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) => KitButton.secondary(
+              submitting ? 'Adding…' : 'Add link',
+              icon: Icons.link,
+              // Disabled on an empty field, as the reference's is.
+              onPressed: submitting || controller.text.trim().isEmpty
+                  ? null
+                  : onSubmit,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

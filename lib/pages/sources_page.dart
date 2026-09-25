@@ -19,6 +19,7 @@ import 'sources/browse_section.dart';
 import 'sources/cloud_sync_copy.dart';
 import 'sources/folder_contents.dart';
 import 'sources/organization_settings_panel.dart';
+import 'sources/sources_info_sheet.dart';
 import 'sources/sync_settings_panel.dart';
 
 /// Canonical provider ids (1.2.0) with display names for not-yet-connected
@@ -210,7 +211,10 @@ class _SourcesPageState extends State<SourcesPage> {
                 folio: docs.error != null
                     ? null
                     : _plural(volumes.length, 'volume'),
-                title: 'Your *library*',
+                // `Library`, as the reference titles it (§Composition
+                // Header). The rail calls this screen Library; a title that
+                // says something else is a second name for one place.
+                title: 'Library',
                 // Both figures come from the subscription already loaded, so
                 // the standfirst costs no extra read — and it states what is
                 // measured, not what would be impressive.
@@ -241,7 +245,13 @@ class _SourcesPageState extends State<SourcesPage> {
                 ),
 
               // ── Add to your library ────────────────────────────────────
-              const SectionHeader('Add to your library', first: true),
+              SectionHeader(
+                'Add to your library',
+                first: true,
+                actionIcon: Icons.help_outline,
+                actionLabel: 'What can I add?',
+                onAction: () => SourcesInfoSheet.show(context),
+              ),
               FileUploader(
                 key: _uploader,
                 onUploadComplete: () => AppToast.show(
@@ -250,6 +260,9 @@ class _SourcesPageState extends State<SourcesPage> {
                 onUploadError: (msg) =>
                     AppToast.show(context, msg, type: ToastType.error),
               ),
+              // §Document processing, directly under the zone and the link
+              // row — where a dropped source lands.
+              const ProcessingSection(),
 
               // ── Connect a service ──────────────────────────────────────
               const SectionHeader('Connect a service'),
