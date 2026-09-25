@@ -795,11 +795,12 @@ Widget _segTrack(
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
-          // Filling, the segments share the track equally, so the inset is
-          // what decides whether four labels fit a phone: at 8 the longest
-          // level label ("Successes") ellipsised on a 390pt viewport.
-          padding:
-              EdgeInsets.symmetric(horizontal: fill ? 6 : 14, vertical: 7),
+          // `.seg button { padding: 7px 10px }`. Filling no longer shares the
+          // track EQUALLY (which ellipsised "Successes" on a 390pt phone,
+          // F-46): [_segLines] gives each segment at least its label, the way
+          // flex:1 with a min-content floor does, and wraps when they cannot.
+          padding: EdgeInsets.symmetric(
+              horizontal: fill ? _segPadX : 14, vertical: 7),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: on ? t.surface : const Color(0x00000000),
@@ -833,22 +834,134 @@ Widget _segTrack(
     );
   }
 
+  final decoration = BoxDecoration(
+    color: t.surfaceSunken,
+    borderRadius: AppRadius.smR,
+  );
+  if (!fill) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: decoration,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < segments.length; i++) ...[
+            if (i > 0) const SizedBox(width: _segGap),
+            segment(i),
+          ],
+        ],
+      ),
+    );
+  }
   return Container(
     padding: const EdgeInsets.all(3),
-    decoration: BoxDecoration(
-      color: t.surfaceSunken,
-      borderRadius: AppRadius.smR,
-    ),
-    child: Row(
-      mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
-      children: [
-        for (var i = 0; i < segments.length; i++) ...[
-          if (i > 0) const SizedBox(width: 2),
-          fill ? Expanded(child: segment(i)) : segment(i),
+    decoration: decoration,
+    child: LayoutBuilder(builder: (context, constraints) {
+      final scaler = MediaQuery.textScalerOf(context);
+      final base = DefaultTextStyle.of(context).style;
+      final natural = [
+        for (final s in segments) _segNaturalWidth(s, base, scaler),
+      ];
+      final lines = _segLines(natural, constraints.maxWidth);
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var l = 0; l < lines.length; l++) ...[
+            if (l > 0) const SizedBox(height: _segGap),
+            Row(children: [
+              for (var k = 0; k < lines[l].length; k++) ...[
+                if (k > 0) const SizedBox(width: _segGap),
+                SizedBox(
+                  width: lines[l][k].width,
+                  child: segment(lines[l][k].index),
+                ),
+              ],
+            ]),
+          ],
         ],
-      ],
-    ),
+      );
+    }),
   );
+}
+
+const double _segGap = 2;
+const double _segPadX = 10;
+
+/// A segment's max-content width: its label (and icon) plus `.seg button`'s
+/// inline padding — what CSS floors a `flex: 1` item at.
+double _segNaturalWidth(KitSegment s, TextStyle base, TextScaler scaler) {
+  // Measured in the style the label is DRAWN in — the ambient style merged
+  // with the segment's own, since a Text inherits whatever it does not set.
+  final tp = TextPainter(
+    text: TextSpan(
+      text: s.label,
+      style: base.merge(const TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+      )),
+    ),
+    textDirection: TextDirection.ltr,
+    textScaler: scaler,
+    maxLines: 1,
+  )..layout();
+  final icon = s.icon != null ? 14 + 7 : 0;
+  return (tp.width + icon + 2 * _segPadX).ceilToDouble();
+}
+
+/// `.seg { flex-wrap: wrap; gap: 2px }` over `button { flex: 1 }`: segments
+/// fill their line in shares that are equal except where a label needs more
+/// (a flex item never shrinks below its min-content), and a segment that
+/// cannot fit on the current line starts the next one. Returns, per line,
+/// each segment's index and resolved width.
+List<List<({int index, double width})>> _segLines(
+    List<double> natural, double avail) {
+  final lines = <List<int>>[];
+  var line = <int>[];
+  var used = 0.0;
+  for (var i = 0; i < natural.length; i++) {
+    final need = natural[i] + (line.isEmpty ? 0 : _segGap);
+    if (line.isNotEmpty && used + need > avail) {
+      lines.add(line);
+      line = <int>[];
+      used = 0;
+    }
+    used += natural[i] + (line.isEmpty ? 0 : _segGap);
+    line.add(i);
+  }
+  if (line.isNotEmpty) lines.add(line);
+
+  return [
+    for (final l in lines) _segResolve(l, natural, avail),
+  ];
+}
+
+List<({int index, double width})> _segResolve(
+    List<int> line, List<double> natural, double avail) {
+  final space = (avail - _segGap * (line.length - 1)).clamp(0.0, avail);
+  // Freeze every item whose floor beats the equal share, then re-share what
+  // is left among the rest — the flex algorithm's min-violation loop.
+  final frozen = <int, double>{};
+  while (true) {
+    final free = line.where((i) => !frozen.containsKey(i)).toList();
+    if (free.isEmpty) break;
+    final left = space - frozen.values.fold(0.0, (a, b) => a + b);
+    final share = left / free.length;
+    final over = free.where((i) => natural[i] > share).toList();
+    if (over.isEmpty) {
+      for (final i in free) {
+        frozen[i] = share;
+      }
+      break;
+    }
+    for (final i in over) {
+      frozen[i] = natural[i];
+    }
+  }
+  return [
+    for (final i in line) (index: i, width: frozen[i]!.floorToDouble()),
+  ];
 }
 
 /// The switch (`.switch`, app-responsive.css): a 38×22 pill, `--surface-sunken`

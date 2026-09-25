@@ -892,7 +892,7 @@ a new obligation on a finished screen is a new item.
 - notes: A `_JobRow` carrying two actions (View · Import again) plus its status glyph leaves the title so little width that `taxes.pdf` renders as `taxes.pd` / `f` and the subtitle as `Already im…` — on the seed's already-imported job, iPhone 17 Pro. Seen in screenshots/folder-contents.flutter.*.png (first shot, below the picker). The row is §4.1: when actions and title cannot share a line, the actions go under the title, never the title into a sliver.
 
 ## F-46 · Notifications — a level label ellipsises in the channel cards
-- status: open
+- status: done 2026-09-25
 - screen: notifications
 - route: /settings/notifications
 - spec: spec/screens/notifications.md §The editor; spec/component-kit.md §6.8
