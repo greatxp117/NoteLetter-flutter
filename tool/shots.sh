@@ -65,4 +65,9 @@ wait_for "HOLD:DARK"  "screenshots/$screen.flutter.dark.png"
 kill "$pid" 2>/dev/null || true
 wait "$pid" 2>/dev/null || true
 rm -f "$log"
+# Every hold build leaves a ~68 MB dir under .dart_tool/flutter_build that
+# nothing prunes — it filled the disk. Keep the newest three.
+if [ -d .dart_tool/flutter_build ]; then
+  (cd .dart_tool/flutter_build && ls -t | tail -n +4 | xargs rm -rf)
+fi
 echo "tool: now copy the web frame beside them: tool/web_frames.sh $screen"
