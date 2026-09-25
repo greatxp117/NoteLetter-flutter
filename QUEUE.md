@@ -1078,10 +1078,23 @@ a new obligation on a finished screen is a new item.
 - screen: scripture-day
 - route: /letters
 - spec: spec/screens/letters.md; spec/component-kit.md §4
-- web: src/pages/letters/ScriptureDay.jsx; src/styles/app-scripture.css
+- web: src/pages/letters/ScriptureDayView.jsx; src/styles/app-scripture.css
 - flutter: lib/pages/letters/scripture_day_page.dart
 - folds: none — found by the F-34/F-37 re-shoot pass
 - device_test: none
 - shots: scripture-day
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: The 2026-09-25 frame beside scripture-day.web.phone.png. `.sc-p` is --surface with --shadow-1 and NO border, padding 14/16; its head `.sc-p-h` is a content-sized FileBadge (mono 9, no fixed box), the title in SANS 13/600 and the score mono 10.5 --fg-subtle pushed right; the text serif 15/25 in --fg-lede. This client's _DayPassage draws a bordered card at 24/22, a 36x44 row badge, the title in serif h4 and body at reading size — so each passage reads as a source row rather than a quoted passage. Needs a badge size the kit does not have (a content-sized chip), which is a kit_controls change and re-stales its pairs; do it at the head of a re-shoot pass. The web frame's eyebrow is --fg-subtle where this client's is accent — check which is current before changing it.
+
+## F-61 · Sources — the import picker is the reference's flat panel: a Root crumb, open folder rows, the counter top-right, Import N items + Cancel
+- status: open
+- screen: folder-contents
+- route: /sources
+- spec: spec/screens/sources.md; spec/component-kit.md §6
+- web: src/pages/sources/CloudImportPanel.jsx; src/styles/app-sources-browse.css
+- flutter: lib/pages/sources_page.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: folder-contents
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: The 2026-09-25 frame beside folder-contents.web.phone.png. Web's picker is one sunken panel: an underlined `Root` breadcrumb with the `0/20 folders · 0/50 files` counter in italic serif at its right, folder rows that are a checkbox + underlined name + chevron with NO box around them, the scan disclosure indented under its rule, and `Import 0 items` (primary, enabled at zero, naming the count) beside a `Cancel` text button. This client titles the card `Import from Google Drive` with a close control, sets `ROOT` as a caps label, boxes each folder row, puts the counter at the foot beside a disabled `Import selected`. The data and the disclosure are right; the composition is not. Read CloudImportPanel.jsx before rebuilding — the enabled-at-zero button may be a web defect, not a rule.
