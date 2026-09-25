@@ -15,6 +15,7 @@
 // then, once `HOLD:LIGHT` appears:
 //   xcrun simctl io booted screenshot screenshots/<screen>.flutter.light.png
 // and again on `HOLD:DARK` for the dark frame.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -32,7 +33,9 @@ import 'package:flutter_app/app.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
+import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
+import 'package:flutter_app/pages/tags/shelf_sheet.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
 import 'package:flutter_app/state/chat_notifier.dart';
@@ -147,8 +150,16 @@ void main() {
 
     await hold('LIGHT', ThemeMode.light);
     await hold('DARK', ThemeMode.dark);
+    // `shelf-backfill-review` made a real shelf through the sheet; every
+    // later frame reads the same database, so it goes (the reference deletes
+    // its own the same way).
+    final made = _createdShelf;
+    if (made != null) await Api.instance.deleteTag(made);
   });
 }
+
+/// The shelf `shelf-backfill-review` created, for deletion after the holds.
+String? _createdShelf;
 
 /// Drive the screen into [holdState]. Bounded `pump` loops, never
 /// `pumpAndSettle`: a screen with a live animation does not settle, and the
@@ -537,6 +548,55 @@ Future<void> reachState(WidgetTester tester) async {
       await settle();
       expect(find.text('Back to the letter'), findsOneWidget,
           reason: 'the day did not open — this frame would be the letter');
+      return;
+    // library.md §Creating a shelf / §Backfill review (4.83.0, ADR-117;
+    // QUEUE F-38) — the §15 sheet over the shell, as the reference's frames
+    // open it from the rail's `+`. On a phone the rail is a drawer, so the
+    // sheet is opened through the one function the `+` calls.
+    case 'shelf-create-sheet':
+    case 'shelf-backfill-review':
+      final ctx = tester.element(find.byType(Scaffold).first);
+      unawaited(showShelfSheet(
+        ctx,
+        canBackfill: true,
+        land: (_) {},
+        create: (title, {description, color}) async {
+          final res = await Api.instance
+              .createTag(title, description: description, color: color);
+          _createdShelf = res['tagId'] as String?;
+          return res;
+        },
+      ));
+      await settle();
+      final fields = find.descendant(
+          of: find.byType(KitOverlaySheet), matching: find.byType(TextField));
+      await tester.enterText(fields.at(0), 'Pasta');
+      if (holdState == 'shelf-create-sheet') {
+        await tester.enterText(
+            fields.at(1), 'Fresh and dried pasta, shapes and sauces.');
+        await settle();
+        return;
+      }
+      // The keyboard is up after typing; put it away so the button is where
+      // the tap lands.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await settle();
+      final create = find.widgetWithText(KitButton, 'Create shelf');
+      await tester.ensureVisible(create);
+      await settle();
+      await tester.tap(create);
+      for (var i = 0; i < 300; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (_createdShelf != null &&
+            find.textContaining('Reading your library').evaluate().isEmpty) {
+          break;
+        }
+      }
+      await settle();
+      expect(_createdShelf, isNotNull,
+          reason: 'fn_create_tag never answered — this frame would be the form');
+      expect(find.textContaining('Reading your library'), findsNothing,
+          reason: 'the review never answered — this frame would be a wait');
       return;
     default:
       fail('hold_screen_test knows no HOLD_STATE "$holdState"');
