@@ -14,6 +14,7 @@ import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
 import 'letters/readings_letter.dart';
 import '../services/analytics.dart';
+import '../services/auth_service.dart';
 
 /// Letter settings (`spec/screens/letters.md`) — `/letters/settings`.
 ///
@@ -124,14 +125,14 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     });
     // `enabled` is deliberately NOT sent here — the switch above owns it.
     final error = await context.read<SettingsNotifier>().saveLetterSettings(
-          emailAddress: email,
-          frequency: _frequency,
-          deliveryTime: _deliveryTimeCtrl.text.trim(),
-          timezone: _timezone,
-          purposeText: _purposeCtrl.text.trim(),
-          itemsPerNewsletter: _itemsPerLetter,
-          excludeRecentDays: _excludeRecentDays,
-        );
+      emailAddress: email,
+      frequency: _frequency,
+      deliveryTime: _deliveryTimeCtrl.text.trim(),
+      timezone: _timezone,
+      purposeText: _purposeCtrl.text.trim(),
+      itemsPerNewsletter: _itemsPerLetter,
+      excludeRecentDays: _excludeRecentDays,
+    );
     if (!mounted) return;
     // On the accepted path only: a rejected save changed nothing, and it is
     // already counted once as a `request_failed`.
@@ -180,132 +181,153 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     final stored = rl.settings;
     if (stored != null && !_rlPopulated) _populateReadings(stored);
 
+    final email = _emailCtrl.text.trim();
+    final accountEmail = AuthService.instance.currentUser?.email ?? '';
+
     return KitPage(
       width: KitFrameWidth.reading,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SubScreenHeader(
-            parentLabel: 'Letters',
-            onBack: () => context.go('/letters'),
-            eyebrow: 'The daily letter',
+          // The reference's `.letter-config` (LetterSettings.jsx): a back
+          // control, the title as a HEADING, and then groups — each a mono
+          // caps label over its control, a hairline between them. It was a
+          // stack of icon-plate setting rows here, which is Settings' form,
+          // not this one's (F-51).
+          KitBackControl('Letters', onTap: () => context.go('/letters')),
+          const SizedBox(height: 16),
+          const KitConfigHeading(
+            'The daily letter',
             standfirst:
                 'A letter is from someone, to someone. Tune how yours arrives.',
           ),
 
           // ── Scheduled delivery ────────────────────────────────────────
-          const SectionHeader('Scheduled delivery', first: true),
-          KitRowList(
-            raised: true,
-            rows: [
-              KitSettingRow(
-                icon: Icons.schedule_outlined,
-                title: _populated ? (_enabled ? 'On' : 'Off') : 'Loading…',
-                // 2.29.0 rule 3 — stated from what was READ. Before the read
-                // resolves this says nothing about arrival.
-                description: !_populated
-                    ? null
-                    : '${scheduleSentence(
-                        enabled: _enabled,
-                        deliveryTime: _deliveryTimeCtrl.text.trim(),
-                        timezone: _timezone,
-                        frequency: _frequency,
-                      )}. ${_enabled ? 'Turn this off to pause letters without losing any of these settings. “Send now” keeps working either way.' : 'Nothing is sent on a schedule while this is off. Your settings below are kept, and “Send now” still works. $activationHint'}',
-                trailing: [
-                  KitSwitch(
-                    value: _enabled,
-                    onChanged: !_populated || _scheduleBusy
-                        ? null
-                        : (v) => _toggleSchedule(v),
-                  ),
+          KitFieldGroup(
+            label: 'Scheduled delivery',
+            note: _populated ? (_enabled ? 'On' : 'Off') : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                KitConfigToggle(
+                  icon: Icons.schedule_outlined,
+                  // 2.29.0 rule 3 — stated from what was READ. Before the
+                  // read resolves this says nothing about arrival.
+                  title: !_populated
+                      ? 'Loading…'
+                      : scheduleSentence(
+                          enabled: _enabled,
+                          deliveryTime: _deliveryTimeCtrl.text.trim(),
+                          timezone: _timezone,
+                          frequency: _frequency,
+                        ),
+                  description: _enabled
+                      ? 'Turn this off to pause letters without losing any of '
+                            'these settings. “Send now” keeps working either way.'
+                      : 'Nothing is sent on a schedule while this is off. Your '
+                            'settings below are kept, and “Send now” still works. '
+                            '$activationHint',
+                  value: _enabled,
+                  // Write before the switch moves (ADR-022): `_enabled`
+                  // changes only when the call resolves.
+                  onChanged: !_populated || _scheduleBusy
+                      ? null
+                      : (v) => _toggleSchedule(v),
+                ),
+                if (_scheduleError != null) ...[
+                  const SizedBox(height: AppSpacing.s2),
+                  KitFailureInline(_scheduleError!),
                 ],
-              ),
-              if (_scheduleError != null)
-                KitRowSlot(child: KitFailureInline(_scheduleError!)),
-            ],
+              ],
+            ),
           ),
 
-          // ── The daily letter's form ───────────────────────────────────
-          const SectionHeader('How it is written'),
-          KitRowList(
-            raised: true,
-            rows: [
-              KitSettingRow(
-                icon: Icons.alternate_email,
-                title: 'Send to',
-                // Unset is not an error: the backend falls back to the account
-                // email and stores it (ADR-010), so this field fills itself
-                // after the first send. Clients render it; they never compute
-                // it, and must not claim the account email is unused.
-                description:
-                    'Leave it blank to use your account address — the first '
-                    'letter fills this in with it.',
-                below: KitTextField(
+          // ── Send to ───────────────────────────────────────────────────
+          KitFieldGroup(
+            label: 'Send to',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                KitTextField(
                   controller: _emailCtrl,
                   icon: Icons.mail_outline,
                   placeholder: 'you@example.com',
                   keyboardType: TextInputType.emailAddress,
+                  onChanged: (_) => setState(() {}),
                 ),
-              ),
-              KitSettingRow(
-                icon: Icons.event_repeat_outlined,
-                title: 'How often, and when',
-                description:
-                    'The zone is yours to set — a time means nothing without '
-                    'one.',
-                below: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    KitSegmented(
-                      segments: [
-                        for (final f in _frequencies) KitSegment(f.$2),
-                      ],
-                      selected: _frequencies
-                          .indexWhere((f) => f.$1 == _frequency)
-                          .clamp(0, _frequencies.length - 1),
-                      onChanged: (i) =>
-                          setState(() => _frequency = _frequencies[i].$1),
-                    ),
-                    const SizedBox(height: AppSpacing.s2),
-                    KitTextField(
-                      controller: _deliveryTimeCtrl,
-                      icon: Icons.schedule_outlined,
-                      placeholder: '07:00',
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.s2),
-                    KitSelect<String>(
-                      icon: Icons.calendar_today_outlined,
-                      value: _timezone,
-                      options: timezoneOptions(_timezone),
-                      label: (z) => z.replaceAll('_', ' '),
-                      onChanged: (z) => setState(() => _timezone = z),
-                    ),
-                  ],
+                // Unset is not an error: the backend falls back to the
+                // account email and stores it (ADR-010). Only a user with no
+                // account email either can't be delivered to.
+                if (email.isEmpty && _populated)
+                  KitConfigHint(
+                    accountEmail.isNotEmpty
+                        ? 'Letters will go to $accountEmail until you set a '
+                              'different address.'
+                        : 'Letters can’t be delivered until you add an '
+                              'address.',
+                    icon: Icons.error_outline,
+                    warn: accountEmail.isEmpty,
+                  ),
+              ],
+            ),
+          ),
+
+          // ── How often ─────────────────────────────────────────────────
+          KitFieldGroup(
+            label: 'How often',
+            child: KitSegmented(
+              segments: [for (final f in _frequencies) KitSegment(f.$2)],
+              selected: _frequencies
+                  .indexWhere((f) => f.$1 == _frequency)
+                  .clamp(0, _frequencies.length - 1),
+              onChanged: (i) => setState(() => _frequency = _frequencies[i].$1),
+            ),
+          ),
+
+          // ── Arrives at ────────────────────────────────────────────────
+          // The zone is shown as an editable value, not derived silently: a
+          // time with no zone is UTC (2.29.0).
+          KitFieldGroup(
+            label: 'Arrives at',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                KitTextField(
+                  controller: _deliveryTimeCtrl,
+                  icon: Icons.schedule_outlined,
+                  placeholder: '07:00',
+                  onChanged: (_) => setState(() {}),
                 ),
-              ),
-              KitSettingRow(
-                icon: Icons.auto_stories_outlined,
-                title: 'Passages per letter',
-                below: KitStepper(
-                  value: _itemsPerLetter,
-                  min: 1,
-                  max: 5,
-                  unit:
-                      '${_itemsPerLetter == 1 ? 'passage' : 'passages'} each morning',
-                  onChanged: (v) => setState(() => _itemsPerLetter = v),
+                const SizedBox(height: AppSpacing.s2),
+                KitSelect<String>(
+                  icon: Icons.calendar_today_outlined,
+                  value: _timezone,
+                  options: timezoneOptions(_timezone),
+                  label: (z) => z.replaceAll('_', ' '),
+                  onChanged: (z) => setState(() => _timezone = z),
                 ),
-              ),
-              KitSettingRow(
-                icon: Icons.hourglass_empty_outlined,
-                title: 'Rest a passage for',
-                // The knob a "nothing new to send" result points at (2.2.0,
-                // ADR-011): a shorter rest lets "Send now" resurface content.
-                description:
-                    'After a passage appears in a letter it rests this long '
-                    'before it can be chosen again. Lower it if “Send now” '
-                    'says there’s nothing new.',
-                below: KitStepper(
+              ],
+            ),
+          ),
+
+          KitFieldGroup(
+            label: 'Passages per letter',
+            child: KitStepper(
+              value: _itemsPerLetter,
+              min: 1,
+              max: 5,
+              unit:
+                  '${_itemsPerLetter == 1 ? 'passage' : 'passages'} each morning',
+              onChanged: (v) => setState(() => _itemsPerLetter = v),
+            ),
+          ),
+
+          KitFieldGroup(
+            label: 'Rest a passage for',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                KitStepper(
                   value: _excludeRecentDays,
                   min: 0,
                   max: 90,
@@ -313,55 +335,65 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
                   unit: restDaysLabel(_excludeRecentDays),
                   onChanged: (v) => setState(() => _excludeRecentDays = v),
                 ),
-              ),
-              KitSettingRow(
-                icon: Icons.chat_bubble_outline,
-                title: 'Your librarian',
-                description:
-                    'What you want to learn or achieve. Your letter weights '
-                    'passages by it.',
-                below: KitTextField(
+                // The knob a "nothing new to send" result points at (2.2.0,
+                // ADR-011): a shorter rest lets "Send now" resurface content.
+                const SizedBox(height: 6),
+                const Lede(
+                  'After a passage appears in a letter it rests this long '
+                  'before it can be chosen again. Lower it if “Send now” says '
+                  'there’s nothing new.',
+                  fontSize: 14,
+                  height: 22,
+                ),
+              ],
+            ),
+          ),
+
+          // The mission this client edits beside the letter it weights. The
+          // reference edits the same key from Settings (`Your librarian`).
+          KitFieldGroup(
+            label: 'Your librarian',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                KitTextField(
                   controller: _purposeCtrl,
                   minLines: 2,
                   maxLines: 4,
                   placeholder:
                       'e.g. Help me connect ideas across philosophy readings…',
                 ),
-              ),
-              KitRowSlot(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_saveError != null) ...[
-                      // §14.2 — the rejection beside the control that refused.
-                      KitFailureInline(_saveError!),
-                      const SizedBox(height: AppSpacing.s2),
-                    ],
-                    Wrap(
-                      spacing: AppSpacing.s2,
-                      runSpacing: AppSpacing.s2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        KitButton(
-                          settings.isSaving ? 'Saving…' : 'Save settings',
-                          onPressed: settings.isSaving || !_populated
-                              ? null
-                              : _save,
-                        ),
-                        if (_outcome != null) KitRowNote(_outcome!),
-                      ],
-                    ),
-                  ],
+                const SizedBox(height: 6),
+                const Lede(
+                  'What you want to learn or achieve. Your letter weights '
+                  'passages by it.',
+                  fontSize: 14,
+                  height: 22,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
           // ── A second letter (ADR-029) ─────────────────────────────────
-          const SectionHeader('A second letter'),
-          _ReadingsSettings(
-            timeCtrl: _rlTimeCtrl,
-            emailCtrl: _rlEmailCtrl,
+          _ReadingsSettings(timeCtrl: _rlTimeCtrl, emailCtrl: _rlEmailCtrl),
+
+          const SizedBox(height: 20),
+          if (_saveError != null) ...[
+            // §14.2 — the rejection beside the control that refused.
+            KitFailureInline(_saveError!),
+            const SizedBox(height: AppSpacing.s2),
+          ],
+          Wrap(
+            spacing: AppSpacing.s2,
+            runSpacing: AppSpacing.s2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              KitButton(
+                settings.isSaving ? 'Saving…' : 'Save settings',
+                onPressed: settings.isSaving || !_populated ? null : _save,
+              ),
+              if (_outcome != null) KitRowNote(_outcome!),
+            ],
           ),
           const SizedBox(height: AppSpacing.s8),
         ],
@@ -393,114 +425,116 @@ class _ReadingsSettings extends StatelessWidget {
     final cfg = n.settings;
     if (cfg == null) return KitRowNote('Loading…');
 
-    return KitRowList(
-      raised: true,
-      rows: [
-        KitSettingRow(
-          icon: Icons.menu_book_outlined,
-          title: 'The readings letter',
-          description:
-              'The day’s Mass readings, with the passages from your shelves '
-              'that answer them. It arrives beside the letter above, at its '
-              'own hour.',
-          trailing: [
-            KitSwitch(
-              value: cfg.enabled,
-              onChanged: n.isSaving
-                  ? null
-                  : (v) => v
-                      ? n.turnOn()
-                      : n.save(cfg.copyWith(enabled: false)),
-            ),
-          ],
-        ),
-        if (cfg.enabled) ...[
-          KitSettingRow(
-            icon: Icons.schedule_outlined,
-            title: 'Arrives at',
-            below: Row(
-              children: [
-                Expanded(
-                  child: KitTextField(
-                    controller: timeCtrl,
-                    icon: Icons.schedule_outlined,
-                    placeholder: '06:30',
+    return KitFieldGroup(
+      label: 'A second letter',
+      note: cfg.enabled ? 'On' : 'Off',
+      second: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          KitConfigToggle(
+            icon: Icons.menu_book_outlined,
+            title: 'The readings letter',
+            description:
+                'The day’s Mass readings, with the passages from your shelves '
+                'that answer them. It arrives beside the letter above, at its '
+                'own hour.',
+            value: cfg.enabled,
+            onChanged: n.isSaving
+                ? null
+                : (v) => v ? n.turnOn() : n.save(cfg.copyWith(enabled: false)),
+          ),
+          if (cfg.enabled) ...[
+            KitConfigField(
+              label: 'Arrives at',
+              child: Row(
+                children: [
+                  Expanded(
+                    child: KitTextField(
+                      controller: timeCtrl,
+                      icon: Icons.schedule_outlined,
+                      placeholder: '06:30',
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.s2),
-                // A client that sends `deliveryTime` sends `timezone` in the
-                // same call (2.29.0) — which is why one control saves both.
-                KitButton('Save',
+                  const SizedBox(width: AppSpacing.s2),
+                  // A client that sends `deliveryTime` sends `timezone` in the
+                  // same call (2.29.0) — which is why one control saves both.
+                  KitButton(
+                    'Save',
                     variant: KitButtonVariant.secondary,
                     onPressed: n.isSaving
                         ? null
-                        : () => n.save(cfg.copyWith(
+                        : () => n.save(
+                            cfg.copyWith(
                               deliveryTime: timeCtrl.text.trim(),
                               timezone: cfg.timezone.isEmpty
                                   ? deviceTimezone()
                                   : cfg.timezone,
-                            ))),
-              ],
+                            ),
+                          ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          KitSettingRow(
-            icon: Icons.mail_outline,
-            title: 'Email it to me',
             // 4.24.0 (ADR-061) — the switch that stops the MAIL without
             // stopping the letter. It is what the footer's one-click
-            // unsubscribe flips, so a reader who used that link has to be able
-            // to find this and turn it back on.
-            description: cfg.emailEnabled
-                ? 'The day’s readings arrive in your inbox as well as here.'
-                : 'The readings are waiting here each morning; nothing is '
-                    'emailed.',
-            trailing: [
-              KitSwitch(
+            // unsubscribe flips, so a reader who used that link has to be
+            // able to find this and turn it back on.
+            KitConfigField(
+              label: 'Email it to me',
+              trailing: KitSwitch(
                 value: cfg.emailEnabled,
                 onChanged: n.isSaving
                     ? null
                     : (v) => n.save(cfg.copyWith(emailEnabled: v)),
               ),
-            ],
-          ),
-          KitSettingRow(
-            icon: Icons.alternate_email,
-            title: 'Send to',
-            description:
-                'Leave it blank to use your account address, or send the '
-                'readings somewhere of its own.',
-            below: Row(
-              children: [
-                Expanded(
-                  child: KitTextField(
-                    controller: emailCtrl,
-                    icon: Icons.mail_outline,
-                    placeholder: 'your account address',
-                    keyboardType: TextInputType.emailAddress,
+              note: cfg.emailEnabled
+                  ? 'The day’s readings arrive in your inbox as well as here.'
+                  : 'The readings are waiting here each morning; nothing is '
+                        'emailed.',
+            ),
+            KitConfigField(
+              label: 'Send to',
+              note:
+                  'Leave it blank to use your account address, or send the '
+                  'readings somewhere of its own.',
+              child: Row(
+                children: [
+                  Expanded(
+                    child: KitTextField(
+                      controller: emailCtrl,
+                      icon: Icons.mail_outline,
+                      placeholder: 'your account address',
+                      keyboardType: TextInputType.emailAddress,
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.s2),
-                KitButton('Save',
+                  const SizedBox(width: AppSpacing.s2),
+                  KitButton(
+                    'Save',
                     variant: KitButtonVariant.secondary,
                     onPressed: n.isSaving
                         ? null
                         : () => n.save(
-                            cfg.copyWith(emailAddress: emailCtrl.text.trim()))),
-              ],
+                            cfg.copyWith(emailAddress: emailCtrl.text.trim()),
+                          ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          KitSettingRow(
-            icon: Icons.calendar_month_outlined,
-            title: 'Calendar',
-            // SHOWN, not chosen — offering three equal choices would promise a
-            // letter that cannot be sent.
-            titleNote: calendarLabel,
-            description: calendarNote,
-          ),
+            // SHOWN, not chosen — offering three equal choices would promise
+            // a letter that cannot be sent.
+            KitConfigField(
+              label: 'Calendar',
+              note: calendarNote,
+              child: KitConfigStatic(calendarLabel),
+            ),
+          ],
+          if (n.saveError != null) ...[
+            const SizedBox(height: AppSpacing.s2),
+            KitFailureInline(n.saveError!),
+          ],
         ],
-        if (n.saveError != null)
-          KitRowSlot(child: KitFailureInline(n.saveError!)),
-      ],
+      ),
     );
   }
 }

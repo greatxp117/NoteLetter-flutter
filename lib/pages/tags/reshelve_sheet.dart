@@ -330,6 +330,7 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
               width: 200,
               child: KitSelect<String>(
                 key: ValueKey('reshelve-pick-${s.id}'),
+                face: KitFieldFace.serif,
                 value: tagId,
                 options: [_unshelved, for (final sh in widget.shelves) sh.id],
                 label: (id) => id.isEmpty
