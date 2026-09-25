@@ -1189,6 +1189,13 @@ class _JobRowState extends State<_JobRow> {
   bool _busy = false;
   String? _retryError;
 
+  /// Update from source on a kept refresh row (4.96.0, ADR-129) — the same
+  /// shape as Retry, and its own state: the two never share a row. Success
+  /// needs no optimistic state (the jobs subscription moves the row); a
+  /// refusal is the server's sentence, under the row.
+  bool _updating = false;
+  String? _updateError;
+
   Future<void> _retry() async {
     setState(() {
       _busy = true;
@@ -1199,6 +1206,21 @@ class _JobRowState extends State<_JobRow> {
     setState(() {
       _busy = false;
       _retryError = err;
+    });
+  }
+
+  Future<void> _update() async {
+    setState(() {
+      _updating = true;
+      _updateError = null;
+    });
+    final err = await context
+        .read<CloudNotifier>()
+        .updateFromSource(widget.job.documentId!);
+    if (!mounted) return;
+    setState(() {
+      _updating = false;
+      _updateError = err;
     });
   }
 
@@ -1242,6 +1264,12 @@ class _JobRowState extends State<_JobRow> {
                         ? 'Import again'
                         : 'Retry',
                 onPressed: _busy ? null : _retry),
+          // A kept refresh (skipped · document_complete | document_unchanged,
+          // with its document): no Retry — it would mint a second document —
+          // and the sentence names this control.
+          if (job.canUpdateFromSource)
+            KitButton.ghost(_updating ? 'Queuing…' : 'Update from source',
+                onPressed: _updating ? null : _update),
           if (tone != null) ...[
             const SizedBox(width: 4),
             Icon(tone.$1, size: 16, color: tone.$2),
@@ -1249,15 +1277,17 @@ class _JobRowState extends State<_JobRow> {
         ],
       ),
     );
-    if (_retryError == null) return row;
+    final errors = [?_retryError, ?_updateError];
+    if (errors.isEmpty) return row;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         row,
-        Padding(
-          padding: const EdgeInsets.only(left: 18, right: 18, bottom: 12),
-          child: KitFailureInline(_retryError!, dense: true),
-        ),
+        for (final e in errors)
+          Padding(
+            padding: const EdgeInsets.only(left: 18, right: 18, bottom: 12),
+            child: KitFailureInline(e, dense: true),
+          ),
       ],
     );
   }

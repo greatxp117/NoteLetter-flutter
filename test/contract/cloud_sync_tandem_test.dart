@@ -56,6 +56,27 @@ class _Recorder implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Holds each request until [answer] — so a busy state can be looked at.
+class _Held implements HttpClientAdapter {
+  final List<RequestOptions> sent = [];
+  final _reply = Completer<(int, Object)>();
+
+  void answer(int status, Object body) => _reply.complete((status, body));
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    sent.add(options);
+    final (status, body) = await _reply.future;
+    return ResponseBody.fromString(jsonEncode(body), status, headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType]
+    });
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 /// A connected provider, without a network read.
 class _ConnectedCloud extends QuietCloud {
   _ConnectedCloud(this.integration);
@@ -302,6 +323,89 @@ void main() {
       expect(find.textContaining('isn’t a supported file type'), findsWidgets);
       expect(find.text('Retry'), findsNothing);
       expect(find.text('Import again'), findsNothing);
+    });
+
+    // 4.96.0 (ADR-129), reference NoteLetter-web@f0143dc `ImportJobRow`. The
+    // seed has no cloud import rows, so the sources pair cannot show this row:
+    // these cases are the proof.
+    test('a kept refresh updates from source and never retries', () {
+      ImportJob kept(String? skip, {String? doc = 'doc-1', String s = 'skipped'}) =>
+          ImportJob(
+              id: 'j', provider: 'google_drive', status: s,
+              skipReason: skip, documentId: doc);
+      for (final r in ['document_complete', 'document_unchanged']) {
+        expect(kept(r).canUpdateFromSource, isTrue, reason: r);
+        expect(kept(r).canRetry, isFalse,
+            reason: '$r: a retry re-downloads and mints a second document');
+        expect(kept(r, doc: null).canUpdateFromSource, isFalse,
+            reason: 'no document_id, nothing to update');
+        expect(kept(r, s: 'error').canUpdateFromSource, isFalse,
+            reason: 'the rule is skipped + reason, not the reason alone');
+      }
+      for (final r in ['duplicate', 'size_limit', 'dismissed', 'plan_limit',
+          'unsupported_type', 'no_text_content', null]) {
+        expect(kept(r).canUpdateFromSource, isFalse, reason: '$r');
+      }
+    });
+
+    testWidgets(
+        'Update from source is on the row: busy Queuing…, the request, and a '
+        'refusal inline under the row', (tester) async {
+      final held = _Held();
+      ApiService.instance.httpClientAdapter = held;
+      final jobs = [
+        ImportJob(
+            id: 'j-kept',
+            provider: 'google_drive',
+            status: 'skipped',
+            skipReason: 'document_unchanged',
+            documentId: 'doc-7',
+            errorMessage: 'Google refused the request for this file. This '
+                'document is unchanged — use Update from source to try again.',
+            providerFileName: 'Notes.pdf',
+            mimeType: 'application/pdf',
+            createdAt: DateTime(2026, 9, 20).millisecondsSinceEpoch),
+      ];
+      await pumpSources(tester, SourcesStubService(jobs: Stream.value(jobs)),
+          cloud: _ConnectedCloud(const CloudIntegration(
+              provider: 'google_drive', tokenValid: true)));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Show 1'));
+      await tester.tap(find.text('Show 1'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('use Update from source'), findsOneWidget,
+          reason: 'the row reads the server sentence');
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Import again'), findsNothing);
+      final control = find.widgetWithText(KitButton, 'Update from source');
+      expect(control, findsOneWidget);
+
+      await tester.ensureVisible(control);
+      await tester.tap(control);
+      await tester.pump();
+      expect(find.text('Queuing…'), findsOneWidget);
+      expect(tester.widget<KitButton>(
+              find.widgetWithText(KitButton, 'Queuing…')).onPressed,
+          isNull, reason: 'busy is not tappable twice');
+      // The token read and Dio's interceptors are microtask hops away.
+      for (var i = 0; i < 10 && held.sent.isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(held.sent.single.path, endsWith('/fn_update_from_source'));
+      expect(held.sent.single.data, {'document_id': 'doc-7'});
+
+      held.answer(409, {
+        'error': 'This document is already being processed.',
+        'error_code': 'CONFLICT',
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Update from source'), findsOneWidget,
+          reason: 'a refusal gives the control back');
+      final fail = find.ancestor(
+          of: find.textContaining('already being processed'),
+          matching: find.byType(KitFailureInline));
+      expect(fail, findsOneWidget, reason: '§14.2, on the row, not a toast');
     });
 
     test('a skipped approve names both causes', () {

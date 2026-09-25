@@ -112,6 +112,19 @@ class ImportJob {
   bool get canRetry =>
       status == 'error' || status == 'cancelled' || isImportAgain;
 
+  /// A refresh that failed with its document intact (4.95.0 ADR-128 §2:
+  /// `document_complete`; 4.96.0 ADR-129: `document_unchanged`). Its Retry
+  /// would re-download and mint a SECOND document, so [canRetry] is false; its
+  /// sentence names **Update from source**, which the row draws
+  /// (`screens/sources.md`). No client parses the sentence: a gone-file row
+  /// still gets the control — the endpoint accepts it and says why it failed.
+  bool get canUpdateFromSource =>
+      status == 'skipped' &&
+      _keptRefresh.contains(skipReason) &&
+      documentId != null;
+
+  static const _keptRefresh = {'document_complete', 'document_unchanged'};
+
   /// The provider MIME as the review-rule/type key (`pdf`, `docx`, `pptx`,
   /// `notion`) — the vocabulary of `include_types` and `review_rules`. Null for
   /// anything else. Web: `cloudTypeKey`.

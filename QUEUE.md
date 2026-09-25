@@ -1098,3 +1098,16 @@ a new obligation on a finished screen is a new item.
 - shots: folder-contents
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: The 2026-09-25 frame beside folder-contents.web.phone.png. Web's picker is one sunken panel: an underlined `Root` breadcrumb with the `0/20 folders · 0/50 files` counter in italic serif at its right, folder rows that are a checkbox + underlined name + chevron with NO box around them, the scan disclosure indented under its rule, and `Import 0 items` (primary, enabled at zero, naming the count) beside a `Cancel` text button. This client titles the card `Import from Google Drive` with a close control, sets `ROOT` as a caps label, boxes each folder row, puts the counter at the foot beside a disabled `Import selected`. The data and the disclosure are right; the composition is not. Read CloudImportPanel.jsx before rebuilding — the enabled-at-zero button may be a web defect, not a rule.
+
+## F-62 · Sources — Update from source on a kept refresh row (4.96.0 cloud tandem)
+- status: done 2026-09-25
+- screen: sources
+- route: /sources
+- spec: CHANGELOG.md; spec/screens/sources.md; spec/decisions/ADR-129-a-reentry-claims-before-it-enqueues.md
+- web: src/pages/sources/CloudImportPanel.jsx
+- flutter: lib/models/import_job.dart; lib/pages/sources_page.dart; test/contract/cloud_sync_tandem_test.dart
+- folds: 4.96.0
+- device_test: none
+- shots: sources
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: CHANGELOG 4.96.0 tandem 3, reference NoteLetter-web@f0143dc (`ImportJobRow`). `ImportJob.canUpdateFromSource` = `skipped` + `skip_reason` `document_complete | document_unchanged` + `document_id` set; the row draws a ghost **Update from source** → `CloudNotifier.updateFromSource(documentId)`, busy `Queuing…`, a refusal as §14.2 `KitFailureInline` under the row — the same shape as Retry. `canRetry` stays false for both reasons. No client parses the sentence: a gone-file row still gets the control. The seed has no cloud import rows, so the widget tests are the proof, not the pair.
