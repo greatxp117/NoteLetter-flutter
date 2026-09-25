@@ -5,6 +5,22 @@ import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import '../../services/error_text.dart';
 
+/// One entry per contracted `event_type` (data-model.md §/read_events), and
+/// the reference's neutral `Activity` for anything else. `chunk_read` and
+/// `doc_finished` (3.1.0) were missing, so this panel drew the raw token
+/// `chunk_read (Passage 2)` — the 2.19.0 defect, found by the 2026-09-25
+/// frame. Read and viewed never share wording (ADR-039).
+const historyEventLabels = {
+  'doc_opened': 'Opened the source',
+  'chunk_read': 'Read a passage',
+  'chunk_viewed': 'Viewed a passage',
+  'chunk_newsletter_included': 'Pulled into a letter',
+  'doc_finished': 'Marked as finished',
+};
+
+String historyEventLabel(Object? eventType) =>
+    historyEventLabels[eventType] ?? 'Activity';
+
 /// Reader → History panel: `read_events` for the doc, `created_at desc`,
 /// limit 50 (reader.md). Read-only.
 class HistoryPanel extends StatefulWidget {
@@ -17,11 +33,7 @@ class HistoryPanel extends StatefulWidget {
 }
 
 class _HistoryPanelState extends State<HistoryPanel> {
-  static const _labels = {
-    'doc_opened': 'Opened the source',
-    'chunk_viewed': 'Viewed a passage',
-    'chunk_newsletter_included': 'Pulled into a letter',
-  };
+
 
   List<Map<String, dynamic>>? _events;
   Object? _error;
@@ -111,7 +123,7 @@ class _HistoryPanelState extends State<HistoryPanel> {
       ...events.map((e) {
         final chunkId = e['chunk_id'] as String?;
         final label = _chunkLabel(chunkId);
-        final base = _labels[e['event_type']] ?? '${e['event_type']}';
+        final base = historyEventLabel(e['event_type']);
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Row(

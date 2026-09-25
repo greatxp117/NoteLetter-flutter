@@ -112,7 +112,16 @@ class _KitRecipeBodyState extends State<KitRecipeBody> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(r.title, style: KitText.h1(context)),
+        // §5.4: "Title serif 28/1.15/500 (the header's scale)" — not the
+        // page `.h1`, which set a recipe's name at twice the reader's own.
+        Text(r.title,
+            style: AppTheme.serif(
+              fontSize: 28,
+              height: 1.15,
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.018 * 28,
+              color: Tokens.of(context).fg,
+            )),
         if (lead != null) ...[
           const SizedBox(height: AppSpacing.s4),
           KitFigure(
@@ -286,13 +295,15 @@ class _Ingredient extends StatelessWidget {
               width: 18,
               height: 18,
               margin: const EdgeInsets.only(top: 3, right: 12),
+              // `.rc-tick`: a square at `--r-xs` on `--surface`, filled
+              // `--positive` when ticked — a checkbox, not a radio.
               decoration: BoxDecoration(
-                color: on ? t.accent : Colors.transparent,
-                border: Border.all(color: on ? t.accent : t.borderStrong),
-                borderRadius: AppRadius.pillR(18),
+                color: on ? t.positive : t.surface,
+                border: Border.all(color: on ? t.positive : t.borderStrong),
+                borderRadius: AppRadius.xsR,
               ),
               child: on
-                  ? Icon(Icons.check, size: 12, color: t.accentFg)
+                  ? Icon(Icons.check, size: 12, color: t.surface)
                   : null,
             ),
             Expanded(

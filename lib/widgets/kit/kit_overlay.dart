@@ -366,7 +366,20 @@ class KitSourceFileView extends StatelessWidget {
           width: double.infinity,
           color: t.surfaceSunken,
           padding: const EdgeInsets.all(AppSpacing.s4),
-          child: Image.network(url, fit: BoxFit.contain),
+          // `.orig-imagefile`: the image is its own page on the stage —
+          // `--r-sm` corners and `--shadow-2`, not a bare rectangle.
+          child: Center(
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                borderRadius: AppRadius.smR,
+                boxShadow: AppShadows.s2,
+              ),
+              child: ClipRRect(
+                borderRadius: AppRadius.smR,
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
+          ),
         );
       case KitStage.video:
         // No player is embedded here, and the matte is not drawn over nothing:
@@ -434,10 +447,13 @@ class KitSourceSetGallery extends StatelessWidget {
         ? '$landed of ${members.length} uploaded'
         : '${members.length} ${members.length == 1 ? 'page' : 'pages'}';
 
+    // `.srcset` (app-kit.css): `--r-lg` on `--surface`, its bar on
+    // `--surface-raised`; count, placeholder sentence and caption all sans 11-12
+    // in `--fg-muted` — the map of the set, not a page of prose.
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: AppRadius.mdR,
+        borderRadius: AppRadius.lgR,
         border: Border.all(color: t.border),
       ),
       clipBehavior: Clip.antiAlias,
@@ -445,8 +461,9 @@ class KitSourceSetGallery extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
             decoration: BoxDecoration(
+              color: t.surfaceRaised,
               border: Border(bottom: BorderSide(color: t.rule)),
             ),
             child: Row(
@@ -454,7 +471,11 @@ class KitSourceSetGallery extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 const Eyebrow('Pages'),
-                Text(count, style: KitText.meta(context)),
+                Text(count,
+                    style: TextStyle(
+                        fontFamily: AppTheme.fontSans,
+                        fontSize: 12,
+                        color: t.fgMuted)),
               ],
             ),
           ),
@@ -506,23 +527,34 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final pending = member.signedUrl == null;
+    final small = TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 11,
+        height: 1.4,
+        color: t.fgMuted);
     final frame = Container(
+      // `.srcset-pending .srcset-frame`: a DASHED border on `--surface-sunken`
+      // — the footprint of a page that is not there, not a blank page.
+      foregroundDecoration: pending
+          ? _DashedBorder(color: t.border, radius: AppRadius.md)
+          : null,
       decoration: BoxDecoration(
-        color: t.surfaceRaised,
+        color: pending ? t.surfaceSunken : t.surfaceRaised,
         borderRadius: AppRadius.mdR,
-        border: Border.all(color: t.border),
+        border: pending ? null : Border.all(color: t.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: member.signedUrl == null
+      child: pending
           // §15.2 rule 1 — a page whose bytes have not landed draws a
           // placeholder in the SAME FOOTPRINT, never an omission.
           ? Center(
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
                   'This page hasn’t finished uploading yet.',
                   textAlign: TextAlign.center,
-                  style: KitText.meta(context),
+                  style: small,
                 ),
               ),
             )
@@ -548,8 +580,9 @@ class _Tile extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: Text(member.name,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: KitText.meta(context)),
+                  style: small),
             ),
           ],
         ),
@@ -621,5 +654,41 @@ class KitLightbox extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// A dashed rounded border, painted over its box (`border-style: dashed`).
+class _DashedBorder extends Decoration {
+  final Color color;
+  final double radius;
+
+  const _DashedBorder({required this.color, required this.radius});
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _DashedBorderPainter(this);
+}
+
+class _DashedBorderPainter extends BoxPainter {
+  final _DashedBorder d;
+
+  _DashedBorderPainter(this.d);
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration cfg) {
+    final size = cfg.size;
+    if (size == null) return;
+    final rect = (offset & size).deflate(0.5);
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(d.radius)));
+    final paint = Paint()
+      ..color = d.color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (final metric in path.computeMetrics()) {
+      for (var at = 0.0; at < metric.length; at += 7) {
+        canvas.drawPath(metric.extractPath(at, at + 4), paint);
+      }
+    }
   }
 }
