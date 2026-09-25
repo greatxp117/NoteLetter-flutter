@@ -371,7 +371,9 @@ class _ChatPageState extends State<ChatPage> {
           padding: const EdgeInsets.only(top: AppSpacing.s8),
           child: KitEmptyState(
             flush: true,
-            icon: Icons.auto_awesome,
+            // `.ask-empty-mark` and `.avatar.library` are the quill: the
+            // library speaks with the app's own mark, not a sparkle.
+            icon: KitQuill.icon,
             title: scope == null
                 ? 'Ask your library a question'
                 : 'Ask $scope a question',
@@ -487,7 +489,7 @@ class _AskMessageRow extends StatelessWidget {
                   'Y',
                   style: KitText.small(context, color: t.chromeFg, weight: FontWeight.w600),
                 )
-              : Icon(Icons.auto_awesome, size: 18, color: t.chromeFg),
+              : KitQuill(size: 18, color: t.chromeFg),
         ),
         const SizedBox(width: AppSpacing.s3),
         Expanded(

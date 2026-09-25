@@ -70,8 +70,10 @@ class _SearchBigFieldState extends State<SearchBigField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // A caps label: the CALLER uppercases (capsLabel sets the face, not
+        // the case) — it drew in mixed case beside the reference's caps.
         Text(
-          'Semantic search across your library',
+          'Semantic search across your library'.toUpperCase(),
           style: KitText.capsLabel(context,
               fontSize: 10, letterSpacing: 0.16, color: t.accentText),
         ),
