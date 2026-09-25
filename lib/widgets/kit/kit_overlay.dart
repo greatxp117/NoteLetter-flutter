@@ -318,7 +318,9 @@ class KitSourceFileView extends StatelessWidget {
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: AppRadius.mdR,
-        border: Border.all(color: t.border),
+        // `--border-strong` (web 0ad8858): a card inside a card, and in dark
+        // `--border` left the frame's sides nearly invisible.
+        border: Border.all(color: t.borderStrong),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(

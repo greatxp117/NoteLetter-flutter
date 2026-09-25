@@ -97,7 +97,7 @@ inside the kit**, never per screen. Roles and proportions unchanged:
   "1 Kings" is 1 Samuel, so merging resolves citations to the wrong book while
   looking complete. A bare book name is not a citation.
 - **INV-22's footer wraps the whole authenticated surface, not `AppLayout`** —
-  the reader is outside `AppLayout`. `widgets/support_shell.dart`, nowhere else.
+  a wide reader is outside `AppLayout`. `widgets/support_shell.dart`, nowhere else.
 - **`flutterfire configure` does not rename the native projects.** A mismatch
   between `applicationId`/`PRODUCT_BUNDLE_IDENTIFIER` and the generated config
   fails at **Firebase init**, not at build — so a green build proves nothing here.

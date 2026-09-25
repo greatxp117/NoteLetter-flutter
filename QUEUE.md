@@ -1050,12 +1050,12 @@ a new obligation on a finished screen is a new item.
 - notes: Seen in every phone frame of the 2026-09-25 re-shoot. §1.2's brand lockup is `mark + serif wordmark`: the reference draws its quill mark and a SMALL-CAPS wordmark (NOTELETTER with large initials) in the app bar, the rail and the onboarding head; this client draws Material's `Icons.edit_note` and a plain serif `NoteLetter` in all three (KitBrand callers, plus `_sealMark` in kit_letter.dart and KitMark on the onboarding welcome and the Settings feature card). The reference's phone app bar also carries a trailing search control; this client's has none. (Web's phone frames also show a bottom tab bar — §1.1 allows 'a drawer or tab bar', so the drawer is conformant and is not part of this item.) A shell kit change re-stales every pair — do it at the head of a re-shoot pass, not in the middle of one.
 
 ## F-58 · Reader — on a phone the reader draws no app bar, where the reference keeps the shell's header
-- status: open
+- status: done 2026-09-25
 - screen: reader
 - route: /reader/{docId}
 - spec: spec/component-kit.md §1.1; spec/screens/reader.md §Composition
-- web: src/App.jsx; src/shell/AppShell.jsx
-- flutter: lib/router.dart; lib/pages/reader_page.dart
+- web: src/App.jsx; src/shell/AppShell.jsx; src/styles/app-source.css
+- flutter: lib/pages/reader_page.dart; lib/widgets/kit/kit_overlay.dart
 - folds: none — found by the F-34/F-37 re-shoot pass
 - device_test: none
 - shots: reader; reader-manuscript; recipe; source-file; source-set

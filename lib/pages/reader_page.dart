@@ -28,6 +28,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
+import '../widgets/app_layout.dart';
 import '../widgets/kit/kit.dart';
 import '../services/analytics.dart';
 import '../services/error_text.dart';
@@ -415,8 +416,24 @@ class _ReaderPageState extends State<ReaderPage> {
                 .length,
       );
 
+  /// component-kit §1.1 / reader.md §Composition: the reference renders the
+  /// reader INSIDE the shell, so a phone keeps the shell's app bar (menu ·
+  /// quill lockup · search) above the reader's own back control. Below the
+  /// breakpoint this page wraps itself in [AppLayout]'s compact branch; wide
+  /// is unchanged (the reader keeps its full-bleed frame). Done here, not in
+  /// the route table, so the routes of every other screen do not move — and
+  /// INV-22's footer stays where it is, in `SupportShell` above both.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, c) {
+          final page = _page(context);
+          return c.maxWidth >= AppSpacing.compactWidth
+              ? page
+              : AppLayout(child: page);
+        },
+      );
+
+  Widget _page(BuildContext context) {
     final doc = _document;
 
     if (_loading) {
@@ -430,9 +447,11 @@ class _ReaderPageState extends State<ReaderPage> {
     final canReorg = complete && _chunks.length >= 2;
     final readCount = _chunks.where((c) => c.viewCount > 0).length;
 
-    // The reader is the one authenticated screen OUTSIDE `AppLayout`, so
-    // nothing above it pays for the status bar — the AppBar this screen used
-    // to carry did, and dropping it put the back control under the notch.
+    // Wide, the reader is the one authenticated screen OUTSIDE `AppLayout`,
+    // so nothing above it pays for the status bar — the AppBar this screen
+    // used to carry did, and dropping it put the back control under the
+    // notch. On a phone the shell's app bar pays for it (see [build]), and
+    // this SafeArea finds nothing left to pad.
     //
     // SLIVERS, because §19's rail is STICKY: it has to stay on screen to be
     // able to say where the reader is, and a row inside an ordinary scroller
@@ -592,9 +611,11 @@ class _ReaderPageState extends State<ReaderPage> {
   /// 404 / foreign document, and a document that could not be read at all.
   /// Never leaks existence: both say the same thing.
   Widget _notReadable() {
-    // The reader is the one authenticated screen OUTSIDE `AppLayout`, so
-    // nothing above it pays for the status bar — the AppBar this screen used
-    // to carry did, and dropping it put the back control under the notch.
+    // Wide, the reader is the one authenticated screen OUTSIDE `AppLayout`,
+    // so nothing above it pays for the status bar — the AppBar this screen
+    // used to carry did, and dropping it put the back control under the
+    // notch. On a phone the shell's app bar pays for it (see [build]), and
+    // this SafeArea finds nothing left to pad.
     return SafeArea(
       bottom: false,
       child: KitPage(
