@@ -21,6 +21,7 @@ import 'sources/folder_contents.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sources_info_sheet.dart';
 import 'sources/sync_settings_panel.dart';
+import 'reader/supersession_confirm.dart';
 
 /// Canonical provider ids (1.2.0) with display names for not-yet-connected
 /// providers (the integration list only carries connected ones). The ids are
@@ -1209,18 +1210,31 @@ class _JobRowState extends State<_JobRow> {
     });
   }
 
+  /// reader.md §Supersession confirm: Update from source re-derives the
+  /// document, so it goes through the §18 confirm when a passage was edited
+  /// or the document is in a study program (or either could not be checked).
+  /// Inside the confirm a refusal renders in the panel's failure slot; with
+  /// no confirm owed it is §14.2 under the row, as before.
   Future<void> _update() async {
+    final cloud = context.read<CloudNotifier>();
+    final docId = widget.job.documentId!;
     setState(() {
       _updating = true;
       _updateError = null;
     });
-    final err = await context
-        .read<CloudNotifier>()
-        .updateFromSource(widget.job.documentId!);
+    final res = await SupersessionConfirm.run(
+      context,
+      docId: docId,
+      title: SupersessionConfirm.updateTitle,
+      lead: SupersessionConfirm.updateLead(widget.job.provider),
+      confirmLabel: SupersessionConfirm.updateConfirmLabel,
+      action: () => cloud.updateFromSource(docId),
+    );
     if (!mounted) return;
     setState(() {
       _updating = false;
-      _updateError = err;
+      _updateError =
+          res.outcome == SupersessionOutcome.refused ? res.message : null;
     });
   }
 

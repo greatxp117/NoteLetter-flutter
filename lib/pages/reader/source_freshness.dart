@@ -5,6 +5,7 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
+import 'supersession_confirm.dart';
 import '../../theme/app_radius.dart';
 
 const _providerName = {
@@ -72,22 +73,46 @@ class _SourceFreshnessState extends State<SourceFreshness> {
     });
   }
 
+  /// reader.md §Supersession confirm: through the §18 confirm when a passage
+  /// was edited or the document is in a study program (or either could not
+  /// be checked); a refusal inside it stays in the panel. With no confirm
+  /// owed, a refusal is §14.2 in the banner, as before. Write before you
+  /// move: the banner flips to queued only once the call has succeeded.
   Future<void> _update() async {
     setState(() {
       _updating = true;
       _error = null;
     });
-    try {
-      await Api.instance.updateFromSource(widget.docId);
-      SourceFreshness._cache.remove(widget.docId);
-      setState(() => _queued = true);
-    } on ApiException catch (e) {
-      setState(() => _error = e.message);
-    } catch (_) {
-      setState(() => _error = 'Update failed.');
-    } finally {
-      if (mounted) setState(() => _updating = false);
-    }
+    final res = await SupersessionConfirm.run(
+      context,
+      docId: widget.docId,
+      title: SupersessionConfirm.updateTitle,
+      lead: SupersessionConfirm.updateLead(_freshness?['provider'] as String?),
+      confirmLabel: SupersessionConfirm.updateConfirmLabel,
+      action: () async {
+        try {
+          await Api.instance.updateFromSource(widget.docId);
+          return null;
+        } on ApiException catch (e) {
+          return e.message;
+        } catch (_) {
+          return 'Update failed.';
+        }
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _updating = false;
+      switch (res.outcome) {
+        case SupersessionOutcome.done:
+          SourceFreshness._cache.remove(widget.docId);
+          _queued = true;
+        case SupersessionOutcome.refused:
+          _error = res.message;
+        case SupersessionOutcome.kept:
+          break;
+      }
+    });
   }
 
   @override

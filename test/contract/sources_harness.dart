@@ -6,11 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/models/activity_item.dart';
+import 'package:flutter_app/models/chunk.dart';
 import 'package:flutter_app/models/cloud_folder.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/import_job.dart';
 import 'package:flutter_app/models/organization_settings.dart';
 import 'package:flutter_app/models/organization_suggestion.dart';
+import 'package:flutter_app/models/study.dart';
 import 'package:flutter_app/models/tag.dart';
 import 'package:flutter_app/pages/sources_page.dart';
 import 'package:flutter_app/services/firestore_service.dart';
@@ -41,7 +43,15 @@ class SourcesStubService extends FirestoreService {
     this.folders,
     this.orgSettings,
     this.orgSettingsFail = false,
+    this.chunks,
+    this.programs,
   }) : super.stub();
+
+  /// The §Supersession confirm's two reads (reader.md). Default: a document
+  /// with no edited passage in no program — two definite noes, so no confirm
+  /// is owed. `null` from [chunks] throws, which reads as "could not check".
+  final List<Chunk>? Function(String docId)? chunks;
+  final Stream<List<StudyProgram>>? programs;
 
   final Stream<List<Document>>? documents;
   final Stream<List<ImportJob>>? jobs;
@@ -78,6 +88,24 @@ class SourcesStubService extends FirestoreService {
   @override
   Stream<List<CloudFolder>> subscribeCloudFolders(String provider) =>
       folders ?? Stream.value(const []);
+
+  @override
+  Future<(Document, List<Chunk>)?> getReaderDocumentQuietly(
+      String docId) async {
+    final c = chunks == null ? const <Chunk>[] : chunks!(docId);
+    if (c == null) {
+      throw FirebaseException(
+          plugin: 'cloud_firestore', code: 'permission-denied');
+    }
+    return (
+      Document.fromJson(docId, {'user_id': 'u1', 'status': 'complete'}),
+      c
+    );
+  }
+
+  @override
+  Stream<List<StudyProgram>> subscribeStudyPrograms() =>
+      programs ?? Stream.value(const []);
 
   @override
   Future<OrganizationSettings> getOrganizationSettings() async {

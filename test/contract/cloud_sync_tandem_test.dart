@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:flutter_app/models/chunk.dart';
 import 'package:flutter_app/models/cloud_file.dart';
 import 'package:flutter_app/models/cloud_integration.dart';
 import 'package:flutter_app/models/import_job.dart';
 import 'package:flutter_app/models/organization_settings.dart';
 import 'package:flutter_app/models/organization_suggestion.dart';
+import 'package:flutter_app/models/study.dart';
 import 'package:flutter_app/pages/reader/reorganize_sheet.dart';
 import 'package:flutter_app/pages/sources/cloud_sync_copy.dart';
 import 'package:flutter_app/pages/sources/sync_settings_panel.dart';
@@ -406,6 +408,132 @@ void main() {
           of: find.textContaining('already being processed'),
           matching: find.byType(KitFailureInline));
       expect(fail, findsOneWidget, reason: '§14.2, on the row, not a toast');
+    });
+
+    // reader.md §Supersession confirm: Update from source re-derives the
+    // document, so the row owes the §18 confirm when a passage was edited or
+    // the document is in a study program — and says so when it could not
+    // check. The case above is the no-confirm path (two definite noes).
+    group('Update from source: the §Supersession confirm', () {
+      final kept = [
+        ImportJob(
+            id: 'j-kept',
+            provider: 'google_drive',
+            status: 'skipped',
+            skipReason: 'document_complete',
+            documentId: 'doc-7',
+            errorMessage: 'This document is unchanged — use Update from source.',
+            providerFileName: 'Notes.pdf',
+            mimeType: 'application/pdf',
+            createdAt: DateTime(2026, 9, 20).millisecondsSinceEpoch),
+      ];
+
+      Future<void> openRow(WidgetTester tester, SourcesStubService svc) async {
+        await pumpSources(tester, svc,
+            cloud: _ConnectedCloud(const CloudIntegration(
+                provider: 'google_drive', tokenValid: true)));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Show 1'));
+        await tester.tap(find.text('Show 1'));
+        await tester.pumpAndSettle();
+        final control = find.widgetWithText(KitButton, 'Update from source');
+        await tester.ensureVisible(control);
+        await tester.tap(control);
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets(
+          'an edited passage and a program: both named, danger confirm, a '
+          'refusal stays in the panel, success closes it', (tester) async {
+        var status = 409;
+        final rec = _Recorder((_) => status == 409
+            ? (409, {
+                'error': 'This document is already being processed.',
+                'error_code': 'CONFLICT'
+              })
+            : (202, {'queued': true}));
+        ApiService.instance.httpClientAdapter = rec;
+        await openRow(
+            tester,
+            SourcesStubService(
+              jobs: Stream.value(kept),
+              chunks: (_) => [
+                Chunk.fromJson({
+                  'chunk_id': 'c1',
+                  'document_id': 'doc-7',
+                  'chunk_index': 0,
+                  'text': 'Edited.',
+                  'user_edited': true,
+                }),
+              ],
+              programs: Stream.value([
+                const StudyProgram(
+                    id: 'p1',
+                    title: 'Notes',
+                    documentIds: ['doc-7'],
+                    enabled: true,
+                    status: 'active'),
+              ]),
+            ));
+
+        expect(find.text('Update from the source?'), findsOneWidget,
+            reason: 'the confirm is owed before anything is sent');
+        expect(rec.sent, isEmpty, reason: 'nothing leaves before the confirm');
+        expect(find.textContaining('re-imported from Google Drive'),
+            findsOneWidget);
+        expect(find.textContaining('Your edits to these passages'),
+            findsOneWidget);
+        expect(find.textContaining('This source is in a study program'),
+            findsOneWidget);
+        final confirm = find.descendant(
+            of: find.byType(KitConfirm),
+            matching: find.widgetWithText(KitButton, 'Update from source'));
+        expect(tester.widget<KitButton>(confirm).variant, KitButtonVariant.danger,
+            reason: 'replacing authored passages is destructive');
+
+        await tester.tap(confirm);
+        await tester.pumpAndSettle();
+        expect(rec.sent.single.path, endsWith('/fn_update_from_source'));
+        expect(rec.sent.single.data, {'document_id': 'doc-7'});
+        expect(
+            find.descendant(
+                of: find.byType(KitConfirm),
+                matching: find.textContaining('already being processed')),
+            findsOneWidget,
+            reason: '§18: a refusal renders in the panel, which stays open');
+
+        status = 202;
+        await tester.tap(confirm);
+        await tester.pumpAndSettle();
+        expect(find.byType(KitConfirm), findsNothing);
+        expect(find.byType(KitFailureInline), findsNothing,
+            reason: 'the panel reported the refusal; the row owes no copy');
+      });
+
+      testWidgets(
+          'reads that failed say "could not check"; Keep sends nothing',
+          (tester) async {
+        final rec = _Recorder((_) => (202, {'queued': true}));
+        ApiService.instance.httpClientAdapter = rec;
+        await openRow(
+            tester,
+            SourcesStubService(
+              jobs: Stream.value(kept),
+              chunks: (_) => null,
+              programs: Stream.error(StateError('permission-denied')),
+            ));
+        expect(find.text('Update from the source?'), findsOneWidget,
+            reason: 'an unread fact is not a "no"');
+        expect(find.textContaining('could not check whether these passages'),
+            findsOneWidget);
+        expect(find.textContaining('could not check whether this source is in'),
+            findsOneWidget);
+        await tester.tap(find.text('Keep it as it is'));
+        await tester.pumpAndSettle();
+        expect(rec.sent, isEmpty);
+        expect(find.widgetWithText(KitButton, 'Update from source'),
+            findsOneWidget, reason: 'the control is given back');
+      });
     });
 
     test('a skipped approve names both causes', () {

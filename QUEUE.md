@@ -1121,3 +1121,16 @@ a new obligation on a finished screen is a new item.
 - shots: sources
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: CHANGELOG 4.96.0 tandem 3, reference NoteLetter-web@f0143dc (`ImportJobRow`). `ImportJob.canUpdateFromSource` = `skipped` + `skip_reason` `document_complete | document_unchanged` + `document_id` set; the row draws a ghost **Update from source** → `CloudNotifier.updateFromSource(documentId)`, busy `Queuing…`, a refusal as §14.2 `KitFailureInline` under the row — the same shape as Retry. `canRetry` stays false for both reasons. No client parses the sentence: a gone-file row still gets the control. The seed has no cloud import rows, so the widget tests are the proof, not the pair.
+
+## F-63 · Update from source — the §Supersession confirm on the Sources row and the reader banner
+- status: done 2026-09-25
+- screen: sources
+- route: /sources
+- spec: spec/screens/reader.md §Supersession confirm §Source freshness; spec/screens/sources.md §Trust & feedback; spec/component-kit.md §18; spec/decisions/ADR-092-a-confirmation-that-cannot-report-a-refusal.md
+- web: src/pages/ReaderView.jsx; src/pages/sources/CloudImportPanel.jsx
+- flutter: lib/pages/reader/supersession_confirm.dart (new); lib/pages/reader/content_form_action.dart; lib/pages/reader/source_freshness.dart; lib/pages/sources_page.dart; test/contract/supersession_confirm_test.dart (new); test/contract/cloud_sync_tandem_test.dart; test/contract/sources_harness.dart
+- folds: none — booked 2026-09-25 from the umbrella's confirm gap
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: reader.md §Supersession confirm names Update from source first among the operations that re-derive content: the client MUST confirm (a §18 Confirmation, danger variant) when any chunk has `user_edited` or the document is in a study program, naming both consequences. F-62's row button and the reader's freshness banner both sent `fn_update_from_source` on the first tap. The web reference skips it too (ReaderView.jsx `update()`, CloudImportPanel.jsx `updateRow`) — the spec is normative here and web owes the same fix. Both facts are three-valued: a read that failed says 'could not check' and still confirms; only two definite noes skip it, and then a refusal stays §14.2 on the row/banner as before. The row holds no chunks, so it reads them quietly (no doc_opened, INV-03). No seed state reaches either surface (no cloud rows, no newer-at-provider document), so the widget tests are the proof, not a pair.

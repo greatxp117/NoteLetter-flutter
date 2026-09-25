@@ -4,8 +4,8 @@ import '../../models/chunk.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
-import '../../services/firestore_service.dart';
 import '../../widgets/kit/kit.dart';
+import 'supersession_confirm.dart';
 
 /// "Treat as recipe" / "Not a recipe" (4.6.0, ADR-042) — the reader's
 /// standing instruction, `fn_update_document {contentForm}`. Reference:
@@ -44,17 +44,8 @@ class ContentFormAction extends StatelessWidget {
   /// Read off the programs subscription the Study screen already uses, once:
   /// the reference's `array-contains … limit 1` reads the same fact, and a
   /// user's programs are few.
-  static Future<bool?> inStudyProgram(String docId) async {
-    try {
-      final programs = await FirestoreService.instance
-          .subscribeStudyPrograms()
-          .first
-          .timeout(const Duration(seconds: 10));
-      return programs.any((p) => p.documentIds.contains(docId));
-    } catch (_) {
-      return null;
-    }
-  }
+  static Future<bool?> inStudyProgram(String docId) =>
+      SupersessionConfirm.inStudyProgram(docId);
 
   bool get _isRecipe => doc.recipe != null;
 
@@ -103,23 +94,17 @@ class ContentFormAction extends StatelessWidget {
     required bool edited,
     required bool? inStudy,
   }) =>
-      [
-        isRecipe
+      SupersessionConfirm.lines(
+        lead: isRecipe
             ? 'This source will be re-read from the original and its passages '
                 'replaced with the full text.'
             : 'This source will be re-read and its passages replaced with just '
                 'the recipe — ingredients, steps and pictures. The full '
                 'original text is kept, and stays available in the Original '
                 'panel.',
-        if (edited)
-          'Your edits to these passages will be replaced by a fresh extraction.',
-        if (inStudy == true)
-          'This source is in a study program — its schedule for this source '
-              'will restart.',
-        if (inStudy == null)
-          'We could not check whether this source is in a study program. If '
-              'it is, its schedule for this source will restart.',
-      ];
+        edited: edited,
+        inStudy: inStudy,
+      );
 
   @override
   Widget build(BuildContext context) {
