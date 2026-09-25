@@ -13,7 +13,6 @@
 /// of both shapes render correctly, in either deploy order.
 library;
 
-import 'package:flutter/material.dart' show Icon, IconData, Icons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -23,6 +22,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_shell.dart' show KitQuill;
 import 'kit_text.dart';
 
 /// The letter's own colours, frozen.
@@ -292,7 +292,9 @@ class KitLetterSheet extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(_sealMark, size: 22, color: t.seal),
+                    // The seal's mark is the brand's quill (`.seal .mark`), so the letter
+                    // and the app bar carry one mark rather than two that drift.
+                    KitQuill(size: 22, color: t.seal),
                     const SizedBox(width: AppSpacing.s2 + 2),
                     Expanded(
                       child: Text(sealText,
@@ -436,8 +438,3 @@ class KitLetterAttribution extends StatelessWidget {
             )),
       );
 }
-
-/// The mark in the seal. The same glyph the chrome rail sets as the brand
-/// (`sidebar.dart`), so the seal on the letter and the mark on the app are one
-/// thing rather than two that drift.
-const IconData _sealMark = Icons.edit_note;

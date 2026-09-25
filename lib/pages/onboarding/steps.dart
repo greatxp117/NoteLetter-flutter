@@ -71,7 +71,7 @@ class WelcomeStep extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const KitMark(Icons.edit_note, size: 72),
+          const KitMark(KitQuill.icon, size: 72),
           const SizedBox(height: AppSpacing.s6),
           const ChapterOpening(
             folio: 'Setting up',
@@ -431,7 +431,7 @@ class DoneStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const KitMark.seal(Icons.edit_note),
+        const KitMark.seal(KitQuill.icon),
         const SizedBox(height: AppSpacing.s6),
         ChapterOpening(
           folio: saving

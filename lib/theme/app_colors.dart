@@ -81,6 +81,8 @@ class AppColors {
   static const chrome = _plum600; // --chrome (both themes)
   static const chromeForeground = _paper50; // --chrome-fg / --paper-50
   static const chromeMuted = Color(0x9EFFFFFF); // idle nav rgba(255,255,255,.62)
+  static const chromeControl = Color(0xCCFFFFFF); // .mh-btn glyph rgba(255,255,255,.8)
+  static const chromeTrack = Color(0x33FAFAF7); // .ob-progress .pbar rgba(250,250,247,.2)
   static const chromeSubtle = Color(0x66FFFFFF); // group labels/meta rgba(...,.40)
   static const chromeHover = Color(0x0DFFFFFF); // hover fill rgba(255,255,255,.05)
   static const chromeActive = Color(0x14FFFFFF); // active fill rgba(255,255,255,.08)

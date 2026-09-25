@@ -8,7 +8,6 @@ import '../state/activity_notifier.dart';
 import '../state/auth_notifier.dart';
 import '../state/documents_notifier.dart';
 import '../state/theme_notifier.dart';
-import '../theme/app_colors.dart';
 import 'kit/kit.dart';
 
 /// The chrome rail (`component-kit.md` §1.2), composed from the kit.
@@ -117,7 +116,7 @@ class _RailContentState extends State<RailContent> {
         final ok = docs.measured;
 
         return KitChromeRail(
-          brand: const KitBrand(mark: Icon(Icons.edit_note, size: 22, color: AppColors.chromeForeground)),
+          brand: const KitBrand(),
           items: [
             KitNavItem(
               icon: Icons.home_outlined,

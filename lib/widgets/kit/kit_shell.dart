@@ -133,30 +133,213 @@ class KitChromeRail extends StatelessWidget {
   }
 }
 
-/// The brand lockup: mark + serif wordmark, in chrome foreground.
+/// The brand lockup (§1.2): the **quill** mark + the small-caps serif
+/// **wordmark**, in chrome foreground.
+///
+/// The pattern owns both parts. It used to take its mark from the caller, and
+/// every caller passed Material's `edit_note` beside a plain serif
+/// `NoteLetter` — a lockup the reference never draws (F-57). Web: `.sb-brand`
+/// (mark 22, gap 10), `.mh-brand` (mark 20, gap 8), `.ob-brand` (mark 24,
+/// gap 11, wordmark 19); `.wordmark` is 15px everywhere else.
 class KitBrand extends StatelessWidget {
-  final Widget mark;
-  final String name;
+  final double markSize;
+  final double gap;
+  final double wordmarkSize;
 
-  const KitBrand({super.key, required this.mark, this.name = 'NoteLetter'});
+  /// The rail's lockup (`.sb-brand`).
+  const KitBrand({super.key})
+      : markSize = 22,
+        gap = 10,
+        wordmarkSize = 15;
+
+  /// The phone app bar's lockup (`.mh-brand`).
+  const KitBrand.appBar({super.key})
+      : markSize = 20,
+        gap = 8,
+        wordmarkSize = 15;
+
+  /// The onboarding rail's lockup (`.ob-brand`).
+  const KitBrand.onboarding({super.key})
+      : markSize = 24,
+        gap = 11,
+        wordmarkSize = 19;
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(width: 22, height: 22, child: mark),
-        const SizedBox(width: 10),
-        Text(
-          name,
-          style: AppTheme.serif(
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-            letterSpacing: -0.01 * 18,
-            color: t.chromeFg,
+        KitQuill(size: markSize, color: t.chromeFg),
+        SizedBox(width: gap),
+        KitWordmark(fontSize: wordmarkSize, color: t.chromeFg),
+      ],
+    );
+  }
+}
+
+/// `.wordmark` — NOTELETTER in serif 600 caps, tracked 0.12em, its two
+/// initials raised to 1.24em (`.wm-init`). The tracking is the base size's:
+/// CSS computes `0.12em` on the wordmark and the initials inherit the pixels.
+class KitWordmark extends StatelessWidget {
+  final double fontSize;
+  final Color color;
+
+  const KitWordmark({super.key, this.fontSize = 15, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    TextStyle style(double size) => AppTheme.serif(
+          fontSize: size,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.12 * fontSize,
+          height: 1,
+          color: color,
+        ).copyWith(fontVariations: const [
+          FontVariation('wght', 600),
+          FontVariation('opsz', 28),
+        ]);
+    final base = style(fontSize);
+    final init = style(fontSize * 1.24);
+    return Text.rich(
+      TextSpan(style: base, children: [
+        TextSpan(text: 'N', style: init),
+        const TextSpan(text: 'OTE'),
+        TextSpan(text: 'L', style: init),
+        const TextSpan(text: 'ETTER'),
+      ]),
+      semanticsLabel: 'NoteLetter',
+      maxLines: 1,
+      softWrap: false,
+    );
+  }
+}
+
+/// The quill — the reference's `IcoFeather` (a 512-unit filled path), the
+/// app's mark wherever web draws one. Material has no such glyph; the nearest
+/// (`edit_note`) is a notepad, which is what this client drew for months.
+class KitQuill extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const KitQuill({super.key, required this.size, required this.color});
+
+  /// A sentinel for kit widgets that take an [IconData] (§7's [KitMark], the
+  /// settings feature card): pass this and [KitGlyph] draws the quill.
+  static const IconData icon = IconData(0xF8FF, fontFamily: 'NoteLetterQuill');
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _QuillPainter(color)),
+    );
+  }
+}
+
+class _QuillPainter extends CustomPainter {
+  final Color color;
+
+  const _QuillPainter(this.color);
+
+  static final Path _path = Path()
+    ..moveTo(483.4, 244.2)
+    ..lineTo(351.9, 287.1)
+    ..lineTo(449.64, 287.1)
+    ..cubicTo(439.766, 297.72, 453.39, 283.975, 403.4, 333.97)
+    ..lineTo(255.8, 383.09)
+    ..lineTo(354.04, 383.09)
+    ..cubicTo(279.05, 456.21, 159.44, 453.71, 107.24, 437.19)
+    ..lineTo(41.1, 503.18)
+    ..cubicTo(31.726, 512.554, 16.5, 512.554, 7.12, 503.18)
+    ..cubicTo(-2.26, 493.806, -2.254, 478.58, 7.12, 469.2)
+    ..lineTo(266.62, 210)
+    ..cubicTo(272.869, 203.75, 272.869, 193.63, 266.62, 187.38)
+    ..cubicTo(260.371, 181.131, 250.25, 181.131, 244, 187.38)
+    ..lineTo(65.6, 365.58)
+    ..cubicTo(58.78, 306.1, 68.61, 216.7, 129.1, 156.3)
+    ..lineTo(214.84, 70.62)
+    ..cubicTo(305.46, -20, 404.64, -17.65, 467.14, 44.84)
+    ..cubicTo(517.8, 95.34, 528.9, 169.7, 483.4, 244.2)
+    ..close();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 512, size.height / 512);
+    canvas.drawPath(_path, Paint()..color = color);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_QuillPainter old) => old.color != color;
+}
+
+/// An [IconData] as a kit widget draws it: [KitQuill.icon] is the quill, any
+/// other is a Material [Icon].
+class KitGlyph extends StatelessWidget {
+  final IconData icon;
+  final double size;
+  final Color color;
+
+  const KitGlyph(this.icon, {super.key, required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) => icon == KitQuill.icon
+      ? KitQuill(size: size, color: color)
+      : Icon(icon, size: size, color: color);
+}
+
+/// The phone app bar's trailing control (`.mh-btn`): 36 square, `--r-sm`, the
+/// glyph 20 at white .80, hover fill white .08 with the glyph at `--paper-50`.
+/// The search control (F-57) is the first.
+class KitAppBarButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const KitAppBarButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  State<KitAppBarButton> createState() => _KitAppBarButtonState();
+}
+
+class _KitAppBarButtonState extends State<KitAppBarButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      button: true,
+      label: widget.label,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _hover ? t.chromeActive : const Color(0x00000000),
+              borderRadius: AppRadius.smR,
+            ),
+            child: Icon(widget.icon,
+                size: 20, color: _hover ? t.chromeFg : t.chromeControl),
           ),
         ),
-      ],
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../theme/app_spacing.dart';
 import '../theme/tokens.dart';
@@ -70,10 +71,21 @@ class AppLayout extends StatelessWidget {
             elevation: 0,
             centerTitle: false,
             titleSpacing: 0,
-            title: KitBrand(
-              mark: Icon(Icons.edit_note, size: 22, color: t.chromeFg),
-            ),
-            actions: actions,
+            toolbarHeight: 54,
+            shape: Border(bottom: BorderSide(color: t.chromeActive)),
+            title: const KitBrand.appBar(),
+            // `.app-mobile-header`: menu · brand · spacer · search. Web's
+            // search opens its QuickSearch overlay; this client has no overlay,
+            // so the control goes where the overlay would lead — /search.
+            actions: [
+              ...actions,
+              KitAppBarButton(
+                icon: Icons.search,
+                label: 'Search',
+                onPressed: () => context.go('/search'),
+              ),
+              const SizedBox(width: 10),
+            ],
           ),
           drawer: const NavDrawer(),
           body: KitShellCompact(child: child),

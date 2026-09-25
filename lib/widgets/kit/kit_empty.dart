@@ -4,6 +4,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 
 /// §7's **mark** — the rounded chrome-filled tile holding a glyph that opens an
@@ -50,7 +51,7 @@ class KitMark extends StatelessWidget {
       // Rounded, so §7's own 60 keeps the 26 the empty state has always drawn:
       // extracting this widget must not move a pixel on the screens that
       // already had it.
-      child: Icon(icon,
+      child: KitGlyph(icon,
           size: (size * 0.433).roundToDouble(),
           color: seal ? t.seal : t.chromeFg),
     );

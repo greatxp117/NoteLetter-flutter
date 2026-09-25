@@ -7,6 +7,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
+import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 
 /// §5.1 — the base card: `--surface`, 1px `--border`, `--r-md`, and **shadow on
@@ -1072,7 +1073,7 @@ class KitFeatureCard extends StatelessWidget {
         borderRadius: AppRadius.mdR,
         boxShadow: AppShadows.s1,
       ),
-      child: Icon(icon, size: 24, color: t.chromeFg),
+      child: KitGlyph(icon, size: 24, color: t.chromeFg),
     );
     final main = Column(
       crossAxisAlignment: CrossAxisAlignment.start,

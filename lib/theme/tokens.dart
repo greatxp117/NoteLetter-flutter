@@ -190,6 +190,8 @@ class Tokens {
   Color get chrome => AppColors.chrome;
   Color get chromeFg => AppColors.chromeForeground;
   Color get chromeMuted => AppColors.chromeMuted;
+  Color get chromeControl => AppColors.chromeControl;
+  Color get chromeTrack => AppColors.chromeTrack;
   Color get chromeSubtle => AppColors.chromeSubtle;
   Color get chromeHover => AppColors.chromeHover;
   Color get chromeActive => AppColors.chromeActive;

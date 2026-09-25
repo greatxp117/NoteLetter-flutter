@@ -901,7 +901,7 @@ void main() {
           height: 800,
           child: KitShell(
             rail: KitChromeRail(
-              brand: const KitBrand(mark: Icon(Icons.edit_note)),
+              brand: const KitBrand(),
               items: [
                 const KitRailGroupLabel('Library'),
                 KitNavItem(

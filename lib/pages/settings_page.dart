@@ -72,7 +72,7 @@ class _SettingsPageState extends State<SettingsPage> {
           // `.set-feature` — the replay is a place to go, not a preference,
           // and the reference draws it as its own card, not a setting row.
           KitFeatureCard(
-            icon: Icons.edit_note,
+            icon: KitQuill.icon,
             title: 'Run through setup again',
             description: 'Replay first-run — bring in sources, write your '
                 'librarian’s mission, and tune your letter. Nothing you’ve '

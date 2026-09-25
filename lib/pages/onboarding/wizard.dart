@@ -11,7 +11,6 @@ import '../../state/scripture_letter_notifier.dart';
 import '../../state/settings_notifier.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
-import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
@@ -404,13 +403,7 @@ class _Rail extends StatelessWidget {
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const KitBrand(
-                      mark: Icon(
-                        Icons.edit_note,
-                        size: 22,
-                        color: AppColors.chromeForeground,
-                      ),
-                    ),
+                    const KitBrand.onboarding(),
                     const SizedBox(height: AppSpacing.s3),
                     _Progress(step: step),
                   ],
@@ -418,13 +411,7 @@ class _Rail extends StatelessWidget {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const KitBrand(
-                      mark: Icon(
-                        Icons.edit_note,
-                        size: 22,
-                        color: AppColors.chromeForeground,
-                      ),
-                    ),
+                    const KitBrand.onboarding(),
                     const SizedBox(height: 30),
                     Eyebrow('Setting up your library', color: t.chromeMuted),
                     const SizedBox(height: 9),
@@ -514,7 +501,9 @@ class _Progress extends StatelessWidget {
             borderRadius: AppRadius.pillR(3),
             child: Container(
               height: 3,
-              color: t.chromeActive,
+              // `.pbar`'s track is paper at .20 — at the rail's .08 the track
+              // vanished on the plum and step 1 read as no bar at all.
+              color: t.chromeTrack,
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
                 widthFactor: step / (_steps.length - 1),
@@ -567,7 +556,7 @@ class _StepRow extends StatelessWidget {
       child: done
           ? Icon(Icons.check, size: 14, color: t.chromeFg)
           : active && s.number == null
-          ? Icon(Icons.edit_note, size: 13, color: t.chrome)
+          ? KitQuill(size: 12, color: t.chrome)
           : s.number == null
           ? Icon(Icons.check, size: 14, color: t.chromeSubtle)
           : Text(

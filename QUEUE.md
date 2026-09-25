@@ -1035,7 +1035,7 @@ a new obligation on a finished screen is a new item.
 - notes: The 2026-09-25 re-shoot beside the web phone frame. Web's `.ss-row` is `display:flex; flex-wrap:wrap; gap:16px; row-gap:8px` with a 64px `.ss-label`, so on a phone the ten-swatch group (10 x 24 + 9 x 8 = 312px) does not fit beside the label and wraps WHOLE onto its own line under COLOR, one row of ten. KitPanelRow is a Row with a fixed label column and an Expanded child, so the swatches wrap 7 + 3 inside the column instead. Fix inside the kit (a KitPanelRow that drops its child below the label when the child's natural width does not fit — flex-wrap, not a per-screen branch). kit_controls.dart is listed by F-08, F-12, F-47, F-49, F-51 and F-46, so the change re-stales those pairs: re-shoot shelves, shelf-color-picker, search, sources and letter-settings in the same pass. Found while disk allowed only the pairs already owed.
 
 ## F-57 · Shell — the brand mark and wordmark, and the phone app bar's search
-- status: open
+- status: done 2026-09-25
 - screen: library
 - route: /
 - spec: spec/component-kit.md §1.2
