@@ -51,7 +51,12 @@ wait_for() {
     sleep 1
   done
   sleep 2   # let the last frame paint
-  xcrun simctl io "$udid" screenshot "$out" >/dev/null
+  # Caught into the temp dir, then moved: CoreSimulator writes the file, not
+  # this shell, and it may hold no permission for a repo under ~/Desktop
+  # (NSCocoaErrorDomain 513 — the hold then runs on with no frame written).
+  base="$(mktemp -t nl-frame)"
+  xcrun simctl io "$udid" screenshot "$base.png" >/dev/null
+  mv "$base.png" "$out"; rm -f "$base"
   echo "tool: wrote $out"
 }
 
