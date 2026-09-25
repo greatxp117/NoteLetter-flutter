@@ -532,15 +532,15 @@ a new obligation on a finished screen is a new item.
     (it fails 3 of 7 on web).
 
 ## F-29 · Look again: the web reference moved on three screens
-- status: open
+- status: done 2026-09-25
 - screen: support · notifications · reader (Summary)
 - route: /support · /settings/notifications · /reader/{id}
 - spec: spec/component-kit.md §How to read a pattern ("a pattern may not be scoped to its first host") · §2
 - web: src/pages/SupportView.jsx; src/pages/NotificationSettings.jsx; src/pages/reader/SummaryPanel.jsx
-- flutter: lib/pages/support_page.dart; lib/pages/notification_settings_page.dart; lib/pages/reader/summary_panel.dart
-- folds: none
+- flutter: lib/widgets/kit/kit_headers.dart; lib/pages/support_page.dart; lib/pages/notification_settings_page.dart; lib/pages/letter_settings_page.dart; lib/pages/reader/summary_panel.dart; test/kit/goldens/headers.light.png; test/kit/goldens/headers.dark.png
+- folds: 4.88.1 (component-kit §2.2 corrected)
 - device_test: none
-- shots: support; notifications; reader
+- shots: support; notifications; letter-settings
 - extra_gates: screenshot_pair_check.py
 - notes: Contract 4.66.2. Three web screens changed what they DRAW, not what they do:
     Support and Notification settings each open with the eyebrow/lede pair and were
@@ -890,3 +890,16 @@ a new obligation on a finished screen is a new item.
 - shots: sources
 - extra_gates: none
 - notes: A `_JobRow` carrying two actions (View · Import again) plus its status glyph leaves the title so little width that `taxes.pdf` renders as `taxes.pd` / `f` and the subtitle as `Already im…` — on the seed's already-imported job, iPhone 17 Pro. Seen in screenshots/folder-contents.flutter.*.png (first shot, below the picker). The row is §4.1: when actions and title cannot share a line, the actions go under the title, never the title into a sliver.
+
+## F-46 · Notifications — a level label ellipsises in the channel cards
+- status: open
+- screen: notifications
+- route: /settings/notifications
+- spec: spec/screens/notifications.md §The editor; spec/component-kit.md §6.8
+- web: src/pages/NotificationSettings.jsx
+- flutter: lib/widgets/kit/kit_controls.dart; lib/pages/notification_settings_page.dart
+- folds: none — found by F-29's re-shoot
+- device_test: none
+- shots: notifications
+- extra_gates: none
+- notes: In each channel card's level track the third segment reads `Success…` on iPhone 17 Pro. The 2026-09-15 frame (b7e7b07) showed `Successes` whole; the track's segment labels were wrapped in `Flexible` + ellipsis at 4.84.0 (F-40, for a brand chip at a narrow bar), after that frame. Find which of the two changed the fit — the wrapper, or the card's inner width — and make four level labels fit a 390pt phone again (kit_controls.dart already carries a comment about exactly this label). A label the reader cannot read is a control that lies about what it selects.

@@ -203,10 +203,13 @@ class KitBackControl extends StatelessWidget {
 }
 
 /// §2.2 — the header for a screen reached *from* another one. Back control →
-/// eyebrow → **plain sans** standfirst.
+/// eyebrow → the kit's standalone **lede**, italic serif 16/24 (web
+/// `.sources-sub`) — a size step down from a chapter opening's 18/28, which is
+/// what marks a utility screen, not a change of face.
 ///
-/// Deliberately not the editorial voice: this is a utility screen, and the
-/// italic serif lede belongs to chapter openings.
+/// Until 4.88.1 this drew a plain sans standfirst, because §2.2 said so — a
+/// sentence transcribed from the web while its lede rule reached one of three
+/// hosts and the other two rendered a bare paragraph (QUEUE F-29).
 class SubScreenHeader extends StatelessWidget {
   final String parentLabel;
   final VoidCallback? onBack;
@@ -223,7 +226,6 @@ class SubScreenHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -234,15 +236,7 @@ class SubScreenHeader extends StatelessWidget {
           const SizedBox(height: AppSpacing.s1),
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.s5),
-            child: Text(
-              standfirst!,
-              style: TextStyle(
-                fontFamily: AppTheme.fontSans,
-                fontSize: 14,
-                height: 1.45,
-                color: t.fgMuted,
-              ),
-            ),
+            child: Lede(standfirst!, fontSize: 16, height: 24),
           ),
         ],
       ],
