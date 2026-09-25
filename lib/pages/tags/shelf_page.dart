@@ -6,6 +6,7 @@ import '../../models/document.dart';
 import '../../models/tag.dart';
 import '../../state/documents_notifier.dart';
 import '../../state/tags_notifier.dart';
+import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'reshelve_sheet.dart';
 import 'shelf_parts.dart';
@@ -43,8 +44,14 @@ class _ShelfPageState extends State<ShelfPage> {
   bool _settings = false;
   bool _savingColor = false;
   String? _colorError;
+  bool _savingLetter = false;
+  String? _letterError;
   String? _nameError;
   int _sort = 0;
+
+  static const _weights = [KitSegment('Lead'), KitSegment('Mixed')];
+  static const _weightModes = ['lead', 'mixed'];
+  static const _weightHints = ['often opens your letter', 'blended in with the rest'];
 
   static const _sorts = [
     KitSegment('Recent'),
@@ -102,6 +109,27 @@ class _ShelfPageState extends State<ShelfPage> {
     });
     // No local colour state: the tags subscription (INV-02) carries the
     // accepted value back, so what is drawn is what was stored.
+  }
+
+  /// The shelf's place in the letter (`screens/library.md`, 4.88.0, ADR-122).
+  /// On the reference this stored nothing until 4.88.0 — the switch muted
+  /// nothing and was back on after a reload. Same rule as the colour: no local
+  /// state, the controls are disabled while the call is out, and the tags
+  /// subscription carries the accepted value back.
+  Future<void> _setLetterMode(Tag shelf, String mode) async {
+    if (_savingLetter || mode == shelf.letterMode) return;
+    setState(() {
+      _savingLetter = true;
+      _letterError = null;
+    });
+    final err = await context
+        .read<TagsNotifier>()
+        .updateTag(shelf.id, letterMode: mode);
+    if (!mounted) return;
+    setState(() {
+      _savingLetter = false;
+      _letterError = err;
+    });
   }
 
   // §18 (4.56.0, ADR-092): the delete runs INSIDE the confirmation, so a refusal
@@ -230,11 +258,15 @@ class _ShelfPageState extends State<ShelfPage> {
                 KitStat('${vols.length}', 'Volumes'),
                 KitStat('$passages', 'Passages'),
                 KitStat(_span(vols), 'Span'),
+                KitStat(_letterLabel(shelf.letterMode), 'In your letter'),
               ]),
               if (_settings) ...[
                 const SizedBox(height: 22),
                 _settingsPanel(shelf, vols, tags.tags),
               ],
+              const SizedBox(height: 22),
+              _letterSection(shelf),
+              const SizedBox(height: 10),
               const SizedBox(height: 12),
               SectionHeader('Volumes · ${vols.length}'),
               KitControlBar(
@@ -282,6 +314,77 @@ class _ShelfPageState extends State<ShelfPage> {
           ),
         );
       },
+    );
+  }
+
+  /// *Feed today's letter* — the switch, and while it is on, how prominently.
+  /// Off writes `muted`; on writes `mixed`.
+  Widget _letterSection(Tag shelf) {
+    final t = Tokens.of(context);
+    final on = shelf.letterMode != 'muted';
+    final weight = shelf.letterMode == 'lead' ? 0 : 1;
+    return KitCard(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Feed today’s letter', style: KitText.h4(context)),
+                  const SizedBox(height: 3),
+                  Text(
+                    on
+                        ? 'Passages from this shelf are eligible for your daily letter.'
+                        : 'This shelf is muted — its passages stay out of your letter.',
+                    style: KitText.ui(context, color: t.fgMuted),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            KitSwitch(
+              value: on,
+              tooltip: 'Feed today’s letter',
+              onChanged: _savingLetter
+                  ? null
+                  : (v) => _setLetterMode(shelf, v ? 'mixed' : 'muted'),
+            ),
+          ]),
+          if (on) ...[
+            const SizedBox(height: 15),
+            Divider(height: 1, thickness: 1, color: t.rule),
+            const SizedBox(height: 15),
+            Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const KitControlLabel('How prominently'),
+                KitSegmented(
+                  key: const ValueKey('shelf-letter-weight'),
+                  segments: _weights,
+                  selected: weight,
+                  onChanged: _savingLetter
+                      ? null
+                      : (i) => _setLetterMode(shelf, _weightModes[i]),
+                ),
+                Text(
+                  _weightHints[weight],
+                  style: KitText.lede(context, fontSize: 13, height: 20)
+                      .copyWith(color: t.fgSubtle),
+                ),
+              ],
+            ),
+          ],
+          if (_letterError != null) ...[
+            const SizedBox(height: 10),
+            KitFailureInline(_letterError!, dense: true),
+          ],
+        ],
+      ),
     );
   }
 
@@ -414,6 +517,13 @@ String _provenance(Tag shelf, List<Tag> shelves) {
       shelves.where((s) => s.id == shelf.parentTagId).firstOrNull;
   return parent == null ? '' : ' · split from ${parent.title}';
 }
+
+/// The stat's reading of the stored mode — Lead · Mixed · Muted.
+String _letterLabel(String mode) => switch (mode) {
+      'lead' => 'Lead',
+      'muted' => 'Muted',
+      _ => 'Mixed',
+    };
 
 /// The span of a shelf: the first volume's date, and the last's when there is
 /// more than one. `—` when there is nothing to measure — a measured absence,

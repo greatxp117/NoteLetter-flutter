@@ -15,7 +15,12 @@
 // then, once `HOLD:LIGHT` appears:
 //   xcrun simctl io booted screenshot screenshots/<screen>.flutter.light.png
 // and again on `HOLD:DARK` for the dark frame.
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -426,6 +431,26 @@ Future<void> reachState(WidgetTester tester) async {
       expect(find.byType(KitSwatch), findsNWidgets(10),
           reason: 'the picker did not open — this frame would be the shelf');
       return;
+    // library.md §A shelf's place in the letter (4.88.0, ADR-122) — the
+    // section sits below the stat cluster; scroll it into the frame.
+    case 'shelf-letter':
+    case 'shelf-letter-error':
+      await tester.ensureVisible(find.text('Feed today’s letter'));
+      await settle();
+      if (holdState == 'shelf-letter') return;
+      // A REAL refusal, as the web frame's: `letter_mode` is a closed set, so
+      // the request is rewritten to `loud` on its way out and the sentence in
+      // the frame is fn_update_tag's own, from the emulator backend.
+      ApiService.instance.httpClientAdapter = _RewriteLetterMode();
+      await tester.tap(find.text('Lead'));
+      for (var i = 0; i < 50; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.byType(KitFailureInline).evaluate().isNotEmpty) break;
+      }
+      ApiService.instance.resetTestSeams();
+      expect(find.byType(KitFailureInline), findsOneWidget,
+          reason: 'no refusal rendered — this frame would be the section');
+      return;
     // onboarding.md §States/Replay — the wizard is a GATE, not a route: it
     // renders only for an unset `nl-onboarded` and a first documents snapshot
     // that arrives EMPTY, and the seed user has a library. Settings' replay
@@ -486,4 +511,28 @@ Future<void> reachState(WidgetTester tester) async {
     default:
       fail('hold_screen_test knows no HOLD_STATE "$holdState"');
   }
+}
+
+
+/// Forwards every request to the real transport, with `fn_update_tag`'s
+/// `letter_mode` swapped for a value outside the closed set — so the refusal
+/// in the `shelf-letter-error` frame is the backend's, not one this test wrote.
+class _RewriteLetterMode implements HttpClientAdapter {
+  final _inner = IOHttpClientAdapter();
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) {
+    if (!options.path.endsWith('/fn_update_tag') || options.data is! Map) {
+      return _inner.fetch(options, requestStream, cancelFuture);
+    }
+    final body = utf8.encode(jsonEncode(
+        {...(options.data as Map), 'letter_mode': 'loud'}));
+    options.headers['content-length'] = body.length.toString();
+    return _inner.fetch(
+        options, Stream.value(Uint8List.fromList(body)), cancelFuture);
+  }
+
+  @override
+  void close({bool force = false}) => _inner.close(force: force);
 }

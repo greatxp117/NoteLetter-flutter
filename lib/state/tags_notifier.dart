@@ -48,12 +48,16 @@ class TagsNotifier extends ChangeNotifier {
   }
 
   Future<String?> updateTag(String tagId,
-      {String? title, String? description, String? color}) async {
+      {String? title,
+      String? description,
+      String? color,
+      String? letterMode}) async {
     try {
       await Api.instance.updateTag(tagId, {
         if (title != null) 'title': title,
         if (description != null) 'description': description,
         if (color != null) 'color': color,
+        if (letterMode != null) 'letter_mode': letterMode,
       });
       return null;
     } on ApiException catch (e) {

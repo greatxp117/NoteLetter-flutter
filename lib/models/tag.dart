@@ -21,6 +21,12 @@ class Tag {
   /// sizes depending on which screen you look at. Dangling ids are inert.
   final String? parentTagId;
 
+  /// 4.88.0 (ADR-122) — the shelf's place in the daily letter: `lead`,
+  /// `mixed` or `muted`. Absent (every shelf before 4.88.0) and anything
+  /// unrecognised read as `mixed` — an open read of a closed write, never an
+  /// error.
+  final String letterMode;
+
   const Tag({
     required this.id,
     required this.userId,
@@ -32,7 +38,10 @@ class Tag {
     this.updatedAt,
     this.documentCount = 0,
     this.parentTagId,
+    this.letterMode = 'mixed',
   });
+
+  static const letterModes = ['lead', 'mixed', 'muted'];
 
   factory Tag.fromJson(String id, Map<String, dynamic> json) {
     return Tag(
@@ -46,6 +55,9 @@ class Tag {
       updatedAt: tsMs(json['updated_at']),
       documentCount: json['document_count'] as int? ?? 0,
       parentTagId: json['parent_tag_id'] as String?,
+      letterMode: letterModes.contains(json['letter_mode'])
+          ? json['letter_mode'] as String
+          : 'mixed',
     );
   }
 }

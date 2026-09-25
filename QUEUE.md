@@ -375,19 +375,18 @@ a new obligation on a finished screen is a new item.
   Then `/contract-change` books the CHANGELOG line listing every folded version, and
   `flutter.md` §Screens reads "composed" on every row.
 
-## F-19 · Shelf letter weight — a control the backend cannot store
-- status: open
+## F-19 · Shelf page — the shelf's place in the letter
+- status: done 2026-09-24
 - screen: shelves
 - route: /shelves/seed-tag-recipes
-- spec: spec/screens/library.md §Shelf color; spec/api/tags.md; spec/component-kit.md §8
+- spec: spec/screens/library.md §A shelf's place in the letter; spec/api/tags.md §fn_update_tag; spec/data-model.md; spec/component-kit.md §8 §14.2
 - web: src/pages/ShelvesView.jsx
-- flutter: lib/pages/tags/shelf_page.dart
-- folds: none
+- flutter: lib/pages/tags/shelf_page.dart; lib/state/tags_notifier.dart; lib/models/tag.dart
+- folds: 4.88.0 (ADR-122)
 - device_test: shelves composes from the kit
-- shots: shelf-color-picker
+- shots: shelf-letter; shelf-letter-error
 - extra_gates: none
-- notes: STOP AND ASK first. The reference's shelf page carries a "Feed today's letter" switch, a Lead/Mixed weight picker and an "In your letter" stat, and NOTHING persists any of them: `/tags` has no such field and no endpoint accepts one, so on the web they reset on every reload while claiming to steer the letter. F-08 deliberately did not port them (only measured figures reach a screen). Either the field is a /contract-change (backend first, then every client), or the web control comes OUT and a flutter.md §Out of scope row records it. Not a Flutter-only decision.
-
+- notes: Decided 2026-09-24 (Xavier: make it real, not remove it) — this was a stop-and-ask because the web's "Feed today's letter" switch, Lead/Mixed picker and "In your letter" stat stored nothing. 4.88.0 made them `/tags.letter_mode` (lead · mixed · muted; absent or unknown = mixed), written by `fn_update_tag`, read by the letter's selection. Port the section and the stat: the switch (off = muted; on writes mixed), "How prominently" Lead/Mixed only while on, the stat Lead · Mixed · Muted from the stored value. Write before move: one `updateTag(tagId, letterMode:)` per change, controls disabled meanwhile, the control moves only when the call resolves, a refusal is a dense §14.2 line under the section with the controls unchanged. `NLTag`/`Tag` needs `letterMode` decoded (absent → mixed).
 ## F-20 · Ask rail — §9.1 entry actions (rename · delete)
 - status: done 2026-09-13
 - screen: ask-rail
