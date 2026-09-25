@@ -316,10 +316,13 @@ String _greeting() {
   return 'Good evening';
 }
 
-String _passages(Newsletter letter) {
-  final n = letter.passagesSent;
-  return n == null ? 'passages' : _plural(n, 'passage');
-}
+/// The standfirst's count: `chunk_ids`, which names exactly the passages the
+/// body holds (4.39.0) — the reference's `letter.chunk_ids.length`, and what
+/// the Letters card counts. It read `passages_sent` and fell back to a bare
+/// `passages` when that was absent, so the standfirst said "Today's letter is
+/// ready — passages from your library." (2026-09-25 frame).
+String _passages(Newsletter letter) =>
+    _plural(letter.chunkIds.length, 'passage');
 
 /// English plurals, in one place. Written out because "1 passages" shipped to a
 /// real screen the first time each of these was inlined.
