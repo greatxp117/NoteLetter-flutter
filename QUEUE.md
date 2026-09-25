@@ -587,7 +587,7 @@ a new obligation on a finished screen is a new item.
     body copy (ADR-070, 4.34.2).
 
 ## F-31 · A refused read draws zeros, and the type cannot say otherwise
-- status: open
+- status: done 2026-09-25
 - screen: library · sources · shelves · reader · study
 - route: /
 - spec: spec/component-kit.md §8 · spec/decisions/ADR-109-an-unmeasured-figure-is-not-a-zero.md

@@ -4,6 +4,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_cards.dart' show kitFigure;
 import 'kit_ground.dart';
 import 'kit_text.dart';
 
@@ -422,13 +423,17 @@ class _KitRailCardState extends State<KitRailCard> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                f.value,
+                                kitFigure(f.value).text,
                                 style: AppTheme.mono(
                                   fontSize: 16,
                                   height: 1,
-                                  color: f.highlight
-                                      ? t.chromeAccentBar
-                                      : t.chromeFg,
+                                  // The highlight is a state the VALUE decides,
+                                  // so it cannot fire on a dash (ADR-109).
+                                  color: !kitFigure(f.value).measured
+                                      ? t.chromeSubtle
+                                      : f.highlight
+                                          ? t.chromeAccentBar
+                                          : t.chromeFg,
                                 ),
                               ),
                               const SizedBox(height: 3),
@@ -472,7 +477,8 @@ class _KitRailCardState extends State<KitRailCard> {
 /// One figure in a [KitRailCard]. [highlight] paints the numeral in
 /// `--brick-400` — used for a non-zero unread count.
 class KitRailFigure {
-  final String value;
+  /// Null means NOT MEASURED — drawn by [kitFigure], the one rule (ADR-109).
+  final String? value;
   final String label;
   final bool highlight;
 

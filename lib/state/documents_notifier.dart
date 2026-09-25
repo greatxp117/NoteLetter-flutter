@@ -29,6 +29,12 @@ class DocumentsNotifier extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  /// Whether a figure counted out of this list is a measurement (ADR-109):
+  /// the first snapshot has arrived and the subscription has not failed since.
+  /// Every screen counting volumes off this notifier passes `null` to the kit
+  /// when this is false — a refused read is not a library of zero.
+  bool get measured => !loading && error == null;
+
   List<Document> get documents => List.unmodifiable(_documents);
   bool get loading => _loading;
 

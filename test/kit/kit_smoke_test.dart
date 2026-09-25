@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/theme/app_theme.dart';
+import 'package:flutter_app/theme/tokens.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/pages/search/score_explainer.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
@@ -1727,6 +1728,85 @@ void main() {
       await tester.pumpWidget(bar(80));
       await tester.pumpAndSettle();
       expect(find.textContaining('READINGS'), findsNothing);
+    });
+  });
+
+  group('§8 unmeasured figure (4.75.0, ADR-109)', () {
+    Color numeralColor(WidgetTester tester, String text) {
+      final rich = tester
+          .widgetList<RichText>(find.byWidgetPredicate((w) =>
+              w is RichText && w.text.toPlainText().startsWith(text)))
+          .first;
+      return (rich.text as TextSpan).style!.color!;
+    }
+
+    test('the rule: null is the dash and unmeasured, 0 is a measurement', () {
+      expect(kitFigure(null), (measured: false, text: '—'));
+      expect(kitFigure('0'), (measured: true, text: '0'));
+    });
+
+    testWidgets('a null figure draws the dash, subtle, and no denominator', (
+      tester,
+    ) async {
+      await pumpBoth(
+        tester,
+        const KitStatCluster(stats: [
+          KitStat(null, 'Volumes'),
+          KitStat(null, 'Passages read', denominator: '12'),
+        ]),
+      );
+      expect(find.text('—', findRichText: true), findsNWidgets(2));
+      expect(find.text('0', findRichText: true), findsNothing,
+          reason: 'a refused read is not a library of zero');
+      expect(find.textContaining('/ 12', findRichText: true), findsNothing,
+          reason: '"— / 12" is a claim about a total nothing read');
+      expect(find.text('VOLUMES'), findsOneWidget, reason: 'label unchanged');
+      final t = Tokens.of(tester.element(find.byType(KitStatCluster)));
+      expect(numeralColor(tester, '—'), t.fgSubtle);
+    });
+
+    testWidgets('a measured zero keeps its figure and its denominator', (
+      tester,
+    ) async {
+      // Both directions: a test that only checks the dash passes a call site
+      // that writes `?? '0'`, and one that only checks zero passes a kit that
+      // never draws the dash.
+      await pumpBoth(
+        tester,
+        const KitStatCluster(stats: [
+          KitStat('0', 'Volumes'),
+          KitStat('0', 'Passages read', denominator: '12'),
+        ]),
+      );
+      expect(find.text('—', findRichText: true), findsNothing);
+      expect(find.text('0', findRichText: true), findsOneWidget);
+      expect(find.text('0 / 12', findRichText: true), findsOneWidget);
+      final t = Tokens.of(tester.element(find.byType(KitStatCluster)));
+      expect(numeralColor(tester, '0 / 12'), t.fg);
+    });
+
+    testWidgets('the rail card runs the same rule; its highlight cannot fire',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const KitRailCard(
+          icon: Icons.menu_book_outlined,
+          label: 'Library',
+          figures: [
+            KitRailFigure(null, 'Volumes'),
+            KitRailFigure(null, 'Unread', highlight: true),
+            KitRailFigure('0', 'Passages'),
+          ],
+        ),
+      );
+      expect(find.text('—'), findsNWidgets(2));
+      expect(find.text('0'), findsOneWidget);
+      final t = Tokens.of(tester.element(find.byType(KitRailCard)));
+      for (final dash in tester.widgetList<Text>(find.text('—'))) {
+        expect(dash.style!.color, t.chromeSubtle,
+            reason: 'an unread dash is neither the figure colour nor the '
+                'unread highlight');
+      }
     });
   });
 

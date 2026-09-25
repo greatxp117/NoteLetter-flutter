@@ -254,10 +254,13 @@ class _ShelfPageState extends State<ShelfPage> {
               ],
               // §8 — measured, every one: counted from the documents this
               // subscription actually carries.
+              // A refused or unarrived documents read passes NULL — the kit
+              // draws the dash (ADR-109). `In your letter` is the shelf's own
+              // stored mode, read with the shelf, so it stays.
               KitStatCluster(stats: [
-                KitStat('${vols.length}', 'Volumes'),
-                KitStat('$passages', 'Passages'),
-                KitStat(_span(vols), 'Span'),
+                KitStat(docs.measured ? '${vols.length}' : null, 'Volumes'),
+                KitStat(docs.measured ? '$passages' : null, 'Passages'),
+                KitStat(docs.measured ? _span(vols) : null, 'Span'),
                 KitStat(_letterLabel(shelf.letterMode), 'In your letter'),
               ]),
               if (_settings) ...[

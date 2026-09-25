@@ -99,6 +99,7 @@ class _RailContentState extends State<RailContent> {
         final passages =
             done.fold<int>(0, (n, d) => n + (d.chunkCount ?? 0));
         final unread = done.where((d) => d.viewCount == 0).length;
+        final ok = docs.measured;
 
         return KitChromeRail(
           brand: const KitBrand(mark: Icon(Icons.edit_note, size: 22, color: AppColors.chromeForeground)),
@@ -116,10 +117,13 @@ class _RailContentState extends State<RailContent> {
               active: route == '/sources',
               onTap: () => go('/sources'),
               figures: [
-                KitRailFigure('$volumes',
-                    volumes == 1 ? 'Volume' : 'Volumes'),
-                KitRailFigure('$passages', 'Passages'),
-                KitRailFigure('$unread', 'Unread', highlight: unread > 0),
+                // A refused or unarrived read is the dash, not three zeros
+                // beside a §14 block saying the read failed (ADR-109).
+                KitRailFigure(ok ? '$volumes' : null,
+                    ok && volumes == 1 ? 'Volume' : 'Volumes'),
+                KitRailFigure(ok ? '$passages' : null, 'Passages'),
+                KitRailFigure(ok ? '$unread' : null, 'Unread',
+                    highlight: unread > 0),
               ],
             ),
             KitNavItem(

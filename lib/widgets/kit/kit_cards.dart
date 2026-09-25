@@ -389,9 +389,27 @@ class KitHeroCard extends StatelessWidget {
 Widget _flexible(bool compact, {required Widget child}) =>
     compact ? child : Expanded(child: child);
 
+/// The unmeasured figure (component-kit §8, 4.75.0, ADR-109).
+const kitUnmeasured = '—';
+
+/// **The rule, in one place for this client** — web's `figure()` in
+/// `shared/Stat.jsx`. A figure is a measurement: `value == null` is how a call
+/// site says it has none (the read failed, or has not completed), and it draws
+/// the em dash, never a number. `'0'` is a measurement and keeps its figure —
+/// an empty library really holds zero volumes. §8's [KitStatCluster] and
+/// §1.2's [KitRailCard] both call this; neither decides the dash for itself.
+///
+/// Every state a pattern derives from a value (a highlight, a level tint, a
+/// denominator) branches on `measured`, so none of them fires on a dash.
+({bool measured, String text}) kitFigure(String? value) => value == null
+    ? (measured: false, text: kitUnmeasured)
+    : (measured: true, text: value);
+
 /// One figure in a [KitStatCluster].
 class KitStat {
-  final String value;
+  /// Null means NOT MEASURED (ADR-109) — never pass `?? '0'` for it: a zero
+  /// nothing read is the defect this type exists to make unspellable.
+  final String? value;
   final String label;
 
   /// The `/ 12` of a `4 / 12` — **context, not a second figure**, so it sits
@@ -466,8 +484,10 @@ class KitStatCluster extends StatelessWidget {
             children: [
               Text.rich(
                 TextSpan(children: [
-                  TextSpan(text: s.value),
-                  if (s.denominator != null)
+                  TextSpan(text: kitFigure(s.value).text),
+                  // Dropped with the value it qualifies: "— / 12" would be a
+                  // claim about a total nothing read.
+                  if (s.denominator != null && kitFigure(s.value).measured)
                     TextSpan(
                       text: ' / ${s.denominator}',
                       style: AppTheme.serif(
@@ -482,7 +502,7 @@ class KitStatCluster extends StatelessWidget {
                   fontSize: numeralSize,
                   height: 1,
                   fontWeight: FontWeight.w500,
-                  color: t.fg,
+                  color: kitFigure(s.value).measured ? t.fg : t.fgSubtle,
                 ),
               ),
               const SizedBox(height: 2),

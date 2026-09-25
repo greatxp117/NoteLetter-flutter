@@ -335,7 +335,8 @@ void main() {
     // snapshot unmodified shows "Views 0" for the whole session on a first
     // open (reader.md §Data).
     final views = cluster.stats.firstWhere((st) => st.label == 'Views');
-    expect(int.parse(views.value), greaterThan(0),
+    expect(views.value, isNotNull, reason: 'a read document is measured');
+    expect(int.parse(views.value!), greaterThan(0),
         reason: 'Views must fold in what the doc_opened write committed');
 
     final manuscript = find.text('Manuscript');
