@@ -54,6 +54,11 @@ class KitOverlaySheet extends StatelessWidget {
   final String? subtitle;
   final Widget child;
 
+  /// Replaces the icon tile at the head — the source sheet leads with the
+  /// document's FILE BADGE (`.sf-mark`), which says what the source is before
+  /// the title does; a generic file glyph said nothing.
+  final Widget? lead;
+
   /// Per-instance width and height — the only two values §15 lets an instance
   /// choose. The source viewers are the 860/88% pair.
   final double width;
@@ -81,6 +86,7 @@ class KitOverlaySheet extends StatelessWidget {
     this.heightFactor = 0.88,
     this.holding,
     this.heading,
+    this.lead,
   });
 
   static Future<void> show(
@@ -93,6 +99,7 @@ class KitOverlaySheet extends StatelessWidget {
     double heightFactor = 0.88,
     ValueListenable<bool>? holding,
     ValueListenable<KitSheetHeading>? heading,
+    Widget? lead,
   }) =>
       showDialog<void>(
         context: context,
@@ -109,6 +116,7 @@ class KitOverlaySheet extends StatelessWidget {
             heightFactor: heightFactor,
             holding: holding,
             heading: heading,
+            lead: lead,
             child: Builder(builder: builder),
           ),
         ),
@@ -167,15 +175,16 @@ class KitOverlaySheet extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: t.accentSoft,
-                        borderRadius: AppRadius.smR,
-                      ),
-                      child: Icon(icon, size: 18, color: t.accentText),
-                    ),
+                    lead ??
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: t.accentSoft,
+                            borderRadius: AppRadius.smR,
+                          ),
+                          child: Icon(icon, size: 18, color: t.accentText),
+                        ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(

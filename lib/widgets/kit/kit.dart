@@ -18,6 +18,7 @@ library;
 
 export 'kit_cards.dart';
 export 'kit_composer.dart';
+export 'kit_config.dart';
 export 'kit_confirm.dart';
 export 'kit_controls.dart';
 export 'kit_empty.dart';

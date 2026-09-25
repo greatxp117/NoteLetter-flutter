@@ -1035,3 +1035,94 @@ class _KitPassageActionState extends State<KitPassageAction> {
     );
   }
 }
+
+/// A **feature card** (`.set-feature`, Settings › Setup): one offer that is a
+/// place to go rather than a setting to change — a 52px `--chrome` tile with
+/// the brand glyph, a serif 19/600 title over a sans 13.5/1.5 `--fg-muted`
+/// line, and its one control. `--surface`, `--border`, `--r-md`, `--shadow-1`,
+/// `22px 24px`. Side by side on a wide pane; below the compact width it
+/// stacks, left-aligned, 14px apart — the reference's own `max-width: 640px`
+/// rule. Drawn as an icon-plate setting row, the replay read as one more
+/// preference among the toggles.
+class KitFeatureCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final Widget action;
+
+  const KitFeatureCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.action,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final mark = Container(
+      width: 52,
+      height: 52,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: t.chrome,
+        borderRadius: AppRadius.mdR,
+        boxShadow: AppShadows.s1,
+      ),
+      child: Icon(icon, size: 24, color: t.chromeFg),
+    );
+    final main = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(title,
+            style: AppTheme.serif(
+                fontSize: 19, fontWeight: FontWeight.w600, color: t.fg)),
+        const SizedBox(height: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 46 * 7.5),
+          child: Text(description,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 13.5,
+                height: 1.5,
+                color: t.fgMuted,
+              )),
+        ),
+      ],
+    );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: AppRadius.mdR,
+        border: Border.all(color: t.border),
+        boxShadow: AppShadows.s1,
+      ),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                mark,
+                const SizedBox(height: 14),
+                main,
+                const SizedBox(height: 14),
+                action,
+              ],
+            )
+          : Row(
+              children: [
+                mark,
+                const SizedBox(width: 20),
+                Expanded(child: main),
+                const SizedBox(width: 20),
+                action,
+              ],
+            ),
+    );
+  }
+}

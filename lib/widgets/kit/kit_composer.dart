@@ -62,10 +62,10 @@ class KitComposerDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final compact =
-        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
-    final gutter =
-        compact ? AppSpacing.frameGutterCompact : AppSpacing.frameGutter;
+    final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final gutter = compact
+        ? AppSpacing.frameGutterCompact
+        : AppSpacing.frameGutter;
 
     return Stack(
       // The scrim rises 44px ABOVE the dock (the reference's `::before` with
@@ -101,8 +101,9 @@ class KitComposerDock extends StatelessWidget {
             alignment: Alignment.bottomCenter,
             heightFactor: 1,
             child: ConstrainedBox(
-              constraints:
-                  const BoxConstraints(maxWidth: AppSpacing.frameReading),
+              constraints: const BoxConstraints(
+                maxWidth: AppSpacing.frameReading,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -114,7 +115,9 @@ class KitComposerDock extends StatelessWidget {
                     // to make land once (ADR-070).
                     Padding(
                       padding: const EdgeInsets.only(
-                          bottom: AppSpacing.s2, left: AppSpacing.s2),
+                        bottom: AppSpacing.s2,
+                        left: AppSpacing.s2,
+                      ),
                       child: KitFailureInline(error!),
                     ),
                   ],
@@ -197,33 +200,34 @@ class _SendControl extends StatelessWidget {
       enabled: enabled,
       label: 'Send',
       child: MouseRegion(
-        cursor: enabled
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         child: GestureDetector(
           onTap: enabled ? onSend : null,
-          child: Container(
-            width: 38,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: enabled ? t.accent : t.surfaceRaised,
-              shape: BoxShape.circle,
+          // Disabled is the SAME control at 0.45 (`.sup-send:disabled`), not
+          // a different, grey one: a grey disc read as a secondary button,
+          // and the reference's send is accent whether or not it can fire.
+          child: Opacity(
+            opacity: enabled || busy ? 1 : 0.45,
+            child: Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: t.accent,
+                shape: BoxShape.circle,
+              ),
+              child: busy
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(t.accentFg),
+                      ),
+                    )
+                  // `IcoSend` is a right arrow (`M5 12h14M13 5l7 7-7 7`).
+                  : Icon(Icons.arrow_forward, size: 17, color: t.accentFg),
             ),
-            child: busy
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(t.fgSubtle),
-                    ),
-                  )
-                : Icon(
-                    Icons.north_east,
-                    size: 17,
-                    color: enabled ? t.accentFg : t.fgSubtle,
-                  ),
           ),
         ),
       ),

@@ -33,6 +33,12 @@ enum KitButtonVariant {
 
   /// Transparent, `--fg-muted`, fills `--hover`.
   ghost,
+
+  /// The QUIET destructive control (`.ss-delete`): no fill, no padding, sans
+  /// 13 at `--critical-text` behind a 14px glyph, underlined on hover. A
+  /// destructive action at rest in a settings panel is a sentence, not a
+  /// filled button — the §18 confirm it opens carries the filled one.
+  dangerText,
 }
 
 /// A kit button. Height 36, radius from its height (`0.25 × h`), sans 14/500.
@@ -47,24 +53,36 @@ class KitButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final KitButtonVariant variant;
 
+  /// The glyph after the label, not before it — an advance control
+  /// (onboarding's `Begin →`, `IcoArrowR` after the text on the reference).
+  final bool iconTrailing;
+
   const KitButton(
     this.label, {
     super.key,
     this.icon,
     this.onPressed,
     this.variant = KitButtonVariant.primary,
+    this.iconTrailing = false,
   });
 
   const KitButton.primary(this.label,
-      {super.key, this.icon, this.onPressed})
+      {super.key, this.icon, this.onPressed, this.iconTrailing = false})
       : variant = KitButtonVariant.primary;
   const KitButton.secondary(this.label,
       {super.key, this.icon, this.onPressed})
-      : variant = KitButtonVariant.secondary;
+      : variant = KitButtonVariant.secondary,
+        iconTrailing = false;
   const KitButton.danger(this.label, {super.key, this.icon, this.onPressed})
-      : variant = KitButtonVariant.danger;
+      : variant = KitButtonVariant.danger,
+        iconTrailing = false;
+  const KitButton.dangerText(this.label,
+      {super.key, this.icon, this.onPressed})
+      : variant = KitButtonVariant.dangerText,
+        iconTrailing = false;
   const KitButton.ghost(this.label, {super.key, this.icon, this.onPressed})
-      : variant = KitButtonVariant.ghost;
+      : variant = KitButtonVariant.ghost,
+        iconTrailing = false;
 
   @override
   State<KitButton> createState() => _KitButtonState();
@@ -101,7 +119,14 @@ class _KitButtonState extends State<KitButton> {
       case KitButtonVariant.ghost:
         bg = _hover ? t.hover : const Color(0x00000000);
         fg = _hover ? t.fg : t.fgMuted;
+      case KitButtonVariant.dangerText:
+        bg = const Color(0x00000000);
+        fg = t.criticalText;
     }
+    final quiet = widget.variant == KitButtonVariant.dangerText;
+    final glyph = widget.icon == null
+        ? null
+        : Icon(widget.icon, size: 14, color: fg);
 
     return MouseRegion(
       cursor: disabled
@@ -114,8 +139,10 @@ class _KitButtonState extends State<KitButton> {
         child: Opacity(
           opacity: disabled ? 0.5 : 1,
           child: Container(
-            height: _height,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            height: quiet ? null : _height,
+            padding: quiet
+                ? const EdgeInsets.symmetric(vertical: 4)
+                : const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: AppRadius.controlR(_height),
@@ -124,9 +151,9 @@ class _KitButtonState extends State<KitButton> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (widget.icon != null) ...[
-                  Icon(widget.icon, size: 14, color: fg),
-                  const SizedBox(width: AppSpacing.s2),
+                if (glyph != null && !widget.iconTrailing) ...[
+                  glyph,
+                  SizedBox(width: quiet ? 7 : AppSpacing.s2),
                 ],
                 // Flexible, not a bare Text: a button in a card that is a
                 // quarter of the grid gets a bounded width, and a label one
@@ -139,13 +166,21 @@ class _KitButtonState extends State<KitButton> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: AppTheme.fontSans,
-                      fontSize: 14,
+                      fontSize: quiet ? 13 : 14,
                       height: 1,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: quiet ? FontWeight.w400 : FontWeight.w500,
                       color: fg,
+                      decoration: quiet && _hover
+                          ? TextDecoration.underline
+                          : null,
+                      decorationColor: fg,
                     ),
                   ),
                 ),
+                if (glyph != null && widget.iconTrailing) ...[
+                  const SizedBox(width: AppSpacing.s2),
+                  glyph,
+                ],
               ],
             ),
           ),
@@ -1071,19 +1106,26 @@ class KitFieldGroup extends StatelessWidget {
   final Widget child;
   final bool first;
 
+  /// `.cfg-second` — letter settings' readings-letter group: 20px of top
+  /// padding and a 4px gap above, because it opens a second letter rather
+  /// than another field of the first.
+  final bool second;
+
   const KitFieldGroup({
     super.key,
     required this.label,
     this.note,
     required this.child,
     this.first = false,
+    this.second = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
+      margin: EdgeInsets.only(top: second ? 4 : 0),
+      padding: EdgeInsets.only(top: second ? 20 : 18, bottom: 18),
       decoration: BoxDecoration(
         border: first
             ? null
@@ -1253,6 +1295,14 @@ class KitSelect<T> extends StatelessWidget {
   final ValueChanged<T>? onChanged;
   final IconData? icon;
 
+  /// The chosen value's face. A select is not a typed field: web's
+  /// `.timefield select` sets it in the SANS at 14 — a zone is a choice from a
+  /// list, not data the reader typed — and that is the default here. It drew
+  /// mono 15 (the text field's data face) until F-51 put the letter-settings
+  /// zone beside the reference. The re-shelve picker is `.ss-input`, a shelf
+  /// NAME, and passes [KitFieldFace.serif].
+  final KitFieldFace? face;
+
   const KitSelect({
     super.key,
     required this.value,
@@ -1260,6 +1310,7 @@ class KitSelect<T> extends StatelessWidget {
     required this.label,
     this.onChanged,
     this.icon,
+    this.face,
   });
 
   @override
@@ -1286,7 +1337,15 @@ class KitSelect<T> extends StatelessWidget {
                 isDense: true,
                 dropdownColor: t.surface,
                 iconEnabledColor: t.fgMuted,
-                style: AppTheme.mono(fontSize: 15, color: t.fg),
+                style: face == KitFieldFace.serif
+                    ? AppTheme.serif(fontSize: 15, color: t.fg)
+                    : face == KitFieldFace.mono
+                        ? AppTheme.mono(fontSize: 15, color: t.fg)
+                        : TextStyle(
+                            fontFamily: AppTheme.fontSans,
+                            fontSize: 14,
+                            color: t.fg,
+                          ),
                 items: [
                   for (final o in options)
                     DropdownMenuItem(value: o, child: Text(label(o))),

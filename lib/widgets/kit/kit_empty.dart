@@ -113,6 +113,14 @@ class KitEmptyState extends StatelessWidget {
   /// A row of buttons instead of suggestion rows (the study screen's form).
   final List<Widget> actions;
 
+  /// The **quiet** form (`.sup-empty`, Support): an empty thread under a
+  /// composer is not a screen with nothing in it, it is a conversation that
+  /// has not started. The mark is a 52px `--accent-soft` disc with a solid
+  /// `--accent-chip-border` edge and the glyph at `--seal` — not the chrome
+  /// tile — and the title steps down to serif 22/30 over a 16/24 lede. The
+  /// chrome tile here read as "the app has nothing to show you".
+  final bool quiet;
+
   const KitEmptyState({
     super.key,
     required this.icon,
@@ -120,7 +128,20 @@ class KitEmptyState extends StatelessWidget {
     required this.standfirst,
     this.suggestions = const [],
     this.actions = const [],
+    this.quiet = false,
+    this.flush = false,
   });
+
+  /// No inset of its own: the state spans the page frame's gutter, as the
+  /// reference's `.st-empty` does and `.ask-empty`'s 24px does where the pane
+  /// has no gutter. On a phone the 24px inset stacked on the frame's 20px
+  /// drew the offer rows 44px in from each edge.
+  final bool flush;
+
+  /// Numbered moves (§7's explainer form) are ONE surface block with a
+  /// hairline between rows (`.st-moves`), not a stack of separate cards.
+  bool get _movesOnly => suggestions.every(
+      (w) => w is KitNumberedMove && !w.ruled && w.icon == null);
 
   @override
   Widget build(BuildContext context) {
@@ -129,14 +150,27 @@ class KitEmptyState extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s6, AppSpacing.s8, AppSpacing.s6, AppSpacing.s6),
+          padding: EdgeInsets.fromLTRB(flush ? 0 : AppSpacing.s6,
+              AppSpacing.s8, flush ? 0 : AppSpacing.s6, AppSpacing.s6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              KitMark(icon),
-              const SizedBox(height: AppSpacing.s5),
+              if (quiet)
+                Container(
+                  width: 52,
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: t.accentSoft,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: t.accentChipBorder),
+                  ),
+                  child: Icon(icon, size: 26, color: t.seal),
+                )
+              else
+                KitMark(icon),
+              SizedBox(height: quiet ? 14 : AppSpacing.s5),
               // AccentTitle, not Text: callers write the reference's `<em>` as
               // `*clause*`, and a plain Text drew the asterisks — "Nothing has
               // happened *yet.*" on the activity feed — from the day §7's
@@ -144,27 +178,41 @@ class KitEmptyState extends StatelessWidget {
               AccentTitle(
                 title,
                 textAlign: TextAlign.center,
-                style: AppTheme.serif(
-                  fontSize: 28,
-                  height: 34 / 28,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.02 * 28,
-                  color: t.fg,
-                ).copyWith(shadows: AppShadows.letterpress),
+                style: quiet
+                    ? AppTheme.serif(
+                        fontSize: 22,
+                        height: 30 / 22,
+                        fontWeight: FontWeight.w600,
+                        color: t.fg,
+                      )
+                    : AppTheme.serif(
+                        fontSize: 28,
+                        height: 34 / 28,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.02 * 28,
+                        color: t.fg,
+                      ).copyWith(shadows: AppShadows.letterpress),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: quiet ? 8 : 10),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Text(
                   standfirst,
                   textAlign: TextAlign.center,
-                  style: KitText.lede(context, fontSize: 16, height: 25),
+                  style: KitText.lede(context,
+                      fontSize: 16, height: quiet ? 24 : 25),
                 ),
               ),
-              if (suggestions.isNotEmpty) ...[
+              if (suggestions.isNotEmpty && _movesOnly) ...[
                 const SizedBox(height: 26),
+                _MoveGroup(moves: suggestions.cast<KitNumberedMove>()),
+              ] else if (suggestions.isNotEmpty) ...[
+                const SizedBox(height: 26),
+                // The width is the state's own (560 less its inset), not a
+                // narrower column inside it: the reference's offer rows span
+                // `.ask-empty`/`.st-empty` edge to edge.
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
+                  constraints: const BoxConstraints(maxWidth: 560),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -255,8 +303,11 @@ class _KitSuggestionState extends State<KitSuggestion> {
 /// The **drop zone** — the library's empty state leads with this rather than
 /// with suggestion rows (`screens/library.md` §Composition).
 ///
-/// Dashed `--border-strong` on `--bg`, `--r-md`, a centred feather, and the
-/// accepted formats as source pills. The offer is the zone itself: a reader
+/// Dashed 1.5px `--border-strong` on `--bg`, `--r-lg`, `44px 28px` padding,
+/// the upload glyph at `--fg-subtle`, a serif 22/600 title and a SANS 14
+/// `--fg-muted` help line (`.empty-dropzone`) — and, where the call site asks,
+/// the accepted formats as source pills (`.dz-formats`: the library's empty
+/// state carries them, Sources' add panel does not). The offer is the zone itself: a reader
 /// with an empty library is not told their library is empty, they are shown
 /// where to put the first thing in it.
 ///
@@ -302,38 +353,46 @@ class _KitDropZoneState extends State<KitDropZone> {
         child: CustomPaint(
           painter: _DashedBorderPainter(
             color: _hover ? t.accent : t.borderStrong,
-            radius: AppRadius.md,
+            radius: AppRadius.lg,
           ),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.s8),
+            padding: const EdgeInsets.symmetric(vertical: 44, horizontal: 28),
             decoration: BoxDecoration(
               color: t.bg,
-              borderRadius: AppRadius.mdR,
+              borderRadius: AppRadius.lgR,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(widget.icon, size: 40, color: t.seal),
-                const SizedBox(height: AppSpacing.s4),
+                // `.dz-feather` — the glyph is a quiet cue at `--fg-subtle`,
+                // turning `--accent` only while something is over the zone.
+                Icon(widget.icon, size: 40,
+                    color: _hover ? t.accent : t.fgSubtle),
+                const SizedBox(height: 8 + 6),
                 Text(
                   widget.title,
                   textAlign: TextAlign.center,
                   style: AppTheme.serif(
-                    fontSize: 20,
+                    fontSize: 22,
                     height: 1.2,
                     fontWeight: FontWeight.w600,
                     color: t.fg,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.s2),
+                const SizedBox(height: 4),
                 Text(
                   widget.help,
                   textAlign: TextAlign.center,
-                  style: KitText.lede(context, fontSize: 15, height: 22),
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 14,
+                    height: 1.6,
+                    color: t.fgMuted,
+                  ),
                 ),
                 if (widget.formats.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.s4),
+                  const SizedBox(height: 18),
                   Wrap(
                     alignment: WrapAlignment.center,
                     spacing: AppSpacing.s2,
@@ -361,7 +420,7 @@ class _DashedBorderPainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+      ..strokeWidth = 1.5;
     final path = Path()
       ..addRRect(RRect.fromRectAndRadius(
         Offset.zero & size,
@@ -422,8 +481,8 @@ class KitNumberedMove extends StatelessWidget {
     this.last = false,
   });
 
-  @override
-  Widget build(BuildContext context) {
+  /// The move without its own card — what [_MoveGroup] stacks.
+  Widget content(BuildContext context) {
     final t = Tokens.of(context);
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,6 +532,13 @@ class KitNumberedMove extends StatelessWidget {
             ],
           );
 
+    return content;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final content = this.content(context);
     return Container(
       width: double.infinity,
       padding: ruled
@@ -493,6 +559,43 @@ class KitNumberedMove extends StatelessWidget {
               boxShadow: AppShadows.s1,
             ),
       child: content,
+    );
+  }
+}
+
+
+/// `.st-moves` — the numbered moves as one `--surface` block, `--border` edge,
+/// `--r-md`, a 1px `--rule` between rows, each row `16px 18px`.
+class _MoveGroup extends StatelessWidget {
+  final List<KitNumberedMove> moves;
+
+  const _MoveGroup({required this.moves});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: AppRadius.mdR,
+        border: Border.all(color: t.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < moves.length; i++)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+              decoration: i == 0
+                  ? null
+                  : BoxDecoration(
+                      border: Border(top: BorderSide(color: t.rule))),
+              child: moves[i].content(context),
+            ),
+        ],
+      ),
     );
   }
 }

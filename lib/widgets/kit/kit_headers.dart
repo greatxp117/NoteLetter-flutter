@@ -28,6 +28,11 @@ class ChapterOpening extends StatelessWidget {
   /// Mono caps at `--accent-text` (ADR-069). Carries the screen's count.
   final String? folio;
 
+  /// A trailing folio clause set QUIET, at `--fg-subtle` after ` · ` — the
+  /// part of the line that is a note rather than the screen's count
+  /// (onboarding's `SETTING UP · a few minutes`, `.ob-folio .dim`).
+  final String? folioAside;
+
   /// Accent clause written as `*clause*`.
   final String title;
   final String? standfirst;
@@ -48,6 +53,7 @@ class ChapterOpening extends StatelessWidget {
     super.key,
     this.mark,
     this.folio,
+    this.folioAside,
     required this.title,
     this.standfirst,
     this.actions = const [],
@@ -74,16 +80,32 @@ class ChapterOpening extends StatelessWidget {
               ],
               if (folio != null)
                 Expanded(
-                  child: Text(
-                    folio!.toUpperCase(),
-                    // Two lines on a phone rather than an ellipsis: the folio
-                    // carries the screen's COUNT, and the count is at the end
-                    // of the line — truncating drops the only figure in it.
-                    maxLines: compact ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: KitText.capsLabel(context,
-                        color: t.accentText, letterSpacing: 0.18),
-                  ),
+                  // A plain Text when there is no aside: the folio stays ONE
+                  // string to anything that reads it (the ADR-109 test does).
+                  child: folioAside == null
+                      ? Text(
+                          folio!.toUpperCase(),
+                          // Two lines on a phone rather than an ellipsis: the
+                          // folio carries the screen's COUNT, at the end of
+                          // the line — truncating drops the only figure in it.
+                          maxLines: compact ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: KitText.capsLabel(context,
+                              color: t.accentText, letterSpacing: 0.18),
+                        )
+                      : Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: folio!.toUpperCase()),
+                            TextSpan(
+                              text: ' · ${folioAside!.toUpperCase()}',
+                              style: TextStyle(color: t.fgSubtle),
+                            ),
+                          ]),
+                          maxLines: compact ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: KitText.capsLabel(context,
+                              color: t.accentText, letterSpacing: 0.18),
+                        ),
                 ),
             ],
           ),
@@ -278,6 +300,12 @@ class SectionHeader extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
+  /// An icon before [actionLabel] makes the trailing link the reference's
+  /// **help trigger** (`.si-open`, Sources' "What can I add?"): sans 12.5/500
+  /// at `--fg-muted` behind a 13px glyph, and NOT underlined — it opens a
+  /// sheet rather than going somewhere, and the underline is the link's.
+  final IconData? actionIcon;
+
   /// A trailing **note**, not a control: the processing section's split count
   /// ("3 indexing now — 2 need attention") sits beside the total rather than
   /// replacing it, because one number for two states buries the half that
@@ -294,6 +322,7 @@ class SectionHeader extends StatelessWidget {
     super.key,
     this.actionLabel,
     this.onAction,
+    this.actionIcon,
     this.note,
     this.first = false,
   });
@@ -316,7 +345,34 @@ class SectionHeader extends StatelessWidget {
                 style: KitText.lede(context, fontSize: 13, height: 18),
               ),
             ),
-          if (actionLabel != null)
+          if (actionLabel != null && actionIcon != null)
+            Semantics(
+              button: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onAction,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(actionIcon, size: 13, color: t.fgMuted),
+                      const SizedBox(width: 6),
+                      Text(
+                        actionLabel!,
+                        style: TextStyle(
+                          fontFamily: AppTheme.fontSans,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: t.fgMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else if (actionLabel != null)
             GestureDetector(
               onTap: onAction,
               child: Text(
