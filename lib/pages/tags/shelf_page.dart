@@ -10,6 +10,7 @@ import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'reshelve_sheet.dart';
 import 'shelf_parts.dart';
+import 'shelf_sheet.dart';
 import 'split_shelf_sheet.dart';
 
 /// **One shelf** (`/shelves/{id}`) — `screens/library.md` §Shelf color, §Shelf
@@ -207,6 +208,16 @@ class _ShelfPageState extends State<ShelfPage> {
     }
   }
 
+  void _findSources(Tag shelf) {
+    final router = GoRouter.of(context);
+    showShelfSheet(
+      context,
+      canBackfill: true,
+      backfillFor: BackfillFor(shelf.id, shelf.title),
+      land: (id) => router.go('/shelves/$id'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer2<TagsNotifier, DocumentsNotifier>(
@@ -252,6 +263,13 @@ class _ShelfPageState extends State<ShelfPage> {
                   KitButton.ghost('Ask this shelf',
                       icon: Icons.forum_outlined,
                       onPressed: () => context.go('/ask/shelf/${shelf.id}')),
+                  // §Backfill review from the shelf's own page (4.83.0,
+                  // ADR-117). Absent with no complete source: there is
+                  // nothing to read, so the offer would be a no-op.
+                  if (docs.complete.isNotEmpty)
+                    KitButton.ghost('Find sources for this shelf',
+                        icon: Icons.search,
+                        onPressed: () => _findSources(shelf)),
                   _settings
                       ? KitButton.secondary('Settings',
                           icon: Icons.tune,

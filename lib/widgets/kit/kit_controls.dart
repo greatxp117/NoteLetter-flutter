@@ -9,6 +9,7 @@ import 'package:flutter/material.dart'
         InputDecoration,
         TextField,
         TextInputType;
+import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
@@ -898,6 +899,14 @@ class KitTextField extends StatelessWidget {
   final int minLines;
   final int maxLines;
 
+  /// False while the write the field feeds is in flight (write before move).
+  final bool enabled;
+
+  /// The server's own bound, enforced as the reader types — no counter is
+  /// drawn: a refusal past it is still the server's sentence (§14.2).
+  final int? maxLength;
+  final bool autofocus;
+
   const KitTextField({
     super.key,
     required this.controller,
@@ -907,6 +916,9 @@ class KitTextField extends StatelessWidget {
     this.onChanged,
     this.minLines = 1,
     this.maxLines = 1,
+    this.enabled = true,
+    this.maxLength,
+    this.autofocus = false,
   });
 
   @override
@@ -932,6 +944,11 @@ class KitTextField extends StatelessWidget {
               onChanged: onChanged,
               minLines: minLines,
               maxLines: maxLines,
+              enabled: enabled,
+              autofocus: autofocus,
+              inputFormatters: maxLength == null
+                  ? null
+                  : [LengthLimitingTextInputFormatter(maxLength)],
               style: AppTheme.mono(fontSize: 15, color: t.fg),
               cursorColor: t.accent,
               // The frame above IS the field. `InputDecoration.collapsed`
@@ -1206,8 +1223,8 @@ class KitSelect<T> extends StatelessWidget {
   }
 }
 
-/// The reference's `.sf-check`: a checkbox, a title in the body role and a
-/// sub line in the description role. The whole row toggles. Used where a form
+/// The reference's `.sf-check` / `.bf-row`: a checkbox, a sans 14/500 title
+/// and a sub line at `--fg-muted`. The whole row toggles. Used where a form
 /// offers a follow-on step (a shelf's backfill, a delete's re-shelve).
 class KitCheckRow extends StatelessWidget {
   final bool value;
@@ -1215,12 +1232,18 @@ class KitCheckRow extends StatelessWidget {
   final String? subtitle;
   final ValueChanged<bool>? onChanged;
 
+  /// A row in a list the reader is choosing FROM (the backfill review's
+  /// `.bf-row.off`): unchecked, its text drops to half — the row stays, so it
+  /// can be taken back.
+  final bool dimWhenOff;
+
   const KitCheckRow({
     super.key,
     required this.value,
     required this.title,
     this.subtitle,
     this.onChanged,
+    this.dimWhenOff = false,
   });
 
   @override
@@ -1243,14 +1266,23 @@ class KitCheckRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
+          // `.sf-check-title`/`.bf-title` sans 14/500 at `--fg`; the line
+          // beneath (`.sf-check-sub`/`.bf-reason`) at `--fg-muted` — a reason
+          // is read, not skimmed past as metadata.
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: KitText.body(context)),
-                if (subtitle != null)
-                  Text(subtitle!, style: KitText.meta(context)),
-              ],
+            child: Opacity(
+              opacity: dimWhenOff && !value ? 0.5 : 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: KitText.meta(context)
+                          .copyWith(color: t.fg, fontWeight: FontWeight.w500)),
+                  if (subtitle != null)
+                    Text(subtitle!,
+                        style: KitText.small(context, height: 18)),
+                ],
+              ),
             ),
           ),
         ],

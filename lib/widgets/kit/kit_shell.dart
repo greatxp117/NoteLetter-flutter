@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
@@ -161,15 +162,22 @@ class KitBrand extends StatelessWidget {
 }
 
 /// A mono caps group label in the rail.
+///
+/// [onAdd] puts the reference's `.sb-group-add` beside it — a 22px `+` in the
+/// chrome's subtle foreground, announced by [addLabel]. The Shelves group's
+/// "New shelf" (4.83.0, ADR-117) is the first: it is how a first shelf gets
+/// made, so it is drawn whatever the library holds.
 class KitRailGroupLabel extends StatelessWidget {
   final String label;
+  final VoidCallback? onAdd;
+  final String? addLabel;
 
-  const KitRailGroupLabel(this.label, {super.key});
+  const KitRailGroupLabel(this.label, {super.key, this.onAdd, this.addLabel});
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return Padding(
+    final text = Padding(
       padding: const EdgeInsets.fromLTRB(10, 12, 10, AppSpacing.s1),
       child: Text(
         label.toUpperCase(),
@@ -177,6 +185,65 @@ class KitRailGroupLabel extends StatelessWidget {
           fontSize: 10,
           letterSpacing: 0.14 * 10,
           color: t.chromeSubtle,
+        ),
+      ),
+    );
+    final add = onAdd;
+    if (add == null) return text;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(child: text),
+        Padding(
+          padding: const EdgeInsets.only(right: 6, bottom: 2),
+          child: _RailGroupAdd(onTap: add, label: addLabel ?? 'Add'),
+        ),
+      ],
+    );
+  }
+}
+
+class _RailGroupAdd extends StatefulWidget {
+  final VoidCallback onTap;
+  final String label;
+  const _RailGroupAdd({required this.onTap, required this.label});
+
+  @override
+  State<_RailGroupAdd> createState() => _RailGroupAddState();
+}
+
+class _RailGroupAddState extends State<_RailGroupAdd> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      button: true,
+      label: widget.label,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Container(
+            key: ValueKey('rail-add-${widget.label}'),
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _hover ? t.chromeHover : const Color(0x00000000),
+              borderRadius: AppRadius.smR,
+            ),
+            child: Icon(
+              Icons.add,
+              size: 14,
+              color: _hover ? t.chromeFg : t.chromeSubtle,
+            ),
+          ),
         ),
       ),
     );

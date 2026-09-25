@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../pages/tags/shelf_sheet.dart';
 import '../shared/local_flags.dart';
 import '../state/activity_notifier.dart';
 import '../state/auth_notifier.dart';
@@ -73,6 +74,20 @@ class _RailContentState extends State<RailContent> {
       context.read<ActivityNotifier>().start();
     });
     LocalFlags.ensureLoaded();
+  }
+
+  /// Opens §Creating a shelf in a §15 sheet over whatever the reader is on.
+  /// The navigator and router are taken BEFORE the drawer closes itself: on a
+  /// phone the rail is the drawer, and closing it unmounts this context.
+  void _newShelf(BuildContext context, bool canBackfill) {
+    final nav = Navigator.of(context, rootNavigator: true);
+    final router = GoRouter.of(context);
+    widget.onNavigate?.call();
+    showShelfSheet(
+      nav.context,
+      canBackfill: canBackfill,
+      land: (id) => router.go('/shelves/$id'),
+    );
   }
 
   @override
@@ -152,7 +167,15 @@ class _RailContentState extends State<RailContent> {
               active: route == '/letters',
               onTap: () => go('/letters'),
             ),
-            const KitRailGroupLabel('Shelves'),
+            // Always drawn (4.83.0, ADR-117): the `+` is how a first shelf
+            // gets made, so it cannot wait for a source to exist. The rail
+            // does NOT list every shelf here — that is a separate parity
+            // question, not this control's.
+            KitRailGroupLabel(
+              'Shelves',
+              addLabel: 'New shelf',
+              onAdd: () => _newShelf(context, docs.complete.isNotEmpty),
+            ),
             KitNavItem(
               icon: Icons.label_outline,
               label: 'All shelves',

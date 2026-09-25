@@ -63,6 +63,12 @@ class KitOverlaySheet extends StatelessWidget {
   /// reference's `busy` hold).
   final ValueListenable<bool>? holding;
 
+  /// A head that moves on with the flow inside it — one sheet that begins as
+  /// a form and continues into a review (`screens/library.md` §Creating a
+  /// shelf: "the same sheet continues"). Overrides [title]/[subtitle] while
+  /// set; the sheet is not closed and reopened, so nothing behind it moves.
+  final ValueListenable<KitSheetHeading>? heading;
+
   const KitOverlaySheet({
     super.key,
     required this.icon,
@@ -72,6 +78,7 @@ class KitOverlaySheet extends StatelessWidget {
     this.width = 860,
     this.heightFactor = 0.88,
     this.holding,
+    this.heading,
   });
 
   static Future<void> show(
@@ -83,6 +90,7 @@ class KitOverlaySheet extends StatelessWidget {
     double width = 860,
     double heightFactor = 0.88,
     ValueListenable<bool>? holding,
+    ValueListenable<KitSheetHeading>? heading,
   }) =>
       showDialog<void>(
         context: context,
@@ -94,22 +102,33 @@ class KitOverlaySheet extends StatelessWidget {
           width: width,
           heightFactor: heightFactor,
           holding: holding,
+          heading: heading,
           child: Builder(builder: builder),
         ),
       );
 
   @override
   Widget build(BuildContext context) {
-    final hold = holding;
-    if (hold == null) return _sheet(context, false);
-    return ValueListenableBuilder<bool>(
-      valueListenable: hold,
-      builder: (context, held, _) =>
-          PopScope(canPop: !held, child: _sheet(context, held)),
+    final head = heading;
+    if (head == null) return _held(context, title, subtitle);
+    return ValueListenableBuilder<KitSheetHeading>(
+      valueListenable: head,
+      builder: (context, h, _) => _held(context, h.title, h.subtitle),
     );
   }
 
-  Widget _sheet(BuildContext context, bool held) {
+  Widget _held(BuildContext context, String title, String? subtitle) {
+    final hold = holding;
+    if (hold == null) return _sheet(context, false, title, subtitle);
+    return ValueListenableBuilder<bool>(
+      valueListenable: hold,
+      builder: (context, held, _) => PopScope(
+          canPop: !held, child: _sheet(context, held, title, subtitle)),
+    );
+  }
+
+  Widget _sheet(
+      BuildContext context, bool held, String title, String? subtitle) {
     final t = Tokens.of(context);
     final size = MediaQuery.sizeOf(context);
 
@@ -158,7 +177,7 @@ class KitOverlaySheet extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: KitText.h4(context)),
                           if (subtitle != null)
-                            Text(subtitle!,
+                            Text(subtitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: KitText.meta(context)),
@@ -184,6 +203,13 @@ class KitOverlaySheet extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The head of a [KitOverlaySheet] whose flow moves on inside it.
+class KitSheetHeading {
+  final String title;
+  final String? subtitle;
+  const KitSheetHeading(this.title, [this.subtitle]);
 }
 
 class KitSetMember {

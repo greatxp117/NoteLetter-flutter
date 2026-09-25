@@ -6,11 +6,10 @@ import '../models/document.dart';
 import '../models/tag.dart';
 import '../state/documents_notifier.dart';
 import '../state/tags_notifier.dart';
-import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
 import 'tags/shelf_parts.dart';
-import '../services/analytics.dart';
+import 'tags/shelf_sheet.dart';
 
 /// **Shelves — the index** (`screens/library.md` §Shelf color, §Shelf
 /// granularity and splitting; composition per `screens/sources.md`
@@ -102,9 +101,10 @@ class _ShelvesPageState extends State<ShelvesPage> {
                   for (final s in shelves)
                     _shelfCard(context, s, complete),
                   if (_adding)
-                    _NewShelfForm(
+                    _NewShelfCard(
+                      canBackfill: complete.isNotEmpty,
                       onCancel: () => setState(() => _adding = false),
-                      onCreated: () => setState(() => _adding = false),
+                      onCreated: (c) => _created(c, complete.isNotEmpty),
                     )
                   else
                     KitNewCard(
@@ -118,6 +118,24 @@ class _ShelvesPageState extends State<ShelvesPage> {
           ),
         );
       },
+    );
+  }
+
+  /// Write before move: the form hands on only after `fn_create_tag`
+  /// resolved. Without the backfill the new shelf opens; with it, §Backfill
+  /// review opens in the §15 sheet, and every exit lands on the shelf.
+  void _created(ShelfCreated c, bool canBackfill) {
+    setState(() => _adding = false);
+    if (!c.backfill) {
+      context.go('/shelves/${c.tagId}');
+      return;
+    }
+    final router = GoRouter.of(context);
+    showShelfSheet(
+      context,
+      canBackfill: canBackfill,
+      backfillFor: BackfillFor(c.tagId, c.title, created: true),
+      land: (id) => router.go('/shelves/$id'),
     );
   }
 
@@ -148,94 +166,28 @@ class _ShelvesPageState extends State<ShelvesPage> {
 
 /// Creating a shelf, in the card's own slot — the reference replaces the dashed
 /// card with the form rather than opening a dialog, so the new shelf appears
-/// where the reader was already looking.
-class _NewShelfForm extends StatefulWidget {
+/// where the reader was already looking. The form is the rail sheet's own
+/// (`shelf_sheet.dart`); asking for a backfill continues in that sheet, over
+/// this index.
+class _NewShelfCard extends StatelessWidget {
+  final bool canBackfill;
   final VoidCallback onCancel;
-  final VoidCallback onCreated;
+  final ValueChanged<ShelfCreated> onCreated;
 
-  const _NewShelfForm({required this.onCancel, required this.onCreated});
-
-  @override
-  State<_NewShelfForm> createState() => _NewShelfFormState();
-}
-
-class _NewShelfFormState extends State<_NewShelfForm> {
-  final _name = TextEditingController();
-  String _color = AppColors.shelfColors.keys.first;
-  bool _busy = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
-
-  /// Write before move: the card closes only after `fn_create_tag` answers, and
-  /// a rejection stays on the form with the server's own sentence (§14.2). The
-  /// reference had the rejection falling out of the `try` with only `busy`
-  /// reset, so a failed create left the form sitting there looking idle.
-  Future<void> _submit() async {
-    final title = _name.text.trim();
-    if (title.isEmpty || _busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final err = await context
-        .read<TagsNotifier>()
-        .createTag(title, color: _color);
-    if (!mounted) return;
-    if (err != null) {
-      setState(() {
-        _busy = false;
-        _error = err;
-      });
-      return;
-    }
-    // `origin` says HOW a shelf came to exist — a reader typing a name, the
-    // librarian's suggestion accepted, or a split. Never the name itself.
-    Analytics.track('shelf_created', {'origin': 'manual'});
-    widget.onCreated();
-  }
+  const _NewShelfCard({
+    required this.canBackfill,
+    required this.onCancel,
+    required this.onCreated,
+  });
 
   @override
   Widget build(BuildContext context) {
     return KitCard(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          KitTextField(
-            controller: _name,
-            placeholder: 'Shelf name…',
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 10),
-          ShelfSwatches(
-            selected: _color,
-            enabled: !_busy,
-            onPick: (name) => setState(() => _color = name),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            KitFailureInline(_error!),
-          ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              KitButton.primary(
-                _busy ? 'Creating…' : 'Create',
-                onPressed:
-                    _name.text.trim().isEmpty || _busy ? null : _submit,
-              ),
-              const SizedBox(width: 8),
-              KitButton.ghost('Cancel',
-                  onPressed: _busy ? null : widget.onCancel),
-            ],
-          ),
-        ],
+      child: ShelfFormFields(
+        canBackfill: canBackfill,
+        onCreated: onCreated,
+        onCancel: onCancel,
       ),
     );
   }
