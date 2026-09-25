@@ -1009,12 +1009,12 @@ a new obligation on a finished screen is a new item.
 - notes: The 2026-09-25 re-shoot beside the web phone frame. Under the chapter opening the reference draws (1) the setup checklist card — a chevron, a progress bar, `4 of 5 set up`, the next step as a pill (`Ask your library a question`) and Hide; this client has none; (2) a full-width SEARCH FIELD (`Search your library by meaning…`, italic serif placeholder) and, under it on a phone, a full-width `+ Add a source` primary — this client puts a ghost `Search` and an `Add a source` button in the header's actions slot instead; (3) `Recently read` with a list/shelf (spine) view toggle, and `Shelves` with a shelf/card toggle — this client has the list and the card grid only. The Today's-letter hero is absent here for a data reason, not a composition one: web's getNewsletter takes the newest record of any status/kind, this client takes the latest `sent` daily letter with an `html_body`, and the seed's two letters are pre-2.0.0 records with `html` only — so web says 'Today's letter is ready — 0 passages' where this client says the library is being read. Decide which is right before building the hero's appearance rule. Read LibraryHome.jsx for the checklist's steps and its persistence before building it.
 
 ## F-55 · Reader — the manuscript counts words from the text, not the passage html, and flattens a table
-- status: open
+- status: done 2026-09-25
 - screen: reader-manuscript
 - route: /reader/{docId}
 - spec: spec/screens/reader.md §Composition; spec/component-kit.md §17
 - web: src/pages/reader/ManuscriptPanel.jsx; src/pages/ReaderView.jsx
-- flutter: lib/pages/reader/manuscript_panel.dart; lib/pages/reader_page.dart
+- flutter: lib/pages/reader/manuscript_panel.dart; lib/pages/reader_page.dart; lib/pages/reader/dwell.dart; lib/pages/reader/content_form_action.dart (new); lib/theme/app_theme.dart; test/contract/dwell_test.dart; test/contract/content_form_test.dart (new)
 - folds: none — found by the F-34/F-37 re-shoot pass
 - device_test: none
 - shots: reader-manuscript; reader

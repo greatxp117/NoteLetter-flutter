@@ -29,3 +29,22 @@ Duration dwellFor(int wordCount) {
 /// Word count of a passage, from its own text.
 int wordsIn(String text) =>
     text.trim().isEmpty ? 0 : text.trim().split(RegExp(r'\s+')).length;
+
+/// The words a passage is measured in — for the dwell clock above, and for
+/// every count the manuscript prints beside it, so the label and the clock
+/// never disagree.
+///
+/// **The passage's own stored `text`** (`screens/reader.md` §Reading state,
+/// ADR-039 §3: "`word_count` is the chunk's own, from `chunk.text` when not
+/// stored" — chunks store no `word_count`). That text is INV-11's derivation
+/// of the html: blocks joined by newlines, `[Image: alt]` markers, tables
+/// linearized. A count taken from the html instead is a different number on
+/// every passage holding a table or an image — stripping tags leaves out the
+/// markers, and the web reference's `textContent` also glues adjacent cells
+/// and blocks into one word (`QuarterInvoice total`).
+///
+/// [editedText] stands in once a passage is edited: its new words have no
+/// stored text yet. Editing is not reading, so no dwell runs meanwhile; only
+/// the labels read it.
+int passageWords({required String storedText, String? editedText}) =>
+    wordsIn(editedText ?? storedText);

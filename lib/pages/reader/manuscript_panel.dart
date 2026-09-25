@@ -23,6 +23,11 @@ class _EditChunk {
   String? chunkId;
   String html;
   String text;
+
+  /// The chunk's STORED `text` — INV-11's derivation of its html, and the unit
+  /// the dwell rule counts (see [passageWords]). Empty for a split-created
+  /// passage, which has nothing stored yet.
+  final String storedText;
   final bool atomic; // img/table/figure/pre — read-only, deletable only
   bool userEdited;
   bool dirty;
@@ -32,6 +37,7 @@ class _EditChunk {
     required this.chunkId,
     required this.html,
     required this.text,
+    this.storedText = '',
     required this.atomic,
     required this.userEdited,
     this.dirty = false,
@@ -250,6 +256,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         chunkId: c.chunkId,
         html: html.isEmpty ? '<p>${_esc(c.text)}</p>' : html,
         text: html.isEmpty ? c.text : _stripTags(html),
+        storedText: c.text,
         atomic: atomic,
         userEdited: c.userEdited,
       );
@@ -308,8 +315,11 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   /// `fn_update_content`'s passage ceiling (ADR-056).
   static const int _maxPassages = 200;
 
-  int _wordCount(String text) =>
-      text.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).length;
+  /// One count for the header, the per-passage label and the dwell clock —
+  /// the stored text at rest, the live text once a passage is edited.
+  int _words(_EditChunk c) => passageWords(
+      storedText: c.storedText,
+      editedText: c.dirty || c.isNew ? c.text : null);
 
   // Fold the live controller text back into the model before a structural op.
   void _commit() {
@@ -482,7 +492,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       return;
     }
     if (_dwellTimers.containsKey(id)) return;
-    _dwellTimers[id] = Timer(dwellFor(wordsIn(c.text)), () {
+    _dwellTimers[id] = Timer(dwellFor(_words(c)), () {
       _dwellTimers.remove(id);
       if (!mounted) return;
       _readThisSession.add(id);
@@ -521,7 +531,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     final ui = ReaderUi(context);
     final visible = _visible;
     final totalWords =
-        visible.fold<int>(0, (n, c) => n + _wordCount(c.text));
+        visible.fold<int>(0, (n, c) => n + _words(c));
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ui.intro(
@@ -582,7 +592,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
               Text('№ ${(i + 1).toString().padLeft(2, '0')}',
                   style: AppTheme.mono(fontSize: 11, color: ui.muted)),
               const SizedBox(width: 10),
-              Text('~${_wordCount(c.text)} words',
+              Text('~${_words(c)} words',
                   style: KitText.fine(context, color: ui.muted)),
               if (c.userEdited) ...[
                 const SizedBox(width: 8),

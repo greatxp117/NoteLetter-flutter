@@ -25,6 +25,23 @@ class AppTheme {
           border: Border(top: BorderSide(color: t.rule)),
           margin: Margins.symmetric(vertical: 18),
         ),
+        // A stored table (INV-11 keeps them). With the extension alone the
+        // cells had no padding and no rules, so `Quarter` and `Invoice total`
+        // ran together as one word (F-55). The reference (`.ms-body table`,
+        // `.orig-render table`) rules every cell in `--border` with
+        // `border-collapse`. Collapse is drawn as a half-width rule on every
+        // side of every cell — two neighbours make one 1px line. Not as the
+        // table's own top/left edge: the table box is full width, so that
+        // edge ran on past the last column.
+        'table': Style(
+          margin: Margins.only(top: 6, bottom: 14),
+          lineHeight: LineHeight(1.5),
+        ),
+        'td': _cell(t),
+        'th': _cell(t).merge(Style(
+          backgroundColor: t.surfaceSunken,
+          fontWeight: FontWeight.w600,
+        )),
         // §17 (4.52.0, ADR-089) — the classes `markSanitizedHtml` adds to a
         // read-only chunk render. They are here rather than at each call site
         // for the same reason the `<hr>` rule is: a marker drawn in the body
@@ -103,6 +120,15 @@ class AppTheme {
   /// It lives here rather than at each call site for the same reason the style
   /// map does, and `html_section_rule_test.dart` reads the source for both.
   static const List<HtmlExtension> htmlExtensions = [TableHtmlExtension()];
+
+  /// One table cell: `padding: 6px 10px; text-align: left; vertical-align:
+  /// top`, ruled half-width on all four sides (collapse; see `'table'`).
+  static Style _cell(Tokens t) => Style(
+        padding: HtmlPaddings.symmetric(vertical: 6, horizontal: 10),
+        border: Border.all(color: t.border, width: 0.5),
+        textAlign: TextAlign.left,
+        verticalAlign: VerticalAlign.top,
+      );
 
   AppTheme._();
 

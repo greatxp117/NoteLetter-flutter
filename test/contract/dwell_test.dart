@@ -7,8 +7,20 @@
 /// exists for is worse than no signal.
 library;
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_app/models/chunk.dart';
+import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/pages/reader/dwell.dart';
+import 'package:flutter_app/pages/reader/manuscript_panel.dart';
+import 'package:flutter_app/services/firestore_service.dart';
+import 'package:flutter_app/theme/app_theme.dart';
+
+class _QuietFirestore extends FirestoreService {
+  _QuietFirestore() : super.stub();
+  @override
+  Future<void> logChunksRead(String documentId, List<String> chunkIds) async {}
+}
 
 void main() {
   test('220 wpm is the shared constant, not a local opinion', () {
@@ -45,5 +57,67 @@ void main() {
 
   test('word counting is whitespace-collapsing', () {
     expect(wordsIn('one two   three\nfour'), 4);
+  });
+
+  // F-55. The unit is the passage's STORED text (reader.md §Reading state,
+  // ADR-039 §3), never a count taken from the html. The seed's table passage
+  // is the case: its html counts 5 words with tags as breaks and 2 through the
+  // web reference's textContent (`QuarterInvoice total` / `Q2$1,200`), its
+  // stored text 8.
+  const tableHtml = '<table><tr><td>Quarter</td><td>Invoice total</td></tr>'
+      '<tr><td>Q2</td><td>\$1,200</td></tr></table>';
+  const tableText = 'Table of tax invoice totals for the budget.';
+
+  test('a passage is counted from its stored text, not its html', () {
+    expect(passageWords(storedText: tableText), 8);
+    expect(passageWords(storedText: tableText, editedText: 'two words'), 2,
+        reason: 'an edited passage has no stored text for its new words');
+    expect(dwellFor(passageWords(storedText: tableText)),
+        dwellFor(wordsIn(tableText)));
+  });
+
+  testWidgets('the manuscript header counts what the dwell clock counts',
+      (tester) async {
+    FirestoreService.instance = _QuietFirestore();
+    addTearDown(FirestoreService.resetInstance);
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light,
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: ManuscriptPanel(
+            docId: 'doc-1',
+            doc: Document.fromJson('doc-1', {
+              'user_id': 'u1',
+              'title': 'Quarterly Tax Summary',
+              'type': 'pdf',
+              'status': 'complete',
+            }),
+            chunks: [
+              Chunk.fromJson({
+                'chunk_id': 'c1',
+                'document_id': 'doc-1',
+                'chunk_index': 0,
+                'text': 'Quarterly tax figures and budget invoice summary.',
+                'html': '<p>Quarterly tax figures and the operating budget.</p>',
+              }),
+              Chunk.fromJson({
+                'chunk_id': 'c2',
+                'document_id': 'doc-1',
+                'chunk_index': 1,
+                'text': tableText,
+                'html': tableHtml,
+              }),
+            ],
+            onSaved: () async {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(find.text('2 passages · 15 words'), findsOneWidget,
+        reason: '7 + 8 from the stored text; the html says 12 (tags as '
+            'breaks) or 9 (textContent)');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 30));
   });
 }

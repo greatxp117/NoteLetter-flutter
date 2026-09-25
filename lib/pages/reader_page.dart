@@ -14,6 +14,7 @@ import '../models/document.dart';
 import '../services/firestore_service.dart';
 import '../shared/extraction_markers.dart';
 import '../state/tags_notifier.dart';
+import 'reader/content_form_action.dart';
 import 'reader/history_panel.dart';
 import 'reader/listen_panel.dart';
 import 'reader/manuscript_panel.dart';
@@ -145,16 +146,33 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(_reportCurrent);
+    _scroll.addListener(_reportSoon);
     _load();
     _loadStatsPref();
   }
 
   @override
   void dispose() {
-    _scroll.removeListener(_reportCurrent);
+    _scroll.removeListener(_reportSoon);
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// The scroll listener. A scroll notification arrives when the offset
+  /// changes, BEFORE that frame's layout — so measuring then read the previous
+  /// frame's positions, and after an animation's last tick nothing measured
+  /// again. A jump to Manuscript on the seed's tax summary landed exactly on
+  /// the rail while the rail kept saying Summary (F-55; measured on device:
+  /// the head read 137 against a 110 line at the landing offset, and 110 one
+  /// frame later). Measure after the frame, once per frame.
+  bool _reportScheduled = false;
+  void _reportSoon() {
+    if (_reportScheduled) return;
+    _reportScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reportScheduled = false;
+      _reportCurrent();
+    });
   }
 
   /// Which section crosses the rail's bottom edge. Read off the real render
@@ -223,6 +241,8 @@ class _ReaderPageState extends State<ReaderPage> {
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
     );
+    // Measure once the landing frame is LAID OUT (see [_reportSoon]).
+    await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     _reportCurrent();
   }
@@ -459,6 +479,14 @@ class _ReaderPageState extends State<ReaderPage> {
                               widget.docId,
                               () => _reload(),
                             ),
+                          ),
+                        // reader.md §Supersession confirm (4.6.0, ADR-042).
+                        if (ContentFormAction.offeredFor(doc))
+                          ContentFormAction(
+                            docId: widget.docId,
+                            doc: doc,
+                            chunks: _chunks,
+                            onQueued: () => _reload(),
                           ),
                         KitButton.secondary(
                           'Add to letter',
