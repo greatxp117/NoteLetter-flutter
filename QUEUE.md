@@ -1046,3 +1046,29 @@ a new obligation on a finished screen is a new item.
 - shots: library; settings; onboarding
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: Seen in every phone frame of the 2026-09-25 re-shoot. §1.2's brand lockup is `mark + serif wordmark`: the reference draws its quill mark and a SMALL-CAPS wordmark (NOTELETTER with large initials) in the app bar, the rail and the onboarding head; this client draws Material's `Icons.edit_note` and a plain serif `NoteLetter` in all three (KitBrand callers, plus `_sealMark` in kit_letter.dart and KitMark on the onboarding welcome and the Settings feature card). The reference's phone app bar also carries a trailing search control; this client's has none. (Web's phone frames also show a bottom tab bar — §1.1 allows 'a drawer or tab bar', so the drawer is conformant and is not part of this item.) A shell kit change re-stales every pair — do it at the head of a re-shoot pass, not in the middle of one.
+
+## F-58 · Reader — on a phone the reader draws no app bar, where the reference keeps the shell's header
+- status: open
+- screen: reader
+- route: /reader/{docId}
+- spec: spec/component-kit.md §1.1; spec/screens/reader.md §Composition
+- web: src/App.jsx; src/shell/AppShell.jsx
+- flutter: lib/router.dart; lib/pages/reader_page.dart
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: reader; reader-manuscript; recipe; source-file; source-set
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: The 2026-09-25 re-shoot beside reader.web.phone.png: web renders the reader INSIDE the shell, so a phone keeps `.app-mobile-header` (menu · quill lockup · search) above the reader's own back control; this client mounts the reader outside AppLayout (CLAUDE.md: INV-22's footer wraps it from support_shell instead), so the phone frame opens on a bare status bar and `< Library`. Decide whether the reader joins AppLayout's compact branch (keeping its own full-bleed body and INV-22 placement) or records a deviation — the recipe/source-file/source-set frames show the same bare top.
+
+## F-59 · §4.1 source row — the reference hides the row's count at phone width; this client stacks it as a third line
+- status: open
+- screen: library
+- route: /
+- spec: spec/component-kit.md §4.1
+- web: src/styles/app-responsive.css; src/pages/LibraryHome.jsx
+- flutter: lib/widgets/kit/kit_rows.dart; CLAUDE.md
+- folds: none — found by the F-34/F-37 re-shoot pass
+- device_test: none
+- shots: library; sources
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: app-responsive.css at max-width 680px: `.src-row .count { display: none; }` — the subtitle already says `N passages`, so the figure is dropped. KitSourceRow instead moves the count under the subtitle below 768 (a recorded CLAUDE.md §Composition deviation), which on the Library frame reads `Stories · 1 passage` over a lone `1`. Either retire the deviation (hide the count below the breakpoint, as the reference does) or re-argue it; the deviation list is word-capped, so a change there is a swap.
