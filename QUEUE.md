@@ -506,12 +506,12 @@ a new obligation on a finished screen is a new item.
     capture, and a re-shoot that only refreshes timestamps is the gate being fed.
 
 ## F-28 · The comparator matches an EMBEDDED token
-- status: open
+- status: done 2026-09-24
 - screen: none
 - route: none
 - spec: fixtures/normalization.md (rule 3); fixtures/tokens.json
 - web: tests/contract/helpers/match.js; tests/contract/fixture-tokens.test.js
-- flutter: test/contract/api_requests_test.dart
+- flutter: test/contract/api_requests_test.dart; test/contract/token_match.dart (new); test/contract/fixture_tokens_test.dart (new)
 - folds: none
 - device_test: none
 - shots: none

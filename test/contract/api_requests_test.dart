@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'fixtures.dart';
+import 'token_match.dart';
 
 /// api/* request construction (INV-01 and the per-suite invariants): every
 /// Flutter [Api] builder must send the exact {endpoint, method, body} the
@@ -78,59 +79,9 @@ dynamic _decodeUuids(dynamic v) {
   return v;
 }
 
-// ── token-aware deep match (port of contracts/harness match.js) ──────────────
-final _reUuid =
-    RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$');
-double _round6(num n) => (n * 1e6).round() / 1e6;
-
-void _fail(String path, Object? expected, Object? actual, [String why = '']) {
-  throw TestFailure('mismatch at $path${why.isNotEmpty ? ' ($why)' : ''}: '
-      'expected ${jsonEncode(expected)}, got ${jsonEncode(actual)}');
-}
-
-void match(dynamic actual, dynamic expected,
-    [String path = r'$', Map<String, String>? uuids]) {
-  uuids ??= {};
-  if (expected is String && expected.startsWith('«')) {
-    if (expected.startsWith('«uuid#')) {
-      if (actual is! String || !_reUuid.hasMatch(actual)) {
-        _fail(path, expected, actual);
-      }
-      if (uuids.containsKey(expected) && uuids[expected] != actual) {
-        _fail(path, '$expected=${uuids[expected]}', actual, 'uuid identity');
-      }
-      uuids[expected] = actual as String;
-    } else {
-      // Request bodies only carry uuid tokens; any other token is unexpected.
-      throw TestFailure('unexpected token $expected at $path');
-    }
-    return;
-  }
-  if (expected is List) {
-    if (actual is! List || actual.length != expected.length) {
-      _fail(path, expected, actual, 'array length');
-    }
-    for (var i = 0; i < expected.length; i++) {
-      match(actual[i], expected[i], '$path[$i]', uuids);
-    }
-    return;
-  }
-  if (expected is Map) {
-    if (actual is! Map) _fail(path, expected, actual, 'object');
-    final ek = expected.keys.map((e) => e.toString()).toList()..sort();
-    final ak = (actual as Map).keys.map((e) => e.toString()).toList()..sort();
-    if (ek.join(',') != ak.join(',')) _fail(path, ek, ak, 'key set');
-    for (final k in ek) {
-      match(actual[k], expected[k], '$path.$k', uuids);
-    }
-    return;
-  }
-  if (expected is num && actual is num) {
-    if (_round6(actual) != _round6(expected)) _fail(path, expected, actual);
-    return;
-  }
-  if (actual != expected) _fail(path, expected, actual);
-}
+// ── token-aware deep match ───────────────────────────────────────────────────
+// One implementation, in `token_match.dart` (F-28): the reference's comparator,
+// embedded tokens included. This file used to carry a uuid-only copy.
 
 // ── endpoint → builder invocation, args read from the fixture body ───────────
 List<String>? _strs(dynamic v) => (v as List?)?.map((e) => e as String).toList();
