@@ -44,6 +44,7 @@ const Map<String, int> kEndpointDeadlineSeconds = {
   'fn_import_from_cloud': 60,
   'fn_ingest_url': 60,
   'fn_list_cloud_files': 60,
+  'fn_scan_cloud_folder': 60,
   'fn_mark_support_read': 60,
   'fn_newsletter_settings': 60,
   'fn_notification_channels': 60,

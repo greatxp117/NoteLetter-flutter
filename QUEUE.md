@@ -427,17 +427,18 @@ a new obligation on a finished screen is a new item.
 - notes: Both actions ran on the FIRST TAP, on every client, while two screen specs required a confirmation. Channel delete is the one that mattered: removing the last `push` channel also unregisters the device, so one tap could stop every notification of every level reaching it — the copy says so. `CloudNotifier.disconnect` already returned null-or-the-sentence, which is exactly §18's contract with the panel; `_remove` in notification_settings_page was changed to match. The third confirmation in 4.56.1 (cloud-import bulk Dismiss) has no Flutter host — this client has no review queue yet — and arrives with that screen.
 
 ## F-23 · Sources — folder contents, and a filter that inverted when emptied
-- status: open
+- status: done 2026-09-24
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md §Folder contents; spec/api/cloud-storage.md §`fn_scan_cloud_folder`; spec/features/cloud-folder-scan.md
 - web: src/pages/sources/CloudFilePicker.jsx; src/pages/sources/SyncSettingsPanel.jsx; src/api.js
-- flutter: lib/services/api.dart; lib/pages/sources/sync_settings_panel.dart; lib/pages/sources/browse_section.dart
+- flutter: lib/services/api.dart; lib/services/endpoint_budgets.dart; lib/pages/sources/sync_settings_panel.dart; lib/pages/sources_page.dart; lib/pages/sources/folder_contents.dart (new); test/contract/api_requests_test.dart; test/kit/folder_contents_test.dart (new); integration_test/device_run_test.dart
 - folds: 4.59.0
-- device_test: a folder row in the sync-folder chooser expands and reports its contents
-- shots: sources
+- device_test: a folder row in the import picker expands and reports its contents
+- shots: sources; folder-contents
 - extra_gates: none
 - notes: Adds `scanCloudFolder` (GET `fn_scan_cloud_folder`) and the per-folder disclosure on every folder row of the picker, in BOTH modes. Two things must not be merged: `excluded_by_settings` is a setting and carries the affordance back to the type pills; `unreadable` is a fact and carries none — merging them reports a folder of decks as unreadable when it is one toggle from working (pptx is off by default). `held_for_review` qualifies the importable line, it is not a fourth bucket. On `complete: false` the counts are a FLOOR ("at least N") and are never extrapolated. A refusal renders as §14.2 `.fail-inline`, never as a zero — a zero the scan did not measure is what this whole surface is against. NEVER scan the rows the picker lists; the scan is per-folder, on expand. Also: `sync_settings_panel.dart` needs the empty-`include_types` inert note — at 4.59.0 an empty list means nothing imports, where before it silently imported everything.
+
 
 ## F-24 · Re-shoot the four pairs F-15 staled
 - status: done 2026-09-15
@@ -876,3 +877,16 @@ a new obligation on a finished screen is a new item.
 - shots: landing-actual; signin
 - extra_gates: none
 - notes: Every signed-out user of this client is redirected to `/landing` (router.dart), and it is the pre-redesign page: 'AI-Powered Knowledge Management', '© 2025', raw `AppColors` isDark branches, a Material dialog for sign-in. The web replaced it with LandingActual + a SignIn screen, with phone frames. No queue item named it, because no parity pass reads signed-out routes. Rebuild from the kit against `landing-actual` and `signin`; the 10 `kit-ok: F-44` marks and the file's 5 ratchet entries leave with the old file.
+
+## F-45 · Sources — an import-activity row breaks its title across two lines
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md; spec/component-kit.md §4.1
+- web: src/pages/sources/CloudImportPanel.jsx
+- flutter: lib/pages/sources_page.dart
+- folds: none — found by F-23's folder-contents frame
+- device_test: none
+- shots: sources
+- extra_gates: none
+- notes: A `_JobRow` carrying two actions (View · Import again) plus its status glyph leaves the title so little width that `taxes.pdf` renders as `taxes.pd` / `f` and the subtitle as `Already im…` — on the seed's already-imported job, iPhone 17 Pro. Seen in screenshots/folder-contents.flutter.*.png (first shot, below the picker). The row is §4.1: when actions and title cannot share a line, the actions go under the title, never the title into a sliver.

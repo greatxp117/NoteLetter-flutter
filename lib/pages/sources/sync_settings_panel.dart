@@ -199,6 +199,15 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                           ),
                       ],
                     ),
+                    // No type ticked means nothing imports (4.59.0, ADR-096).
+                    // Until then it meant the opposite and silently imported
+                    // everything, under this control's own "everything else
+                    // is skipped" label.
+                    if (i.includeTypes.isEmpty)
+                      const KitProcNote(
+                          'No types are ticked — nothing will be imported from '
+                          'this account until you choose at least one.',
+                          padding: EdgeInsets.only(top: 6)),
 
                     // **Ask first** (4.45.0, ADR-083) — the adjacent, different
                     // decision. Only the types actually being imported are

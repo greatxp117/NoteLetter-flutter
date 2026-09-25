@@ -431,6 +431,36 @@ Future<void> reachState(WidgetTester tester) async {
       expect(find.byType(KitSwatch), findsNWidgets(10),
           reason: 'the picker did not open — this frame would be the shelf');
       return;
+    // sources.md §Folder contents (4.59.0, ADR-096) — the import picker with
+    // one folder's disclosure open. Needs the shim under NL_DEV_FAKES=1, whose
+    // Drive fake carries a small tree (dev_server.py).
+    case 'folder-contents':
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.text('Browse files…').evaluate().isNotEmpty) break;
+      }
+      await tester.ensureVisible(find.text('Browse files…').first);
+      await tester.tap(find.text('Browse files…').first);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.text('What’s in here?').evaluate().isNotEmpty) break;
+      }
+      await tester.ensureVisible(find.text('What’s in here?').first);
+      await tester.tap(find.text('What’s in here?').first);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.textContaining(RegExp(r'^scanned \d')).evaluate().isNotEmpty) {
+          break;
+        }
+      }
+      expect(find.textContaining(RegExp(r'^scanned \d')), findsOneWidget,
+          reason: 'the disclosure never reported — this frame would be the list');
+      // Frame the ROW with its disclosure, not the disclosure alone: which
+      // folder the counts belong to is half of what the frame shows.
+      await Scrollable.ensureVisible(tester.element(find.text('Docs').first),
+          alignment: 0.3);
+      await settle();
+      return;
     // library.md §A shelf's place in the letter (4.88.0, ADR-122) — the
     // section sits below the stat cluster; scroll it into the frame.
     case 'shelf-letter':

@@ -16,6 +16,7 @@ import '../widgets/app_toast.dart';
 import '../widgets/file_uploader.dart';
 import '../widgets/kit/kit.dart';
 import 'sources/browse_section.dart';
+import 'sources/folder_contents.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sync_settings_panel.dart';
 
@@ -580,9 +581,12 @@ class _FileRow extends StatelessWidget {
       }
     }
 
-    return KitSourceRow(
+    final row = KitSourceRow(
+      // 20 checkbox + 6 + 16 icon. This read 36 from the day it was written
+      // and overflowed every row by 6px — found by the first device run that
+      // ever opened the picker (F-23).
       leading: SizedBox(
-        width: 36,
+        width: 42,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -615,6 +619,24 @@ class _FileRow extends StatelessWidget {
       trailing: file.isFolder
           ? Icon(Icons.chevron_right, size: 17, color: t.fgSubtle)
           : null,
+    );
+    if (!file.isFolder) return row;
+    // A folder row says what is inside it, on a disclosure the reader opens
+    // (4.59.0, ADR-096; sources.md §Folder contents) — never scanned for the
+    // rows of a listing.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.only(left: 58, right: 12, bottom: 10),
+          child: FolderContents(
+            key: ValueKey('scan-${file.id}'),
+            provider: cloud.browseProvider ?? '',
+            folderId: file.id,
+          ),
+        ),
+      ],
     );
   }
 }

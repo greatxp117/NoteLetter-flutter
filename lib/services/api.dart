@@ -471,6 +471,17 @@ class Api {
   Future<Map<String, dynamic>> listCloudFiles(Map<String, dynamic> params) =>
       _http.get('/fn_list_cloud_files', queryParameters: params);
 
+  /// What is inside ONE folder, before it is chosen (4.59.0, ADR-096) —
+  /// `screens/sources.md` §Folder contents. Called on a row's disclosure,
+  /// never for the rows of a listing: fifteen visible folders would be three
+  /// hundred provider calls. `folderId` omitted means the root.
+  Future<Map<String, dynamic>> scanCloudFolder(String provider,
+          {String? folderId}) =>
+      _http.get('/fn_scan_cloud_folder', queryParameters: {
+        'provider': provider,
+        if (folderId != null) 'folderId': folderId,
+      });
+
   /// Kick off an import. `folder_ids`/`file_ids` are always present (default
   /// empty, mirroring web); `include_types`/`exclude_patterns` only when given.
   Future<Map<String, dynamic>> importFromCloud(

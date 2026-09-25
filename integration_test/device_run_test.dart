@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_app/app.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
+import 'package:flutter_app/pages/sources/folder_contents.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
@@ -740,6 +741,47 @@ void main() {
       lessThanOrEqualTo(procRows),
       reason: 'one primary per row, never two',
     );
+  });
+
+  testWidgets(
+      'a folder row in the import picker expands and reports its contents', (
+    tester,
+  ) async {
+    // screens/sources.md §Folder contents (4.59.0, ADR-096; QUEUE F-23). The
+    // seed carries a connected Google Drive and the shim's provider fake lists
+    // folders, so this is the real picker, the real endpoint and the real
+    // scan — never scanned on open, only on the disclosure.
+    final router = await pumpApp(tester);
+    router.go('/sources');
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.text('Browse files…').evaluate().isNotEmpty) break;
+    }
+    await tester.ensureVisible(find.text('Browse files…').first);
+    await tester.tap(find.text('Browse files…').first);
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(FolderContents).evaluate().isNotEmpty) break;
+    }
+    expect(find.byType(FolderContents), findsWidgets,
+        reason: 'the picker listed no folder row to disclose');
+    // Nothing was scanned by listing the rows.
+    expect(find.textContaining(RegExp(r'^scanned \d')), findsNothing);
+
+    final open = find.text('What’s in here?').first;
+    await tester.ensureVisible(open);
+    await tester.tap(open);
+    for (var i = 0; i < 50; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.textContaining(RegExp(r'^scanned \d')).evaluate().isNotEmpty ||
+          find.byType(KitFailureInline).evaluate().isNotEmpty) {
+        break;
+      }
+    }
+    expect(find.byType(KitFailureInline), findsNothing,
+        reason: 'the scan was refused — the answer is a hole, not contents');
+    expect(find.textContaining(RegExp(r'^scanned \d')), findsOneWidget,
+        reason: 'the row did not report what it scanned');
   });
 
   testWidgets('activity composes from the kit and is the MERGED feed', (
