@@ -4,6 +4,7 @@ import 'package:flutter/material.dart'
         DropdownButton,
         DropdownButtonHideUnderline,
         DropdownMenuItem,
+        Icons,
         InputBorder,
         InputDecoration,
         TextField,
@@ -169,12 +170,24 @@ class KitTag extends StatelessWidget {
   final String? colorToken;
   final VoidCallback? onTap;
 
+  /// A trailing `×` inside the pill — a chip that stands for one member of a
+  /// set the reader can shrink (the sync-folder scope, `sources.md` §Sync
+  /// control: "chips with remove affordances"). Null draws no control, and a
+  /// set that cannot shrink right now passes null rather than a dead `×`.
+  final VoidCallback? onRemove;
+
+  /// What the `×` does, for a screen reader — the glyph alone says nothing
+  /// about WHICH member it removes.
+  final String? removeLabel;
+
   const KitTag(
     this.label, {
     super.key,
     this.variant = KitTagVariant.source,
     this.colorToken,
     this.onTap,
+    this.onRemove,
+    this.removeLabel,
   });
 
   @override
@@ -236,6 +249,21 @@ class KitTag extends StatelessWidget {
               color: dot != null && variant == KitTagVariant.shelf ? fg : fg,
             ),
           ),
+          if (onRemove != null) ...[
+            const SizedBox(width: 4),
+            Semantics(
+              button: true,
+              label: removeLabel ?? 'Remove $label',
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onRemove,
+                  child: Icon(Icons.close, size: 12, color: fg),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

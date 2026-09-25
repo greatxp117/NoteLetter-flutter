@@ -903,3 +903,16 @@ a new obligation on a finished screen is a new item.
 - shots: notifications
 - extra_gates: none
 - notes: In each channel card's level track the third segment reads `Success…` on iPhone 17 Pro. The 2026-09-15 frame (b7e7b07) showed `Successes` whole; the track's segment labels were wrapped in `Flexible` + ellipsis at 4.84.0 (F-40, for a brand chip at a narrow bar), after that frame. Find which of the two changed the fit — the wrapper, or the card's inner width — and make four level labels fit a 390pt phone again (kit_controls.dart already carries a comment about exactly this label). A label the reader cannot read is a control that lies about what it selects.
+
+## F-47 · Sources — choose sync folders (the folders-only picker)
+- status: done 2026-09-25
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md §Sync control §Folder contents §Composition; spec/decisions/ADR-096-a-folder-you-cannot-see-into.md
+- web: src/pages/sources/SyncSettingsPanel.jsx; src/pages/sources/CloudFilePicker.jsx; src/api.js
+- flutter: lib/pages/sources/sync_settings_panel.dart; lib/pages/sources/sync_folder_picker.dart (new); lib/widgets/kit/kit_controls.dart; test/contract/sync_folders_test.dart (new)
+- folds: TODO CS-6 "Flutter cannot choose sync folders"
+- device_test: none
+- shots: sources
+- extra_gates: none
+- notes: §Sync control's folder scope had no control here: `folder_ids` could be set only from web, so the auto-sync warning and the Sync-now footnote both said "choose sync folders" on a screen that could not, and Sync now was disabled for good. Build the sync-folder chooser as web does: a *Sync folders* group in the panel (count n/20, chips with a remove affordance, *Choose folders…* / *Change folders…*) opening the picker in folders-only mode (≤20, one pool, `fn_list_cloud_files` filtered to folders, §Folder contents on every row, the ADR-026 §3 Notion advisory). Confirm and remove are `fn_sync_settings {folder_ids}` whole-list, and the chips render ONLY the returned `integration` — write before move. A refused save keeps the picker open with the sentence inline (§14.2). The seed has no cloud integration, so the `sources` pair cannot show the panel; the widget test is the gate.

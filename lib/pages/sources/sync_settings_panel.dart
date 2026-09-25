@@ -6,13 +6,14 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
+import 'sync_folder_picker.dart';
 
 /// Tier-C sync settings (`screens/sources.md` §Sync control, 1.4.0/ADR-007),
 /// recomposed against the kit (ADR-041).
 ///
 /// Collapsible per provider: auto-sync toggle, frequency, preferred hour
-/// (shown in the reader's time, stored and said as UTC), include-types,
-/// exclude-patterns. Every edit sends **only the changed key**
+/// (shown in the reader's time, stored and said as UTC), sync folders (the
+/// folders-only picker, F-47), include-types, exclude-patterns. Every edit sends **only the changed key**
 /// via `fn_sync_settings`, and the returned `integration` is the source of
 /// truth — the panel renders straight off `widget.integration` and holds no
 /// optimistic copy. **Write before you move**: a toggle that sets local state
@@ -44,6 +45,16 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   /// The backend's own default when the field was never written
   /// (`main.py` stamps 3 on connect, and the orchestrator reads `?? 3`).
   static const _defaultHour = 3;
+
+  /// `fn_sync_settings` validates `folder_ids` at ≤20 — web's
+  /// `SYNC_FOLDER_CAP`.
+  static const _folderCap = 20;
+
+  /// The sync-folder chooser is open.
+  bool _picking = false;
+
+  /// *Import these types*, for §Folder contents' "Change types".
+  final _typesKey = GlobalKey();
 
   final _patternsController = TextEditingController();
   final _patternsFocus = FocusNode();
@@ -129,6 +140,37 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
     if (err != null) onRefused?.call();
   }
 
+  /// The whole folder list, saved; the panel moves only on the answer. Unlike
+  /// [_save], a refusal is returned to the picker that asked rather than
+  /// drawn at the foot of the panel — the picker is where the reader is
+  /// looking, and it holds the draft they would correct.
+  Future<String?> _saveFolders(List<String> ids) async {
+    setState(() => _saving = true);
+    final err = await context
+        .read<CloudNotifier>()
+        .syncSettings(widget.providerId, folderIds: ids);
+    if (!mounted) return err;
+    setState(() {
+      _saving = false;
+      if (err == null) _picking = false;
+    });
+    return err;
+  }
+
+  /// A chip's `×`: the list without that folder, and the chip goes only when
+  /// the returned `integration` no longer holds it.
+  void _removeFolder(String id) => _save((c) => c.syncSettings(
+      widget.providerId,
+      folderIds: [
+        for (final f in widget.integration.folderIds)
+          if (f != id) f
+      ]));
+
+  /// A folder id as a chip label. The integration stores ids, not names —
+  /// the reference draws the id, cut at 14.
+  static String _chipLabel(String id) =>
+      id.length > 14 ? '${id.substring(0, 14)}…' : id;
+
   /// The UTC hour [utcHour] as a wall-clock time here. The server compares
   /// the plain UTC hour; the reader thinks in their own.
   static String _localClock(int utcHour) {
@@ -207,7 +249,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                     if (inert)
                       const KitProcNote(
                         'Auto-sync is on but no folders are chosen — nothing '
-                        'will sync until you pick sync folders.',
+                        'will sync until you pick sync folders below.',
                         padding: EdgeInsets.only(top: 6),
                       ),
 
@@ -248,11 +290,62 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                       ],
                     ),
 
+                    // Sync folders — the scope (§Sync control: "reuse the
+                    // file picker in folders-only mode, ≤20; chips with
+                    // remove affordances"). The chips are the RETURNED
+                    // integration's list and nothing else.
+                    _Label('Sync folders',
+                        note: '${i.folderIds.length}/$_folderCap'),
+                    if (i.folderIds.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final id in i.folderIds)
+                              Tooltip(
+                                message: id,
+                                child: KitTag(
+                                  _chipLabel(id),
+                                  removeLabel: 'Remove folder $id',
+                                  onRemove: () => _removeFolder(id),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: KitSettingLink(
+                        _picking
+                            ? 'Close'
+                            : i.folderIds.isEmpty
+                                ? 'Choose folders…'
+                                : 'Change folders…',
+                        icon: null,
+                        onTap: () => setState(() => _picking = !_picking),
+                      ),
+                    ),
+                    if (_picking)
+                      SyncFolderPicker(
+                        provider: widget.providerId,
+                        initial: i.folderIds,
+                        cap: _folderCap,
+                        onConfirm: _saveFolders,
+                        onCancel: () => setState(() => _picking = false),
+                        onFixTypes: () {
+                          final ctx = _typesKey.currentContext;
+                          if (ctx != null) Scrollable.ensureVisible(ctx);
+                        },
+                      ),
+
                     // **Two adjacent decisions, presented as two** (ADR-083):
                     // this one answers *never this type* — the file is dropped
                     // at discovery with no row, no count and no record it was
                     // seen. The one below answers *ask me about this one*.
                     _Label('Import these types',
+                        key: _typesKey,
                         note: 'everything else is skipped entirely'),
                     Wrap(
                       spacing: 8,
@@ -370,7 +463,7 @@ class _Label extends StatelessWidget {
   /// downloaded" are said (ADR-083).
   final String? note;
 
-  const _Label(this.text, {this.note});
+  const _Label(this.text, {super.key, this.note});
 
   @override
   Widget build(BuildContext context) => Padding(
