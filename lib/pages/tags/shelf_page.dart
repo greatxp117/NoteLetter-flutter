@@ -75,9 +75,15 @@ class _ShelfPageState extends State<ShelfPage> {
     super.dispose();
   }
 
-  /// Write before move, for the name as for the colour: the field keeps what
-  /// the reader typed, and `_savedName` moves only once `fn_update_tag` has
-  /// answered — so a rejected rename cannot read as a successful one.
+  /// Write before move, for the name as for the colour: `_savedName` moves
+  /// only once `fn_update_tag` has answered — so a rejected rename cannot read
+  /// as a successful one.
+  ///
+  /// **And the field goes back** (component-kit §Rules, 4.75.2): on a refusal
+  /// the text is reset to the name the server still holds. Leaving the refused
+  /// text in the field SHOWED a name the shelf does not have, under a sentence
+  /// saying it could not be saved — the sentence and the field disagreeing,
+  /// with the field the one a reader believes.
   Future<void> _saveName(Tag shelf) async {
     final next = _name.text.trim();
     if (next.isEmpty || next == _savedName) return;
@@ -86,7 +92,14 @@ class _ShelfPageState extends State<ShelfPage> {
     if (!mounted) return;
     setState(() {
       _nameError = err;
-      if (err == null) _savedName = next;
+      if (err == null) {
+        _savedName = next;
+      } else {
+        _name.value = TextEditingValue(
+          text: _savedName,
+          selection: TextSelection.collapsed(offset: _savedName.length),
+        );
+      }
     });
   }
 

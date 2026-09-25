@@ -617,7 +617,7 @@ a new obligation on a finished screen is a new item.
     the cluster's cases go in `kit_smoke_test.dart` beside the kit's others.
 
 ## F-32 · A refused rename keeps the name the server refused
-- status: open
+- status: done 2026-09-25
 - screen: shelves
 - route: /shelves/{id}
 - spec: spec/component-kit.md §Rules (*write before you move*, text-field clause) · §14.2
