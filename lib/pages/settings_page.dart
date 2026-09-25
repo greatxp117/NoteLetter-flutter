@@ -69,29 +69,18 @@ class _SettingsPageState extends State<SettingsPage> {
           // library. Non-destructive by construction: the wizard writes
           // nothing until its last step.
           const SectionHeader('Setup', first: true),
-          KitRowList(
-            raised: true,
-            rows: [
-              KitSettingRow(
-                icon: Icons.auto_awesome_outlined,
-                title: 'Run through setup again',
-                description:
-                    'Replay first-run — bring in sources, write your '
-                    'librarian’s mission, and tune your letter. Nothing you’ve '
-                    'already set is changed until you finish.',
-                // A button is a wide control: beside two lines of wrapped
-                // title it takes half the row from the copy. Stacks under it
-                // below the compact width, as the letter row above does.
-                wideControl: true,
-                trailing: [
-                  KitButton.primary(
-                    'Run setup',
-                    onPressed: () =>
-                        LocalFlags.onboardingReplay.value = true,
-                  ),
-                ],
-              ),
-            ],
+          // `.set-feature` — the replay is a place to go, not a preference,
+          // and the reference draws it as its own card, not a setting row.
+          KitFeatureCard(
+            icon: Icons.edit_note,
+            title: 'Run through setup again',
+            description: 'Replay first-run — bring in sources, write your '
+                'librarian’s mission, and tune your letter. Nothing you’ve '
+                'already set is changed until you finish.',
+            action: KitButton.primary(
+              'Run setup',
+              onPressed: () => LocalFlags.onboardingReplay.value = true,
+            ),
           ),
 
           // ── Appearance ────────────────────────────────────────────────

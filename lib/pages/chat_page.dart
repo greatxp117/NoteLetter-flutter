@@ -370,6 +370,7 @@ class _ChatPageState extends State<ChatPage> {
         child: Padding(
           padding: const EdgeInsets.only(top: AppSpacing.s8),
           child: KitEmptyState(
+            flush: true,
             icon: Icons.auto_awesome,
             title: scope == null
                 ? 'Ask your library a question'

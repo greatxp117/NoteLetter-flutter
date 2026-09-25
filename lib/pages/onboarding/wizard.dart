@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' show Icons, Material;
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
@@ -71,7 +72,8 @@ class _OnboardingGateState extends State<OnboardingGate> {
           //
           // And a reader who already HAS documents has plainly onboarded
           // themselves whatever the flag says.
-          final firstRun = !onboarded &&
+          final firstRun =
+              !onboarded &&
               !docs.loading &&
               docs.error == null &&
               docs.documents.isEmpty;
@@ -160,8 +162,9 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
   final ScrollController _scroll = ScrollController();
 
   String _preset = presets.first.id;
-  late final TextEditingController _prompt =
-      TextEditingController(text: presets.first.prompt);
+  late final TextEditingController _prompt = TextEditingController(
+    text: presets.first.prompt,
+  );
 
   bool _readings = false;
   String _frequency = 'weekdays';
@@ -181,8 +184,8 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
   }
 
   void _reportStep(int step) => Analytics.track('onboarding_step', {
-        'step': step >= 0 && step < _steps.length ? _steps[step].key : 'unknown',
-      });
+    'step': step >= 0 && step < _steps.length ? _steps[step].key : 'unknown',
+  });
 
   @override
   void dispose() {
@@ -245,15 +248,10 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final compact =
-        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     final last = _steps.length - 1;
 
-    final rail = _Rail(
-      step: _step,
-      compact: compact,
-      onStep: _goTo,
-    );
+    final rail = _Rail(step: _step, compact: compact, onStep: _goTo);
 
     final main = Expanded(
       child: Container(
@@ -301,12 +299,18 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
     // debug style, which draws a double yellow underline under every line on
     // the screen. It is not an error and nothing fails; the first capture of
     // this pair simply had it under all of it.
-    return Material(
-      color: t.chrome,
-      child: SafeArea(
-        child: compact
-            ? Column(children: [rail, main])
-            : Row(children: [rail, main]),
+    // The status bar sits on the chrome head, so its glyphs are LIGHT in both
+    // themes. Outside the shell's Scaffold nothing set it, and the light
+    // theme's default drew black glyphs on plum.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Material(
+        color: t.chrome,
+        child: SafeArea(
+          child: compact
+              ? Column(children: [rail, main])
+              : Row(children: [rail, main]),
+        ),
       ),
     );
   }
@@ -364,7 +368,11 @@ class _Rail extends StatelessWidget {
   final bool compact;
   final ValueChanged<int> onStep;
 
-  const _Rail({required this.step, required this.compact, required this.onStep});
+  const _Rail({
+    required this.step,
+    required this.compact,
+    required this.onStep,
+  });
 
   static const double _width = 320;
 
@@ -393,8 +401,11 @@ class _Rail extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const KitBrand(
-                      mark: Icon(Icons.edit_note,
-                          size: 22, color: AppColors.chromeForeground),
+                      mark: Icon(
+                        Icons.edit_note,
+                        size: 22,
+                        color: AppColors.chromeForeground,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.s3),
                     _Progress(step: step),
@@ -404,8 +415,11 @@ class _Rail extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const KitBrand(
-                      mark: Icon(Icons.edit_note,
-                          size: 22, color: AppColors.chromeForeground),
+                      mark: Icon(
+                        Icons.edit_note,
+                        size: 22,
+                        color: AppColors.chromeForeground,
+                      ),
                     ),
                     const SizedBox(height: 30),
                     Eyebrow('Setting up your library', color: t.chromeMuted),
@@ -437,17 +451,18 @@ class _Rail extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.only(top: 18),
                       decoration: BoxDecoration(
-                        border: Border(
-                            top: BorderSide(color: t.chromeBorder)),
+                        border: Border(top: BorderSide(color: t.chromeBorder)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             quote.$1,
-                            style: KitText.lede(context,
-                                    fontSize: 14.5, height: 22)
-                                .copyWith(color: t.chromeMuted),
+                            style: KitText.lede(
+                              context,
+                              fontSize: 14.5,
+                              height: 22,
+                            ).copyWith(color: t.chromeMuted),
                           ),
                           const SizedBox(height: AppSpacing.s2),
                           Text(
@@ -535,30 +550,30 @@ class _StepRow extends StatelessWidget {
         color: active
             ? t.chromeFg
             : done
-                ? t.accent
-                : null,
+            ? t.accent
+            : null,
         border: Border.all(
           color: active
               ? t.chromeFg
               : done
-                  ? t.accent
-                  : t.chromeBorder,
+              ? t.accent
+              : t.chromeBorder,
         ),
       ),
       child: done
           ? Icon(Icons.check, size: 14, color: t.chromeFg)
           : active && s.number == null
-              ? Icon(Icons.edit_note, size: 13, color: t.chrome)
-              : s.number == null
-                  ? Icon(Icons.check, size: 14, color: t.chromeSubtle)
-                  : Text(
-                      s.number!,
-                      style: AppTheme.mono(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: active ? t.chrome : t.chromeMuted,
-                      ),
-                    ),
+          ? Icon(Icons.edit_note, size: 13, color: t.chrome)
+          : s.number == null
+          ? Icon(Icons.check, size: 14, color: t.chromeSubtle)
+          : Text(
+              s.number!,
+              style: AppTheme.mono(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: active ? t.chrome : t.chromeMuted,
+              ),
+            ),
     );
 
     return GestureDetector(
@@ -598,8 +613,9 @@ class _StepRow extends StatelessWidget {
                           fontFamily: AppTheme.fontSans,
                           fontSize: 14,
                           height: 1.3,
-                          fontWeight:
-                              active ? FontWeight.w600 : FontWeight.w500,
+                          fontWeight: active
+                              ? FontWeight.w600
+                              : FontWeight.w500,
                           color: active ? t.chromeFg : t.chromeMuted,
                         ),
                       ),
@@ -691,15 +707,17 @@ class _Footer extends StatelessWidget {
               saving
                   ? 'Saving…'
                   : failed
-                      ? 'Try again'
-                      : 'Open your library',
+                  ? 'Try again'
+                  : 'Open your library',
               icon: Icons.arrow_forward,
+              iconTrailing: true,
               onPressed: saving ? null : onFinish,
             )
           else
             KitButton.primary(
               step == 0 ? 'Begin' : 'Continue',
               icon: Icons.arrow_forward,
+              iconTrailing: true,
               onPressed: onNext,
             ),
         ],

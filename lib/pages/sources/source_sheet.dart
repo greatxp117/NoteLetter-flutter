@@ -58,8 +58,12 @@ class SourceSheet {
       icon: shape == 'set'
           ? Icons.photo_library_outlined
           : Icons.insert_drive_file_outlined,
-      title: doc.title.isEmpty ? 'Original file' : doc.title,
-      subtitle: doc.type.toUpperCase(),
+      lead: KitFileBadge(kitDocKind(doc.type)),
+      title: doc.title.isEmpty ? 'Untitled' : doc.title,
+      // The reference's sentence — what this sheet IS — not the type token,
+      // which the badge beside it already says.
+      subtitle: 'The source exactly as it arrived, before anything was read '
+          'out of it.',
       builder: (_) => _SourceBody(doc: doc, shape: shape),
     );
   }

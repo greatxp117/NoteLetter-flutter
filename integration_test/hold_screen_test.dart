@@ -210,6 +210,14 @@ Future<void> reachState(WidgetTester tester) async {
       await settle();
       expect(find.text('Your library'), findsWidgets,
           reason: 'no answer came back — this frame would be the empty state');
+      // `Your library` is the responder's LABEL, and a refused turn draws it
+      // too: the 2026-09-25 re-shoot caught "Ask failed. Contact support with
+      // your request ID." under this state's filename, against a shim without
+      // the model. An answer is a turn that did not fail.
+      expect(find.text('Try again'), findsNothing,
+          reason: 'the turn failed — this frame would be a refusal under the '
+              'name of an answer (the turn needs the model: run the 5599 shim '
+              'with NL_DEV_FAKES=1)');
       // The rail stays CLOSED here. It is an overlay on this client, so an
       // open one covers the transcript entirely and the frame would compare
       // nothing the web `ask-thread` frame shows. §9 has its own pair below.

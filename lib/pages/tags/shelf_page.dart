@@ -456,7 +456,9 @@ class _ShelfPageState extends State<ShelfPage> {
                   onFocusChange: (has) {
                     if (!has) _saveName(shelf);
                   },
-                  child: KitTextField(controller: _name),
+                  // A shelf's NAME, set in `.ss-input`'s serif — not the data mono.
+                  child: KitTextField(
+                      controller: _name, face: KitFieldFace.serif),
                 ),
               ),
               if (_nameError != null) ...[
@@ -515,7 +517,8 @@ class _ShelfPageState extends State<ShelfPage> {
           label: 'Danger',
           child: Align(
             alignment: Alignment.centerLeft,
-            child: KitButton.danger(
+            // `.ss-delete`: quiet at rest; the §18 confirm carries the fill.
+            child: KitButton.dangerText(
               'Delete shelf',
               icon: Icons.delete_outline,
               onPressed: () => _delete(shelf, vols, all),

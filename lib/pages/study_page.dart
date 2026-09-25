@@ -177,6 +177,7 @@ class _StudyPageState extends State<StudyPage> {
   /// §7 — **an offer, not an apology.** The three rows say what a program is
   /// for; the action row is what makes one.
   Widget _empty(BuildContext context) => KitEmptyState(
+        flush: true,
         icon: Icons.style_outlined,
         title: 'Go deeper on one subject',
         standfirst:

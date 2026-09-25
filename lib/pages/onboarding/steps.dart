@@ -74,7 +74,8 @@ class WelcomeStep extends StatelessWidget {
           const KitMark(Icons.edit_note, size: 72),
           const SizedBox(height: AppSpacing.s6),
           const ChapterOpening(
-            folio: 'Setting up · a few minutes',
+            folio: 'Setting up',
+            folioAside: 'a few minutes',
             title: 'Welcome to *your library.*',
             standfirst: 'You’ve read more than you remember. NoteLetter keeps '
                 'it close — searchable, and quietly distilled into a letter '
