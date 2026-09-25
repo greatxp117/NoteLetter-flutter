@@ -72,13 +72,70 @@ class OrgNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Approvals this session made, followed one document at a time until they
+  /// land (4.92.0, ADR-126): id → the latest document, or the card at
+  /// `approved` until its first snapshot. `applied` (or gone) leaves — the
+  /// change is made; `failed` stays with the worker's sentence until cleared.
+  final Map<String, OrganizationSuggestion> _outcomes = {};
+  final Map<String, StreamSubscription<OrganizationSuggestion?>> _outcomeSubs =
+      {};
+  List<OrganizationSuggestion> get outcomes =>
+      List.unmodifiable(_outcomes.values);
+
+  void _follow(OrganizationSuggestion card) {
+    final id = card.id;
+    _outcomes[id] = card.withStatus('approved');
+    _outcomeSubs[id]?.cancel();
+    _outcomeSubs[id] = FirestoreService.instance
+        .subscribeOrganizationSuggestion(id)
+        .listen((doc) {
+      if (!_outcomes.containsKey(id)) return;
+      if (doc == null || doc.status == 'applied') {
+        clearOutcome(id);
+        return;
+      }
+      _outcomes[id] = doc;
+      notifyListeners();
+    }, onError: (e) {
+      // An unreadable outcome is a hole, never a success: say so on the row.
+      if (!_outcomes.containsKey(id)) return;
+      _outcomes[id] = _outcomes[id]!
+          .withStatus('failed', resolutionError: describeSdkError(e));
+      notifyListeners();
+    });
+  }
+
+  void clearOutcome(String id) {
+    _outcomeSubs.remove(id)?.cancel();
+    if (_outcomes.remove(id) != null) notifyListeners();
+  }
+
   /// Approve/decline pending suggestions (≤20 per call). On success the rows
   /// transition on the subscription — render pessimistically.
   Future<String?> resolve(List<String> ids, String action) async {
     _resolving.addAll(ids);
     notifyListeners();
     try {
-      await Api.instance.resolveOrganizationSuggestions(ids, action);
+      final res = await Api.instance.resolveOrganizationSuggestions(ids, action);
+      if (action == 'approve') {
+        // Only what the server approved is followed; `skipped` ids were not
+        // pending any more and are not this tap's outcome.
+        final skipped = {
+          for (final x in (res['skipped'] as List?) ?? const []) '$x'
+        };
+        for (final id in ids) {
+          if (skipped.contains(id)) continue;
+          final card = _suggestions.where((x) => x.id == id).firstOrNull ??
+              OrganizationSuggestion(
+                  id: id,
+                  provider: '',
+                  type: '',
+                  confidence: 0,
+                  reason: '',
+                  status: 'approved');
+          _follow(card);
+        }
+      }
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -195,6 +252,9 @@ class OrgNotifier extends ChangeNotifier {
   @override
   void dispose() {
     _sub?.cancel();
+    for (final sub in _outcomeSubs.values) {
+      sub.cancel();
+    }
     super.dispose();
   }
 }

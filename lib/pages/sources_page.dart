@@ -16,6 +16,7 @@ import '../widgets/app_toast.dart';
 import '../widgets/file_uploader.dart';
 import '../widgets/kit/kit.dart';
 import 'sources/browse_section.dart';
+import 'sources/cloud_sync_copy.dart';
 import 'sources/folder_contents.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sync_settings_panel.dart';
@@ -286,6 +287,16 @@ class _SourcesPageState extends State<SourcesPage> {
                 ),
               ],
 
+              // What the last disconnect did at the provider — a standing
+              // note, not a toast (4.89.0, ADR-123 §5).
+              if (cloud.lastDisconnect != null)
+                KitProcNote(disconnectOutcome(
+                  cloud.lastDisconnect!.$1,
+                  _providers[cloud.lastDisconnect!.$1]?.name ??
+                      cloud.lastDisconnect!.$1,
+                  cloud.lastDisconnect!.$2,
+                )),
+
               if (cloud.browseProvider != null) ...[
                 const SizedBox(height: 14),
                 const _PickerPanel(),
@@ -460,13 +471,23 @@ class _ProviderCardState extends State<_ProviderCard> {
           // required this since 1.2.0 and named the copy it owes; it ran on the
           // first tap. `disconnect` already returns null-or-the-sentence, which
           // is §18's contract with the panel.
+          //
+          // 4.90.0 (ADR-124 §7): only imports that have not reached the
+          // pipeline stop — a file already downloaded finishes. 4.89.0
+          // (ADR-123 §5): the grant is ASKED to be revoked where the provider
+          // lets an app do that, and where it does not the confirm says where
+          // the reader removes it. What the provider answered is said AFTER,
+          // under the grid (`lastDisconnect`), never as a toast: "did not
+          // confirm" is a thing to act on, and a toast is gone first.
           KitButton.ghost('Disconnect', onPressed: () async {
-            final done = await KitConfirm.show(
+            cloud.clearDisconnectNote();
+            final revoke = disconnectRevokeCopy(providerId, spec.name);
+            await KitConfirm.show(
               context,
               title: 'Disconnect ${spec.name}?',
-              body: 'Any imports still queued from ${spec.name} stop, the '
-                  'folders it organized are archived, and its suggestions '
-                  'expire.\n\nEverything already in your library stays — '
+              body: '${disconnectConsequences(spec.name)}'
+                  '${revoke != null ? '\n\n$revoke' : ''}'
+                  '\n\nEverything already in your library stays — '
                   'documents, passages and letters are unaffected, and the '
                   'files in ${spec.name} itself are never touched. '
                   'Reconnecting starts a fresh pick of folders.',
@@ -474,10 +495,6 @@ class _ProviderCardState extends State<_ProviderCard> {
               cancelLabel: 'Stay connected',
               onConfirm: () => cloud.disconnect(providerId),
             );
-            if (done == true && context.mounted) {
-              AppToast.show(context, '${spec.name} disconnected.',
-                  type: ToastType.info);
-            }
           }),
         ],
       ],
@@ -555,6 +572,19 @@ class _PickerPanel extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
+          // ADR-026 §3: standing guidance on every rendered Notion listing —
+          // Notion never reports what it withheld, so this is never phrased as
+          // a finding about THIS connection. The sync picker has carried it
+          // since F-47; the import picker is the one a reader meets first.
+          if (provider == 'notion' &&
+              cloud.browseError == null &&
+              !cloud.browsing)
+            const KitProcNote(
+              'Notion passes along only the pages you ticked — to bring more '
+              'in, grant access in Notion and return.',
+              padding: EdgeInsets.only(bottom: 8),
+            ),
+
           if (cloud.browsing)
             const Padding(
               padding: EdgeInsets.all(24),
@@ -592,6 +622,13 @@ class _PickerPanel extends StatelessWidget {
           const SizedBox(height: 12),
           Container(height: 1, color: t.rule),
           const SizedBox(height: 12),
+          // §14.2: the import's refusal, verbatim, beside the control that
+          // sent it — a cap or unknown-key 400, a plan limit, a reconnect.
+          if (cloud.importError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: KitFailureInline(cloud.importError!),
+            ),
           Row(
             children: [
               Expanded(
@@ -607,11 +644,12 @@ class _PickerPanel extends StatelessWidget {
                   onPressed: cloud.hasSelection
                       ? () async {
                           final (msg, isErr) = await cloud.importSelection();
-                          if (!context.mounted) return;
+                          // A refusal is drawn in the picker (importError);
+                          // only the 202's count is a toast, because the
+                          // picker it would sit in has closed.
+                          if (!context.mounted || isErr) return;
                           AppToast.show(context, msg,
-                              type: isErr
-                                  ? ToastType.error
-                                  : ToastType.success);
+                              type: ToastType.success);
                         }
                       : null),
             ],
@@ -633,6 +671,10 @@ class _FileRow extends StatelessWidget {
     final selected = file.isFolder
         ? cloud.selectedFolders.contains(file.id)
         : cloud.selectedFiles.contains(file.id);
+    // 4.91.0 (ADR-125 §1): a file the upload classifier refuses is offered no
+    // checkbox — the import would come back `unsupported_type` — and says why
+    // in the classifier's own words. A fact, so it carries no affordance.
+    final refusal = cloudFileRefusal(cloud.browseProvider ?? '', file);
 
     void toggle() {
       final note = file.isFolder
@@ -654,15 +696,19 @@ class _FileRow extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // The slot keeps its width without a checkbox, so a refused row
+            // still lines up with its neighbours.
             SizedBox(
               width: 20,
               height: 20,
-              child: Checkbox(
-                value: selected,
-                onChanged: (_) => toggle(),
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+              child: refusal != null
+                  ? null
+                  : Checkbox(
+                      value: selected,
+                      onChanged: (_) => toggle(),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
             ),
             const SizedBox(width: 6),
             Icon(
@@ -678,8 +724,12 @@ class _FileRow extends StatelessWidget {
       title: file.name,
       // Google Docs and the like export as PDF; say so on the row that will do
       // it rather than in a legend nobody reads.
-      subtitle: file.exportable ? 'Exports as PDF' : null,
-      onTap: file.isFolder ? () => cloud.enterFolder(file) : toggle,
+      subtitle: refusal ?? (file.exportable ? 'Exports as PDF' : null),
+      onTap: file.isFolder
+          ? () => cloud.enterFolder(file)
+          : refusal != null
+              ? null
+              : toggle,
       trailing: file.isFolder
           ? Icon(Icons.chevron_right, size: 17, color: t.fgSubtle)
           : null,
@@ -916,13 +966,11 @@ class _ReviewOutcomeNotes extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // 4.90.0 (ADR-124 §7): an approve on a provider that is no longer
+          // connected is `skipped` too, and the response does not say which —
+          // so the note names both causes and asserts neither.
           if (skipped > 0)
-            KitProcNote(
-              '$skipped ${skipped == 1 ? 'file was' : 'files were'} already '
-              'handled — another tab or device got there first, so '
-              '${skipped == 1 ? 'it was' : 'they were'} left alone.',
-              padding: EdgeInsets.zero,
-            ),
+            KitProcNote(reviewSkippedNote(skipped), padding: EdgeInsets.zero),
           if (failed.isNotEmpty)
             Padding(
               padding: EdgeInsets.only(top: skipped > 0 ? 6 : 0),
@@ -1232,11 +1280,20 @@ class _JobRowState extends State<_JobRow> {
         );
       case 'cancelled':
         return ('Cancelled', (Icons.remove_circle_outline, t.fgSubtle));
+      // Named, not left to the default branch (`job_status_check` reported
+      // both as MIRROR-GAP): `queued` read "Waiting" here and "Queued" on the
+      // reference, and a status the switch never names is one nobody decided.
+      case 'pending':
+        return ('Waiting', null);
+      case 'queued':
+        return ('Queued', null);
       case 'downloading':
         return ('Downloading', null);
       case 'processing':
         return ('Processing', null);
       default:
+        // A status this client does not know yet: the reference draws it as
+        // `pending` does, and never as its raw token.
         return ('Waiting', null);
     }
   }
@@ -1252,6 +1309,7 @@ class _OrganizationSection extends StatelessWidget {
     final org = context.watch<OrgNotifier>();
     final pending = org.suggestions;
     final error = org.suggestionsError;
+    final outcomes = org.outcomes;
 
     // Same shape as Import activity above, and the notifier's own comment says
     // it: no suggestions and unreadable suggestions are the same empty list
@@ -1268,7 +1326,7 @@ class _OrganizationSection extends StatelessWidget {
         ],
       );
     }
-    if (pending.isEmpty) return const SizedBox.shrink();
+    if (pending.isEmpty && outcomes.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1281,26 +1339,84 @@ class _OrganizationSection extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: KitFailureInline(error),
           ),
-        for (final s in pending) _SuggestionCard(suggestion: s),
+        // What this session's approvals came to (4.92.0, ADR-126): the queue
+        // reads `pending` only, so without these an approved card vanished
+        // and a `failed` one — an interrupted move that may already have
+        // landed — never reached the screen.
+        if (outcomes.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: KitRowList(rows: [
+              for (final o in outcomes)
+                _ApprovalOutcome(
+                    key: ValueKey('outcome-${o.id}'), suggestion: o),
+            ]),
+          ),
+        for (final s in pending)
+          _SuggestionCard(key: ValueKey('sugg-${s.id}'), suggestion: s),
       ],
     );
   }
 }
 
-class _SuggestionCard extends StatelessWidget {
+/// One approval this session made, until it lands: `approved` works
+/// (spinner), `failed` says the worker's sentence verbatim (§14.2) and offers
+/// Clear. `applied` never reaches here — the notifier drops it.
+class _ApprovalOutcome extends StatelessWidget {
   final OrganizationSuggestion suggestion;
-  const _SuggestionCard({required this.suggestion});
+  const _ApprovalOutcome({super.key, required this.suggestion});
 
   @override
   Widget build(BuildContext context) {
+    final s = suggestion;
+    final failed = s.status == 'failed';
+    final row = KitSourceRow(
+      title: s.outcomeTitle,
+      trailing: failed
+          ? KitButton.ghost('Clear',
+              onPressed: () =>
+                  context.read<OrgNotifier>().clearOutcome(s.id))
+          : const KitStatusPill('Applying'),
+    );
+    if (!failed) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.only(left: 18, right: 18, bottom: 12),
+          child: KitFailureInline(
+              s.resolutionError ?? 'This change could not be made.',
+              dense: true),
+        ),
+      ],
+    );
+  }
+}
+
+class _SuggestionCard extends StatefulWidget {
+  final OrganizationSuggestion suggestion;
+  const _SuggestionCard({super.key, required this.suggestion});
+
+  @override
+  State<_SuggestionCard> createState() => _SuggestionCardState();
+}
+
+class _SuggestionCardState extends State<_SuggestionCard> {
+  /// §14.2 — the resolve's refusal on the card it is about (a 400
+  /// `UNKNOWN_KEYS`, a 404), not a toast that is gone before it is read.
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    final suggestion = widget.suggestion;
     final org = context.read<OrgNotifier>();
     final busy = org.isResolving(suggestion.id);
 
     Future<void> act(String action) async {
+      setState(() => _error = null);
       final err = await org.resolve([suggestion.id], action);
-      if (context.mounted && err != null) {
-        AppToast.show(context, err, type: ToastType.error);
-      }
+      if (mounted) setState(() => _error = err);
     }
 
     return Padding(
@@ -1327,6 +1443,17 @@ class _SuggestionCard extends StatelessWidget {
             if (suggestion.detail.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(suggestion.detail, style: KitText.meta(context)),
+            ],
+            // 4.92.0 (ADR-126 §3): approving a README adoption changes the
+            // folder's charter and writes nothing at the provider — the card
+            // says both, because "Approve" alone reads as a file operation.
+            if (suggestion.type == 'readme') ...[
+              const SizedBox(height: 4),
+              Text(suggestion.adoptionNote, style: KitText.meta(context)),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              KitFailureInline(_error!),
             ],
             const SizedBox(height: 12),
             Row(

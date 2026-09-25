@@ -36,6 +36,10 @@ class OrganizationSettingsPanel extends StatefulWidget {
 class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
   double? _dragThreshold; // live slider value while dragging
 
+  /// §14.2 — a save's refusal, verbatim, in the panel it came from (a 400
+  /// validation or, since 4.93.0 / ADR-127, `UNKNOWN_KEYS`). It was a toast.
+  String? _saveError;
+
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
@@ -73,16 +77,20 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
     final threshold = _dragThreshold ?? settings.confidenceThreshold;
 
     Future<void> save(Map<String, dynamic> partial) async {
+      setState(() => _saveError = null);
       final err = await org.updateSettings(partial);
-      if (context.mounted && err != null) {
-        AppToast.show(context, err, type: ToastType.error);
-      }
+      if (mounted) setState(() => _saveError = err);
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionHeader('Organization'),
+        if (_saveError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: KitFailureInline(_saveError!),
+          ),
         KitCard(
           padding: const EdgeInsets.all(16),
           child: Column(

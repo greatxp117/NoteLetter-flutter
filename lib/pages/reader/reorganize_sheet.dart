@@ -4,6 +4,8 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import 'reader_ui.dart';
+import '../sources/cloud_sync_copy.dart'
+    show operationOutcome, destinationLabel;
 import '../../theme/app_radius.dart';
 import '../../widgets/kit/kit_failure.dart';
 import '../../widgets/kit/kit_text.dart';
@@ -57,6 +59,28 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
         // and 'split' is the same default the backend applies. Nothing on the
         // sheet states it as a fact.
         .catchError((_) {});
+    _analyze();
+  }
+
+  /// A 409 from execute (the server's sentence): the plan can no longer run —
+  /// expired, already executed, or (4.92.0, ADR-126 §12) the document changed
+  /// after the plan was made, and the backend wrote it `failed`. Nothing was
+  /// moved. The way on is a fresh analysis, offered beside the sentence, and
+  /// the stale Reorganize button is disabled — it could only 409 again.
+  String? _stale;
+
+  void _reanalyze() {
+    setState(() {
+      _stale = null;
+      _error = null;
+      _plan = null;
+      _choices.clear();
+      _confirming = false;
+    });
+    _analyze();
+  }
+
+  void _analyze() {
     Api.instance.analyzeReorganization(widget.docId).then((p) {
       if (!mounted) return;
       setState(() {
@@ -84,8 +108,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
 
   String _destKey(dynamic d) =>
       '${d['kind']}:${d['folder_id'] ?? d['document_id']}';
-  String _destLabel(dynamic d) =>
-      d['kind'] == 'folder' ? (d['path'] ?? 'folder') : (d['title'] ?? 'document');
+  String _destLabel(dynamic d) => destinationLabel(d as Map);
   String _pct(dynamic x) => '${(((x ?? 0) as num) * 100).round()}%';
 
   List<Map<String, dynamic>> get _ops {
@@ -133,9 +156,16 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
             e is ApiException ? e.message : 'The plan could not be followed.');
       });
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      if (!mounted) return;
+      setState(() {
+        if (e.statusCode == 409) {
+          _stale = e.message;
+        } else {
+          _error = e.message;
+        }
+      });
     } catch (_) {
-      setState(() => _error = 'Reorganize failed.');
+      if (mounted) setState(() => _error = 'Reorganize failed.');
     }
   }
 
@@ -157,6 +187,17 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                   ui.eyebrow('Reorganize this document'),
                   const SizedBox(height: 12),
                   if (_error != null) KitFailureInline(_error!),
+                  if (_stale != null) ...[
+                    KitFailureInline(_stale!),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton(
+                          onPressed: _reanalyze,
+                          child: const Text('Analyze again')),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   if (_plan == null && _error == null)
                     ui.note('Reading the document and drafting a plan…'),
                   if (_live != null)
@@ -174,8 +215,10 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
     final status = _live?['status'];
     final msg = status == 'executing'
         ? 'Reorganizing… sections are being routed to their destinations.'
+        // "New documents are in your library" was a claim about every
+        // operation; each one's own outcome is listed below instead.
         : status == 'done'
-            ? 'Done. New documents are in your library; a snapshot of the original was kept.'
+            ? 'Done. A snapshot of the original was kept.'
             : 'Failed: ${_live?['error'] ?? 'unknown error'}. Nothing below the snapshot point was lost.';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 18),
@@ -184,6 +227,14 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
         // last saw: the progress sentence would be a claim this sheet can no
         // longer back. The failure above it is the only thing it still knows.
         if (_error == null) ui.note(msg),
+        // Per operation, what LANDED (4.92.0, ADR-126 §6/§10):
+        // `executed_operations` is written in the batch that performs each
+        // one and kept on failure, and `created_without_artifact` says a
+        // document was made with no file at the provider, and why.
+        if (_error == null)
+          for (final op in (_live?['executed_operations'] as List? ?? const []))
+            if (op is Map)
+              ui.note('• ${operationOutcome(op, _plan?['sections'] as List? ?? const [])}'),
         if (_error == null) const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
@@ -231,7 +282,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
       else
         Row(children: [
           FilledButton(
-            onPressed: _ops.isEmpty
+            onPressed: _ops.isEmpty || _stale != null
                 ? null
                 : () => _hasSplit
                     ? setState(() => _confirming = true)

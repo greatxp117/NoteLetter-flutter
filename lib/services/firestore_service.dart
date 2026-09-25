@@ -229,6 +229,23 @@ class FirestoreService {
             .toList());
   }
 
+  /// ONE suggestion, by id (4.92.0, ADR-126): how an approval this session
+  /// made is followed to `applied | failed`. The queue query reads `pending`
+  /// only, so an approved row left it the moment it was approved and its
+  /// outcome never reached the screen — `screens/sources.md` §Suggestion
+  /// review queue says those transitions are rendered. A single-document
+  /// listener: no query, no index, INV-02 via the owner rule. Null when the
+  /// document is gone. Web: `subscribeOrganizationSuggestion`.
+  Stream<OrganizationSuggestion?> subscribeOrganizationSuggestion(String id) {
+    return _db
+        .collection('organization_suggestions')
+        .doc(id)
+        .snapshots()
+        .map((snap) => snap.exists
+            ? OrganizationSuggestion.fromJson(snap.id, snap.data()!)
+            : null);
+  }
+
   /// Realtime organized-folder tree for a provider (1.2.0): `user_id ==`,
   /// `provider ==`. Strips `charter.embedding` (INV-05).
   Stream<List<CloudFolder>> subscribeCloudFolders(String provider) {

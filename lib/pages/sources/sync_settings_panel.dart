@@ -267,8 +267,13 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                           syncFrequency: _frequencies[n])),
                     ),
 
-                    _Label('Preferred hour'),
-                    Row(
+                    // Daily and weekly only: the orchestrator ignores the
+                    // hour on Hourly (`_scheduled_sync_due`), so a control
+                    // there would set a value nothing reads. The reference
+                    // hides it the same way (NoteLetter-web@f050fe2).
+                    if (i.syncFrequency != 'hourly') ...[
+                      _Label('Preferred hour'),
+                      Row(
                       children: [
                         _HourField(
                           hour: i.syncPreferredHour ?? _defaultHour,
@@ -288,7 +293,8 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                           ),
                         ),
                       ],
-                    ),
+                      ),
+                    ],
 
                     // Sync folders — the scope (§Sync control: "reuse the
                     // file picker in folders-only mode, ≤20; chips with

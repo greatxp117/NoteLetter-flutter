@@ -13,7 +13,10 @@ class ImportJob {
   final String? documentId;
   final String? errorMessage;
 
-  /// 1.3.0 (ADR-006): `"duplicate" | "size_limit" | null` (missing pre-1.3.0).
+  /// 1.3.0 (ADR-006): `"duplicate" | "size_limit" | null` (missing pre-1.3.0);
+  /// 4.45.0 `"dismissed"`, 4.79.0 `"plan_limit"`, 4.91.0 `"unsupported_type"`.
+  /// The vocabulary is open: an unknown reason renders muted, with its
+  /// sentence from [errorMessage], and no control.
   final String? skipReason;
 
   /// Why the job is held: `type` or `size` (4.45.0, ADR-083). Rendered as the
@@ -90,6 +93,12 @@ class ImportJob {
   /// is room.
   bool get isPlanLimited => skipReason == 'plan_limit';
 
+  /// The classifier refused the file's type (4.91.0, ADR-125 §1) — a
+  /// hand-picked spreadsheet, archive or legacy .doc. Its sentence is
+  /// [errorMessage], the classifier's own. **No control**: a retry would meet
+  /// the same classifier and skip identically, like a `size_limit` skip.
+  bool get isUnsupportedType => skipReason == 'unsupported_type';
+
   /// The skips whose control is **Import again** — the explicit override, not a
   /// retry of a failure (`screens/sources.md` §Trust & feedback).
   bool get isImportAgain =>
@@ -97,7 +106,8 @@ class ImportJob {
 
   /// Which rows carry a control at all. `error`/`cancelled` retry; of the
   /// skips, only the three [isImportAgain] names do. **Not every `skipped`**:
-  /// a `size_limit` retry would skip identically, and a pre-1.3.0 skip (no
+  /// a `size_limit` or [isUnsupportedType] retry would skip identically, and a
+  /// pre-1.3.0 skip (no
   /// `skip_reason`) is spec'd action-less — "any skipped" put Retry on both.
   bool get canRetry =>
       status == 'error' || status == 'cancelled' || isImportAgain;

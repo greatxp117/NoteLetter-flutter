@@ -15,6 +15,14 @@ import '../services/error_text.dart';
 const int kMaxImportFolders = 20;
 const int kMaxImportFiles = 50;
 
+/// Sentinel for "the disconnect response carried no `revoked` key" — distinct
+/// from a JSON `null`, which is a claim (this provider has no revocation).
+const Object revokedAbsent = _RevokedAbsent();
+
+class _RevokedAbsent {
+  const _RevokedAbsent();
+}
+
 /// One level in the picker breadcrumb.
 class CloudCrumb {
   final String id; // provider-native folder id ('root' for the top)
@@ -371,9 +379,28 @@ class CloudNotifier extends ChangeNotifier {
     }
   }
 
+  /// What the last disconnect did at the provider (4.89.0, ADR-123 §5):
+  /// `(provider, revoked)`, where `revoked` is the response's `true · false ·
+  /// null`, or [revokedAbsent] when the backend never asked. Kept HERE, not on
+  /// the card: the card the reader tapped turns into "Not connected" the
+  /// moment the write lands, and a sentence inside it would vanish with the
+  /// state it is about. Cleared when the next disconnect starts.
+  (String, Object?)? _lastDisconnect;
+  (String, Object?)? get lastDisconnect => _lastDisconnect;
+
+  void clearDisconnectNote() {
+    if (_lastDisconnect == null) return;
+    _lastDisconnect = null;
+    _notify();
+  }
+
   Future<String?> disconnect(String provider) async {
     try {
-      await Api.instance.disconnectCloudStorage(provider);
+      final res = await Api.instance.disconnectCloudStorage(provider);
+      // `containsKey`, not `res['revoked']`: an absent key and a JSON null are
+      // two different claims, and only one of them is about the provider.
+      _lastDisconnect =
+          (provider, res.containsKey('revoked') ? res['revoked'] : revokedAbsent);
       _integrations.removeWhere((i) => i.provider == provider);
       if (_browseProvider == provider) closePicker();
       _notify();
@@ -390,7 +417,16 @@ class CloudNotifier extends ChangeNotifier {
 
   // ── Picker ────────────────────────────────────────────────────────────────
 
+  /// The import's own refusal (§14.2), inline in the picker it came from —
+  /// a 400 `UNKNOWN_KEYS` or cap (4.91.0, ADR-125 §2), a 403 `PLAN_LIMIT`, a
+  /// 409 reconnect. It was a toast, gone before a sentence naming the cap
+  /// could be read, over a picker that kept the same selection. Cleared when
+  /// the picker opens, closes or tries again.
+  String? _importError;
+  String? get importError => _importError;
+
   Future<void> openPicker(String provider) async {
+    _importError = null;
     _browseProvider = provider;
     _crumbs
       ..clear()
@@ -401,6 +437,7 @@ class CloudNotifier extends ChangeNotifier {
   }
 
   void closePicker() {
+    _importError = null;
     _browseProvider = null;
     _crumbs.clear();
     _listing = null;
@@ -510,6 +547,8 @@ class CloudNotifier extends ChangeNotifier {
     // per-provider breakdown is already in activity_events where it belongs.
     // Neither are the folder or file ids, which are the reader's own tree.
     Analytics.track('capture_started', {'surface': 'cloud'});
+    _importError = null;
+    _notify();
     try {
       final data = await Api.instance.importFromCloud(
         provider,
@@ -526,9 +565,13 @@ class CloudNotifier extends ChangeNotifier {
       await AuthService.instance.signOut();
       return ('Session expired.', true);
     } on ApiException catch (e) {
+      _importError = e.message;
+      _notify();
       return (e.message, true);
     } catch (_) {
-      return ('Import failed. Please try again.', true);
+      _importError = 'Import failed. Please try again.';
+      _notify();
+      return (_importError!, true);
     }
   }
 
