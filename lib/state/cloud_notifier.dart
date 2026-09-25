@@ -55,6 +55,13 @@ class CloudNotifier extends ChangeNotifier {
   List<ImportJob> get heldJobs =>
       List.unmodifiable(_jobs.where((j) => j.isAwaitingReview));
 
+  /// What the last triage batch did that the rows alone do not say (4.69.0,
+  /// ADR-103 §4 amended). Null until a batch has answered. Kept HERE, not in
+  /// the queue section: dismissing the last held file unmounts that section,
+  /// and a line inside it about what just happened would vanish with it.
+  ReviewOutcome? _reviewOutcome;
+  ReviewOutcome? get reviewOutcome => _reviewOutcome;
+
   /// Triage held jobs. Returns a message on failure, null on success.
   ///
   /// **Renders pessimistically**: nothing is moved here. The rows leave the
@@ -62,17 +69,45 @@ class CloudNotifier extends ChangeNotifier {
   /// before the write hides the failure completely, and this one acts on files
   /// the reader may not be able to see.
   ///
-  /// Chunked to the endpoint's 50-id cap. Ids reported in `skipped` are jobs
-  /// already triaged elsewhere; they are **not** an error and simply leave the
-  /// queue on the next snapshot.
+  /// Chunked to the endpoint's 50-id cap. The 202 carries two id lists that
+  /// mean opposite things, and BOTH are read into [reviewOutcome]: `skipped`
+  /// is a judgement (already triaged elsewhere — not an error), `failed` is
+  /// the task queue refusing, so the approve started nothing. The server stops
+  /// at the first `failed` id, so the ids past it were never attempted and are
+  /// still `awaiting_review`; this stops sending further chunks too, because
+  /// the queue is down, not that file. Reading neither list put a queue outage
+  /// under "success".
   Future<String?> reviewJobs(List<String> jobIds, String action) async {
     if (jobIds.isEmpty) return null;
+    _reviewOutcome = null;
+    _notify();
+    var skipped = 0;
+    final failed = <String>[];
+    var attempted = 0;
     try {
       for (var i = 0; i < jobIds.length; i += 50) {
         final chunk = jobIds.sublist(
             i, i + 50 > jobIds.length ? jobIds.length : i + 50);
-        await Api.instance.reviewImportJobs(chunk, action);
+        final res = await Api.instance.reviewImportJobs(chunk, action);
+        skipped += ((res['skipped'] as List?) ?? const []).length;
+        final chunkFailed =
+            ((res['failed'] as List?) ?? const []).map((e) => '$e').toList();
+        failed.addAll(chunkFailed);
+        attempted += chunk.length;
+        if (chunkFailed.isNotEmpty) {
+          // Everything after the first failed id in THIS chunk was not
+          // attempted, and neither is any later chunk.
+          final at = chunk.indexOf(chunkFailed.first);
+          if (at >= 0) attempted -= chunk.length - (at + 1);
+          break;
+        }
       }
+      _reviewOutcome = ReviewOutcome(
+        skipped: skipped,
+        failedNames: [for (final id in failed) _nameOf(id)],
+        notAttempted: failed.isEmpty ? 0 : jobIds.length - attempted,
+      );
+      _notify();
       return null;
     } on UnauthorizedException {
       await AuthService.instance.signOut();
@@ -89,6 +124,15 @@ class CloudNotifier extends ChangeNotifier {
           ? 'Those files could not be imported.'
           : 'Those files could not be dismissed.';
     }
+  }
+
+  String _nameOf(String jobId) {
+    for (final j in _jobs) {
+      if (j.id == jobId && j.providerFileName.isNotEmpty) {
+        return j.providerFileName;
+      }
+    }
+    return jobId;
   }
 
   String? get browseProvider => _browseProvider;
@@ -117,6 +161,7 @@ class CloudNotifier extends ChangeNotifier {
     _jobsSub ??= FirestoreService.instance
         .subscribeCloudImportJobs()
         .listen((list) {
+      _trackTransitions(list);
       _jobs = list;
       _jobsError = null;
       _evaluateSession();
@@ -131,6 +176,87 @@ class CloudNotifier extends ChangeNotifier {
     loadIntegrations();
   }
 
+  // ── Progress section (screens/sources.md §Cloud import) ───────────────────
+  // The section shows every non-terminal job plus THIS session's terminal
+  // ones — never weeks-old history, which is §Import history's. A job is this
+  // session's if it went terminal while this app watched it, or if it was
+  // created since a kickoff made here.
+
+  /// `created_at` is a SERVER stamp and the kickoff time is this device's
+  /// clock. 2s of slack dropped a whole session whenever the server trailed
+  /// the phone; the reference's two minutes is the tolerance (web
+  /// `sinceKickoff`).
+  static const int kKickoffSlackMs = 120000;
+
+  /// How long folder discovery may keep adding jobs before a kickoff that
+  /// produced none is called "already imported" (web: 60s).
+  static const Duration kDiscoveryWindow = Duration(seconds: 60);
+
+  ImportKickoff? _kickoff;
+  ImportKickoff? get kickoff => _kickoff;
+  bool _kickoffSettled = false;
+  Timer? _settleTimer;
+  final Set<String> _sessionIds = {};
+  Map<String, String> _prevStatus = {};
+
+  void _trackTransitions(List<ImportJob> next) {
+    final prev = _prevStatus;
+    final now = <String, String>{};
+    for (final j in next) {
+      now[j.id] = j.status;
+      final before = prev[j.id];
+      if (j.isTerminal && before != null && !ImportJob.isTerminalStatus(before)) {
+        _sessionIds.add(j.id);
+      }
+    }
+    _prevStatus = now;
+  }
+
+  bool _sinceKickoff(ImportJob j) {
+    final k = _kickoff;
+    final at = j.createdAt;
+    return k != null && at != null && at >= k.at - kKickoffSlackMs;
+  }
+
+  /// The progress section's rows. `awaiting_review` is non-terminal but is
+  /// NOT progress — it is the review queue's, and must not count twice.
+  List<ImportJob> get progressJobs => [
+        for (final j in _jobs)
+          if (!j.isAwaitingReview &&
+              (!j.isTerminal || _sessionIds.contains(j.id) || _sinceKickoff(j)))
+            j,
+      ];
+
+  /// Terminal jobs, for §Import history (the whole subscription window).
+  List<ImportJob> get historyJobs =>
+      [for (final j in _jobs) if (j.isTerminal && j.createdAt != null) j];
+
+  List<ImportJob> get _newJobs =>
+      _kickoff == null ? const [] : progressJobs.where(_sinceKickoff).toList();
+
+  /// Discovery is recursive and incremental, so M is not a total while a
+  /// folder kickoff still has work in flight or has produced nothing yet.
+  bool get discovering {
+    final k = _kickoff;
+    if (k == null || k.queuedFolders <= 0) return false;
+    return progressJobs.any((j) => !j.isTerminal) ||
+        (_newJobs.isEmpty && !_kickoffSettled);
+  }
+
+  /// A folder kickoff whose window closed with zero new jobs: everything
+  /// there was already imported.
+  bool get nothingNew {
+    final k = _kickoff;
+    return k != null &&
+        k.queuedFolders > 0 &&
+        _newJobs.isEmpty &&
+        _kickoffSettled;
+  }
+
+  /// Kicked off, and no job has arrived yet — "Discovering files…".
+  bool get awaitingFirstJob =>
+      _kickoff != null && _newJobs.isEmpty && !_kickoffSettled;
+
   // ── Completion notifications (1.4.0, ADR-007 — client-side, sources.md) ──────
   // A tracked session = jobs that arrive on the subscription after a kickoff
   // this app session (picker import / Sync now). When such a session goes from
@@ -143,17 +269,32 @@ class CloudNotifier extends ChangeNotifier {
   int? _sessionStartAt;
   bool _sawWorking = false;
 
-  void _beginSession() {
-    _sessionStartAt = DateTime.now().millisecondsSinceEpoch;
+  /// [queuedFolders] is the figure the 202 MEASURED, never the request's
+  /// length — a kickoff's count is counted, not assumed (ADR-103).
+  void _beginSession(int queuedFolders) {
+    final at = DateTime.now().millisecondsSinceEpoch;
+    _sessionStartAt = at;
     _sawWorking = false;
+    _kickoff = ImportKickoff(at: at, queuedFolders: queuedFolders);
+    _kickoffSettled = false;
+    _settleTimer?.cancel();
+    _settleTimer = Timer(kDiscoveryWindow, () {
+      _kickoffSettled = true;
+      _notify();
+    });
   }
 
   void _evaluateSession() {
     final start = _sessionStartAt;
     if (start == null) return;
-    // Jobs created at/after kickoff (2s slack for clock skew) are this session.
-    final tracked =
-        _jobs.where((j) => (j.createdAt ?? 0) >= start - 2000).toList();
+    // Jobs created since kickoff (server-clock slack) are this session. A held
+    // job waits on the reader, not the pipeline, so it is not the session's to
+    // finish — counting it kept a session open for ever.
+    final tracked = _jobs
+        .where((j) =>
+            (j.createdAt ?? 0) >= start - kKickoffSlackMs &&
+            !j.isAwaitingReview)
+        .toList();
     if (tracked.isEmpty) return;
     if (tracked.any((j) => !j.isTerminal)) {
       _sawWorking = true;
@@ -378,7 +519,7 @@ class CloudNotifier extends ChangeNotifier {
       Analytics.track('capture_completed', {'surface': 'cloud'});
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
       final n = (data['queued_files'] as num?)?.toInt() ?? 0;
-      _beginSession();
+      _beginSession(f);
       closePicker();
       return ('Queued $f folder(s) and $n file(s).', false);
     } on UnauthorizedException {
@@ -403,16 +544,26 @@ class CloudNotifier extends ChangeNotifier {
   }
 
   /// Manual "sync now" over the provider's configured sync folders.
-  Future<(String, bool)> syncNow(String provider) async {
+  ///
+  /// A 429 is a WAIT, not a failure — the sentence is the server's, with its
+  /// exact seconds, and it renders as a note; the 400 (no folders) and 409
+  /// (reconnect) are refusals and render as §14.2.
+  Future<(String, SyncNowResult)> syncNow(String provider) async {
     try {
       final data = await Api.instance.requestCloudSync(provider);
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
-      _beginSession();
-      return ('Checking $f folder(s)…', false);
+      _beginSession(f);
+      return ('Checking $f folder(s)…', SyncNowResult.queued);
     } on ApiException catch (e) {
-      return (e.message, true); // 400 no-folders / 409 reconnect / 429 cooldown
+      if (e.statusCode == 429) {
+        return (
+          cooldownSentence(e, 'A sync was requested moments ago.'),
+          SyncNowResult.wait
+        );
+      }
+      return (e.message, SyncNowResult.refused);
     } catch (_) {
-      return ('Sync failed. Please try again.', true);
+      return ('Sync failed. Please try again.', SyncNowResult.refused);
     }
   }
 
@@ -489,8 +640,40 @@ class CloudNotifier extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _settleTimer?.cancel();
     _jobsSub?.cancel();
     completionMessage.dispose();
     super.dispose();
   }
 }
+
+/// A kickoff made on this device: when, and how many folders the 202 said it
+/// queued (a kickoff is only "still discovering" when it queued folders).
+class ImportKickoff {
+  final int at;
+  final int queuedFolders;
+  const ImportKickoff({required this.at, required this.queuedFolders});
+}
+
+/// What a triage batch answered beyond the rows (4.69.0, ADR-103 §4).
+class ReviewOutcome {
+  /// Ids already triaged elsewhere — a measured count, not an error.
+  final int skipped;
+
+  /// Files the task queue refused to start, by NAME: the retry is per-row and
+  /// the reader has to find it.
+  final List<String> failedNames;
+
+  /// Sent but never attempted — the server stopped at the first failure, so
+  /// these are still waiting for review. Derived, never sent.
+  final int notAttempted;
+
+  const ReviewOutcome({
+    required this.skipped,
+    required this.failedNames,
+    required this.notAttempted,
+  });
+}
+
+/// What a Sync now answered: started, told to wait (429), or refused.
+enum SyncNowResult { queued, wait, refused }

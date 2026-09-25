@@ -305,8 +305,26 @@ class _SourcesPageState extends State<SourcesPage> {
                     ),
                   ),
 
-              _ReviewQueue(held: cloud.heldJobs),
-              _ImportActivity(jobs: cloud.jobs, error: cloud.jobsError),
+              // What the last triage batch did that the rows cannot say.
+              // HERE and not inside the queue: dismissing the last held file
+              // unmounts that section, and a line about what just happened
+              // would vanish with the thing it is about.
+              if (cloud.reviewOutcome != null)
+                _ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
+              _ReviewQueue(
+                held: cloud.heldJobs,
+                rulesFor: (p) =>
+                    cloud.integrationFor(p)?.reviewRules ?? const {},
+              ),
+              _ImportActivity(
+                jobs: cloud.progressJobs,
+                all: cloud.jobs,
+                error: cloud.jobsError,
+                summary: _progressSummary(cloud),
+                discoveringFiles: cloud.awaitingFirstJob,
+              ),
+              _ImportHistory(
+                  jobs: cloud.historyJobs, windowFull: cloud.jobs.length >= 50),
               const OrganizationSettingsPanel(),
               const _OrganizationSection(),
 
@@ -325,7 +343,7 @@ class _SourcesPageState extends State<SourcesPage> {
 
 // ── Connect card ─────────────────────────────────────────────────────────────
 
-class _ProviderCard extends StatelessWidget {
+class _ProviderCard extends StatefulWidget {
   final String providerId;
   final ({String name, String sub, IconData icon}) spec;
   final CloudIntegration? integration;
@@ -337,10 +355,50 @@ class _ProviderCard extends StatelessWidget {
   });
 
   @override
+  State<_ProviderCard> createState() => _ProviderCardState();
+}
+
+class _ProviderCardState extends State<_ProviderCard> {
+  /// Sync now in flight, and the sentence it came back with — a 429 cooldown
+  /// (a wait, drawn as a note) or a refusal (§14.2) — inline on the card, as
+  /// §Sync control requires, never a toast that is gone before it is read.
+  bool _syncing = false;
+  String? _syncNote;
+  bool _syncRefused = false;
+
+  /// The server's own 400 sentence for a provider with no sync folders
+  /// (`fn_request_cloud_sync`). The button is disabled on the same condition,
+  /// and the reason is VISIBLE — a disabled control with no reason reads as
+  /// broken, and a tooltip reaches neither a finger nor a screen reader.
+  static const _noFolders = 'Nothing to sync — choose sync folders first.';
+
+  Future<void> _syncNow() async {
+    setState(() {
+      _syncing = true;
+      _syncNote = null;
+    });
+    final (msg, result) =
+        await context.read<CloudNotifier>().syncNow(widget.providerId);
+    if (!mounted) return;
+    setState(() {
+      _syncing = false;
+      _syncNote = result == SyncNowResult.queued ? null : msg;
+      _syncRefused = result == SyncNowResult.refused;
+    });
+    if (result == SyncNowResult.queued) {
+      AppToast.show(context, msg, type: ToastType.success);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final providerId = widget.providerId;
+    final spec = widget.spec;
+    final integration = widget.integration;
     final cloud = context.read<CloudNotifier>();
     final connected = integration != null;
     final needsReconnect = integration?.needsReconnect ?? false;
+    final noFolders = connected && integration.folderIds.isEmpty;
 
     Future<void> run(Future<String?> Function() action, {String? okMsg}) async {
       final err = await action();
@@ -357,7 +415,7 @@ class _ProviderCard extends StatelessWidget {
       title: spec.name,
       subtitle: !connected
           ? spec.sub
-          : (integration!.providerEmail ?? integration!.lastSyncLabel),
+          : (integration.providerEmail ?? integration.lastSyncLabel),
       status: needsReconnect
           ? 'Reconnect'
           : connected
@@ -384,12 +442,9 @@ class _ProviderCard extends StatelessWidget {
           KitButton.ghost('Browse files…',
               icon: Icons.folder_open,
               onPressed: () => cloud.openPicker(providerId)),
-          KitButton.ghost('Sync now', icon: Icons.sync, onPressed: () async {
-            final (msg, isErr) = await cloud.syncNow(providerId);
-            if (!context.mounted) return;
-            AppToast.show(context, msg,
-                type: isErr ? ToastType.error : ToastType.success);
-          }),
+          KitButton.ghost(_syncing ? 'Syncing…' : 'Sync now',
+              icon: Icons.sync,
+              onPressed: _syncing || noFolders ? null : _syncNow),
           // Auto-organization enable (1.2.0) — requests write scopes via OAuth;
           // returns to /sources with org=enabled on a full grant.
           Builder(builder: (context) {
@@ -426,6 +481,15 @@ class _ProviderCard extends StatelessWidget {
           }),
         ],
       ],
+      footnote: !connected || needsReconnect
+          ? null
+          : _syncNote != null
+              ? (_syncRefused
+                  ? KitFailureInline(_syncNote!, dense: true)
+                  : Text(_syncNote!, style: KitText.meta(context)))
+              : noFolders
+                  ? Text(_noFolders, style: KitText.meta(context))
+                  : null,
     );
   }
 }
@@ -644,7 +708,13 @@ class _FileRow extends StatelessWidget {
 // ── Import activity ──────────────────────────────────────────────────────────
 
 class _ImportActivity extends StatelessWidget {
+  /// The progress rows (`CloudNotifier.progressJobs`): every non-terminal job
+  /// plus this session's terminal ones — never the whole window of 50, which
+  /// is §Import history's.
   final List<ImportJob> jobs;
+
+  /// The whole subscription, only to tell "nothing read" from "nothing here".
+  final List<ImportJob> all;
 
   /// `CloudNotifier.jobsError` — set since the notifier was written, read by
   /// nothing until C3. Its own comment says why it matters: an unread job list
@@ -652,15 +722,30 @@ class _ImportActivity extends StatelessWidget {
   /// an import wants to know is false.
   final String? error;
 
-  const _ImportActivity({required this.jobs, this.error});
+  /// "{N} of {M} imported[ so far — still discovering files]", or the
+  /// settled "Everything there was already imported." Null with no kickoff
+  /// and no rows.
+  final String? summary;
+
+  /// A kickoff whose jobs have not arrived yet — indeterminate, by contract.
+  final bool discoveringFiles;
+
+  const _ImportActivity({
+    required this.jobs,
+    required this.all,
+    this.error,
+    this.summary,
+    this.discoveringFiles = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final t = Tokens.of(context);
     // Hiding the section was the failure mode, not a symptom of it: an empty
     // list and an unreadable one both collapsed to `SizedBox.shrink()`, so the
     // one reader who needed the difference — someone watching an import — got
     // the same blank space either way (INV-24, ADR-071).
-    if (error != null && jobs.isEmpty) {
+    if (error != null && all.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -674,31 +759,184 @@ class _ImportActivity extends StatelessWidget {
         ],
       );
     }
-    if (jobs.isEmpty) return const SizedBox.shrink();
+    if (jobs.isEmpty && summary == null) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(error != null
-            ? 'Import activity'
-            : 'Import activity · ${jobs.length}'),
+        SectionHeader(
+          error != null || jobs.isEmpty
+              ? 'Import activity'
+              : 'Import activity · ${jobs.length}',
+          note: error != null ? null : summary,
+        ),
         if (error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: KitFailureInline(error!),
           ),
-        KitRowList(
-          rows: [for (final j in jobs) _JobRow(job: j)],
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(
-            // The subscription is capped at 50, so the list is a window and is
-            // labelled as one rather than paginated.
-            'Showing the 50 most recent import jobs.',
-            style: KitText.meta(context),
+        if (discoveringFiles)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ClipRRect(
+                  borderRadius: AppRadius.pillR(4),
+                  child: LinearProgressIndicator(
+                    minHeight: 4,
+                    backgroundColor: t.surfaceSunken,
+                    color: t.accent,
+                  ),
+                ),
+                const KitProcNote('Discovering files…'),
+              ],
+            ),
           ),
-        ),
+        if (jobs.isNotEmpty)
+          KitRowList(rows: [for (final j in jobs) _JobRow(key: ValueKey(j.id), job: j)]),
       ],
+    );
+  }
+}
+
+/// The progress summary (`screens/sources.md` §Cloud import): "{N} of {M}
+/// imported" where M is the rows on screen — **never a determinate
+/// fraction**, because discovery adds jobs as it goes and dedupe skips
+/// silently. Null when there is nothing to summarise.
+String? _progressSummary(CloudNotifier cloud) {
+  final visible = cloud.progressJobs;
+  if (cloud.nothingNew && visible.isEmpty) {
+    return 'Everything there was already imported.';
+  }
+  if (visible.isEmpty && cloud.kickoff == null) return null;
+  final done = visible.where((j) => j.status == 'complete').length;
+  return '$done of ${visible.length} imported'
+      '${cloud.discovering ? ' so far — still discovering files' : ''}';
+}
+
+/// **Import history** (`screens/sources.md` §Trust & feedback): collapsed,
+/// terminal jobs grouped by calendar day (`created_at`, client-local), the
+/// day header counting THAT day's outcomes, rows reusing the progress-row
+/// treatment with its retry. Bounded by the subscription's 50 and said so.
+class _ImportHistory extends StatefulWidget {
+  final List<ImportJob> jobs;
+  final bool windowFull;
+  const _ImportHistory({required this.jobs, required this.windowFull});
+
+  @override
+  State<_ImportHistory> createState() => _ImportHistoryState();
+}
+
+class _ImportHistoryState extends State<_ImportHistory> {
+  bool _open = false;
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  /// One day's own counts — never the held count of the whole subscription,
+  /// which the reference repeats under every day.
+  static String _daySummary(List<ImportJob> rows) {
+    int n(String s) => rows.where((j) => j.status == s).length;
+    return [
+      if (n('complete') > 0) '${n('complete')} imported',
+      if (n('error') > 0) '${n('error')} failed',
+      if (n('skipped') > 0) '${n('skipped')} skipped',
+      if (n('cancelled') > 0) '${n('cancelled')} cancelled',
+    ].join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final jobs = widget.jobs;
+    if (jobs.isEmpty) return const SizedBox.shrink();
+    final byDay = <DateTime, List<ImportJob>>{};
+    for (final j in jobs) {
+      final d = DateTime.fromMillisecondsSinceEpoch(j.createdAt!);
+      byDay.putIfAbsent(DateTime(d.year, d.month, d.day), () => []).add(j);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          'Import history',
+          actionLabel: _open ? 'Hide' : 'Show ${jobs.length}',
+          onAction: () => setState(() => _open = !_open),
+        ),
+        if (_open) ...[
+          for (final e in byDay.entries) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${_months[e.key.month - 1]} ${e.key.day}, ${e.key.year}',
+                      style: KitText.meta(context),
+                    ),
+                  ),
+                  Flexible(
+                    child: Text(_daySummary(e.value),
+                        textAlign: TextAlign.right,
+                        style: KitText.meta(context)),
+                  ),
+                ],
+              ),
+            ),
+            KitRowList(rows: [for (final j in e.value) _JobRow(key: ValueKey(j.id), job: j)]),
+          ],
+          if (widget.windowFull)
+            const KitProcNote('Showing the most recent 50 import jobs.'),
+        ],
+      ],
+    );
+  }
+}
+
+/// A triage batch's partial outcome (4.69.0, ADR-103 §4 amended). Two lines
+/// that must never merge: `skipped` is a measured count and a note — nothing
+/// failed — while `failed` is §14.2 inline, naming the FILE, because the
+/// retry is per-row and the reader has to find it. It sits beside the note,
+/// never in place of the section: what the batch did do is real.
+class _ReviewOutcomeNotes extends StatelessWidget {
+  final ReviewOutcome outcome;
+  const _ReviewOutcomeNotes({required this.outcome});
+
+  @override
+  Widget build(BuildContext context) {
+    final o = outcome;
+    final skipped = o.skipped;
+    final failed = o.failedNames;
+    final rest = o.notAttempted;
+    if (skipped == 0 && failed.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (skipped > 0)
+            KitProcNote(
+              '$skipped ${skipped == 1 ? 'file was' : 'files were'} already '
+              'handled — another tab or device got there first, so '
+              '${skipped == 1 ? 'it was' : 'they were'} left alone.',
+              padding: EdgeInsets.zero,
+            ),
+          if (failed.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: skipped > 0 ? 6 : 0),
+              child: KitFailureInline(
+                'Could not start ${failed.join(', ')} — the import queue did '
+                'not accept ${failed.length == 1 ? 'it' : 'them'}. Retry from '
+                'the list below.'
+                '${rest > 0 ? ' $rest other ${rest == 1 ? 'file is' : 'files are'} '
+                    'still waiting for review — nothing was started for '
+                    '${rest == 1 ? 'it' : 'them'}.' : ''}',
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -718,7 +956,10 @@ class _ImportActivity extends StatelessWidget {
 /// sight.
 class _ReviewQueue extends StatefulWidget {
   final List<ImportJob> held;
-  const _ReviewQueue({required this.held});
+
+  /// The provider's `review_rules`, so a size hold can name its threshold.
+  final Map<String, ReviewRule> Function(String provider) rulesFor;
+  const _ReviewQueue({required this.held, required this.rulesFor});
 
   @override
   State<_ReviewQueue> createState() => _ReviewQueueState();
@@ -795,7 +1036,11 @@ class _ReviewQueueState extends State<_ReviewQueue> {
         ],
         const SizedBox(height: 10),
         KitRowList(
-          rows: [for (final j in held) _HeldRow(job: j, onRun: _run)],
+          rows: [
+            for (final j in held)
+              _HeldRow(
+                  job: j, rules: widget.rulesFor(j.provider), onRun: _run),
+          ],
         ),
         // The standing sentence the per-row control keeps above the list, so a
         // single Dismiss is not silent about being permanent.
@@ -816,32 +1061,36 @@ class _ReviewQueueState extends State<_ReviewQueue> {
 /// A held row: the progress-row anatomy, plus the **size** and the **reason**.
 class _HeldRow extends StatelessWidget {
   final ImportJob job;
+  final Map<String, ReviewRule> rules;
   final Future<void> Function(List<String> ids, String action) onRun;
 
-  const _HeldRow({required this.job, required this.onRun});
+  const _HeldRow({required this.job, required this.rules, required this.onRun});
 
   /// "PDF · 42 MB — over your 5 MB review size" / "PPTX — you asked about
   /// every one". **Named by size, never by length**: there is no page count to
   /// promise, because no provider reports one (ADR-083).
+  ///
+  /// The head is the TYPE KEY of the file's MIME, never `kitDocKind(mime)`:
+  /// that table is keyed by document `type`, so a MIME fell through to `note`
+  /// and every held row read "NOTE · 42 MB". The threshold is the rule's own
+  /// number, read off the provider's `review_rules` — "over your review size"
+  /// without it asked the reader to remember what they had set.
   String _reason() {
-    final kind = job.mimeType.isEmpty
-        ? ''
-        : kitDocKind(job.mimeType).toUpperCase();
-    final size = job.fileSize > 0
-        ? '${(job.fileSize / (1024 * 1024)).toStringAsFixed(job.fileSize >= 10 * 1024 * 1024 ? 0 : 1)} MB'
-        : '';
-    final head = [if (kind.isNotEmpty) kind, if (size.isNotEmpty) size]
-        .join(' · ');
-    final why = job.reviewReason == 'type'
-        ? 'you asked about every one'
-        : 'over your review size';
-    return head.isEmpty ? why : '$head — $why';
+    final key = job.typeKey;
+    final kind = key == null ? 'File' : _typeLabel(key);
+    final size = _fmtSize(job.fileSize);
+    final head = size.isEmpty ? kind : '$kind · $size';
+    if (job.reviewReason == 'type') return '$head — you asked about every one';
+    final rule = key == null ? null : rules[key];
+    return rule != null && !rule.isAlways && rule.overMb != null
+        ? '$head — over your ${rule.overMb} MB review size'
+        : head;
   }
 
   @override
   Widget build(BuildContext context) {
     return KitSourceRow(
-      leading: const KitFileBadge('web'),
+      leading: KitFileBadge(kitDocKind(job.docType)),
       title: job.providerFileName.isEmpty
           ? '(fetching name…)'
           : job.providerFileName,
@@ -863,20 +1112,44 @@ class _HeldRow extends StatelessWidget {
   }
 }
 
-class _JobRow extends StatelessWidget {
+class _JobRow extends StatefulWidget {
   final ImportJob job;
-  const _JobRow({required this.job});
+  const _JobRow({super.key, required this.job});
+
+  @override
+  State<_JobRow> createState() => _JobRowState();
+}
+
+class _JobRowState extends State<_JobRow> {
+  /// A retry in flight, and the sentence a refusal came back with — the
+  /// 409/429 copy is user-facing and belongs ON the row it is about
+  /// (§Trust & feedback: "render 409/429 `error` message inline").
+  bool _busy = false;
+  String? _retryError;
+
+  Future<void> _retry() async {
+    setState(() {
+      _busy = true;
+      _retryError = null;
+    });
+    final err = await context.read<CloudNotifier>().retryJob(widget.job.id);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _retryError = err;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final cloud = context.read<CloudNotifier>();
+    final job = widget.job;
     final (label, tone) = _status(job, t);
 
-    return KitSourceRow(
-      // The plate says where a source came from; an import job is a file
-      // fetched from a service, so it takes the web plate.
-      leading: const KitFileBadge('web'),
+    final row = KitSourceRow(
+      // The plate is the FILE's kind, from its MIME through the one kind
+      // table. A hardcoded `web` plate said every imported PDF was a page.
+      leading: KitFileBadge(kitDocKind(job.docType)),
       title: job.providerFileName.isEmpty
           ? '(fetching name…)'
           : job.providerFileName,
@@ -884,8 +1157,11 @@ class _JobRow extends StatelessWidget {
         label,
         if (job.providerPath.isNotEmpty) job.providerPath,
         // The failure reason is shown verbatim; a skipped job's reason is what
-        // makes "Already imported" a fact rather than a shrug.
-        if (job.errorMessage != null) job.errorMessage!,
+        // makes a skip a fact rather than a shrug. Not for a duplicate or a
+        // dismissal: their `error_message` IS the status word above, and the
+        // row said it twice.
+        if (job.errorMessage != null && !job.isDuplicate && !job.isDismissed)
+          job.errorMessage!,
       ].join(' · '),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -893,21 +1169,34 @@ class _JobRow extends StatelessWidget {
           if (job.isDuplicate && job.documentId != null)
             KitButton.ghost('View',
                 onPressed: () => context.go('/reader/${job.documentId}')),
-          // A size-cap skip gets NO retry: it would skip identically.
-          if (job.canRetry && !job.isSizeLimited)
-            KitButton.ghost(job.isDuplicate ? 'Import again' : 'Retry',
-                onPressed: () async {
-              final err = await cloud.retryJob(job.id);
-              if (context.mounted && err != null) {
-                AppToast.show(context, err, type: ToastType.error);
-              }
-            }),
+          // `canRetry` is the whole rule: error/cancelled retry, and of the
+          // skips only duplicate · dismissed · plan_limit import again. A
+          // size-cap skip would skip identically; a legacy skip is action-less.
+          if (job.canRetry)
+            KitButton.ghost(
+                _busy
+                    ? 'Retrying…'
+                    : job.isImportAgain
+                        ? 'Import again'
+                        : 'Retry',
+                onPressed: _busy ? null : _retry),
           if (tone != null) ...[
             const SizedBox(width: 4),
             Icon(tone.$1, size: 16, color: tone.$2),
           ],
         ],
       ),
+    );
+    if (_retryError == null) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.only(left: 18, right: 18, bottom: 12),
+          child: KitFailureInline(_retryError!, dense: true),
+        ),
+      ],
     );
   }
 
@@ -1126,4 +1415,24 @@ String _count(int n) {
     out.write(s[i]);
   }
   return out.toString();
+}
+
+/// The spelling of a cloud type key on a held row. The spec's own examples
+/// ("PDF · 42 MB", "PPTX — …") upper-case the file keys; `notion` is not an
+/// acronym, and upper-cased it read "NOTION ·".
+String _typeLabel(String key) => switch (key) {
+      'notion' => 'Notion page',
+      _ => key.toUpperCase(),
+    };
+
+/// Bytes as the reference spells them (`fmtSize`): KB under a megabyte —
+/// "0.0 MB" is a measured file drawn as nothing.
+String _fmtSize(int bytes) {
+  const mb = 1024 * 1024;
+  if (bytes <= 0) return '';
+  if (bytes >= mb) {
+    return '${(bytes / mb).toStringAsFixed(bytes >= 10 * mb ? 0 : 1)} MB';
+  }
+  final kb = (bytes / 1024).round();
+  return '${kb < 1 ? 1 : kb} KB';
 }

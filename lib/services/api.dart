@@ -540,10 +540,12 @@ class Api {
   /// ADR-083). [action] is `approve` or `dismiss`; [jobIds] is capped at 50 by
   /// the endpoint, so a caller with more chunks the call.
   ///
-  /// Response `{approved, dismissed, skipped}`. **Ids in `skipped` are not an
-  /// error**: they are jobs already triaged elsewhere, reported by id rather
-  /// than failing the batch so a stale queue triaged from two places does not
-  /// 404. They simply leave the queue.
+  /// Response 202 `{approved, dismissed, failed, skipped}` (4.69.0). **Ids in
+  /// `skipped` are not an error**: they are jobs already triaged elsewhere,
+  /// reported by id rather than failing the batch so a stale queue triaged
+  /// from two places does not 404. **Ids in `failed` are**: the task queue
+  /// refused, the row is `error`, and the server stopped there — ids past it
+  /// were not attempted. `CloudNotifier.reviewJobs` reads both.
   Future<Map<String, dynamic>> reviewImportJobs(
           List<String> jobIds, String action) =>
       _http.post('/fn_review_import_jobs',

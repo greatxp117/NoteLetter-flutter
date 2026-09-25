@@ -5,14 +5,14 @@ import '../../state/cloud_notifier.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
-import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 
 /// Tier-C sync settings (`screens/sources.md` §Sync control, 1.4.0/ADR-007),
 /// recomposed against the kit (ADR-041).
 ///
-/// Collapsible per provider: auto-sync toggle, frequency, preferred hour (UTC),
-/// include-types, exclude-patterns. Every edit sends **only the changed key**
+/// Collapsible per provider: auto-sync toggle, frequency, preferred hour
+/// (shown in the reader's time, stored and said as UTC), include-types,
+/// exclude-patterns. Every edit sends **only the changed key**
 /// via `fn_sync_settings`, and the returned `integration` is the source of
 /// truth — the panel renders straight off `widget.integration` and holds no
 /// optimistic copy. **Write before you move**: a toggle that sets local state
@@ -30,22 +30,67 @@ class SyncSettingsPanel extends StatefulWidget {
 
 class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   static const _frequencies = ['hourly', 'daily', 'weekly'];
-  /// The supported type keys. **`pptx` was missing from 1.4.0 to 4.45.0** and
-  /// both clients rendered three — a synced deck could not be included or
-  /// reviewed, and nothing failed, because a type absent from this list is
-  /// simply a control the reader never sees. `notion` is the Notion provider's
-  /// own key.
-  static const _types = ['pdf', 'docx', 'pptx', 'notion'];
+
+  /// The supported type keys, **per provider** (`screens/sources.md` §Sync
+  /// control): `pdf`, `docx`, `pptx` for a file store, and `notion` only for
+  /// Notion. One list for all four offered a NOTION pill on Google Drive and
+  /// three file types on Notion — controls that could never match a file.
+  /// **`pptx` was missing from 1.4.0 to 4.45.0**: a type absent from this list
+  /// is simply a control the reader never sees, and nothing fails.
+  static const _fileTypes = ['pdf', 'docx', 'pptx'];
+  List<String> get _types =>
+      widget.providerId == 'notion' ? const ['notion'] : _fileTypes;
+
+  /// The backend's own default when the field was never written
+  /// (`main.py` stamps 3 on connect, and the orchestrator reads `?? 3`).
+  static const _defaultHour = 3;
 
   final _patternsController = TextEditingController();
   final _patternsFocus = FocusNode();
   bool _saving = false;
   bool _open = false;
 
+  /// §14.2 — the last refusal, inline in the panel (spec: "400s show the
+  /// validation message inline"). A toast is gone before the reader has found
+  /// which control it was about.
+  String? _error;
+
   @override
   void initState() {
     super.initState();
     _patternsController.text = widget.integration.excludePatterns.join('\n');
+    // Saved when the field lets go of focus — tapping away, tabbing out,
+    // collapsing the panel. `onEditingComplete` never fires here: on a
+    // multi-line field Enter inserts a newline, and Chrome has no done key,
+    // so the only save path this field had was one no reader could reach.
+    _patternsFocus.addListener(_onPatternsFocus);
+  }
+
+  void _onPatternsFocus() {
+    if (!_patternsFocus.hasFocus && mounted) _savePatterns();
+  }
+
+  List<String> _parsedPatterns() => _patternsController.text
+      .split('\n')
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+
+  /// Sends the WHOLE list. No `.take(50)`: a silent truncation is a writer
+  /// that cannot fail — the server's 400 ("≤50") is the answer, and it is
+  /// rendered.
+  void _savePatterns() {
+    final list = _parsedPatterns();
+    if (list.join('\n') == widget.integration.excludePatterns.join('\n')) {
+      return;
+    }
+    _save((c) => c.syncSettings(widget.providerId, excludePatterns: list),
+        onRefused: () {
+      // The revert goes to what the last READ stored (4.75.2): leaving the
+      // refused text in the field reads as saved.
+      _patternsController.text =
+          widget.integration.excludePatterns.join('\n');
+    });
   }
 
   @override
@@ -61,18 +106,37 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
 
   @override
   void dispose() {
+    _patternsFocus.removeListener(_onPatternsFocus);
     _patternsController.dispose();
     _patternsFocus.dispose();
     super.dispose();
   }
 
-  Future<void> _save(Future<String?> Function(CloudNotifier c) call) async {
-    setState(() => _saving = true);
+  Future<void> _save(Future<String?> Function(CloudNotifier c) call,
+      {VoidCallback? onRefused}) async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     final err = await call(context.read<CloudNotifier>());
     if (!mounted) return;
-    setState(() => _saving = false);
-    // A 400 is a validation message written for a person — show it as it came.
-    if (err != null) AppToast.show(context, err, type: ToastType.error);
+    setState(() {
+      _saving = false;
+      // A 400 is a validation message written for a person — shown as it
+      // came, inline, beside the controls it is about.
+      _error = err;
+    });
+    if (err != null) onRefused?.call();
+  }
+
+  /// The UTC hour [utcHour] as a wall-clock time here. The server compares
+  /// the plain UTC hour; the reader thinks in their own.
+  static String _localClock(int utcHour) {
+    final now = DateTime.now().toUtc();
+    final local =
+        DateTime.utc(now.year, now.month, now.day, utcHour).toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(local.hour)}:${two(local.minute)}';
   }
 
   @override
@@ -152,7 +216,10 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                       segments: [
                         for (final f in _frequencies) KitSegment(_title(f)),
                       ],
-                      selected: _frequencies.indexOf(i.syncFrequency).clamp(0, 2),
+                      // An unknown stored value selects NOTHING. `.clamp`
+                      // turned -1 into 0 and drew "Hourly" — a claim about a
+                      // schedule the server does not have.
+                      selected: _frequencies.indexOf(i.syncFrequency),
                       onChanged: (n) => _save((c) => c.syncSettings(
                           widget.providerId,
                           syncFrequency: _frequencies[n])),
@@ -162,15 +229,22 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                     Row(
                       children: [
                         _HourField(
-                          hour: i.syncPreferredHour ?? 9,
+                          hour: i.syncPreferredHour ?? _defaultHour,
+                          label: _localClock,
                           onChanged: (v) => _save((c) => c.syncSettings(
                               widget.providerId, syncPreferredHour: v)),
                         ),
                         const SizedBox(width: 10),
-                        // Stored and sent as the plain UTC hour the
-                        // orchestrator compares against — so the control says
-                        // UTC rather than quietly implying local time.
-                        Text('UTC', style: KitText.meta(context)),
+                        // Rendered in the reader's time, stored and sent as
+                        // the plain UTC hour the orchestrator compares
+                        // against — and the control SAYS the UTC hour, so
+                        // neither is implied (sources.md §Sync control).
+                        Flexible(
+                          child: Text(
+                            'your time · ${(i.syncPreferredHour ?? _defaultHour).toString().padLeft(2, '0')}:00 UTC',
+                            style: KitText.meta(context),
+                          ),
+                        ),
                       ],
                     ),
 
@@ -235,7 +309,8 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                         },
                       ),
 
-                    _Label('Exclude patterns — one glob per line, ≤50'),
+                    _Label('Exclude patterns — one glob per line, ≤50',
+                        note: 'saved when you leave the field'),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
@@ -257,19 +332,14 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                           hintStyle:
                               AppTheme.mono(fontSize: 12, color: t.fgSubtle),
                         ),
-                        onEditingComplete: () {
-                          _patternsFocus.unfocus();
-                          final list = _patternsController.text
-                              .split('\n')
-                              .map((s) => s.trim())
-                              .where((s) => s.isNotEmpty)
-                              .take(50)
-                              .toList();
-                          _save((c) => c.syncSettings(widget.providerId,
-                              excludePatterns: list));
-                        },
+                        onTapOutside: (_) => _patternsFocus.unfocus(),
                       ),
                     ),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: KitFailureInline(_error!),
+                      ),
                   ],
                 ),
               ),
@@ -321,10 +391,15 @@ class _Label extends StatelessWidget {
 
 /// The preferred-hour picker. 0–23, rendered as a clock hour.
 class _HourField extends StatelessWidget {
+  /// The stored UTC hour.
   final int hour;
+
+  /// How an hour is drawn — the reader's wall clock.
+  final String Function(int utcHour) label;
   final ValueChanged<int> onChanged;
 
-  const _HourField({required this.hour, required this.onChanged});
+  const _HourField(
+      {required this.hour, required this.label, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +423,7 @@ class _HourField extends StatelessWidget {
             for (var h = 0; h < 24; h++)
               DropdownMenuItem(
                 value: h,
-                child: Text('${h.toString().padLeft(2, '0')}:00'),
+                child: Text(label(h)),
               ),
           ],
           onChanged: (v) => v == null ? null : onChanged(v),

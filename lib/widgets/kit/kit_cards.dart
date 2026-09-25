@@ -92,6 +92,13 @@ class KitConnectCard extends StatelessWidget {
   /// `reconnect_required` banner (`screens/sources.md` §Trust & feedback).
   final Widget? notice;
 
+  /// A line under the actions that says why one of them is unavailable, or
+  /// what the last one answered — the sync-now 400/429 sentence
+  /// (`screens/sources.md` §Sync control: "Disabled with the 400
+  /// explanation"). Visible text, never a tooltip: a tooltip reaches neither a
+  /// finger nor a screen reader.
+  final Widget? footnote;
+
   const KitConnectCard({
     super.key,
     required this.icon,
@@ -102,6 +109,7 @@ class KitConnectCard extends StatelessWidget {
     this.onTap,
     this.actions = const [],
     this.notice,
+    this.footnote,
   });
 
   @override
@@ -168,6 +176,10 @@ class KitConnectCard extends StatelessWidget {
               runSpacing: AppSpacing.s2,
               children: actions,
             ),
+          ],
+          if (footnote != null) ...[
+            const SizedBox(height: 8),
+            footnote!,
           ],
         ],
       ),

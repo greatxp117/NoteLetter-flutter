@@ -555,7 +555,7 @@ a new obligation on a finished screen is a new item.
     close this by re-shooting nothing.
 
 ## F-30 · A batch that partly failed reads as a batch that worked
-- status: open
+- status: done 2026-09-25
 - screen: sources (import review queue)
 - route: /sources
 - spec: spec/api/cloud-storage.md §fn_review_import_jobs · spec/decisions/ADR-103-a-record-moved-before-its-task-is-a-record-nobody-owns.md §Decision 4 (as amended) · spec/component-kit.md §14.2

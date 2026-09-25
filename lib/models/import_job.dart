@@ -79,13 +79,52 @@ class ImportJob {
   static const _terminal = {'complete', 'error', 'skipped', 'cancelled'};
 
   bool get isTerminal => _terminal.contains(status);
+  static bool isTerminalStatus(String s) => _terminal.contains(s);
   bool get isWorking => status == 'downloading' || status == 'processing';
-
-  /// Terminal jobs are retryable; retrying `skipped` is the explicit "import
-  /// again" override (cloud-storage.md, 1.3.0).
-  bool get canRetry =>
-      status == 'error' || status == 'cancelled' || status == 'skipped';
 
   bool get isDuplicate => skipReason == 'duplicate';
   bool get isSizeLimited => skipReason == 'size_limit';
+
+  /// A plan-limit hold (4.79.0, ADR-113): the server's sentence is in
+  /// `error_message`, and **Import again** is how the file comes in once there
+  /// is room.
+  bool get isPlanLimited => skipReason == 'plan_limit';
+
+  /// The skips whose control is **Import again** — the explicit override, not a
+  /// retry of a failure (`screens/sources.md` §Trust & feedback).
+  bool get isImportAgain =>
+      status == 'skipped' && (isDuplicate || isDismissed || isPlanLimited);
+
+  /// Which rows carry a control at all. `error`/`cancelled` retry; of the
+  /// skips, only the three [isImportAgain] names do. **Not every `skipped`**:
+  /// a `size_limit` retry would skip identically, and a pre-1.3.0 skip (no
+  /// `skip_reason`) is spec'd action-less — "any skipped" put Retry on both.
+  bool get canRetry =>
+      status == 'error' || status == 'cancelled' || isImportAgain;
+
+  /// The provider MIME as the review-rule/type key (`pdf`, `docx`, `pptx`,
+  /// `notion`) — the vocabulary of `include_types` and `review_rules`. Null for
+  /// anything else. Web: `cloudTypeKey`.
+  String? get typeKey => _typeKeyByMime[mimeType];
+
+  static const _typeKeyByMime = <String, String>{
+    'application/pdf': 'pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        'docx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        'pptx',
+    'application/x-notion-page': 'notion',
+  };
+
+  /// The document `type` this file becomes, for the plate — which is keyed by
+  /// **type**, never by MIME (`kitDocKind`). Feeding it a MIME answered `note`
+  /// for everything, and a hardcoded `'web'` plate said every PDF was a page.
+  /// Web: `mimeKind` (pdf · epub · html → web · everything else → note).
+  String get docType {
+    final m = mimeType;
+    if (m.contains('pdf')) return 'pdf';
+    if (m.contains('epub')) return 'epub';
+    if (m.contains('html')) return 'article';
+    return typeKey ?? 'plain';
+  }
 }
