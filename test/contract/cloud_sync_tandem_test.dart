@@ -253,6 +253,41 @@ void main() {
     });
 
     testWidgets(
+        'the picker is the reference\'s flat panel: a Root crumb and the '
+        'counter, no title or close, Import N items + Cancel (F-61)',
+        (tester) async {
+      ApiService.instance.httpClientAdapter = _Recorder(listing);
+      final drive = _ConnectedCloud(const CloudIntegration(
+          provider: 'google_drive', tokenValid: true));
+      await pumpSources(tester, SourcesStubService(), cloud: drive);
+      await openPicker(tester, drive, 'google_drive');
+
+      expect(find.text('Root'), findsOneWidget);
+      expect(find.text('0/20 folders · 0/50 files'), findsOneWidget);
+      expect(find.textContaining('Import from'), findsNothing,
+          reason: 'no title row — Cancel is the way out');
+      expect(find.byTooltip('Close'), findsNothing);
+      final button = find.widgetWithText(KitButton, 'Import 0 items');
+      expect(tester.widget<KitButton>(button).onPressed, isNull,
+          reason: 'disabled at zero — `!canConfirm`');
+
+      await tester.ensureVisible(find.byType(Checkbox));
+      await tester.tap(find.byType(Checkbox));
+      await tester.pump();
+      expect(find.text('0/20 folders · 1/50 files'), findsOneWidget);
+      expect(
+          tester
+              .widget<KitButton>(find.widgetWithText(KitButton, 'Import 1 item'))
+              .onPressed,
+          isNotNull);
+
+      await tester.ensureVisible(find.text('Cancel'));
+      await tester.tap(find.text('Cancel'));
+      await tester.pump();
+      expect(drive.browseProvider, isNull);
+    });
+
+    testWidgets(
         'a refused file has no checkbox, and the import\'s 400 is inline, not '
         'a toast', (tester) async {
       ApiService.instance.httpClientAdapter = _Recorder(listing);
@@ -267,8 +302,8 @@ void main() {
       await tester.ensureVisible(find.byType(Checkbox));
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
-      await tester.ensureVisible(find.text('Import selected'));
-      await tester.tap(find.text('Import selected'));
+      await tester.ensureVisible(find.text('Import 1 item'));
+      await tester.tap(find.text('Import 1 item'));
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }

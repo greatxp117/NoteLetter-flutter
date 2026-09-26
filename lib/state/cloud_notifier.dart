@@ -515,7 +515,8 @@ class CloudNotifier extends ChangeNotifier {
       _selectedFolders.remove(id);
     } else {
       if (_selectedFolders.length >= kMaxImportFolders) {
-        return 'Up to $kMaxImportFolders folders per import.';
+        return '$kMaxImportFolders-folder limit reached — import these first, '
+            'then pick more.';
       }
       _selectedFolders.add(id);
     }
@@ -528,7 +529,8 @@ class CloudNotifier extends ChangeNotifier {
       _selectedFiles.remove(id);
     } else {
       if (_selectedFiles.length >= kMaxImportFiles) {
-        return 'Up to $kMaxImportFiles files per import.';
+        return '$kMaxImportFiles-file limit reached — import these first, '
+            'then pick more.';
       }
       _selectedFiles.add(id);
     }

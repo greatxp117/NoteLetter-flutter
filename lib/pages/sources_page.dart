@@ -527,69 +527,107 @@ class _ProviderCardState extends State<_ProviderCard> {
 
 // ── File picker ──────────────────────────────────────────────────────────────
 
-class _PickerPanel extends StatelessWidget {
+/// The import picker, as the reference composes it (`CloudFilePicker`,
+/// mode `import`; F-61): ONE flat panel on `--bg-2` (= `--surface-raised`),
+/// r-lg, padding 14. No title row and no close control — Cancel is the way
+/// out. The crumbs are `.set-link`s (`Root` › …) with the counter as a
+/// `.proc-note` at the right of the same row; rows are unboxed; the foot is
+/// `Import N items` (the accent primary, disabled at zero — `!canConfirm`)
+/// beside a quiet Cancel.
+class _PickerPanel extends StatefulWidget {
   const _PickerPanel();
+
+  @override
+  State<_PickerPanel> createState() => _PickerPanelState();
+}
+
+class _PickerPanelState extends State<_PickerPanel> {
+  bool _saving = false;
+
+  /// A cap that blocks a toggle says so IN the panel, as the reference's
+  /// `capNote` does — a control that silently does nothing reads as broken.
+  String? _capNote;
+
+  void _toggle(CloudNotifier cloud, CloudFile f) {
+    final note = f.isFolder ? cloud.toggleFolder(f.id) : cloud.toggleFile(f.id);
+    setState(() => _capNote = note);
+  }
+
+  Future<void> _confirm(CloudNotifier cloud) async {
+    setState(() => _saving = true);
+    final (msg, isErr) = await cloud.importSelection();
+    if (!mounted) return;
+    setState(() => _saving = false);
+    // A refusal is drawn in the picker (importError); only the 202's count is
+    // a toast, because the picker it would sit in has closed.
+    if (isErr) return;
+    AppToast.show(context, msg, type: ToastType.success);
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final cloud = context.watch<CloudNotifier>();
     final listing = cloud.listing;
-    final provider = cloud.browseProvider;
+    final provider = cloud.browseProvider ?? '';
+    final crumbs = cloud.crumbs;
+    final total = cloud.selectedFolders.length + cloud.selectedFiles.length;
+    // One slot, as the reference's single `error`: the listing's failure or
+    // the import's refusal, verbatim (§14.2).
+    final error = cloud.importError ?? cloud.browseError;
+    final items = listing?.items ?? const <CloudFile>[];
 
-    return KitCard(
-      padding: const EdgeInsets.all(16),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: t.surfaceRaised,
+        borderRadius: AppRadius.lgR,
+        border: Border.all(color: t.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  'Import from ${_providers[provider]?.name ?? provider}',
-                  style: KitText.h4(context),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (var i = 0; i < crumbs.length; i++)
+                      KitSettingLink(
+                        crumbs[i].label,
+                        icon: i < crumbs.length - 1 ? Icons.chevron_right : null,
+                        onTap: i == crumbs.length - 1
+                            ? null
+                            : () => cloud.jumpToCrumb(i),
+                      ),
+                  ],
                 ),
               ),
-              KitIconButton(Icons.close,
-                  tooltip: 'Close', onPressed: cloud.closePicker),
+              const SizedBox(width: 8),
+              // The caps are `fn_import_from_cloud`'s own (≤20 folders, ≤50
+              // files) and the picker is what enforces them.
+              KitProcNote(
+                '${cloud.selectedFolders.length}/$kMaxImportFolders folders · '
+                '${cloud.selectedFiles.length}/$kMaxImportFiles files',
+                padding: EdgeInsets.zero,
+              ),
             ],
           ),
-          const SizedBox(height: 6),
-
-          // Breadcrumb.
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              for (var i = 0; i < cloud.crumbs.length; i++) ...[
-                if (i > 0)
-                  Icon(Icons.chevron_right, size: 15, color: t.fgSubtle),
-                GestureDetector(
-                  onTap: i == cloud.crumbs.length - 1
-                      ? null
-                      : () => cloud.jumpToCrumb(i),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 4),
-                    child: Text(
-                      cloud.crumbs[i].label.toUpperCase(),
-                      style: KitText.capsLabel(context,
-                          fontSize: 10.5,
-                          letterSpacing: 0.13,
-                          color: i == cloud.crumbs.length - 1
-                              ? t.fg
-                              : t.fgSubtle),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 10),
-
+          const SizedBox(height: 8),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: KitFailureInline(error),
+            ),
+          if (_capNote != null)
+            KitProcNote(_capNote!, padding: const EdgeInsets.only(bottom: 8)),
           // ADR-026 §3: standing guidance on every rendered Notion listing —
           // Notion never reports what it withheld, so this is never phrased as
-          // a finding about THIS connection. The sync picker has carried it
-          // since F-47; the import picker is the one a reader meets first.
+          // a finding about THIS connection.
           if (provider == 'notion' &&
               cloud.browseError == null &&
               !cloud.browsing)
@@ -598,74 +636,42 @@ class _PickerPanel extends StatelessWidget {
               'in, grant access in Notion and return.',
               padding: EdgeInsets.only(bottom: 8),
             ),
-
+          for (final f in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: _FileRow(
+                  file: f, provider: provider, onToggle: () => _toggle(cloud, f)),
+            ),
+          // ADR-026 §2: empty is a CLAIM about a listing that answered — over a
+          // failed request it is a hole drawn as a zero.
+          if (!cloud.browsing && cloud.browseError == null && items.isEmpty)
+            const KitProcNote('Nothing here.', padding: EdgeInsets.zero),
           if (cloud.browsing)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (cloud.browseError != null)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: KitFailureInline(cloud.browseError!),
-            )
-          else if (listing == null || listing.items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('This folder is empty.',
-                  style: KitText.lede(context, fontSize: 15, height: 22)),
-            )
-          else
-            KitRowList(
-              rows: [
-                for (final f in listing.items) _FileRow(file: f),
-              ],
-            ),
-
+            const KitProcNote('Loading…', padding: EdgeInsets.zero),
           if (listing?.nextPageToken != null)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: KitButton.ghost(
-                    cloud.loadingMore ? 'Loading…' : 'Load more',
-                    onPressed: cloud.loadingMore ? null : cloud.loadMore),
-              ),
-            ),
-
-          const SizedBox(height: 12),
-          Container(height: 1, color: t.rule),
-          const SizedBox(height: 12),
-          // §14.2: the import's refusal, verbatim, beside the control that
-          // sent it — a cap or unknown-key 400, a plan limit, a reconnect.
-          if (cloud.importError != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: KitFailureInline(cloud.importError!),
-            ),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  // The caps are `fn_import_from_cloud`'s own (≤20 folders,
-                  // ≤50 files) and the picker is what enforces them.
-                  '${cloud.selectedFolders.length}/$kMaxImportFolders folders · '
-                  '${cloud.selectedFiles.length}/$kMaxImportFiles files',
-                  style: KitText.meta(context),
-                ),
+              padding: const EdgeInsets.only(top: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: KitSettingLink(
+                    cloud.loadingMore ? 'Loading…' : 'Load more…',
+                    icon: null,
+                    onTap: cloud.loadingMore ? null : cloud.loadMore),
               ),
-              KitButton.primary('Import selected',
-                  onPressed: cloud.hasSelection
-                      ? () async {
-                          final (msg, isErr) = await cloud.importSelection();
-                          // A refusal is drawn in the picker (importError);
-                          // only the 202's count is a toast, because the
-                          // picker it would sit in has closed.
-                          if (!context.mounted || isErr) return;
-                          AppToast.show(context, msg,
-                              type: ToastType.success);
-                        }
-                      : null),
+            ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              KitButton.primary(
+                  _saving
+                      ? 'Queuing…'
+                      : 'Import $total item${total == 1 ? '' : 's'}',
+                  onPressed:
+                      _saving || total == 0 ? null : () => _confirm(cloud)),
+              KitButton.ghost('Cancel',
+                  onPressed: _saving ? null : cloud.closePicker),
             ],
           ),
         ],
@@ -674,9 +680,27 @@ class _PickerPanel extends StatelessWidget {
   }
 }
 
+/// A listing row, unboxed: checkbox, then a folder's `.set-link` name and
+/// chevron with its contents disclosure under it, or a file's plate, name and
+/// size. 4.91.0 (ADR-125 §1): a file the upload classifier refuses is offered
+/// no checkbox — the import would come back `unsupported_type` — and says why
+/// in the classifier's own words; the slot keeps its width so the row still
+/// lines up with its neighbours.
 class _FileRow extends StatelessWidget {
   final CloudFile file;
-  const _FileRow({required this.file});
+  final String provider;
+  final VoidCallback onToggle;
+  const _FileRow(
+      {required this.file, required this.provider, required this.onToggle});
+
+  /// Web `mimeKind`: pdf · epub · html → web · everything else → note.
+  static String _plateType(String? mime) {
+    final m = mime ?? '';
+    if (m.contains('pdf')) return 'pdf';
+    if (m.contains('epub')) return 'epub';
+    if (m.contains('html')) return 'article';
+    return 'plain';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -685,87 +709,86 @@ class _FileRow extends StatelessWidget {
     final selected = file.isFolder
         ? cloud.selectedFolders.contains(file.id)
         : cloud.selectedFiles.contains(file.id);
-    // 4.91.0 (ADR-125 §1): a file the upload classifier refuses is offered no
-    // checkbox — the import would come back `unsupported_type` — and says why
-    // in the classifier's own words. A fact, so it carries no affordance.
-    final refusal = cloudFileRefusal(cloud.browseProvider ?? '', file);
+    final refusal = cloudFileRefusal(provider, file);
 
-    void toggle() {
-      final note = file.isFolder
-          ? cloud.toggleFolder(file.id)
-          : cloud.toggleFile(file.id);
-      // At a cap, further toggles no-op WITH an explanation — a control that
-      // silently does nothing reads as broken.
-      if (note != null && context.mounted) {
-        AppToast.show(context, note, type: ToastType.info);
-      }
+    final box = SizedBox(
+      width: 20,
+      height: 20,
+      child: refusal != null
+          ? null
+          : Semantics(
+              label: 'Import ${file.name}',
+              child: Checkbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+                activeColor: t.accent,
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+    );
+
+    if (file.isFolder) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          box,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                KitSettingLink(file.name,
+                    onTap: () => cloud.enterFolder(file)),
+                // A folder row says what is inside it, on a disclosure the
+                // reader opens (4.59.0, ADR-096) — never scanned eagerly.
+                FolderContents(
+                  key: ValueKey('scan-${file.id}'),
+                  provider: provider,
+                  folderId: file.id,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
     }
 
-    final row = KitSourceRow(
-      // 20 checkbox + 6 + 16 icon. This read 36 from the day it was written
-      // and overflowed every row by 6px — found by the first device run that
-      // ever opened the picker (F-23).
-      leading: SizedBox(
-        width: 42,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // The slot keeps its width without a checkbox, so a refused row
-            // still lines up with its neighbours.
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: refusal != null
-                  ? null
-                  : Checkbox(
-                      value: selected,
-                      onChanged: (_) => toggle(),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
+    final note = [
+      _fmtSize(file.size),
+      // A Google-native file Drive exports says what it imports AS (4.94.0).
+      cloudExportLabel(file) ?? '',
+    ].where((s) => s.isNotEmpty).join(' · ');
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: refusal != null ? null : onToggle,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          box,
+          const SizedBox(width: 8),
+          KitFileBadge(kitDocKind(_plateType(file.mimeType)),
+              size: KitBadgeSize.chip),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(file.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: KitText.ui(context)),
+                if (refusal != null)
+                  KitProcNote(refusal, padding: EdgeInsets.zero),
+              ],
             ),
-            const SizedBox(width: 6),
-            Icon(
-              file.isFolder
-                  ? Icons.folder_outlined
-                  : Icons.insert_drive_file_outlined,
-              size: 16,
-              color: t.fgMuted,
-            ),
-          ],
-        ),
-      ),
-      title: file.name,
-      // A Google-native file Drive exports says what it imports AS, read from
-      // its `mimeType` (4.94.0: a Doc as PDF, a Slides deck as PowerPoint), on
-      // the row that will do it rather than in a legend nobody reads.
-      subtitle: refusal ?? cloudExportLabel(file),
-      onTap: file.isFolder
-          ? () => cloud.enterFolder(file)
-          : refusal != null
-              ? null
-              : toggle,
-      trailing: file.isFolder
-          ? Icon(Icons.chevron_right, size: 17, color: t.fgSubtle)
-          : null,
-    );
-    if (!file.isFolder) return row;
-    // A folder row says what is inside it, on a disclosure the reader opens
-    // (4.59.0, ADR-096; sources.md §Folder contents) — never scanned for the
-    // rows of a listing.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        row,
-        Padding(
-          padding: const EdgeInsets.only(left: 58, right: 12, bottom: 10),
-          child: FolderContents(
-            key: ValueKey('scan-${file.id}'),
-            provider: cloud.browseProvider ?? '',
-            folderId: file.id,
           ),
-        ),
-      ],
+          if (note.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            KitProcNote(note, padding: EdgeInsets.zero),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -1106,12 +1106,12 @@ a new obligation on a finished screen is a new item.
 - notes: The 2026-09-25 frame beside scripture-day.web.phone.png. `.sc-p` is --surface with --shadow-1 and NO border, padding 14/16; its head `.sc-p-h` is a content-sized FileBadge (mono 9, no fixed box), the title in SANS 13/600 and the score mono 10.5 --fg-subtle pushed right; the text serif 15/25 in --fg-lede. This client's _DayPassage draws a bordered card at 24/22, a 36x44 row badge, the title in serif h4 and body at reading size — so each passage reads as a source row rather than a quoted passage. Needs a badge size the kit does not have (a content-sized chip), which is a kit_controls change and re-stales its pairs; do it at the head of a re-shoot pass. The web frame's eyebrow is --fg-subtle where this client's is accent — check which is current before changing it.
 
 ## F-61 · Sources — the import picker is the reference's flat panel: a Root crumb, open folder rows, the counter top-right, Import N items + Cancel
-- status: open
+- status: done 2026-09-25
 - screen: folder-contents
 - route: /sources
 - spec: spec/screens/sources.md; spec/component-kit.md §6
 - web: src/pages/sources/CloudImportPanel.jsx; src/styles/app-sources-browse.css
-- flutter: lib/pages/sources_page.dart
+- flutter: lib/pages/sources_page.dart; lib/state/cloud_notifier.dart; test/contract/cloud_sync_tandem_test.dart
 - folds: none — found by the F-34/F-37 re-shoot pass
 - device_test: none
 - shots: folder-contents
@@ -1126,6 +1126,16 @@ a new obligation on a finished screen is a new item.
   foot is `proc-retry` `Import N item(s)` + `proc-remove` Cancel. The button is NOT enabled at zero:
   `disabled={saving || !canConfirm}` — the frame's proc-retry only draws disabled faintly. There is
   no title row and no close control; Cancel is the way out.
+  2026-09-25 (done): `_PickerPanel` is now CloudFilePicker's import mode — a --surface-raised (--bg-2)
+  panel, r-lg, padding 14, border; the crumbs are KitSettingLink (`.set-link`, `Root` › …) with the
+  counter as a KitProcNote at the right of the same row; one failure slot at the top (import refusal
+  or listing failure, as web's single `error`); a cap note IN the panel in the reference's words
+  (`N-file limit reached — import these first, then pick more.`, the notifier's strings, which the
+  toast used to carry); rows unboxed — checkbox + KitSettingLink name + chevron + FolderContents for
+  a folder, checkbox + chip plate + name + size/export note for a file; `Nothing here.`/`Loading…` as
+  proc-notes; `Load more…` a bare link; the foot `Import N item(s)` (primary, disabled at zero,
+  `Queuing…` while it sends) + ghost Cancel. Title row and close control gone. The sync picker
+  (sync_folder_picker.dart) keeps its boxed rows and caps crumbs — the same drift, not this item.
 
 ## F-62 · Sources — Update from source on a kept refresh row (4.96.0 cloud tandem)
 - status: done 2026-09-25
@@ -1191,3 +1201,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/confirm_check.py; python3 ../NoteLetter-contracts/harness/confirm_mutations.py
 - notes: reader.md §Supersession confirm names "retry of an errored doc": an errored document CAN hold edited passages (a failed RE-extraction keeps them) and be in a study program, so `_runPrimary`'s Retry and Index it anyway both run through SupersessionConfirm.run (F-63's runner) with web 71987f6's words — `Retry “{title}”?` / `Index “{title}” anyway?`, the reference's two lead sentences, `Retry and replace` / `Index it anyway` on the danger control; two definite noes send straight through, a refusal then stays §14.2 under the row. The row's labels never claimed work behind the confirm here, so web's `askingFor` defect has no counterpart. `ProcessingRow` is public with two check seams for the tests. Start a new unit (`UnitPanel`, now public) closed its §18 on `null` and called afterwards (§18 rule 1): the call is now the panel's `onConfirm`, a refusal in its slot, and the row's own failure slot went with the old path; the toast's unit number is taken before the refresh. manuscript_panel.dart's close-first confirm is the leave guard, which calls nothing (the act IS the navigation) and is annotated `confirm-ok:` exactly as web ReaderView's — no change. The contracts owed list lost both Flutter entries (NoteLetter-contracts 54e6738). Neither UnitPanel nor manuscript is declared in confirm_required.json; declaring the unit panel is a contracts change this item was not allowed to make.
+
+## F-67 · Sync folder picker — the same flat panel as the import picker: `.set-link` crumbs, unboxed rows, the counter beside the crumbs
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md; spec/component-kit.md §6
+- web: src/pages/sources/CloudFilePicker.jsx
+- flutter: lib/pages/sources/sync_folder_picker.dart
+- folds: none — found while building F-61
+- device_test: none
+- shots: sources
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: The sync chooser is CloudFilePicker in `folders` mode on web — the same component F-61 rebuilt the import picker to match. sync_folder_picker.dart still draws caps crumbs (`ROOT`), the counter as its own line under them, and each folder as a boxed KitSourceRow with a folder icon. Recompose as F-61's `_PickerPanel` (KitSettingLink crumbs with the counter as a KitProcNote on the same row; checkbox + KitSettingLink name + chevron + FolderContents, unboxed; `Sync N folders` + Cancel). Consider lifting F-61's row and crumb row into one shared picker body so the two cannot drift again. No seed state opens the sync picker; widget tests (sync_folders_test.dart) are the proof.
