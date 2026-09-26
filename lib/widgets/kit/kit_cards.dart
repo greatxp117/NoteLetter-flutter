@@ -365,18 +365,24 @@ class KitHeroCard extends StatelessWidget {
             SizedBox(
                 width: compact ? 0 : AppSpacing.s6,
                 height: compact ? AppSpacing.s5 : 0),
-            Column(
-              crossAxisAlignment: compact
-                  ? CrossAxisAlignment.stretch
-                  : CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < actions.length; i++) ...[
-                  if (i > 0) const SizedBox(height: AppSpacing.s2),
-                  actions[i],
+            // On a phone the actions are a ROW that wraps, each at its own
+            // width — `.letter-hero .actions { flex-direction: row;
+            // flex-wrap: wrap }` (web 9a84288). A stretched column put every
+            // action on its own full-width line; a nowrap row sheared the
+            // last one off a 320 card.
+            if (compact)
+              KitActionFlow(children: actions)
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < actions.length; i++) ...[
+                    if (i > 0) const SizedBox(height: AppSpacing.s2),
+                    actions[i],
+                  ],
                 ],
-              ],
-            ),
+              ),
           ],
         ],
       ),

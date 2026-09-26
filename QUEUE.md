@@ -1152,3 +1152,29 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: reader.md §Supersession confirm names Update from source first among the operations that re-derive content: the client MUST confirm (a §18 Confirmation, danger variant) when any chunk has `user_edited` or the document is in a study program, naming both consequences. F-62's row button and the reader's freshness banner both sent `fn_update_from_source` on the first tap. The web reference skips it too (ReaderView.jsx `update()`, CloudImportPanel.jsx `updateRow`) — the spec is normative here and web owes the same fix. Both facts are three-valued: a read that failed says 'could not check' and still confirms; only two definite noes skip it, and then a refusal stays §14.2 on the row/banner as before. The row holds no chunks, so it reads them quietly (no doc_opened, INV-03). No seed state reaches either surface (no cloud rows, no newer-at-provider document), so the widget tests are the proof, not a pair.
+
+## F-64 · Phone widths — web 9a84288's tandem: the letters card and the library hero wrap their actions, the schedule wraps, Order by stays whole
+- status: done 2026-09-25
+- screen: letters
+- route: /letters
+- spec: spec/component-kit.md §5.3 §6.6 §6.8; spec/screens/letters.md §Composition; spec/screens/library.md §Composition
+- web: src/styles/app-responsive.css; src/styles/app-sources-browse.css; src/styles/app-kit.css
+- flutter: lib/widgets/kit/kit_controls.dart; lib/widgets/kit/kit_cards.dart; lib/pages/letters_page.dart; test/kit/phone_width_test.dart (new)
+- folds: none — web 9a84288 (gate:phone), booked 2026-09-25
+- device_test: none
+- shots: letters; library
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: Web 9a84288 fixed four phone overflows gate:phone found once it stopped excusing `.view`. Per surface here: (1) Sources `.browse-controls` wraps (sort, then the view toggle on its own line; `.ltabs { width: 100% }` at <=680 already put the track under `Order by`) — KitControlBar's compact tail was already a Wrap and KitSegmented fills its own line, so Order by already matched; this client has NO list/cards/shelf view toggle, booked separately. (2) Letters `.next-letter` at 320: `minmax(0, 1fr)`, `.nl-status { white-space: normal }`, `.nl-actions { flex-wrap: wrap } .btn { flex: 1; justify-content: center }` — the schedule Text lost its 2-line ellipsis cap, and the actions (a content-width Wrap) are now KitActionFlow(grow) with centred labels (KitButton `center`): Send now + Preview share line one, Settings drops alone and full width at 390 and 320. (3) Library `.letter-hero .actions { flex-direction: row; flex-wrap: wrap }` — KitHeroCard's compact actions were a STRETCHED column (every action its own full-width bar); now a KitActionFlow row at natural widths, the second action dropping at 320. (4) `.seg { flex-wrap: wrap }` — component-kit §6.8 says nothing about a track that cannot fit one line; this client implements web's behaviour (the last option drops to its own line only when the labels cannot share one), which KitSegmented has done since F-46. (5) `.link-add input { min-width: 0 }` — the Flutter field is already Expanded. A Flutter Column cannot hold min-content open the way a bare `1fr` track does, so (2)/(3)'s grid fix has no Flutter analogue. KitActionFlow is a new kit render object (flex-wrap with optional grow and the min-content floor) in kit_controls.dart, not a new file, to keep kit.dart's nine listed pairs fresh. Proof is test/kit/phone_width_test.dart at 390 and 320 with the bundled faces; the pair (402pt simulator) shows the 390-class layout.
+
+## F-65 · Sources — the list / cards / shelf view toggle beside Order by
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md §Composition; spec/component-kit.md §6.6
+- web: src/pages/SourcesBrowse.jsx; src/styles/app-sources-browse.css
+- flutter: lib/pages/sources/browse_section.dart
+- folds: none — found while folding web 9a84288 (F-64)
+- device_test: none
+- shots: sources
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: Web's `.browse-controls` holds `Order by` + the `.ltabs` sort AND a `.view-toggle` (32x30 `.vt-btn` icon segments: IcoRows list, IcoGrid cards, IcoShelf shelf; the choice persisted by `pickView`) that switches the volume list between rows, a `.src-cards` two-column card grid, and ShelfView (spines). This client's browse section has the sort only and always draws rows. On a phone the toggle wraps to its own line (9a84288). Read SourcesBrowse.jsx `view`/`pickView`/ShelfView and the card anatomy before building; F-54's Library spine view is the same ShelfView — build the spine once, in the kit, and let both screens compose it.

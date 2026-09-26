@@ -10,6 +10,7 @@ import 'package:flutter/material.dart'
         TextField,
         TextInputType,
         Tooltip;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_colors.dart';
@@ -57,6 +58,12 @@ class KitButton extends StatefulWidget {
   /// (onboarding's `Begin →`, `IcoArrowR` after the text on the reference).
   final bool iconTrailing;
 
+  /// Centre the label when the button is given more width than it needs —
+  /// `.nl-actions .btn { justify-content: center }`, a button a
+  /// [KitActionFlow] grows across its line. `.btn` itself starts its content
+  /// at the left, so this is opt-in, never the default.
+  final bool center;
+
   const KitButton(
     this.label, {
     super.key,
@@ -64,25 +71,31 @@ class KitButton extends StatefulWidget {
     this.onPressed,
     this.variant = KitButtonVariant.primary,
     this.iconTrailing = false,
+    this.center = false,
   });
 
   const KitButton.primary(this.label,
       {super.key, this.icon, this.onPressed, this.iconTrailing = false})
-      : variant = KitButtonVariant.primary;
+      : variant = KitButtonVariant.primary,
+        center = false;
   const KitButton.secondary(this.label,
       {super.key, this.icon, this.onPressed})
       : variant = KitButtonVariant.secondary,
-        iconTrailing = false;
+        iconTrailing = false,
+        center = false;
   const KitButton.danger(this.label, {super.key, this.icon, this.onPressed})
       : variant = KitButtonVariant.danger,
-        iconTrailing = false;
+        iconTrailing = false,
+        center = false;
   const KitButton.dangerText(this.label,
       {super.key, this.icon, this.onPressed})
       : variant = KitButtonVariant.dangerText,
-        iconTrailing = false;
+        iconTrailing = false,
+        center = false;
   const KitButton.ghost(this.label, {super.key, this.icon, this.onPressed})
       : variant = KitButtonVariant.ghost,
-        iconTrailing = false;
+        iconTrailing = false,
+        center = false;
 
   @override
   State<KitButton> createState() => _KitButtonState();
@@ -150,6 +163,9 @@ class _KitButtonState extends State<KitButton> {
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: widget.center
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
               children: [
                 if (glyph != null && !widget.iconTrailing) ...[
                   glyph,
@@ -505,6 +521,223 @@ class _KitIconButtonState extends State<KitIconButton> {
       ),
     );
   }
+}
+
+/// A row of actions that **wraps rather than overflows** — CSS
+/// `display: flex; flex-wrap: wrap; gap` over the children, with [grow] as
+/// `flex: 1` on each of them.
+///
+/// Each child keeps at least its natural (max-intrinsic) width; a child that
+/// cannot fit beside the ones already on a line starts the next. With [grow],
+/// the children on each line then share that line — equally, except where a
+/// natural width beats the equal share (a flex item never shrinks below its
+/// min-content) — which is `.nl-actions { flex-wrap: wrap } .btn { flex: 1 }`
+/// on the Letters card. Without it they stay at their natural width,
+/// `.letter-hero .actions { flex-direction: row; flex-wrap: wrap }`.
+///
+/// Why not `Wrap`: a `Wrap` cannot grow its children, and a `Row` of
+/// `Expanded` cannot wrap. At 320 the Letters card's three actions held a
+/// nowrap line open past the card (web `9a84288`, gate:phone); a child wider
+/// than the whole line is given the line and left to ellipsise its label.
+class KitActionFlow extends MultiChildRenderObjectWidget {
+  final bool grow;
+  final double spacing;
+  final double runSpacing;
+
+  const KitActionFlow({
+    super.key,
+    required super.children,
+    this.grow = false,
+    this.spacing = AppSpacing.s2,
+    this.runSpacing = AppSpacing.s2,
+  });
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderActionFlow(grow: grow, spacing: spacing, runSpacing: runSpacing);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) {
+    (renderObject as _RenderActionFlow)
+      ..grow = grow
+      ..spacing = spacing
+      ..runSpacing = runSpacing;
+  }
+}
+
+class _FlowParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderActionFlow extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _FlowParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _FlowParentData> {
+  _RenderActionFlow(
+      {required bool grow, required double spacing, required double runSpacing})
+      : _grow = grow,
+        _spacing = spacing,
+        _runSpacing = runSpacing;
+
+  bool _grow;
+  set grow(bool v) {
+    if (v == _grow) return;
+    _grow = v;
+    markNeedsLayout();
+  }
+
+  double _spacing;
+  set spacing(double v) {
+    if (v == _spacing) return;
+    _spacing = v;
+    markNeedsLayout();
+  }
+
+  double _runSpacing;
+  set runSpacing(double v) {
+    if (v == _runSpacing) return;
+    _runSpacing = v;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _FlowParentData) {
+      child.parentData = _FlowParentData();
+    }
+  }
+
+  List<RenderBox> get _kids {
+    final out = <RenderBox>[];
+    var c = firstChild;
+    while (c != null) {
+      out.add(c);
+      c = childAfter(c);
+    }
+    return out;
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) => _kids.fold(0.0, (m, c) {
+        final w = c.getMinIntrinsicWidth(height);
+        return w > m ? w : m;
+      });
+
+  @override
+  double computeMaxIntrinsicWidth(double height) {
+    final kids = _kids;
+    if (kids.isEmpty) return 0;
+    return kids.fold(0.0, (a, c) => a + c.getMaxIntrinsicWidth(height)) +
+        _spacing * (kids.length - 1);
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      _layout(width, dry: true).height;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      _layout(width, dry: true).height;
+
+  @override
+  Size computeDryLayout(covariant BoxConstraints constraints) =>
+      constraints.constrain(_layout(constraints.maxWidth, dry: true));
+
+  @override
+  void performLayout() {
+    size = constraints.constrain(_layout(constraints.maxWidth, dry: false));
+  }
+
+  /// Lines by natural width, then each child's width on its line, then (when
+  /// not [dry]) the real layout and the offsets.
+  Size _layout(double avail, {required bool dry}) {
+    final kids = _kids;
+    if (kids.isEmpty) return Size.zero;
+    final natural = [
+      for (final c in kids)
+        (avail.isFinite
+                ? c.getMaxIntrinsicWidth(double.infinity).clamp(0.0, avail)
+                : c.getMaxIntrinsicWidth(double.infinity))
+            .toDouble(),
+    ];
+    final lines = <List<int>>[];
+    var line = <int>[];
+    var used = 0.0;
+    for (var i = 0; i < kids.length; i++) {
+      final need = natural[i] + (line.isEmpty ? 0 : _spacing);
+      if (line.isNotEmpty && avail.isFinite && used + need > avail) {
+        lines.add(line);
+        line = <int>[];
+        used = 0;
+      }
+      used += natural[i] + (line.isEmpty ? 0 : _spacing);
+      line.add(i);
+    }
+    lines.add(line);
+
+    final widths = List<double>.from(natural);
+    if (_grow && avail.isFinite) {
+      for (final l in lines) {
+        final space = avail - _spacing * (l.length - 1);
+        final frozen = <int, double>{};
+        while (true) {
+          final free = l.where((i) => !frozen.containsKey(i)).toList();
+          if (free.isEmpty) break;
+          final left = space - frozen.values.fold(0.0, (a, b) => a + b);
+          final share = left / free.length;
+          final over = free.where((i) => natural[i] > share).toList();
+          if (over.isEmpty) {
+            for (final i in free) {
+              frozen[i] = share;
+            }
+            break;
+          }
+          for (final i in over) {
+            frozen[i] = natural[i];
+          }
+        }
+        for (final i in l) {
+          widths[i] = frozen[i]!.floorToDouble();
+        }
+      }
+    }
+
+    var y = 0.0;
+    var maxW = 0.0;
+    for (var li = 0; li < lines.length; li++) {
+      final l = lines[li];
+      final sizes = <Size>[];
+      for (final i in l) {
+        final cons = _grow && avail.isFinite
+            ? BoxConstraints.tightFor(width: widths[i])
+            : BoxConstraints(maxWidth: widths[i]);
+        if (dry) {
+          sizes.add(kids[i].getDryLayout(cons));
+        } else {
+          kids[i].layout(cons, parentUsesSize: true);
+          sizes.add(kids[i].size);
+        }
+      }
+      final lineH = sizes.fold(0.0, (m, s) => s.height > m ? s.height : m);
+      var x = 0.0;
+      for (var k = 0; k < l.length; k++) {
+        if (!dry) {
+          (kids[l[k]].parentData! as _FlowParentData).offset =
+              Offset(x, y + (lineH - sizes[k].height) / 2);
+        }
+        x += sizes[k].width + (k < l.length - 1 ? _spacing : 0);
+      }
+      if (x > maxW) maxW = x;
+      y += lineH + (li < lines.length - 1 ? _runSpacing : 0);
+    }
+    return Size(_grow && avail.isFinite ? avail : maxW, y);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
 
 /// §6.6 — the control bar (contract 4.5.2): the row of filters between a

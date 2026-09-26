@@ -171,7 +171,7 @@ class _LettersPageState extends State<LettersPage> {
           PinnedSources(settings: settings.newsletter),
 
           const SectionHeader('Latest letter', first: true),
-          _LatestLetter(
+          LatestLetterCard(
             latest: latest,
             loaded: letters.loaded,
             archiveError: letters.error,
@@ -213,7 +213,7 @@ class _LettersPageState extends State<LettersPage> {
 }
 
 /// The latest letter, its schedule and the actions on it (§5.3 hero card).
-class _LatestLetter extends StatelessWidget {
+class LatestLetterCard extends StatelessWidget {
   final Newsletter? latest;
   final bool loaded;
   final String? archiveError;
@@ -228,7 +228,8 @@ class _LatestLetter extends StatelessWidget {
   final bool scheduleBusy;
   final Future<void> Function(bool) onToggleSchedule;
 
-  const _LatestLetter({
+  const LatestLetterCard({
+    super.key,
     required this.latest,
     required this.loaded,
     required this.archiveError,
@@ -250,6 +251,8 @@ class _LatestLetter extends StatelessWidget {
     final cfg = settings.newsletter;
     final n = latest;
     final passages = n?.chunkIds.length ?? 0;
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
 
     return KitCard(
       padding: const EdgeInsets.symmetric(
@@ -335,21 +338,27 @@ class _LatestLetter extends StatelessWidget {
             KitRowNote(sendMessage!),
           ],
           const SizedBox(height: AppSpacing.s4),
-          Wrap(
-            spacing: AppSpacing.s2,
-            runSpacing: AppSpacing.s2,
+          // `.nl-actions` on a phone (web 9a84288): a row that WRAPS, each
+          // button `flex: 1` with its label centred — the three share a line
+          // when they fit and the last drops to its own, full width, when
+          // they do not. Above the breakpoint they keep their own widths.
+          KitActionFlow(
+            grow: compact,
             children: [
               KitButton(sending ? 'Sending…' : 'Send now',
                   icon: Icons.send_outlined,
+                  center: compact,
                   onPressed: sending ? null : () => onSend()),
               if (onPreview != null)
                 KitButton('Preview',
                     icon: Icons.visibility_outlined,
                     variant: KitButtonVariant.secondary,
+                    center: compact,
                     onPressed: onPreview),
               KitButton('Settings',
                   icon: Icons.settings_outlined,
                   variant: KitButtonVariant.ghost,
+                  center: compact,
                   onPressed: onSettings),
             ],
           ),
@@ -402,8 +411,9 @@ class _ScheduleRow extends StatelessWidget {
                     timezone: cfg!.timezone,
                     frequency: cfg!.frequency,
                   ).toUpperCase(),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+            // No line cap: `.nl-schedule .nl-status { white-space: normal }`
+            // on a phone (web 9a84288). A cap of two cut the sentence's
+            // timezone to an ellipsis on a 320 card.
             style: KitText.capsLabel(context,
                 color: t.accentText, fontSize: 10, letterSpacing: 0.1),
           ),
