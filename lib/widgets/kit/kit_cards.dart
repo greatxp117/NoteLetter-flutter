@@ -325,23 +325,30 @@ class KitHeroCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
+                  // `.masthead`: space-between, the title `nowrap`, and the
+                  // number the flex item that gives — a letter's subject is
+                  // long, and a fixed-width marker beside an Expanded title
+                  // overflowed the phone row by 44px.
                   children: [
-                    Expanded(
-                      child: AccentTitle(
-                        title,
-                        style: AppTheme.serif(
-                          fontSize: 24,
-                          height: 1.1,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: -0.018 * 24,
-                          color: t.fg,
-                        ),
+                    AccentTitle(
+                      title,
+                      style: AppTheme.serif(
+                        fontSize: 24,
+                        height: 1.1,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.018 * 24,
+                        color: t.fg,
                       ),
                     ),
                     if (marker != null) ...[
                       const SizedBox(width: AppSpacing.s3),
-                      Text(marker!.toUpperCase(),
-                          style: KitText.capsLabel(context, fontSize: 11)),
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Text(marker!.toUpperCase(),
+                              style: KitText.capsLabel(context, fontSize: 11)),
+                        ),
+                      ),
                     ],
                   ],
                 ),

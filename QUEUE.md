@@ -1002,7 +1002,7 @@ a new obligation on a finished screen is a new item.
 - route: /
 - spec: spec/screens/library.md §Composition; spec/screens/onboarding.md; spec/component-kit.md §2.1 §5.3
 - web: src/pages/LibraryHome.jsx; src/styles/app-kit.css
-- flutter: lib/pages/library_page.dart
+- flutter: lib/pages/library_page.dart; lib/state/newsletter_notifier.dart; lib/models/newsletter.dart; lib/widgets/kit/kit_cards.dart; test/contract/library_hero_test.dart (new)
 - folds: none — found by the F-34/F-37 re-shoot pass
 - device_test: none
 - shots: library
@@ -1018,7 +1018,18 @@ a new obligation on a finished screen is a new item.
   `letters.latest?.status == 'sent'` gate is the other half of the difference. The standfirst takes
   the lede by web 5d6fe8d's shared letterLede (the `data-nl-lede` rule), never a slice of
   `text_body`. tool/seed_letters.py is now loaded in the emulator (4 letters incl. a readings one).
-
+  2026-09-25 (hero landed, item still open): `NewsletterNotifier.todaysLetter` is the newest
+  daily record of ANY status (`history.first` — newest first, `kind != 'scripture'` client-side),
+  replacing `latest` gated on `status == 'sent'`; it reads load()'s 30-record window where web pages
+  on past 10 readings letters. The standfirst is `Newsletter.ledeOf(140)` (the shared `data-nl-lede`
+  rule, 120 kept for the Letters rows) with web's fallback sentence; the masthead number is the
+  subject; the cells are Passages (`chunk_ids`) and Sent (only on a `sent` letter; no min-read cell,
+  as before); Schedule goes to `/letters/settings` (it went to `/settings`); a failed read says
+  "Today's letter could not be read." with §14.2, never "Tomorrow's letter…". KitHeroCard's masthead
+  is now web's `.masthead` (title nowrap, the number the item that wraps) — the seed's subject
+  overflowed the phone row by 44px. Still owed here: (1) the setup checklist, (2) the search field
+  row with the full-width Add a source, (3) the list/shelf spine toggles (build ShelfView once in the
+  kit with F-65).
 ## F-55 · Reader — the manuscript counts words from the text, not the passage html, and flattens a table
 - status: done 2026-09-25
 - screen: reader-manuscript

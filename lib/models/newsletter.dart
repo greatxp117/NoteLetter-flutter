@@ -150,15 +150,20 @@ class Newsletter {
   /// `text_body`, as it always was — the head of a letterheaded body is the
   /// masthead and the folio, which reads the same in every letter, so a list
   /// built from it would say nothing about any row.
-  String get lede {
+  String get lede => ledeOf();
+
+  /// [lede] cut at [max] characters — the Letters rows take 120, the Library
+  /// hero 140 (web `letterLede(n, max)`, shared/letterLede.js).
+  String ledeOf([int max = 120]) {
+    String clip(String s) => s.length <= max ? s : s.substring(0, max);
     if (hasLetterhead) {
       final m = _ledeRe.firstMatch(htmlBody);
       if (m != null) {
         final text = _stripTags(m.group(2) ?? '');
-        if (text.isNotEmpty) return _clip(text);
+        if (text.isNotEmpty) return clip(text);
       }
     }
-    return _clip(_collapse(textBody));
+    return clip(_collapse(textBody));
   }
 
   /// Only a letter that was actually BUILT has a body to open into a reader.
@@ -345,4 +350,3 @@ String _stripTags(String s) {
   return _collapse(out);
 }
 
-String _clip(String s) => s.length <= 120 ? s : s.substring(0, 120);

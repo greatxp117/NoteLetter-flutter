@@ -61,10 +61,11 @@ class _LibraryPageState extends State<LibraryPage> {
         final home = _LibraryHome(
           complete: complete,
           shelves: tags.tags,
-          // A `generating`/`error`/`empty` record is history, not a letter to
-          // lead the screen with: the hero's figures and preview would all be
-          // about something that was never sent.
-          letter: letters.latest?.status == 'sent' ? letters.latest : null,
+          // The newest DAILY record, of any status (web ef14f8a) — see
+          // NewsletterNotifier.todaysLetter.
+          letter: letters.todaysLetter,
+          // §14.2: a read that failed is not "no letter yet" (INV-24).
+          letterError: letters.error,
         );
 
         // §14 before §7, and above whatever did load (C2). `complete.isEmpty`
@@ -102,11 +103,13 @@ class _LibraryHome extends StatelessWidget {
   final List<Document> complete;
   final List<Tag> shelves;
   final Newsletter? letter;
+  final String? letterError;
 
   const _LibraryHome({
     required this.complete,
     required this.shelves,
     required this.letter,
+    this.letterError,
   });
 
   @override
@@ -123,8 +126,12 @@ class _LibraryHome extends StatelessWidget {
           standfirst: letter != null
               ? "Today's letter is ready — "
                   '${_passages(letter!)} from your library.'
-              : "Your library is being read. Tomorrow's letter will draw "
-                  "from what's indexed so far.",
+              : letterError != null
+                  // Not "tomorrow's letter will draw…": that sentence is a
+                  // claim about a letter we could not read.
+                  ? "Today's letter could not be read."
+                  : "Your library is being read. Tomorrow's letter will draw "
+                      "from what's indexed so far.",
           actions: [
             KitButton.ghost('Search',
                 icon: Icons.search, onPressed: () => context.go('/search')),
@@ -132,6 +139,12 @@ class _LibraryHome extends StatelessWidget {
                 icon: Icons.add, onPressed: () => context.go('/sources')),
           ],
         ),
+
+        if (letter == null && letterError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: KitFailureInline(letterError!),
+          ),
 
         // ── Today's letter ───────────────────────────────────────────────
         if (letter != null) ...[
@@ -143,17 +156,27 @@ class _LibraryHome extends StatelessWidget {
           ),
           KitHeroCard(
             title: 'A *Letter*',
-            marker: _letterDate(letter!.generatedAt),
-            standfirst: _letterLede(letter!.html),
-            // Only figures with a backing signal get a cell: `passages_sent`
-            // and `passages_found` are stored as sent, so they stay honest as
-            // the library grows. The web's "~n+1 min read" is arithmetic on a
-            // passage count, not a measurement, and has no cell here.
+            // The reference's masthead number is the letter's subject; the
+            // date is the Sent cell's.
+            marker: (letter!.subject?.isNotEmpty ?? false)
+                ? letter!.subject
+                : _letterDate(letter!.generatedAt),
+            // The librarian's note by its `data-nl-lede` marker, never a slice
+            // of the body — the head of a letterheaded body is the masthead
+            // (web 5d6fe8d). A letter with neither says what a letter is.
+            standfirst: letter!.ledeOf(140).isNotEmpty
+                ? letter!.ledeOf(140)
+                : 'Your daily reading, drawn from what you’ve added to your '
+                    'library.',
+            // Counted off the record this hero is drawn from, so there is no
+            // unread state. The web's "~n+1 min read" is arithmetic on a
+            // passage count, not a measurement, and has no cell here; Sent
+            // is drawn only for a letter that was.
             stats: [
-              if (letter!.passagesSent != null)
-                KitStat('${letter!.passagesSent}', 'Passages'),
-              if (letter!.passagesFound != null)
-                KitStat('${letter!.passagesFound}', 'Found'),
+              KitStat('${letter!.chunkIds.length}', 'Passages'),
+              if (letter!.status == 'sent' &&
+                  _letterDate(letter!.generatedAt) != null)
+                KitStat(_letterDate(letter!.generatedAt)!, 'Sent'),
             ],
             actions: [
               KitButton.primary('Preview & send',
@@ -161,7 +184,7 @@ class _LibraryHome extends StatelessWidget {
                   onPressed: () => context.go('/letters')),
               KitButton.ghost('Schedule',
                   icon: Icons.schedule,
-                  onPressed: () => context.go('/settings')),
+                  onPressed: () => context.go('/letters/settings')),
             ],
           ),
         ],
@@ -347,29 +370,6 @@ String? _letterDate(int? ms) {
   if (ms == null) return null;
   final d = DateTime.fromMillisecondsSinceEpoch(ms);
   return '${_months[d.month - 1].substring(0, 3)} ${d.day}';
-}
-
-/// The letter's opening line, taken from the letter itself.
-///
-/// A newsletter record carries `html` and no plain-text body on this client, so
-/// the lede is the rendered letter with its markup stripped — the real first
-/// words of the real letter. Returns null rather than a placeholder when there
-/// is nothing to show: the hero drops the standfirst instead of asserting
-/// something about a letter nobody has read.
-String? _letterLede(String html) {
-  if (html.isEmpty) return null;
-  final text = html
-      .replaceAll(RegExp(r'<(script|style)[^>]*>.*?</\1>',
-          dotAll: true, caseSensitive: false), ' ')
-      .replaceAll(RegExp(r'<[^>]+>'), ' ')
-      .replaceAll('&nbsp;', ' ')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&rsquo;', '’')
-      .replaceAll('&mdash;', '—')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
-  if (text.isEmpty) return null;
-  return text.length <= 140 ? text : '${text.substring(0, 140).trim()}…';
 }
 
 String _shelfLabel(Document doc, List<Tag> shelves) {

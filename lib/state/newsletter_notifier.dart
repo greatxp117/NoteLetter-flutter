@@ -36,6 +36,18 @@ class NewsletterNotifier extends ChangeNotifier {
     return null;
   }
 
+  /// **Today's letter**, as the Library hero means it (web ef14f8a,
+  /// `getNewsletter`): the NEWEST daily record — any status, with or without a
+  /// body — and never a readings letter. It used to be [latest] gated on
+  /// `status == 'sent'`, so a generating or empty newest letter was skipped
+  /// for an older one, and a pre-2.0.0 record (`html`, no `html_body`) drew no
+  /// hero at all where the reference draws it. [history] is newest first and
+  /// already excludes `kind == 'scripture'` client-side (never `== 'daily'`).
+  /// It reads the 30-record window [load] fetched; the reference pages on past
+  /// a full page of readings letters, which here would take 30 consecutive
+  /// readings letters with no daily one between them.
+  Newsletter? get todaysLetter => history.isEmpty ? null : history.first;
+
   bool get isLoading => _isLoading;
   bool get isSending => _isSending;
 
