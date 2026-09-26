@@ -1293,14 +1293,14 @@ a new obligation on a finished screen is a new item.
   frame of the state, so none is checked in.
 
 ## F-68 · The signed-out landing (F-44b) — LandingActual, an edition of the letter
-- status: open
+- status: done 2026-09-26
 - screen: landing-actual
 - route: /landing
 - spec: spec/decisions/ADR-041-composition-is-contract.md
 - web: src/pages/LandingActual.jsx; src/styles/landing-actual.css
-- flutter: lib/pages/landing_page.dart; lib/router.dart
+- flutter: lib/site/landing_page.dart (new); lib/site/landing_bits.dart (new); lib/pages/landing_page.dart; test/contract/landing_test.dart (new); test/kit/no_inline_composition_test.dart; integration_test/hold_screen_test.dart; integration_test/device_run_test.dart
 - folds: none — F-44's second half; the landing redesign (cb6ee41) was UI-only, no contract version
-- device_test: none
+- device_test: signs in and reaches the library
 - shots: landing-actual
 - extra_gates: none
 - notes: Split from F-44 (2026-09-26). Web binds: site furniture composed against LandingActual.jsx 903 + landing-actual.css 507, tokens only, in lib/site/ beside the sign-in sheet. Masthead with the computed dateline (Vol. roman(year-2025) · No. day-of-year), the retyping hero, the letter stack (one letter at phone width), ticker, ten departments (the scroll-lit brief, Fig. 1 drawn as a CustomPainter), the contents rail above 980, colophon, the plum footer (its one /signin link), the drawer and the theme toggle. The 7 remaining `kit-ok: F-44` marks and the file's 4 ratchet entries leave with the old file.

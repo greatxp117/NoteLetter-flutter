@@ -120,7 +120,16 @@ void main() {
       ],
       child: NoteLetterApp(router: router),
     ));
-    await tester.pumpAndSettle(const Duration(seconds: 2));
+    // The landing never settles — its ticker runs and its caret blinks — and a
+    // settle does not fail on a live animation, it hangs until the load window
+    // kills the run (2026-09-26). Signed-out routes get bounded pumps.
+    if (signedOutRoutes.contains(route)) {
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+    } else {
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+    }
     router.go(route);
     for (var i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 200));
@@ -179,6 +188,19 @@ Future<void> reachState(WidgetTester tester) async {
 
   switch (holdState) {
     case '':
+      return;
+    // The landing below its fold (F-68) — for LOOKING only: the reference's
+    // frames are the page top, so these are never checked in.
+    case 'landing-curve':
+    case 'landing-footer':
+      final target = find.textContaining(
+          holdState == 'landing-curve'
+              ? 'Each mark is a letter'
+              : 'Independent, and staying that way',
+          findRichText: true);
+      await Scrollable.ensureVisible(tester.element(target.first),
+          alignment: holdState == 'landing-curve' ? 0.6 : 0.95);
+      await settle();
       return;
     // Web `signin-fail` — the §14.2 line in `.si-fail`'s slot.
     // The reference's own shot presses "Forgot it?" with the email empty, a

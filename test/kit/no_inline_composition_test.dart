@@ -22,7 +22,6 @@ import 'package:flutter_test/flutter_test.dart';
 const _ratchet = <String, int>{
   'lib/pages/branding_page.dart': 9,
   'lib/pages/chat_page.dart': 1,
-  'lib/pages/landing_page.dart': 4,
   'lib/pages/library/document_detail_sheet.dart': 2,
   'lib/pages/not_found_page.dart': 2,
   'lib/pages/onboarding/wizard.dart': 6,

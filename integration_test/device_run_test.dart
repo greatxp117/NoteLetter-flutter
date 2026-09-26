@@ -36,6 +36,7 @@ import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/pages/search/search_field.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/site/signin_page.dart';
+import 'package:flutter_app/site/landing_page.dart';
 import 'package:flutter_app/site/auth_modal.dart';
 import 'package:flutter_app/services/firestore_service.dart';
 import 'package:flutter_app/models/newsletter_settings.dart';
@@ -175,10 +176,8 @@ void main() {
     await pumpApp(tester);
     expect(FirebaseAuth.instance.currentUser, isNotNull);
     // Landing must NOT be showing — the redirect sends a signed-in user to '/'.
-    expect(
-      find.text('Your Knowledge Base, Automatically Curated'),
-      findsNothing,
-    );
+    // By type: the old page's headline string outlived the page (F-68).
+    expect(find.byType(LandingPage), findsNothing);
   });
 
   // F-44a — `/signin` against the Auth emulator: a REAL refusal renders the
