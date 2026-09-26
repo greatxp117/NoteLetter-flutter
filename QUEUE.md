@@ -988,14 +988,24 @@ a new obligation on a finished screen is a new item.
 - route: /letters/settings
 - spec: spec/screens/letters.md; spec/api/newsletter.md
 - web: src/pages/LetterSettings.jsx; src/pages/letters/LetterDocument.jsx
-- flutter: lib/pages/letter_settings_page.dart
+- flutter: lib/pages/letter_settings_page.dart; lib/widgets/kit/kit_config.dart; lib/models/newsletter_settings.dart; test/contract/letter_draw_from_test.dart (new)
 - folds: none — found by the F-34/F-37 re-shoot pass
 - device_test: none
 - shots: letter-settings
 - extra_gates: none
 - notes: Left over after the form was recomposed (F-51). The reference puts the letter itself beside (desktop) or under (phone) the form: `.letter-preview-pane` — today's letter (getNewsletter) rendered through LetterDocument with the first `count` passages, a §14.2 line if it could not be read, and an actions row (`N passages · ~N+1 min read`, Copy, Send now with its sent/failed sentence). This client has no preview and no Send now on this screen. Also `Draw from`: a shelf list with switches whose titles save as `topicFilters` (titles, not ids) in the same PUT; SettingsNotifier.saveLetterSettings already accepts topicFilters. Build both from the kit (§11 Letter sheet for the preview).
   2026-09-25: not reached this sitting (disk, see F-61). Unchanged.
-
+  2026-09-25 (Draw from landed, item still open): NewsletterSettings reads `topicFilters`; the page holds
+  the selection as shelf TITLES and saves `topicFiltersFor(shelves, selected)` (titles in shelf order, a
+  vanished shelf's title dropped, as web's id-mapped selection drops it) in the same PUT. `LetterDrawFrom`
+  is a KitFieldGroup (`Draw from`, note `N|all shelves`) over one new kit row per shelf, KitSourceToggle
+  (`.src-toggle`: 8px shelf dot, sans 14 name, KitSwitch, --rule between rows) in kit_config.dart. Below the
+  fold on the phone frame; letter_draw_from_test.dart (4) is the proof. The PREVIEW PANE is not built,
+  deliberately — the reference's is broken: it renders `passagesToSections(letter.passages)` and
+  `letter.editorial_note`, two fields no current contract record carries, so web's own frame draws "0
+  passages · 0 sources" with an empty body over a letter that holds 3; and its Copy button has no onClick.
+  Porting it would port both defects. Decide the preview's source (the letter's `html_body`, as the Letters
+  reader draws it, cannot be cut to `count` passages) on the web side first.
 ## F-54 · Library — the setup checklist, the search field row, and the spine views
 - status: open
 - screen: library

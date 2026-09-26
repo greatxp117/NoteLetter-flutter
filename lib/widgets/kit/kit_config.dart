@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
@@ -270,4 +271,59 @@ class KitConfigStatic extends StatelessWidget {
     text,
     style: AppTheme.serif(fontSize: 15, color: Tokens.of(context).fg),
   );
+}
+
+/// `.src-toggle` — one row of a choose-from list inside a config group
+/// (letter settings' **Draw from**): an 8px dot in the shelf's stored colour
+/// (with the hairline every dot carries), the name in sans 14, a [KitSwitch]
+/// at the end; 9px of vertical padding and a `--rule` between rows, none
+/// above the first.
+class KitSourceToggle extends StatelessWidget {
+  /// A `/tags.color` token name; an unknown value resolves muted.
+  final String? colorToken;
+  final String label;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final bool first;
+
+  const KitSourceToggle({
+    super.key,
+    required this.label,
+    required this.value,
+    this.colorToken,
+    this.onChanged,
+    this.first = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        border: first ? null : Border(top: BorderSide(color: t.rule)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: AppColors.shelfColor(colorToken) ?? t.fgSubtle,
+              shape: BoxShape.circle,
+              border: Border.all(color: t.border, width: 0.5),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                style: TextStyle(
+                    fontFamily: AppTheme.fontSans, fontSize: 14, color: t.fg)),
+          ),
+          const SizedBox(width: 10),
+          KitSwitch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
 }

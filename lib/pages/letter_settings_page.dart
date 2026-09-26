@@ -5,11 +5,13 @@ import 'package:provider/provider.dart';
 
 import '../models/newsletter_settings.dart';
 import '../models/scripture_newsletter_settings.dart';
+import '../models/tag.dart';
 import '../state/activation_message.dart';
 import '../state/newsletter_notifier.dart';
 import '../state/schedule.dart';
 import '../state/scripture_letter_notifier.dart';
 import '../state/settings_notifier.dart';
+import '../state/tags_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
 import 'letters/readings_letter.dart';
@@ -54,6 +56,11 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
   int _excludeRecentDays = 7;
   bool _populated = false;
 
+  /// Draw from — held as shelf TITLES, which is what `topicFilters` stores
+  /// (web LetterSettings). A title no current shelf carries is dropped on the
+  /// next save, as the reference's id-mapped selection drops it.
+  final Set<String> _drawFrom = {};
+
   String? _outcome;
   String? _saveError;
   String? _scheduleError;
@@ -91,6 +98,9 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
       _frequency = s.frequency;
       _itemsPerLetter = s.itemsPerNewsletter;
       _excludeRecentDays = s.excludeRecentDays;
+      _drawFrom
+        ..clear()
+        ..addAll(s.topicFilters);
     });
     _deliveryTimeCtrl.text = s.deliveryTime;
     _emailCtrl.text = s.emailAddress;
@@ -124,7 +134,10 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
       _saveError = null;
     });
     // `enabled` is deliberately NOT sent here — the switch above owns it.
+    final shelves = context.read<TagsNotifier>().tags;
     final error = await context.read<SettingsNotifier>().saveLetterSettings(
+      // Titles, not ids: they bias scoring by topic rather than scoping.
+      topicFilters: topicFiltersFor(shelves, _drawFrom),
       emailAddress: email,
       frequency: _frequency,
       deliveryTime: _deliveryTimeCtrl.text.trim(),
@@ -178,6 +191,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsNotifier>();
     final rl = context.watch<ScriptureLetterNotifier>();
+    final shelves = context.watch<TagsNotifier>().tags;
     final stored = rl.settings;
     if (stored != null && !_rlPopulated) _populateReadings(stored);
 
@@ -348,6 +362,17 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
               ],
             ),
           ),
+
+          // ── Draw from — the shelves the letter leans on ─────────────────
+          if (shelves.isNotEmpty)
+            LetterDrawFrom(
+              shelves: shelves,
+              selected: _drawFrom,
+              onChanged: (title, v) => setState(() {
+                v ? _drawFrom.add(title) : _drawFrom.remove(title);
+                _outcome = null;
+              }),
+            ),
 
           // The mission this client edits beside the letter it weights. The
           // reference edits the same key from Settings (`Your librarian`).
@@ -533,6 +558,53 @@ class _ReadingsSettings extends StatelessWidget {
             const SizedBox(height: AppSpacing.s2),
             KitFailureInline(n.saveError!),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// What **Draw from** saves: the selected shelves' TITLES, in shelf order —
+/// `topicFilters` biases scoring by topic rather than scoping to a shelf. A
+/// stored title no current shelf carries is dropped, as web's id-mapped
+/// selection drops it.
+List<String> topicFiltersFor(List<Tag> shelves, Set<String> selected) => [
+      for (final t in shelves)
+        if (selected.contains(t.title)) t.title,
+    ];
+
+/// **Draw from** (web LetterSettings `.cfg-group`): a [KitFieldGroup] whose
+/// note counts the shelves in play (`all` when none are), over one
+/// [KitSourceToggle] per shelf.
+class LetterDrawFrom extends StatelessWidget {
+  final List<Tag> shelves;
+  final Set<String> selected;
+  final void Function(String title, bool on) onChanged;
+
+  const LetterDrawFrom({
+    super.key,
+    required this.shelves,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final on = topicFiltersFor(shelves, selected).length;
+    return KitFieldGroup(
+      label: 'Draw from',
+      note: '${on == 0 ? 'all' : on} shelves',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < shelves.length; i++)
+            KitSourceToggle(
+              first: i == 0,
+              label: shelves[i].title,
+              colorToken: shelves[i].color,
+              value: selected.contains(shelves[i].title),
+              onChanged: (v) => onChanged(shelves[i].title, v),
+            ),
         ],
       ),
     );

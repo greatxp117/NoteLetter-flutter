@@ -25,6 +25,10 @@ class NewsletterSettings {
   /// letter doesn't echo itself (2.2.0 surfaces this as an editable control).
   final int excludeRecentDays;
 
+  /// Shelf **titles**, not ids — they bias chunk scoring by topic rather than
+  /// scoping to a shelf (letters.md; web `topicFilters` in LetterSettings).
+  final List<String> topicFilters;
+
   const NewsletterSettings({
     this.enabled = true,
     this.emailAddress = '',
@@ -41,6 +45,7 @@ class NewsletterSettings {
     this.dateRangeDays = 30, // contract default (rolling window)
     this.itemsPerNewsletter = 5, // contract default
     this.excludeRecentDays = 7, // contract default
+    this.topicFilters = const [],
   });
 
   factory NewsletterSettings.fromJson(Map<String, dynamic> json) {
@@ -55,6 +60,7 @@ class NewsletterSettings {
       dateRangeDays: json['dateRangeDays'] as int? ?? 30,
       itemsPerNewsletter: json['itemsPerNewsletter'] as int? ?? 5,
       excludeRecentDays: json['excludeRecentDays'] as int? ?? 7,
+      topicFilters: (json['topicFilters'] as List?)?.cast<String>() ?? const [],
     );
   }
 
