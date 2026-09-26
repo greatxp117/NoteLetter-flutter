@@ -454,6 +454,32 @@ class FirestoreService {
     return snap.docs.map((d) => Newsletter.fromJson(d.id, d.data())).toList();
   }
 
+  /// The newest daily record that holds a LETTER (4.98.0, ADR-131; web
+  /// `getLatestLetter`) — [Newsletter.isBuiltLetter]. Pages on by
+  /// `generated_at desc` (INV-09) past records with no letter in them, ten at a
+  /// time as the reference does. `null` when no letter has been built — an
+  /// answer, not a failure: the preview says "No letter has been built yet."
+  /// for it, and §14.2 only for a throw.
+  Future<Newsletter?> getLatestLetter() async {
+    final uid = _uid;
+    if (uid == null) throw StateError('Not signed in.');
+    const page = 10;
+    DocumentSnapshot<Map<String, dynamic>>? cursor;
+    for (;;) {
+      var q = _db
+          .collection('newsletters')
+          .where('user_id', isEqualTo: uid)
+          .orderBy('generated_at', descending: true);
+      if (cursor != null) q = q.startAfterDocument(cursor);
+      final snap = await q.limit(page).get();
+      final found = pickLatestLetter(
+          snap.docs.map((d) => Newsletter.fromJson(d.id, d.data())));
+      if (found != null) return found;
+      if (snap.docs.length < page) return null;
+      cursor = snap.docs.last;
+    }
+  }
+
   /// Reader: one-shot doc + its chunks (`chunk_index` asc). Fires
   /// `logReadEvent('doc_opened', ...)` — fire-and-forget (INV-03).
   ///

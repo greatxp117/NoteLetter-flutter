@@ -31,7 +31,7 @@ class NewsletterNotifier extends ChangeNotifier {
   /// rows have no body to preview; they still appear in the list below.
   Newsletter? get latest {
     for (final n in history) {
-      if (n.isReadable && n.status != 'empty' && n.status != 'error') return n;
+      if (n.isBuiltLetter) return n;
     }
     return null;
   }

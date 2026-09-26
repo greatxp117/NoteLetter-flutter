@@ -18,7 +18,7 @@ import '../../models/newsletter.dart';
 import '../../shared/dates.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/kit/kit.dart';
-import 'delivery.dart';
+import 'letter_host.dart';
 import 'readings_letter.dart';
 
 class LetterReaderView extends StatelessWidget {
@@ -47,20 +47,23 @@ class LetterReaderView extends StatelessWidget {
         KitUtilityBar(
           // The back control NAMES where it returns to, and its chevron
           // LEADS — a trailing one reads as "go deeper".
-          leading: KitButton('All letters',
-              icon: Icons.chevron_left,
-              variant: KitButtonVariant.ghost,
-              onPressed: onBack),
+          leading: KitButton(
+            'All letters',
+            icon: Icons.chevron_left,
+            variant: KitButtonVariant.ghost,
+            onPressed: onBack,
+          ),
           crumb: _crumb(letter),
         ),
         Expanded(
           child: KitScrollView(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
-              child: letter.hasLetterhead
-                  // Hosted bare: the object that was sent, on its own paper.
-                  ? KitLetterPaper(letter.htmlBody)
-                  : _framed(context, letter),
+              // Scripture has its own document; a daily letter goes through
+              // the one host the letter-settings preview shares (ADR-131).
+              child: letter.isScripture && !letter.hasLetterhead
+                  ? ReadingsLetterDocument(letter: letter, onSeeAll: onSeeAll)
+                  : LetterHost(letter),
             ),
           ),
         ),
@@ -76,30 +79,5 @@ class LetterReaderView extends StatelessWidget {
     return (subject != null && subject.isNotEmpty)
         ? subject
         : longDate(n.generatedAt);
-  }
-
-  /// The §11 sheet this client draws around a frame-less body.
-  Widget _framed(BuildContext context, Newsletter n) {
-    if (n.isScripture) {
-      return ReadingsLetterDocument(letter: n, onSeeAll: onSeeAll);
-    }
-
-    final count = n.chunkIds.length;
-    return KitLetterSheet(
-      title: 'A Letter.',
-      marker: n.subject,
-      standfirst: n.lede.isEmpty ? null : n.lede,
-      sealText: [
-        '$count ${count == 1 ? 'passage' : 'passages'}',
-        // The delivery axis has the last word about the mail (INV-23), and
-        // `sent` is never rendered as "Delivered".
-        letterBadge(
-          status: n.status,
-          deliveryState: n.delivery?.state,
-          trigger: n.trigger,
-        ).text,
-      ].join(' · '),
-      children: [KitLetterBody(n.htmlBody)],
-    );
   }
 }

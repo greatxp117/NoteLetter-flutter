@@ -40,6 +40,11 @@ class Newsletter {
   /// is the letter's passage count, not an estimate.
   final List<String> chunkIds;
 
+  /// Whether the record CARRIES `chunk_ids` at all. Absent is unmeasured, not
+  /// none (ADR-109): a figure taken from [chunkIds] draws nothing, never a `0`,
+  /// when this is false — [chunkIds] alone cannot tell the two apart.
+  final bool chunkIdsKnown;
+
   /// 2.24.0 (ADR-029) — `daily` | `scripture`. **Absent means `daily`**, so
   /// every pre-2.24.0 record is already correct and there is no backfill.
   ///
@@ -91,6 +96,7 @@ class Newsletter {
     required this.status,
     this.errorMessage,
     this.chunkIds = const [],
+    this.chunkIdsKnown = false,
     this.kind,
     this.delivery,
     this.verseSource,
@@ -115,16 +121,21 @@ class Newsletter {
       status: json['status'] as String? ?? '',
       errorMessage: json['error_message'] as String?,
       chunkIds:
-          (json['chunk_ids'] as List?)?.whereType<String>().toList() ?? const [],
+          (json['chunk_ids'] as List?)?.whereType<String>().toList() ??
+          const [],
+      chunkIdsKnown: json['chunk_ids'] is List,
       kind: json['kind'] as String?,
       delivery: LetterDelivery.fromJson(
-          (json['delivery'] as Map?)?.cast<String, dynamic>()),
+        (json['delivery'] as Map?)?.cast<String, dynamic>(),
+      ),
       verseSource: json['verse_source'] as String?,
       verseEdition: json['verse_edition'] as String?,
       bibleOnShelf: json['bible_on_shelf'] as bool? ?? false,
       liturgicalDay: LiturgicalDay.fromJson(
-          (json['liturgical_day'] as Map?)?.cast<String, dynamic>()),
-      readings: (json['readings'] as List?)
+        (json['liturgical_day'] as Map?)?.cast<String, dynamic>(),
+      ),
+      readings:
+          (json['readings'] as List?)
               ?.whereType<Map>()
               .map((r) => LetterReading.fromJson(r.cast<String, dynamic>()))
               .toList() ??
@@ -171,6 +182,31 @@ class Newsletter {
   /// **bounced** letter is still openable: it exists, it just never reached the
   /// mailbox, which INV-23 keeps as a separate question from whether it built.
   bool get isReadable => htmlBody.isNotEmpty;
+
+  /// A daily record that holds a LETTER (4.98.0, ADR-131; web `isBuiltLetter`):
+  /// it carries an `html_body` and is not `empty`/`error`. The Letters card
+  /// features it and the letter-settings preview renders it — one predicate,
+  /// so the two surfaces cannot come to feature different records. A newer
+  /// `generating`, `empty` or `error` record does not displace it.
+  bool get isBuiltLetter =>
+      !isScripture && isReadable && status != 'empty' && status != 'error';
+}
+
+/// The first built letter in a newest-first page (web `snap.docs.find(isBuiltLetter)`).
+Newsletter? pickLatestLetter(Iterable<Newsletter> newestFirst) {
+  for (final n in newestFirst) {
+    if (n.isBuiltLetter) return n;
+  }
+  return null;
+}
+
+/// `{n} passages · ~{n+1} min read` from the record's `chunk_ids` — the
+/// Letters card's own arithmetic (web `letterFigures`, letterActions.js). A
+/// record with no `chunk_ids` draws NO figure rather than a `0` (ADR-109).
+String? letterFigures(Newsletter n, {String suffix = ' read'}) {
+  if (!n.chunkIdsKnown) return null;
+  final c = n.chunkIds.length;
+  return '$c ${c == 1 ? 'passage' : 'passages'} · ~${c + 1} min$suffix';
 }
 
 /// The `delivery` map (4.22.0, ADR-059, INV-23).
@@ -229,20 +265,21 @@ class LetterReading {
   });
 
   factory LetterReading.fromJson(Map<String, dynamic> json) => LetterReading(
-        label: json['label'] as String? ?? '',
-        ref: json['ref'] as String? ?? '',
-        lead: json['lead'] as bool? ?? false,
-        // Absent means the citation parsed — `parsed: false` is written only
-        // when it did not. An `?? false` here would report every reading in
-        // every letter written before the field as unreadable.
-        parsed: json['parsed'] as bool? ?? true,
-        passages: (json['passages'] as List?)
-                ?.whereType<Map>()
-                .map((p) => LetterPassage.fromJson(p.cast<String, dynamic>()))
-                .toList() ??
-            const [],
-        matchTotal: (json['match_total'] as num?)?.toInt() ?? 0,
-      );
+    label: json['label'] as String? ?? '',
+    ref: json['ref'] as String? ?? '',
+    lead: json['lead'] as bool? ?? false,
+    // Absent means the citation parsed — `parsed: false` is written only
+    // when it did not. An `?? false` here would report every reading in
+    // every letter written before the field as unreadable.
+    parsed: json['parsed'] as bool? ?? true,
+    passages:
+        (json['passages'] as List?)
+            ?.whereType<Map>()
+            .map((p) => LetterPassage.fromJson(p.cast<String, dynamic>()))
+            .toList() ??
+        const [],
+    matchTotal: (json['match_total'] as num?)?.toInt() ?? 0,
+  );
 }
 
 class LetterPassage {
@@ -257,10 +294,10 @@ class LetterPassage {
   });
 
   factory LetterPassage.fromJson(Map<String, dynamic> json) => LetterPassage(
-        chunkId: json['chunk_id'] as String? ?? '',
-        documentId: json['document_id'] as String? ?? '',
-        text: json['text'] as String? ?? '',
-      );
+    chunkId: json['chunk_id'] as String? ?? '',
+    documentId: json['document_id'] as String? ?? '',
+    text: json['text'] as String? ?? '',
+  );
 }
 
 /// `liturgical_day` — the computed day, as `lectionary.identify()` returns it.
@@ -317,16 +354,17 @@ class LiturgicalDay {
 
   /// `Cycle B · 2026`, or as much of it as the record carries.
   String get cycleLine => [
-        if (cycle != null && cycle!.isNotEmpty) 'Cycle $cycle',
-        if (liturgicalYear != null && liturgicalYear!.isNotEmpty) liturgicalYear,
-      ].join(' · ');
+    if (cycle != null && cycle!.isNotEmpty) 'Cycle $cycle',
+    if (liturgicalYear != null && liturgicalYear!.isNotEmpty) liturgicalYear,
+  ].join(' · ');
 }
 
 /// The librarian's note, by its marker. Read the MARKER, never a position or an
 /// English phrase.
 final _ledeRe = RegExp(
-    r'<([a-z][a-z0-9]*)\b[^>]*\bdata-nl-lede\b[^>]*>([\s\S]*?)</\1>',
-    caseSensitive: false);
+  r'<([a-z][a-z0-9]*)\b[^>]*\bdata-nl-lede\b[^>]*>([\s\S]*?)</\1>',
+  caseSensitive: false,
+);
 
 String _collapse(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
@@ -349,4 +387,3 @@ String _stripTags(String s) {
   entities.forEach((k, v) => out = out.replaceAll(k, v));
   return _collapse(out);
 }
-

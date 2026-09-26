@@ -983,16 +983,16 @@ a new obligation on a finished screen is a new item.
 - notes: Re-shooting the stale pair showed two drifts. (1) The empty thread drew §7's chrome tile and 28px letterpressed title; the reference's `.sup-empty` is a 52px --accent-soft disc with a solid --accent-chip-border edge and the glyph at --seal, over serif 22/30 and a 16/24 lede — KitEmptyState gains `quiet`. (2) §10's send control drew a grey --surface-raised disc with a north-east arrow while it could not fire; the reference's is always --accent with IcoSend's RIGHT arrow, at 0.45 opacity when disabled. Fixed in KitComposerDock, so Ask's composer moves with it (its pairs are re-shot in the same pass).
 
 ## F-53 · Letter settings — the live letter preview and Draw from
-- status: open
+- status: done 2026-09-26
 - screen: letter-settings
 - route: /letters/settings
-- spec: spec/screens/letters.md; spec/api/newsletter.md
-- web: src/pages/LetterSettings.jsx; src/pages/letters/LetterDocument.jsx
-- flutter: lib/pages/letter_settings_page.dart; lib/widgets/kit/kit_config.dart; lib/models/newsletter_settings.dart; test/contract/letter_draw_from_test.dart (new)
-- folds: none — found by the F-34/F-37 re-shoot pass
+- spec: spec/screens/letters.md §The letter-settings preview; spec/decisions/ADR-131-the-reference-implementation-is-what-the-spec-describes.md; spec/api/newsletter.md
+- web: src/pages/LetterSettings.jsx; src/pages/letters/LetterHost.jsx; src/pages/letters/letterActions.js; src/api.js
+- flutter: lib/pages/letter_settings_page.dart; lib/widgets/kit/kit_config.dart; lib/models/newsletter_settings.dart; test/contract/letter_draw_from_test.dart; lib/pages/letters/letter_preview.dart (new); lib/pages/letters/letter_host.dart (new); lib/pages/letters/letter_reader.dart; lib/models/newsletter.dart; lib/services/firestore_service.dart; lib/state/newsletter_notifier.dart; test/contract/letter_preview_test.dart (new); integration_test/hold_screen_test.dart
+- folds: 4.98.0 (tandem 3a: the preview); none else — found by the F-34/F-37 re-shoot pass
 - device_test: none
-- shots: letter-settings
-- extra_gates: none
+- shots: letter-settings; letter-reader; letters
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: Left over after the form was recomposed (F-51). The reference puts the letter itself beside (desktop) or under (phone) the form: `.letter-preview-pane` — today's letter (getNewsletter) rendered through LetterDocument with the first `count` passages, a §14.2 line if it could not be read, and an actions row (`N passages · ~N+1 min read`, Copy, Send now with its sent/failed sentence). This client has no preview and no Send now on this screen. Also `Draw from`: a shelf list with switches whose titles save as `topicFilters` (titles, not ids) in the same PUT; SettingsNotifier.saveLetterSettings already accepts topicFilters. Build both from the kit (§11 Letter sheet for the preview).
   2026-09-25: not reached this sitting (disk, see F-61). Unchanged.
   2026-09-25 (Draw from landed, item still open): NewsletterSettings reads `topicFilters`; the page holds
@@ -1006,6 +1006,20 @@ a new obligation on a finished screen is a new item.
   passages · 0 sources" with an empty body over a letter that holds 3; and its Copy button has no onClick.
   Porting it would port both defects. Decide the preview's source (the letter's `html_body`, as the Letters
   reader draws it, cannot be cut to `count` passages) on the web side first.
+  2026-09-26 (preview landed, 4.98.0 / ADR-131 answered the question above): the pane is the stored
+  letter — FirestoreService.getLatestLetter pages `generated_at desc` ten at a time to the newest
+  Newsletter.isBuiltLetter (daily, `html_body`, not empty/error; NewsletterNotifier.latest now uses the
+  same predicate, as web's card and preview share one), rendered by LetterHost — the Letters reader's
+  daily branch, extracted so both surfaces use one host (bare on a letterhead, §11 sheet otherwise, never
+  re-sanitised). Figures via letterFigures from `chunk_ids` only; Newsletter.chunkIdsKnown tells an
+  absent field from an empty one, and absent draws NO figure (spec + web; the sheet's seal count too).
+  None built says "No letter has been built yet."; a failed read is §14.2 "Today's letter could not be
+  read — …". Copy writes `html_body` (Flutter's Clipboard takes one flavour, so the HTML — web's
+  single-flavour branch), says Copied, a refusal in §14.2 under the row. Send now sits beside it with
+  web's sentence, disabled with no address. Beside the form above 1024, under it below. HOLD_STATE
+  `letter-preview` scrolls to the pane for looking (the web frame is the page top). The web
+  letter-settings frame is still pre-596edef (v4.97.0 f0143dc footer, "0 passages · 0 sources").
+
 ## F-54 · Library — the setup checklist, the search field row, and the spine views
 - status: done 2026-09-25
 - screen: library

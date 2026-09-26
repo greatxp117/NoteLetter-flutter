@@ -648,6 +648,22 @@ Future<void> reachState(WidgetTester tester) async {
       expect(find.textContaining('Reading your library'), findsNothing,
           reason: 'the review never answered — this frame would be a wait');
       return;
+    // letters.md §The letter-settings preview (F-53, ADR-131) — the stored
+    // letter under the form, below the fold on a phone. Look only: the web's
+    // `letter-settings` frame is the top of the page.
+    case 'letter-preview':
+      await settle();
+      final copy = find.text('Copy');
+      for (var i = 0; i < 40; i++) {
+        if (copy.evaluate().isNotEmpty) break;
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      final none = find.text('No letter has been built yet.');
+      final target = none.evaluate().isNotEmpty ? none : copy;
+      await Scrollable.ensureVisible(tester.element(target.first),
+          alignment: 0.9);
+      await settle();
+      return;
     // sources.md §Composition body 3 — In your library, with the list / cards
     // / shelf toggle (F-65), below the fold at rest. Shot for looking only:
     // the web's `sources` frame is the top of the page.
