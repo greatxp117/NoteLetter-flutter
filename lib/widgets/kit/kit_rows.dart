@@ -1,11 +1,19 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_controls.dart';
+import 'kit_shell.dart' show KitGlyph, KitQuill;
+import 'kit_source_link.dart';
 import 'kit_text.dart';
+
+part 'kit_shelf.dart';
 
 /// §4.1 — the list primitive: a bordered surface holding hairline-divided rows.
 ///

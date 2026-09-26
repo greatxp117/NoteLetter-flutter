@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
 import '../../models/tag.dart';
+import '../../shared/local_flags.dart';
 import '../../state/activity_notifier.dart';
 import '../../state/documents_notifier.dart';
 import '../../state/tags_notifier.dart';
@@ -14,6 +15,7 @@ import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import '../library/document_detail_sheet.dart';
 import '../reader/supersession_confirm.dart';
+import 'shelf_books.dart';
 import 'source_sheet.dart';
 
 /// **Browse** — the volume list on Sources (`screens/sources.md` §Composition
@@ -94,12 +96,32 @@ const _kindOrder = [
   'podcast', 'video',
 ];
 
+/// The view toggle's three positions, in the reference's order.
+const _views = <({String id, String label, IconData icon})>[
+  (id: 'list', label: 'List view', icon: Icons.view_agenda_outlined),
+  (id: 'cards', label: 'Card view', icon: Icons.grid_view),
+  (id: 'shelf', label: 'Shelf view', icon: Icons.shelves),
+];
+
 class _BrowseSectionState extends State<BrowseSection> {
   String _filter = 'all';
   String _sort = 'recent';
 
   @override
+  void initState() {
+    super.initState();
+    LocalFlags.ensureLoaded();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: LocalFlags.sourcesView,
+      builder: (context, view, _) => _build(context, view),
+    );
+  }
+
+  Widget _build(BuildContext context, String view) {
     return Consumer2<DocumentsNotifier, TagsNotifier>(
       builder: (context, docs, tags, _) {
         if (docs.loading) {
@@ -160,6 +182,16 @@ class _BrowseSectionState extends State<BrowseSection> {
                   onChanged: (i) =>
                       setState(() => _sort = _sorts.keys.elementAt(i)),
                 ),
+                // `.view-toggle` — list, cards or shelf, kept per viewer
+                // (`nl-sources-view`); the shelf is the reference's default.
+                KitSegmented(
+                  segments: [
+                    for (final v in _views) KitSegment.icon(v.icon, v.label),
+                  ],
+                  selected: _views.indexWhere((v) => v.id == view),
+                  onChanged: (i) =>
+                      LocalFlags.setView(LocalFlags.sourcesView, _views[i].id),
+                ),
               ],
             ),
 
@@ -180,15 +212,17 @@ class _BrowseSectionState extends State<BrowseSection> {
               )
             else if (all.isEmpty)
               const SizedBox.shrink()
+            // The shelf orders and groups its own ledges (`type` groups them
+            // by kind under the shelf's own labels), as the reference's does.
+            else if (view == 'shelf')
+              KitShelfView(
+                items: [for (final d in filtered) bookOf(d, tags.tags)],
+                sort: _sort,
+              )
             else if (_sort == 'type')
-              ..._grouped(filtered, tags.tags)
+              ..._grouped(filtered, tags.tags, view)
             else ...[
-              KitRowList(
-                rows: [
-                  for (final d in _sorted(filtered))
-                    _VolumeRow(doc: d, shelves: tags.tags),
-                ],
-              ),
+              _set(_sorted(filtered), tags.tags, view),
               if (filtered.isEmpty)
                 const _NoneOfThatKind(),
             ],
@@ -198,8 +232,26 @@ class _BrowseSectionState extends State<BrowseSection> {
     );
   }
 
+  /// One run of volumes as the chosen view draws it: §4.1 rows, or cards.
+  Widget _set(List<Document> list, List<Tag> shelves, String view) {
+    if (view == 'cards') {
+      if (list.isEmpty) return const SizedBox.shrink();
+      return KitSourceCardGrid(cards: [
+        for (final d in list)
+          KitSourceCard(
+            book: bookOf(d, shelves),
+            kindLabel: _kindName[kitDocKind(d.type)] ?? kitDocKind(d.type),
+            date: _rowDate(d.createdAt),
+          ),
+      ]);
+    }
+    return KitRowList(
+      rows: [for (final d in list) _VolumeRow(doc: d, shelves: shelves)],
+    );
+  }
+
   /// The `type` sort groups the list, each group under its own Section header.
-  List<Widget> _grouped(List<Document> list, List<Tag> shelves) {
+  List<Widget> _grouped(List<Document> list, List<Tag> shelves, String view) {
     final byKind = <String, List<Document>>{};
     for (final d in list) {
       byKind.putIfAbsent(kitDocKind(d.type), () => []).add(d);
@@ -209,11 +261,7 @@ class _BrowseSectionState extends State<BrowseSection> {
     return [
       for (final k in keys) ...[
         SectionHeader('${_kindName[k] ?? k} · ${byKind[k]!.length}'),
-        KitRowList(
-          rows: [
-            for (final d in byKind[k]!) _VolumeRow(doc: d, shelves: shelves),
-          ],
-        ),
+        _set(byKind[k]!, shelves, view),
       ],
     ];
   }

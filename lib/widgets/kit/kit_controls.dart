@@ -367,6 +367,9 @@ enum KitBadgeSize {
   /// 40×48 — in a screen header.
   header(40, 48, 10),
 
+  /// 30×38 — on a source card (`.src-card .filebadge`).
+  card(30, 38, 9),
+
   /// Content-sized — the plate is its label and a hairline, no fixed box: a
   /// readings-day passage card's head (`.sc-p-h .filebadge`, which sets no
   /// width or height), where a 36×44 row plate made each quoted passage read
@@ -758,11 +761,25 @@ class KitControlBar extends StatelessWidget {
     this.trailing = const [],
   });
 
+  /// The bar's own width below which it stacks even on a wide window — the
+  /// width the reference's `.browse-controls` gives up its one line at
+  /// (720, web 9a84288). A wide window with the rail beside the page can hand
+  /// the bar less than that, and a trailing slot that neither wraps nor
+  /// shrinks then left the chips a few pixels once Sources' view toggle
+  /// joined the sort (F-65).
+  static const double _stackBelow = 720;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, c) => _build(
+          context,
+          compact: MediaQuery.sizeOf(context).width < AppSpacing.compactWidth ||
+              (c.hasBoundedWidth && c.maxWidth < _stackBelow),
+        ),
+      );
+
+  Widget _build(BuildContext context, {required bool compact}) {
     final t = Tokens.of(context);
-    final compact =
-        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
 
     final chips = Wrap(
       spacing: AppSpacing.s2,
@@ -931,7 +948,15 @@ class KitSegment {
   final String label;
   final IconData? icon;
 
-  const KitSegment(this.label, {this.icon});
+  /// Draw the icon alone in a 32×30 cell — the reference's `.view-toggle
+  /// .vt-btn` (list / cards / shelf), which is this same sunken track with the
+  /// same raised selection, holding glyphs instead of words. [label] is then
+  /// the segment's accessible name, never drawn.
+  final bool iconOnly;
+
+  const KitSegment(this.label, {this.icon}) : iconOnly = false;
+
+  const KitSegment.icon(IconData this.icon, this.label) : iconOnly = true;
 }
 
 /// §6.8 — the segmented control: letter tabs, summary style, sort order.
@@ -967,8 +992,13 @@ class KitSegmented extends StatelessWidget {
           // `Expanded` there is not a layout that looks wrong, it is an
           // assertion that takes the whole screen down. The device run caught
           // exactly this on the organization panel.
+          // A view toggle keeps its cells' own width at every size: the
+          // reference's `.vt-btn` is 32px on a phone too.
+          final glyphs = segments.every((s) => s.iconOnly);
           return _build(context,
-              fill: (expand || compact) && constraints.hasBoundedWidth);
+              fill: !glyphs &&
+                  (expand || compact) &&
+                  constraints.hasBoundedWidth);
         },
       );
 
@@ -1033,6 +1063,34 @@ Widget _segTrack(
   Widget segment(int i) {
     final s = segments[i];
     final on = isOn(i);
+    if (s.iconOnly) {
+      // `.vt-btn`: 32×30, radius 4, the glyph 16 in --fg-muted, --fg when on.
+      return Semantics(
+        button: true,
+        selected: on,
+        label: s.label,
+        excludeSemantics: true,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: onTap == null ? null : () => onTap(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              width: 32,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: on ? t.surface : const Color(0x00000000),
+                borderRadius: const BorderRadius.all(Radius.circular(4)),
+                boxShadow: on ? AppShadows.s1 : null,
+              ),
+              child: Icon(s.icon, size: 16, color: on ? t.fg : t.fgMuted),
+            ),
+          ),
+        ),
+      );
+    }
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(

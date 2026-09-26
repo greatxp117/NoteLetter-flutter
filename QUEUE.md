@@ -1198,17 +1198,44 @@ a new obligation on a finished screen is a new item.
 - notes: Web 9a84288 fixed four phone overflows gate:phone found once it stopped excusing `.view`. Per surface here: (1) Sources `.browse-controls` wraps (sort, then the view toggle on its own line; `.ltabs { width: 100% }` at <=680 already put the track under `Order by`) — KitControlBar's compact tail was already a Wrap and KitSegmented fills its own line, so Order by already matched; this client has NO list/cards/shelf view toggle, booked separately. (2) Letters `.next-letter` at 320: `minmax(0, 1fr)`, `.nl-status { white-space: normal }`, `.nl-actions { flex-wrap: wrap } .btn { flex: 1; justify-content: center }` — the schedule Text lost its 2-line ellipsis cap, and the actions (a content-width Wrap) are now KitActionFlow(grow) with centred labels (KitButton `center`): Send now + Preview share line one, Settings drops alone and full width at 390 and 320. (3) Library `.letter-hero .actions { flex-direction: row; flex-wrap: wrap }` — KitHeroCard's compact actions were a STRETCHED column (every action its own full-width bar); now a KitActionFlow row at natural widths, the second action dropping at 320. (4) `.seg { flex-wrap: wrap }` — component-kit §6.8 says nothing about a track that cannot fit one line; this client implements web's behaviour (the last option drops to its own line only when the labels cannot share one), which KitSegmented has done since F-46. (5) `.link-add input { min-width: 0 }` — the Flutter field is already Expanded. A Flutter Column cannot hold min-content open the way a bare `1fr` track does, so (2)/(3)'s grid fix has no Flutter analogue. KitActionFlow is a new kit render object (flex-wrap with optional grow and the min-content floor) in kit_controls.dart, not a new file, to keep kit.dart's nine listed pairs fresh. Proof is test/kit/phone_width_test.dart at 390 and 320 with the bundled faces; the pair (402pt simulator) shows the 390-class layout.
 
 ## F-65 · Sources — the list / cards / shelf view toggle beside Order by
-- status: open
+- status: done 2026-09-25
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md §Composition; spec/component-kit.md §6.6
 - web: src/pages/SourcesBrowse.jsx; src/styles/app-sources-browse.css
-- flutter: lib/pages/sources/browse_section.dart
+- flutter: lib/pages/sources/browse_section.dart; lib/pages/sources/shelf_books.dart (new); lib/widgets/kit/kit_shelf.dart (new); lib/widgets/kit/kit_rows.dart; lib/widgets/kit/kit_controls.dart; lib/shared/local_flags.dart; test/contract/sources_view_toggle_test.dart (new); test/kit/shelf_test.dart (new); integration_test/hold_screen_test.dart
 - folds: none — found while folding web 9a84288 (F-64)
 - device_test: none
 - shots: sources
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: Web's `.browse-controls` holds `Order by` + the `.ltabs` sort AND a `.view-toggle` (32x30 `.vt-btn` icon segments: IcoRows list, IcoGrid cards, IcoShelf shelf; the choice persisted by `pickView`) that switches the volume list between rows, a `.src-cards` two-column card grid, and ShelfView (spines). This client's browse section has the sort only and always draws rows. On a phone the toggle wraps to its own line (9a84288). Read SourcesBrowse.jsx `view`/`pickView`/ShelfView and the card anatomy before building; F-54's Library spine view is the same ShelfView — build the spine once, in the kit, and let both screens compose it.
+  2026-09-25 (done): the toggle is KitSegmented with `KitSegment.icon` cells (`.vt-btn` 32x30, the
+  same sunken track and raised selection; a glyph-only track never fills a phone line), after the
+  sort in KitControlBar's tail — its own line on a phone, as 9a84288. Kept per viewer under
+  `nl-sources-view` in LocalFlags (write before move; an unknown stored value reads as the shelf);
+  the shelf is the default, as web's. Views: §4.1 rows; KitSourceCardGrid of KitSourceCard
+  (`.src-card`: 30x38 plate — a new KitBadgeSize.card — kind in mono caps from KIND_NAME, the unread
+  dot, date; serif 17 title, 2 lines; shelf; ruled foot with shelf and the count in accent-text;
+  2 columns at <=720, 1 at <=460); KitShelfView. The shelf is ONE kit build in
+  lib/widgets/kit/kit_shelf.dart, a part of kit_rows.dart (so kit.dart's twelve listed pairs stay
+  fresh): KitBook (the kit holds no model; pages map through pages/sources/shelf_books.dart),
+  KitBookSpine (cloth per kind — component-kit §6.4.1's table, raw steps that do not flip — band in
+  the first shelf's colour, the title set vertically, the kind's mark, the unread dot; width on
+  web's log scale of words, height from web's id hash), KitBookCover, KitBookDetail (cover, kind ·
+  added, title, host, Words/Passages/Shelf/Added/Views stats, note, Open in reader + Find a passage;
+  stacks under the compact width), KitShelfUnit (eyebrow head, or the named plate/serif/mono head F-54
+  needs; spines on a 244 ledge; openId owned by the host) and KitShelfView (web's ordering, and
+  SHELF_GROUPS under Type). Not ported: web's hover popover `.bpop` — no hover on touch; the hint
+  drops its hover clause. KitControlBar now also stacks when the BAR is under 720 wide (web's
+  `.browse-controls` line), since the wider tail left the chips 3px on an 800 window. Two frame
+  defects found and fixed by looking: BoxDecoration ignores `color` under a gradient, so the first
+  spines had no cloth (the shading is now blended onto it); the phone cover split "Cornbread,"
+  mid-word (the title now steps down until its longest word fits) and clipped the detail's close.
+  LocalFlags also gains the three `nl-onboard-*` keys F-54's checklist reads, so it is touched once.
+  HOLD_STATEs `sources-browse` / `sources-book` shoot the section and a pulled book for looking only;
+  `query` now settles before typing. Re-shot and read: sources, proc-affordances, source-file-stage,
+  letters, library, notifications, settings, shelves, shelf-color-picker, letter-settings, search
+  (NL_DEV_FAKES).
 
 ## F-66 · Owed confirms — Retry / Index it anyway through the §Supersession confirm; Start a new unit holds its §18 panel
 - status: done 2026-09-25

@@ -356,6 +356,9 @@ Future<void> reachState(WidgetTester tester) async {
     // the split pane, the reading pane, the score meter — exists only once
     // something has been searched for.
     case 'query':
+      // Wait for the route to land before typing: entered too early, the text
+      // went into nothing and no search was ever sent (seen 2026-09-25).
+      await settle();
       final field = find.byType(EditableText).first;
       await tester.enterText(field, 'budget');
       await tester.testTextInput.receiveAction(TextInputAction.search);
@@ -605,6 +608,37 @@ Future<void> reachState(WidgetTester tester) async {
           reason: 'fn_create_tag never answered — this frame would be the form');
       expect(find.textContaining('Reading your library'), findsNothing,
           reason: 'the review never answered — this frame would be a wait');
+      return;
+    // sources.md §Composition body 3 — In your library, with the list / cards
+    // / shelf toggle (F-65), below the fold at rest. Shot for looking only:
+    // the web's `sources` frame is the top of the page.
+    case 'sources-browse':
+      await settle();
+      final head = find.textContaining(
+          RegExp(r'^In your library', caseSensitive: false));
+      for (var i = 0; i < 40; i++) {
+        if (head.evaluate().isNotEmpty) break;
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await Scrollable.ensureVisible(tester.element(head.first),
+          alignment: 0.05);
+      await settle();
+      return;
+    // The same, with the first spine pulled — its detail card (F-65). Look only.
+    case 'sources-book':
+      await settle();
+      final spine = find.byType(KitBookSpine);
+      for (var i = 0; i < 40; i++) {
+        if (spine.evaluate().isNotEmpty) break;
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await tester.ensureVisible(spine.first);
+      await tester.tap(spine.first);
+      await settle();
+      await Scrollable.ensureVisible(
+          tester.element(find.byType(KitBookSpine).first),
+          alignment: 0.1);
+      await settle();
       return;
     // sources.md §Sync control — the sync-folder chooser (F-67), which no
     // route reaches: the Drive sync panel opened, then its folder picker.

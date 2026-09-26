@@ -65,6 +65,59 @@ class LocalFlags {
   /// cached at mount would leave the badge lit on the screen that cleared it.
   static final ValueNotifier<int> activityLastSeen = ValueNotifier<int>(0);
 
+  /// How a list of volumes is drawn — the reference's `nl-sources-view`
+  /// (Sources: `list` · `cards` · `shelf`), `nl-recent-view` (the Library's
+  /// Recently read: `list` · `shelf`) and `nl-shelves-view` (the Library's
+  /// Shelves: `shelf` · `card`). **Per viewer, per device**, as the reference
+  /// keeps them in `localStorage`; the shelf is every one's default. A stored
+  /// value outside its set reads as the default rather than as a blank view.
+  static const String sourcesViewKey = 'nl-sources-view';
+  static const String recentViewKey = 'nl-recent-view';
+  static const String shelvesViewKey = 'nl-shelves-view';
+
+  static const sourcesViews = ['list', 'cards', 'shelf'];
+  static const recentViews = ['list', 'shelf'];
+  static const shelvesViews = ['shelf', 'card'];
+
+  static final ValueNotifier<String> sourcesView = ValueNotifier('shelf');
+  static final ValueNotifier<String> recentView = ValueNotifier('shelf');
+  static final ValueNotifier<String> shelvesView = ValueNotifier('shelf');
+
+  /// The Library's setup checklist (web `shared/OnboardingChecklist.jsx`):
+  /// hidden for good (`nl-onboard-dismissed`), opened or closed
+  /// (`nl-onboard-expanded` — unset means the form's own default), and the
+  /// one step no data records, a first question asked (`nl-onboard-asked`).
+  /// Client-local like every flag here; never Firestore.
+  static const String onboardDismissedKey = 'nl-onboard-dismissed';
+  static const String onboardExpandedKey = 'nl-onboard-expanded';
+  static const String onboardAskedKey = 'nl-onboard-asked';
+
+  static final ValueNotifier<bool> onboardDismissed = ValueNotifier(false);
+  static final ValueNotifier<bool?> onboardExpanded = ValueNotifier(null);
+  static final ValueNotifier<bool> onboardAsked = ValueNotifier(false);
+
+  static Future<void> setOnboardDismissed() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(onboardDismissedKey, true);
+    onboardDismissed.value = true;
+  }
+
+  static Future<void> setOnboardExpanded(bool open) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(onboardExpandedKey, open);
+    onboardExpanded.value = open;
+  }
+
+  static Future<void> markAsked() async {
+    if (onboardAsked.value) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(onboardAskedKey, true);
+    onboardAsked.value = true;
+  }
+
+  static String _oneOf(String? v, List<String> set) =>
+      v != null && set.contains(v) ? v : 'shelf';
+
   static Future<void>? _loading;
 
   /// Read the stored values once, whoever asks first.
@@ -79,7 +132,30 @@ class LocalFlags {
     scripture.value = prefs.getBool(scriptureKey) ?? false;
     onboarded.value = prefs.getBool(onboardedKey) ?? false;
     activityLastSeen.value = prefs.getInt(activityLastSeenKey) ?? 0;
+    sourcesView.value = _oneOf(prefs.getString(sourcesViewKey), sourcesViews);
+    recentView.value = _oneOf(prefs.getString(recentViewKey), recentViews);
+    shelvesView.value = _oneOf(prefs.getString(shelvesViewKey), shelvesViews);
+    onboardDismissed.value = prefs.getBool(onboardDismissedKey) ?? false;
+    onboardExpanded.value = prefs.getBool(onboardExpandedKey);
+    onboardAsked.value = prefs.getBool(onboardAskedKey) ?? false;
   }();
+
+  /// Forget the one-time load, so a test can seed the store and read it again.
+  @visibleForTesting
+  static void resetForTest() => _loading = null;
+
+  /// Write before you move, as every setter here does: the view a reader
+  /// picked is the one they get back next launch, or the control never moved.
+  static Future<void> setView(ValueNotifier<String> which, String view) async {
+    final key = identical(which, sourcesView)
+        ? sourcesViewKey
+        : identical(which, recentView)
+            ? recentViewKey
+            : shelvesViewKey;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, view);
+    which.value = view;
+  }
 
   /// Write before you move: the stored value lands first, then the notifier —
   /// a control that flips its own state before the write hides a failure
