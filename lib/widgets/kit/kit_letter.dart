@@ -449,3 +449,170 @@ class KitLetterAttribution extends StatelessWidget {
             )),
       );
 }
+
+/// The Letters archive's **letter rows** (letters.md §Composition *Archive* at
+/// 4.98.0, ADR-131; web `.archive-list` / `.letter-row`) — one bordered
+/// `--surface`, rows split by `--rule`. Not §4.1 source rows: a letter is not
+/// a volume.
+class KitLetterRowList extends StatelessWidget {
+  final List<Widget> rows;
+
+  const KitLetterRowList({super.key, required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        border: Border.all(color: t.border),
+        borderRadius: AppRadius.mdR,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < rows.length; i++)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: i == rows.length - 1
+                    ? null
+                    : Border(bottom: BorderSide(color: t.rule)),
+              ),
+              child: rows[i],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One `.letter-row`: `№ {n}` (mono 12 `--accent-text`), the subject (serif
+/// 16/600) over its lede (italic serif 13 `--fg-lede`, one line), the figures
+/// (mono 11 `--fg-subtle`), a date (sans 13 `--fg-muted`) and a pill badge
+/// (mono 9 caps; settled on the positive chip, open on the accent soft). Below
+/// the compact width the row keeps the number, the text and the badge, and the
+/// lede steps to 12. [onTap] null: an informational row (ADR-011).
+class KitLetterRow extends StatefulWidget {
+  final int number;
+  final String title;
+  final String lede;
+  final String? figures;
+  final String date;
+  final String badge;
+  final bool settled;
+  final VoidCallback? onTap;
+
+  const KitLetterRow({
+    super.key,
+    required this.number,
+    required this.title,
+    required this.lede,
+    this.figures,
+    required this.date,
+    required this.badge,
+    required this.settled,
+    this.onTap,
+  });
+
+  @override
+  State<KitLetterRow> createState() => _KitLetterRowState();
+}
+
+class _KitLetterRowState extends State<KitLetterRow> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final gap = SizedBox(width: compact ? 12 : 18);
+    final row = Container(
+      color: _hover && widget.onTap != null ? t.hover : null,
+      padding: compact
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 14)
+          : const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      child: Row(
+        children: [
+          SizedBox(
+            width: compact ? 44 : 58,
+            child: Text('№ ${widget.number}',
+                maxLines: 1,
+                softWrap: false,
+                style: AppTheme.mono(
+                    fontSize: 12,
+                    letterSpacing: 0.03 * 12,
+                    color: t.accentText)),
+          ),
+          gap,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.title,
+                    style: AppTheme.serif(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        height: 1.15,
+                        color: t.fg)),
+                if (widget.lede.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(widget.lede,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.serif(
+                          fontSize: compact ? 12 : 13,
+                          fontStyle: FontStyle.italic,
+                          color: t.fgLede)),
+                ],
+              ],
+            ),
+          ),
+          if (!compact && widget.figures != null) ...[
+            gap,
+            Text(widget.figures!,
+                style: AppTheme.mono(fontSize: 11, color: t.fgSubtle)),
+          ],
+          if (!compact) ...[
+            gap,
+            SizedBox(
+              width: 70,
+              child: Text(widget.date,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                      fontFamily: AppTheme.fontSans,
+                      fontSize: 13,
+                      color: t.fgMuted)),
+            ),
+          ],
+          gap,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+            decoration: BoxDecoration(
+              color: widget.settled ? t.positiveChipBg : t.accentSoft,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(widget.badge.toUpperCase(),
+                style: KitText.capsLabel(context,
+                    fontSize: 9,
+                    letterSpacing: 0.08,
+                    color:
+                        widget.settled ? t.positiveChipFg : t.accentChipFg)),
+          ),
+        ],
+      ),
+    );
+    if (widget.onTap == null) return row;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: row,
+      ),
+    );
+  }
+}

@@ -258,7 +258,8 @@ void main() {
           tester,
           const CloudIntegration(
               provider: 'notion', tokenValid: true, includeTypes: ['notion']));
-      expect(find.text('NOTION'), findsWidgets);
+      // The chips spell the key as web's cloudTypeLabel does (4.98.0 check).
+      expect(find.text('Notion page'), findsOneWidget);
       expect(find.text('PDF'), findsNothing);
 
       await pumpPanel(
@@ -267,8 +268,11 @@ void main() {
               provider: 'google_drive',
               tokenValid: true,
               includeTypes: ['pdf']));
-      expect(find.text('NOTION'), findsNothing);
-      expect(find.text('PPTX'), findsOneWidget);
+      expect(find.text('Notion page'), findsNothing);
+      // PDF is ticked, so its rule row names it too.
+      expect(find.text('PDF'), findsWidgets);
+      expect(find.text('Word'), findsOneWidget);
+      expect(find.text('PowerPoint'), findsOneWidget);
     });
 
     testWidgets(

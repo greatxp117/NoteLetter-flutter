@@ -609,78 +609,90 @@ class _CitationPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: t.bg,
           border: Border.all(color: t.border),
+          // Capped at 22 (pillR(44)), never half the block's height: a wrapped
+          // citation is four lines or more on a phone, and a true pill radius
+          // made it an ellipse whose curve crossed the badge and the actions
+          // column (web cdc6e86 caps at --r-xl on <=680).
           borderRadius: AppRadius.pillR(44),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '$index',
-              style: AppTheme.mono(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: t.accentText,
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '$index',
+                style: AppTheme.mono(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: t.accentText,
+                ),
               ),
             ),
-            const SizedBox(width: AppSpacing.s2),
+            const SizedBox(width: 10),
+            // The File badge (§6.4) — content-sized, as web's bare
+            // `.filebadge` in `.cite` sets no box.
+            KitFileBadge(kitDocKind(citation.sourceType ?? ''),
+                size: KitBadgeSize.chip),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // A pill is not one line (ask.md §Composition at 4.98.0,
+                  // ADR-131): the title WRAPS; it was `maxLines: 1`.
                   Text(
                     citation.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: KitText.ui(context, color: t.fg, weight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   // The excerpt is `chunk.text`, so `[Image: …]` reaches it.
                   // KitMarkedText draws each marker as §17.2 and never strips
                   // one: across production the markers are a median 31.6% of a
-                  // marker-bearing chunk (ADR-089).
+                  // marker-bearing chunk (ADR-089). Nothing truncates it.
                   KitMarkedText(
                     citation.excerpt,
                     style: KitText.ui(context, color: t.fgSubtle, height: 19),
                   ),
-                  // §5.2's action bar, drawn with the kit's own control — the
-                  // reference's three Ask actions rendered as bare browser
-                  // buttons because `.pact` was scoped to `.passage` there.
-                  if (citation.documentId != null || host != null) ...[
-                    const SizedBox(height: AppSpacing.s2),
-                    Row(
-                      children: [
-                        if (citation.documentId != null)
-                          KitSourceLink(
-                            docId: citation.documentId!,
-                            query: _readerQuery(),
-                            builder: (context, open) => KitPassageAction(
-                              icon: Icons.visibility_outlined,
-                              label: 'Open',
-                              onTap: open,
-                            ),
-                          ),
-                        // The passage's own source, when there IS one (4.63.0,
-                        // ADR-099). A stored file and an image set have no URL
-                        // and get no control — §6.4.2 rule 3, say nothing
-                        // rather than offer one that goes nowhere.
-                        if (host != null) ...[
-                          if (citation.documentId != null)
-                            const SizedBox(width: AppSpacing.s4),
-                          KitPassageAction(
-                            icon: Icons.open_in_new,
-                            label: host,
-                            onTap: () => launchUrlString(
-                              citation.sourceUrl!,
-                              mode: LaunchMode.externalApplication,
-                            ),
-                          ),
-                        ],
-                      ],
+                ],
+              ),
+            ),
+            // `.cite-acts`: a trailing column — Open, then the passage's own
+            // source named by host (ellipsised at 160).
+            if (citation.documentId != null || host != null) ...[
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (citation.documentId != null)
+                    KitSourceLink(
+                      docId: citation.documentId!,
+                      query: _readerQuery(),
+                      builder: (context, open) => KitPassageAction(
+                        icon: Icons.visibility_outlined,
+                        label: 'Open',
+                        onTap: open,
+                      ),
+                    ),
+                  // The passage's own source, when there IS one (4.63.0,
+                  // ADR-099). A stored file and an image set have no URL
+                  // and get no control — §6.4.2 rule 3, say nothing
+                  // rather than offer one that goes nowhere.
+                  if (host != null) ...[
+                    if (citation.documentId != null) const SizedBox(height: 4),
+                    KitPassageAction(
+                      icon: Icons.open_in_new,
+                      label: host,
+                      maxWidth: 160,
+                      onTap: () => launchUrlString(
+                        citation.sourceUrl!,
+                        mode: LaunchMode.externalApplication,
+                      ),
                     ),
                   ],
                 ],
               ),
-            ),
+            ],
           ],
         ),
       ),

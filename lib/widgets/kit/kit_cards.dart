@@ -1003,11 +1003,16 @@ class KitPassageAction extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
 
+  /// Caps the label and ellipsises it — Ask's citation host link
+  /// (`.cite-source { max-width: 160px }`). Null: the label's own width.
+  final double? maxWidth;
+
   const KitPassageAction({
     super.key,
     required this.icon,
     required this.label,
     required this.onTap,
+    this.maxWidth,
   });
 
   @override
@@ -1035,18 +1040,27 @@ class _KitPassageActionState extends State<KitPassageAction> {
           children: [
             Icon(widget.icon, size: 13, color: color),
             const SizedBox(width: 5),
-            Text(
-              widget.label,
-              style: TextStyle(
-                fontFamily: AppTheme.fontSans,
-                fontSize: 12,
-                color: color,
-              ),
-            ),
+            _label(color),
           ],
         ),
       ),
     );
+  }
+
+  Widget _label(Color color) {
+    final text = Text(
+      widget.label,
+      maxLines: widget.maxWidth == null ? null : 1,
+      overflow: widget.maxWidth == null ? null : TextOverflow.ellipsis,
+      style: TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 12,
+        color: color,
+      ),
+    );
+    if (widget.maxWidth == null) return text;
+    return ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: widget.maxWidth!), child: text);
   }
 }
 

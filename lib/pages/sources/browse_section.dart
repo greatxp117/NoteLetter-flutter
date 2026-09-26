@@ -305,11 +305,12 @@ class ProcessingSection extends StatelessWidget {
       children: [
         SectionHeader(_processingLabel(inFlight),
             note: _processingNote(inFlight)),
-        KitRowList(
-          rows: [
-            for (final d in inFlight) ProcessingRow(doc: d),
-          ],
-        ),
+        // `.proc-list`: one card per document, 10 apart (4.98.0, ADR-131).
+        const SizedBox(height: 12),
+        for (var i = 0; i < inFlight.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          ProcessingRow(doc: inFlight[i]),
+        ],
       ],
     );
   }
@@ -366,14 +367,15 @@ class _VolumeRow extends StatelessWidget {
   }
 }
 
-/// A source still in the pipeline. **Not a different component** — the same
-/// §4.1 row, carrying its stage in the subtitle slot (`screens/sources.md`
-/// §Composition).
+/// A source still in the pipeline — **a card per document with the stage in a
+/// status pill, never in the subtitle** (`screens/sources.md` §Composition at
+/// 4.98.0, ADR-131; web ProcRow). It was a §4.1 row carrying its stage in the
+/// subtitle, which is what the composition line said until then.
 ///
-/// The trailing slot carries, in order: the **source affordance** (§6.4.2 —
-/// every row offers the source itself, because `error_message` is a claim
-/// *about* a source and nothing else on the screen shows it), then **the row's
-/// one primary**, then the overflow.
+/// Every row offers the **source affordance** (§6.4.2 — `error_message` is a
+/// claim *about* a source and nothing else on the screen shows it). While
+/// working: the bar, the affordance and Cancel. When it needs a person: the
+/// detail sentence, **the row's one primary**, Remove and the affordance.
 class ProcessingRow extends StatefulWidget {
   final Document doc;
 
@@ -514,6 +516,10 @@ class _ProcessingRowState extends State<ProcessingRow> {
     final doc = widget.doc;
     final failed = doc.status == DocumentStatus.error ||
         doc.status == DocumentStatus.skipped;
+    final stalled = doc.isStalled();
+    // A stalled run takes the attention branch — Retry, Remove and the source
+    // live there — but not the failed EDGE: it is not an error.
+    final attention = failed || stalled;
     // The failure message is shown VERBATIM: there is no error reason code, and
     // a client that pattern-matches the message to substitute its own copy is
     // inventing a classification the backend never made.
@@ -523,55 +529,74 @@ class _ProcessingRowState extends State<ProcessingRow> {
     // nothing already spent. Mirrors web's STALLED_PROC_MSG verbatim.
     const stalledMsg =
         'Indexing stopped before it finished. Waiting will not help — Retry to start it again.';
-    final subtitle = failed
-        ? (doc.errorMessage ?? _stageLabel(doc))
-        : doc.isStalled()
-            ? stalledMsg
-            : _stageLabel(doc);
+    // web DEFAULT_PROC_ERROR, for a failed row the backend left unexplained.
+    const defaultMsg =
+        'No readable text was found. Retry, or remove this source.';
     final primary = _primary(doc);
+    final title = doc.title.isEmpty ? 'Untitled' : doc.title;
+    final passages = doc.chunkCount ?? 0;
+    // Offered on EVERY row — failed, queued, uploading or mid-extraction — and
+    // chosen by the document's shape, which is known at creation and does not
+    // depend on `status`.
+    final source = KitButton.ghost(SourceSheet.labelFor(doc),
+        onPressed: () => SourceSheet.open(context, doc));
 
-    final row = KitSourceRow(
-      leading: KitFileBadge(kitDocKind(doc.type)),
-      title: doc.title.isEmpty ? 'Untitled' : doc.title,
-      subtitle: subtitle,
-      date: _rowDate(doc.createdAt),
-      // Three controls at once — the source affordance, the primary and the
-      // overflow — do not fit beside the text on a phone.
-      wideTrailing: true,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Offered on EVERY row — failed, queued, uploading or
-          // mid-extraction — and chosen by the document's shape, which is
-          // known at creation and does not depend on `status`.
-          KitButton.ghost(SourceSheet.labelFor(doc),
-              onPressed: () => SourceSheet.open(context, doc)),
-          if (primary != null) ...[
-            const SizedBox(width: 6),
-            // The one accent-filled control. Same slot, same metrics, same
-            // position in both branches: an `error` row and a `skipped` row
-            // are the same pattern with a different decision in it, not two
-            // designs.
-            KitButton.primary(primary.$1,
-                onPressed: _busy ? null : () => _runPrimary(primary.$2)),
-          ],
-          const SizedBox(width: 4),
-          _RowMenu(doc: doc),
-        ],
-      ),
+    return KitProcCard(
+      kind: kitDocKind(doc.type),
+      title: title,
+      // `.proc-sub`: the type, and the passages when there are any. The stage
+      // is the pill's, never this line's.
+      subtitle: passages > 0
+          ? '${doc.type} · ${_plural(passages, 'passage')}'
+          : doc.type,
+      failed: failed,
+      pill: KitProcPill(_stageLabel(doc), tone: _stageTone(doc)),
+      foot: attention
+          ? KitProcAttention(
+              detail: stalled ? stalledMsg : (doc.errorMessage ?? defaultMsg),
+              failure: _error == null
+                  ? null
+                  : KitFailureInline(_error!, dense: true),
+              actions: [
+                // One primary, never two: an `error` row and a `skipped` row
+                // are the same pattern with a different decision in it.
+                if (primary != null)
+                  KitButton.primary(primary.$1,
+                      icon: primary.$2 ? Icons.notes : Icons.refresh,
+                      onPressed:
+                          _busy ? null : () => _runPrimary(primary.$2)),
+                KitButton.ghost('Remove',
+                    onPressed: _busy ? null : () => confirmRemove(context, doc)),
+                source,
+              ],
+            )
+          : KitProcActive(
+              queued: doc.status == DocumentStatus.queued,
+              actions: [
+                source,
+                KitButton.ghost('Cancel',
+                    onPressed: () => confirmCancel(context, doc)),
+              ],
+            ),
     );
+  }
+}
 
-    if (_error == null) return row;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        row,
-        Padding(
-          padding: const EdgeInsets.only(left: 44, bottom: 8),
-          child: KitFailureInline(_error!, dense: true),
-        ),
-      ],
-    );
+/// The pill's tone (web `procPill`): a failure or a stall is `fail` (no
+/// spinner on a run that ended, ADR-108), queued waits, the rest work.
+KitProcTone _stageTone(Document doc) {
+  switch (doc.status) {
+    case DocumentStatus.error:
+    case DocumentStatus.skipped:
+      return KitProcTone.fail;
+    case DocumentStatus.complete:
+      return KitProcTone.done;
+    case DocumentStatus.queued:
+      return KitProcTone.wait;
+    case DocumentStatus.pendingUpload:
+      return KitProcTone.work;
+    case DocumentStatus.processing:
+      return doc.isStalled() ? KitProcTone.fail : KitProcTone.work;
   }
 }
 
@@ -600,8 +625,10 @@ String _stageLabel(Document doc) {
       }
     case DocumentStatus.error:
       return 'Error';
+    // web `procPill`: a skipped row reads Error too — its sentence below says
+    // why, and its primary is Index it anyway rather than Retry.
     case DocumentStatus.skipped:
-      return 'Skipped';
+      return 'Error';
     case DocumentStatus.complete:
       return 'Done';
   }
@@ -644,8 +671,6 @@ class _RowMenu extends StatelessWidget {
   }
 
   Future<void> _run(BuildContext context, String action) async {
-    final activity = context.read<ActivityNotifier>();
-
     switch (action) {
       case 'open':
         context.push('/reader/${doc.id}');
@@ -659,35 +684,49 @@ class _RowMenu extends StatelessWidget {
       // a toast behind it — and the panel does not close on one, which is what
       // stops a refused delete reading as a successful one.
       case 'cancel':
-        final done = await KitConfirm.show(
-          context,
-          title: 'Stop processing “${_name()}”?',
-          body: 'This deletes the document; nothing indexed so far is kept. '
-              'Your original file is not affected — you can add it again any '
-              'time.',
-          confirmLabel: 'Stop & remove',
-          cancelLabel: 'Keep processing',
-          onConfirm: () => activity.cancelDocument(doc.id),
-        );
-        if (done != true || !context.mounted) return;
-        AppToast.show(context, 'Cancelled.', type: ToastType.info);
+        await confirmCancel(context, doc);
       case 'delete':
-        final done = await KitConfirm.show(
-          context,
-          title: 'Remove “${_name()}”?',
-          body: 'This removes the document and any passages indexed from it '
-              'from your library and future letters. The original file on your '
-              'device or cloud service is untouched.',
-          confirmLabel: 'Remove',
-          cancelLabel: 'Keep it',
-          onConfirm: () => activity.deleteDocument(doc.id),
-        );
-        if (done != true || !context.mounted) return;
-        AppToast.show(context, 'Removed.', type: ToastType.info);
+        await confirmRemove(context, doc);
     }
   }
+}
 
-  String _name() => doc.title.isEmpty ? 'Untitled' : doc.title;
+String _nameOf(Document doc) => doc.title.isEmpty ? 'Untitled' : doc.title;
+
+/// Cancel a document mid-pipeline, through §18 (4.56.0, ADR-092): the ACTION
+/// runs inside the confirmation, so its rejection renders in the panel the
+/// reader is looking at, and the panel does not close on one.
+Future<void> confirmCancel(BuildContext context, Document doc) async {
+  final activity = context.read<ActivityNotifier>();
+  final done = await KitConfirm.show(
+    context,
+    title: 'Stop processing “${_nameOf(doc)}”?',
+    body: 'This deletes the document; nothing indexed so far is kept. '
+        'Your original file is not affected — you can add it again any '
+        'time.',
+    confirmLabel: 'Stop & remove',
+    cancelLabel: 'Keep processing',
+    onConfirm: () => activity.cancelDocument(doc.id),
+  );
+  if (done != true || !context.mounted) return;
+  AppToast.show(context, 'Cancelled.', type: ToastType.info);
+}
+
+/// Remove a document, through §18 — same shape as [confirmCancel].
+Future<void> confirmRemove(BuildContext context, Document doc) async {
+  final activity = context.read<ActivityNotifier>();
+  final done = await KitConfirm.show(
+    context,
+    title: 'Remove “${_nameOf(doc)}”?',
+    body: 'This removes the document and any passages indexed from it '
+        'from your library and future letters. The original file on your '
+        'device or cloud service is untouched.',
+    confirmLabel: 'Remove',
+    cancelLabel: 'Keep it',
+    onConfirm: () => activity.deleteDocument(doc.id),
+  );
+  if (done != true || !context.mounted) return;
+  AppToast.show(context, 'Removed.', type: ToastType.info);
 }
 
 /// The library with nothing in it. **An offer, not an apology** (§7) — the

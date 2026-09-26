@@ -431,7 +431,8 @@ class _ScheduleRow extends StatelessWidget {
   }
 }
 
-/// The archive — §4.1 source rows under a §3 header.
+/// The archive — letter rows under a §3 header (letters.md §Composition
+/// *Archive* at 4.98.0, ADR-131: not §4.1 source rows).
 class _Archive extends StatelessWidget {
   final List<Newsletter> rows;
   final bool loaded;
@@ -461,13 +462,17 @@ class _Archive extends StatelessWidget {
     if (!loaded) return KitRowNote('Loading…');
     if (rows.isEmpty) return KitRowNote('No letters sent yet.');
 
-    return KitRowList(
+    return KitLetterRowList(
       rows: [
         for (var i = 0; i < rows.length; i++)
           _archiveRow(context, rows[i], rows.length - i),
       ],
     );
   }
+
+  /// web `BUILDING_LEDE` — a `generating` record has no letter in it yet, and
+  /// says what the optimistic row says for the whole build (4.76.0).
+  static const buildingLede = 'Gathering the best passages from your library…';
 
   Widget _archiveRow(BuildContext context, Newsletter n, int number) {
     final badge = letterBadge(
@@ -478,26 +483,25 @@ class _Archive extends StatelessWidget {
     final count = n.chunkIds.length;
     // A delivery problem outranks the preview: it is the one thing about this
     // row a reader cannot find out any other way.
-    final note = n.errorMessage ??
-        deliveryNote(
-          state: n.delivery?.state,
-          detail: n.delivery?.detail,
-          attempts: n.delivery?.attempts ?? 0,
-        ) ??
-        n.lede;
-    return KitSourceRow(
-      leading: Text('№ $number',
-          style: KitText.capsLabel(context,
-              color: Tokens.of(context).accentText,
-              fontSize: 12,
-              letterSpacing: 0.03)),
+    final note = n.status == 'generating'
+        ? buildingLede
+        : n.errorMessage ??
+            deliveryNote(
+              state: n.delivery?.state,
+              detail: n.delivery?.detail,
+              attempts: n.delivery?.attempts ?? 0,
+            ) ??
+            n.lede;
+    return KitLetterRow(
+      number: number,
       title: n.subject?.isNotEmpty == true ? n.subject! : 'A Letter',
-      subtitle: note.isEmpty ? null : note,
-      count: count > 0
+      lede: note,
+      figures: count > 0
           ? '$count ${count == 1 ? 'passage' : 'passages'} · ~${count + 1} min'
           : null,
       date: shortDate(n.generatedAt),
-      trailing: KitStatusPill(badge.text, positive: badge.settled),
+      badge: badge.text,
+      settled: badge.settled,
       // Only a letter that was BUILT has a body to open. A bounced one still
       // opens — it exists, it just never reached the mailbox (INV-23).
       onTap: n.isReadable ? () => onOpen(n) : null,

@@ -441,9 +441,16 @@ Future<void> reachState(WidgetTester tester) async {
       expect(find.text('View file'), findsWidgets,
           reason: 'no source affordance — this frame would be the tray without '
               'the thing it is a frame OF');
+      // The web frame opens on the section head; so does this one, now the
+      // rows are cards tall enough that the first control sits well below it.
+      final procHead = find.textContaining(
+          RegExp(r'^Being processed', caseSensitive: false));
       await Scrollable.ensureVisible(
-          tester.element(find.text('View file').first),
-          alignment: 0.3, duration: Duration.zero);
+          tester.element(procHead.evaluate().isEmpty
+              ? find.text('View file').first
+              : procHead.first),
+          alignment: procHead.evaluate().isEmpty ? 0.3 : 0.0,
+          duration: Duration.zero);
       await settle();
       return;
     // sources.md §Document processing / component-kit §15 — the sheet a
@@ -647,6 +654,19 @@ Future<void> reachState(WidgetTester tester) async {
           reason: 'fn_create_tag never answered — this frame would be the form');
       expect(find.textContaining('Reading your library'), findsNothing,
           reason: 'the review never answered — this frame would be a wait');
+      return;
+    // letters.md §Composition *Archive* (4.98.0, ADR-131) — the letter rows,
+    // below the fold on a phone. Look only: the web frame is the page top.
+    case 'letters-archive':
+      await settle();
+      final sent = find.textContaining(RegExp(r'^Sent · ', caseSensitive: false));
+      for (var i = 0; i < 40; i++) {
+        if (sent.evaluate().isNotEmpty) break;
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await Scrollable.ensureVisible(tester.element(sent.first),
+          alignment: 0.05);
+      await settle();
       return;
     // letters.md §The letter-settings preview (F-53, ADR-131) — the stored
     // letter under the form, below the fold on a phone. Look only: the web's

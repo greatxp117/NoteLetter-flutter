@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart'
     show
         Checkbox,
+        CircularProgressIndicator,
         DropdownButton,
         DropdownButtonHideUnderline,
         DropdownMenuItem,
         Icons,
         InputBorder,
         InputDecoration,
+        LinearProgressIndicator,
         TextField,
         TextInputType,
         Tooltip;
@@ -20,6 +22,8 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_text.dart';
+
+part 'kit_proc.dart';
 
 /// §6.1 — the four button variants, and **the variant carries meaning**.
 enum KitButtonVariant {
@@ -364,11 +368,17 @@ enum KitBadgeSize {
   /// 36×44 — in a source row.
   row(36, 44, 9),
 
-  /// 40×48 — in a screen header.
-  header(40, 48, 10),
+  /// 34×42, mono 9 — a chapter opening's **lead** (component-kit §6.4 at
+  /// 4.98.0: `.ch-folio-row .filebadge`, the reader's header). It was 40×48
+  /// from `.reader-head .filebadge`, a dead class the reader never mounts
+  /// (ADR-131).
+  header(34, 42, 9),
 
   /// 30×38 — on a source card (`.src-card .filebadge`).
   card(30, 38, 9),
+
+  /// 32×40 — on a processing card (`.proc-row .filebadge`).
+  proc(32, 40, 9),
 
   /// Content-sized — the plate is its label and a hairline, no fixed box: a
   /// readings-day passage card's head (`.sc-p-h .filebadge`, which sets no

@@ -51,6 +51,11 @@ const _typeLabel = {
   'notion': 'Notion page',
 };
 
+/// A cloud type key as the reader reads it — web `cloudTypeLabel`
+/// (CloudFilePicker.jsx): the sync settings' type chips and rule rows and the
+/// folder scan all spell `docx` "Word" and `pptx` "PowerPoint".
+String cloudTypeLabel(String key) => _typeLabel[key] ?? key.toUpperCase();
+
 String spellTypes(Object? counts) {
   if (counts is! Map) return '';
   final entries = [
@@ -59,7 +64,7 @@ String spellTypes(Object? counts) {
         MapEntry(e.key.toString(), (e.value as num).toInt()),
   ]..sort((a, b) => b.value.compareTo(a.value));
   return entries
-      .map((e) => '${e.value} ${_typeLabel[e.key] ?? e.key.toUpperCase()}')
+      .map((e) => '${e.value} ${cloudTypeLabel(e.key)}')
       .join(' · ');
 }
 

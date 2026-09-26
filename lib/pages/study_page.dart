@@ -115,16 +115,12 @@ class _StudyPageState extends State<StudyPage> {
       stream: FirestoreService.instance.subscribeStudyPrograms(),
       builder: (context, snap) {
         // INV-24 (ADR-071): a failed subscription is not an empty library of
-        // programs, and the empty state is a claim about the reader.
-        if (snap.hasError) {
-          return KitPage(
-            child: KitFailureBlock(
-              sentence: 'Your programs could not be read.',
-              detail: describeSdkError(snap.error!),
-            ),
-          );
-        }
-        final programs = snap.data;
+        // programs, and the empty state is a claim about the reader. A failed
+        // read KEEPS the chapter opening and puts §14.1 where the list goes
+        // (study.md §Composition at 4.98.0, ADR-131; web StudyView) — it
+        // replaced the whole page here.
+        final failed = snap.hasError;
+        final programs = failed ? null : snap.data;
         if (programs != null && programs.isEmpty) {
           return KitPage(child: _empty(context));
         }
@@ -148,7 +144,14 @@ class _StudyPageState extends State<StudyPage> {
                       onPressed: () => context.go('/study/new')),
                 ],
               ),
-              if (programs == null)
+              if (failed)
+                // §14.1 takes the region the list would have filled — never
+                // beside it, and never over an offer to create the first one.
+                KitFailureBlock(
+                  sentence: 'Your study programs could not be read.',
+                  detail: describeSdkError(snap.error!),
+                )
+              else if (programs == null)
                 KitRowNote('Loading…')
               else
                 for (final p in programs)
@@ -366,7 +369,7 @@ class _Sessions extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(top: AppSpacing.s6),
             child: KitFailureBlock(
-              sentence: 'Your sessions could not be read.',
+              sentence: 'Your recent sessions could not be read.',
               detail: describeSdkError(snap.error!),
             ),
           );

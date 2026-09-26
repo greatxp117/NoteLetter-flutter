@@ -1318,3 +1318,41 @@ a new obligation on a finished screen is a new item.
 - shots: landing-actual
 - extra_gates: none
 - notes: Split from F-44 (2026-09-26). Web binds: site furniture composed against LandingActual.jsx 903 + landing-actual.css 507, tokens only, in lib/site/ beside the sign-in sheet. Masthead with the computed dateline (Vol. roman(year-2025) · No. day-of-year), the retyping hero, the letter stack (one letter at phone width), ticker, ten departments (the scroll-lit brief, Fig. 1 drawn as a CustomPainter), the contents rail above 980, colophon, the plum footer (its one /signin link), the drawer and the theme toggle. The 7 remaining `kit-ok: F-44` marks and the file's 4 ratchet entries leave with the old file.
+
+## F-69 · The 4.98.0 composition tandem — reader badge, processing cards, Ask citation pill, Study's failed read, letter rows, sync type spelling
+- status: done 2026-09-26
+- screen: sources
+- route: /sources
+- spec: spec/decisions/ADR-131-the-reference-implementation-is-what-the-spec-describes.md; spec/screens/reader.md §Composition; spec/screens/sources.md §Composition; spec/screens/ask.md §Composition; spec/screens/study.md §Composition; spec/screens/letters.md §Composition; spec/component-kit.md §6.4
+- web: src/pages/SourcesBrowse.jsx; src/styles/app-sources-browse.css; src/pages/AskView.jsx; src/styles/app-kit.css; src/pages/StudyView.jsx; src/pages/LettersView.jsx; src/styles/app-responsive.css; src/pages/sources/SyncSettingsPanel.jsx; src/pages/sources/CloudFilePicker.jsx; src/pages/reader/ListenPanel.jsx; src/styles/app-source.css
+- flutter: lib/widgets/kit/kit_controls.dart; lib/widgets/kit/kit_proc.dart (new); lib/widgets/kit/kit_cards.dart; lib/widgets/kit/kit_letter.dart; lib/pages/sources/browse_section.dart; lib/pages/chat_page.dart; lib/pages/study_page.dart; lib/pages/letters_page.dart; lib/pages/sources/sync_settings_panel.dart; lib/pages/sources/folder_contents.dart; lib/pages/reader/listen_panel.dart; lib/pages/reader/manuscript_panel.dart; test/contract/composition_4_98_test.dart (new); test/contract/cloud_sync_audit_test.dart; test/kit/goldens/controls.light.png; test/kit/goldens/controls.dark.png
+- folds: 4.98.0 (tandem 3c 3d 3e 3f 3g)
+- device_test: none
+- shots: reader; sources; proc-affordances; ask-thread; letters; study
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: CHANGELOG 4.98.0 Flutter tandem (c)-(g), plus web 13c910c's two touches. (a) is F-53; (b) is F-44/F-68, done.
+  2026-09-26 (done): (c) KitBadgeSize.header is 34x42 / mono 9 (was 40x48 / 10, from the dead `.reader-head`
+  class); the reader's chapter-opening lead takes it, no deviation to record. (d) Being processed: one
+  KitProcCard per document (kit_proc.dart, a part of kit_controls.dart): 32x40 badge (new KitBadgeSize.proc),
+  serif 15/500 title, mono 11 `{type} · {n} passages`, and KitProcPill toned per web procPill (work + spinner,
+  wait, done, fail + alert glyph, hold); the stage is the pill's, never the subtitle's (skipped reads Error, as
+  web). Beneath it KitProcActive (the 3px bar, the source affordance, Cancel) or KitProcAttention (ruled strip,
+  the italic serif detail or web's DEFAULT_PROC_ERROR, §14.2 retry refusal, the one primary + Remove + the
+  source affordance). The processing row's overflow menu is gone (web has none); Cancel/Remove are the same
+  §18 confirms, lifted to confirmCancel/confirmRemove. The pill drops under the title at 768. (e) Ask citation:
+  index, a content-sized File badge (web's bare `.filebadge`), a WRAPPING title over the excerpt, and a trailing
+  Open / host column (host capped at 160, KitPassageAction.maxWidth); the radius stays pillR(44) = 22 at every
+  width (web: --r-xl 20 at <=680, a true pill wider — this client's single cap is the deviation, since a
+  wrapped citation is 2+ lines everywhere here). (f) Study: a failed programs read keeps the chapter opening
+  (folio `…`) with §14.1 where the list goes; sentences now web's (`Your study programs could not be read.`,
+  `Your recent sessions could not be read.`). (g) Letters archive: KitLetterRowList / KitLetterRow in
+  kit_letter.dart (`.archive-list` / `.letter-row`): № mono 12, serif 16/600 subject over italic serif 13 lede,
+  mono 11 figures, sans 13 date, mono 9 pill badge (settled = positive chip, open = accent soft); figures and
+  date hide below 768; `generating` rows say web's BUILDING_LEDE. Sync settings: type chips and rule rows use
+  cloudTypeLabel (PDF / Word / PowerPoint / Notion page), web's. 13c910c: the Listen play button's Play glyph
+  sits 2px right while it shows (Material's triangle is already 1.5px right of centre; the sum matches web's
+  nudged IcoPlay); the manuscript's edit-mode word count was already --fg-muted and now takes web's mono 11
+  face. Frames re-shot and read: proc-affordances, sources, reader, study, letters, ask-thread, ask-rail, ask
+  (ask pairs against a separate NL_DEV_FAKES shim on :5598, stopped after). The failed-study and letter-row
+  states have no seed frame; composition_4_98_test.dart is the proof. Still different on the reader frame,
+  not this item: the Shelves row (F-39, open) and the Listen stat.

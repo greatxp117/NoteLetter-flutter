@@ -6,6 +6,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
+import 'folder_contents.dart' show cloudTypeLabel;
 import 'sync_folder_picker.dart';
 
 /// Tier-C sync settings (`screens/sources.md` §Sync control, 1.4.0/ADR-007),
@@ -360,7 +361,8 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                       children: [
                         for (final type in _types)
                           KitFilterChip(
-                            type.toUpperCase(),
+                            // web `cloudTypeLabel`: PDF / Word / PowerPoint.
+                            cloudTypeLabel(type),
                             selected: i.includeTypes.contains(type),
                             onPressed: () {
                               final next = {...i.includeTypes};
@@ -565,7 +567,9 @@ class _RuleRow extends StatelessWidget {
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          SizedBox(width: 52, child: Eyebrow(type.toUpperCase())),
+          ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 88),
+              child: Eyebrow(cloudTypeLabel(type).toUpperCase())),
           KitSegmented(
             segments: const [
               KitSegment('Import'),
