@@ -13,6 +13,7 @@ import '../../theme/tokens.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import '../library/document_detail_sheet.dart';
+import '../reader/supersession_confirm.dart';
 import 'source_sheet.dart';
 
 /// **Browse** — the volume list on Sources (`screens/sources.md` §Composition
@@ -258,7 +259,7 @@ class ProcessingSection extends StatelessWidget {
             note: _processingNote(inFlight)),
         KitRowList(
           rows: [
-            for (final d in inFlight) _ProcessingRow(doc: d),
+            for (final d in inFlight) ProcessingRow(doc: d),
           ],
         ),
       ],
@@ -325,16 +326,21 @@ class _VolumeRow extends StatelessWidget {
 /// every row offers the source itself, because `error_message` is a claim
 /// *about* a source and nothing else on the screen shows it), then **the row's
 /// one primary**, then the overflow.
-class _ProcessingRow extends StatefulWidget {
+class ProcessingRow extends StatefulWidget {
   final Document doc;
 
-  const _ProcessingRow({required this.doc});
+  /// Test seams for the supersession confirm's two reads; null is the live read.
+  final Future<bool?> Function(String docId)? studyCheck;
+  final Future<bool?> Function(String docId)? editCheck;
+
+  const ProcessingRow(
+      {super.key, required this.doc, this.studyCheck, this.editCheck});
 
   @override
-  State<_ProcessingRow> createState() => _ProcessingRowState();
+  State<ProcessingRow> createState() => _ProcessingRowState();
 }
 
-class _ProcessingRowState extends State<_ProcessingRow> {
+class _ProcessingRowState extends State<ProcessingRow> {
   /// §14.2 — **one slot, shared**, since one primary means one outstanding
   /// request. A 409/429 renders here, in the row, with the server's words: the
   /// cooldown and cap copy is user-facing.
@@ -355,7 +361,7 @@ class _ProcessingRowState extends State<_ProcessingRow> {
   }
 
   @override
-  void didUpdateWidget(covariant _ProcessingRow old) {
+  void didUpdateWidget(covariant ProcessingRow old) {
     super.didUpdateWidget(old);
     _syncTick();
   }
@@ -414,18 +420,46 @@ class _ProcessingRowState extends State<_ProcessingRow> {
       _error = null;
     });
     final activity = context.read<ActivityNotifier>();
-    final err = force
-        ? await activity.forceProcessDocument(widget.doc.id)
-        : await activity.retryDocument(widget.doc.id);
+    final doc = widget.doc;
+    final title = doc.title.isEmpty ? 'Untitled' : doc.title;
+    // reader.md §Supersession confirm names "retry of an errored doc": it
+    // re-derives the document, and an errored document CAN hold both facts —
+    // one that failed a RE-extraction keeps its passages, and a study program
+    // that took it in while complete still lists it. So both primaries run
+    // through the supersession confirm (web 71987f6): it asks when a passage
+    // was edited or the document is in a program, or either could not be
+    // checked, and sends straight through on two definite noes. Inside the
+    // confirm a refusal stays in the panel's §18 slot; with no confirm owed it
+    // is §14.2 under the row, as before. The control is held until it resolves.
+    final res = await SupersessionConfirm.run(
+      context,
+      docId: doc.id,
+      title: force ? 'Index “$title” anyway?' : 'Retry “$title”?',
+      lead: force ? forceLead : retryLead,
+      confirmLabel: force ? 'Index it anyway' : 'Retry and replace',
+      action: () => force
+          ? activity.forceProcessDocument(doc.id)
+          : activity.retryDocument(doc.id),
+      studyCheck: widget.studyCheck,
+      editCheck: widget.editCheck,
+    );
     if (!mounted) return;
     // On 200 **no optimistic state is needed**: the document flips to `queued`
     // under the existing subscription and the row returns to its normal
     // progress treatment.
     setState(() {
       _busy = false;
-      _error = err;
+      _error = res.outcome == SupersessionOutcome.refused ? res.message : null;
     });
   }
+
+  /// The confirm's lead sentences, verbatim from the reference (web 71987f6).
+  static const retryLead =
+      'This source will be processed again from its original, and any '
+      'passages it has are replaced with a fresh extraction.';
+  static const forceLead =
+      'This source will be read again as text, and any passages it has are '
+      'replaced with a fresh extraction.';
 
   @override
   Widget build(BuildContext context) {
@@ -552,7 +586,7 @@ class _RowMenu extends StatelessWidget {
         // primary** and it is an accent-filled control on the row itself
         // (4.47.0, ADR-085) — burying the row's single answer in an overflow
         // menu is the same defect as rendering both at once, arrived at from
-        // the other side. `_ProcessingRow` owns it.
+        // the other side. `ProcessingRow` owns it.
         if (active)
           const PopupMenuItem(value: 'cancel', child: Text('Cancel')),
         const PopupMenuItem(value: 'delete', child: Text('Remove')),

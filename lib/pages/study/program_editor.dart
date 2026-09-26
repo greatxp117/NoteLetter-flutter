@@ -218,7 +218,7 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
                 const SizedBox(height: 28),
                 _SourceKindPanel(program: _program!, docs: _docs),
                 const SizedBox(height: 24),
-                _UnitPanel(program: _program!, docs: _docs, onDone: _load),
+                UnitPanel(program: _program!, docs: _docs, onDone: _load),
                 const SizedBox(height: 24),
                 _SyllabusPanel(program: _program!, docs: _docs, onDone: _load),
               ],
@@ -353,26 +353,25 @@ class _SourceKindPanel extends StatelessWidget {
 /// **A unit is the content between examinations, and the reader moves the
 /// pointer.** Always an explicit action, available with or without a syllabus,
 /// and it asks each `reading` the one thing nothing can infer: how far you got.
-class _UnitPanel extends StatefulWidget {
-  const _UnitPanel(
-      {required this.program, required this.docs, required this.onDone});
+class UnitPanel extends StatefulWidget {
+  const UnitPanel(
+      {super.key,
+      required this.program,
+      required this.docs,
+      required this.onDone});
   final StudyProgram program;
   final List<Document> docs;
   final Future<void> Function() onDone;
 
   @override
-  State<_UnitPanel> createState() => _UnitPanelState();
+  State<UnitPanel> createState() => _UnitPanelState();
 }
 
-class _UnitPanelState extends State<_UnitPanel> {
+class _UnitPanelState extends State<UnitPanel> {
   final Map<String, int?> _positions = {};
+  /// Held while the program re-reads after a unit started — the confirm
+  /// itself is modal, so it needs no hold of its own.
   bool _busy = false;
-
-  /// C6: this was a constant in a toast. Starting a unit is deliberately not
-  /// idempotent — it is confirmed before it is called — so a reader told only
-  /// "Could not start the unit" cannot tell a refusal from a timeout, and the
-  /// one thing they must not do is guess and press it again.
-  String? _error;
 
   Future<void> _advance() async {
     final readings = widget.program.documentIds
@@ -395,34 +394,43 @@ class _UnitPanelState extends State<_UnitPanel> {
       confirmLabel: 'Start the unit',
       cancelLabel: 'Not yet',
       danger: false,
-      onConfirm: () async => null,
+      // §18 rule 1: the panel holds until the call resolves, and a refusal
+      // renders in its own failure slot — it used to close on `null` and
+      // call afterwards, so a refusal landed on a screen the reader had
+      // already been told was done. Deliberately not idempotent, so it is
+      // confirmed before it is called.
+      onConfirm: _startUnit,
     );
-    // Deliberately not idempotent, so it is confirmed before it is called.
     if (confirmed != true || !mounted) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    final started = widget.program.unitNumber + 1;
+    setState(() => _busy = true);
+    try {
+      await widget.onDone();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (mounted) {
+      AppToast.show(context, 'Unit $started started.',
+          type: ToastType.success);
+    }
+  }
+
+  /// The call itself — `null` on success, else the sentence the §18 panel
+  /// shows in its failure slot. C6: this was a constant in a toast; starting
+  /// a unit is not idempotent, so a reader who cannot tell a refusal from a
+  /// timeout must not be left to guess and press it again.
+  Future<String?> _startUnit() async {
     try {
       await Api.instance.advanceStudyUnit(widget.program.id,
           positions: {
             for (final e in _positions.entries)
               if (e.value != null) e.key: e.value,
           });
-      await widget.onDone();
-      if (mounted) {
-        AppToast.show(context, 'Unit ${widget.program.unitNumber + 1} started.',
-            type: ToastType.success);
-      }
+      return null;
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      return e.message;
     } catch (_) {
-      if (mounted) {
-        setState(() => _error =
-            'The unit could not be started. Nothing has changed.');
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      return 'The unit could not be started. Nothing has changed.';
     }
   }
 
@@ -464,11 +472,6 @@ class _UnitPanelState extends State<_UnitPanel> {
           onPressed: _busy ? null : _advance,
           child: Text(_busy ? 'Starting…' : 'Start a new unit'),
         ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: KitFailureInline(_error!),
-          ),
       ],
     );
   }

@@ -1178,3 +1178,16 @@ a new obligation on a finished screen is a new item.
 - shots: sources
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: Web's `.browse-controls` holds `Order by` + the `.ltabs` sort AND a `.view-toggle` (32x30 `.vt-btn` icon segments: IcoRows list, IcoGrid cards, IcoShelf shelf; the choice persisted by `pickView`) that switches the volume list between rows, a `.src-cards` two-column card grid, and ShelfView (spines). This client's browse section has the sort only and always draws rows. On a phone the toggle wraps to its own line (9a84288). Read SourcesBrowse.jsx `view`/`pickView`/ShelfView and the card anatomy before building; F-54's Library spine view is the same ShelfView — build the spine once, in the kit, and let both screens compose it.
+
+## F-66 · Owed confirms — Retry / Index it anyway through the §Supersession confirm; Start a new unit holds its §18 panel
+- status: done 2026-09-25
+- screen: sources
+- route: /sources
+- spec: spec/screens/reader.md §Supersession confirm; spec/component-kit.md §18; spec/decisions/ADR-092-a-confirmation-that-cannot-report-a-refusal.md
+- web: src/pages/SourcesBrowse.jsx; src/shared/SupersessionConfirm.jsx; src/pages/study/ProgramEditor.jsx
+- flutter: lib/pages/sources/browse_section.dart; lib/pages/study/program_editor.dart; test/contract/owed_confirms_test.dart (new)
+- folds: none — confirm_check (NoteLetter-contracts@7635d61) owed list; web 71987f6
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/confirm_check.py; python3 ../NoteLetter-contracts/harness/confirm_mutations.py
+- notes: reader.md §Supersession confirm names "retry of an errored doc": an errored document CAN hold edited passages (a failed RE-extraction keeps them) and be in a study program, so `_runPrimary`'s Retry and Index it anyway both run through SupersessionConfirm.run (F-63's runner) with web 71987f6's words — `Retry “{title}”?` / `Index “{title}” anyway?`, the reference's two lead sentences, `Retry and replace` / `Index it anyway` on the danger control; two definite noes send straight through, a refusal then stays §14.2 under the row. The row's labels never claimed work behind the confirm here, so web's `askingFor` defect has no counterpart. `ProcessingRow` is public with two check seams for the tests. Start a new unit (`UnitPanel`, now public) closed its §18 on `null` and called afterwards (§18 rule 1): the call is now the panel's `onConfirm`, a refusal in its slot, and the row's own failure slot went with the old path; the toast's unit number is taken before the refresh. manuscript_panel.dart's close-first confirm is the leave guard, which calls nothing (the act IS the navigation) and is annotated `confirm-ok:` exactly as web ReaderView's — no change. The contracts owed list lost both Flutter entries (NoteLetter-contracts 54e6738). Neither UnitPanel nor manuscript is declared in confirm_required.json; declaring the unit panel is a contracts change this item was not allowed to make.
