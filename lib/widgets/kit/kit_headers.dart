@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_text.dart';
+
+part 'kit_library_head.dart';
 
 /// The page header (`component-kit.md` §2.1) — **one pattern with optional
 /// parts**, used by nine of the eleven screens.
@@ -317,6 +320,10 @@ class SectionHeader extends StatelessWidget {
   /// paid for the space.
   final bool first;
 
+  /// Controls that sit BEFORE the trailing link, centred with it
+  /// (`.lib-section-tools`, gap 14): the Library's list / shelf toggles.
+  final Widget? tools;
+
   const SectionHeader(
     this.eyebrow, {
     super.key,
@@ -325,6 +332,7 @@ class SectionHeader extends StatelessWidget {
     this.actionIcon,
     this.note,
     this.first = false,
+    this.tools,
   });
 
   @override
@@ -372,19 +380,28 @@ class SectionHeader extends StatelessWidget {
                 ),
               ),
             )
-          else if (actionLabel != null)
-            GestureDetector(
-              onTap: onAction,
-              child: Text(
-                actionLabel!,
-                style: TextStyle(
-                  fontFamily: AppTheme.fontSans,
-                  fontSize: 13,
-                  color: t.fgMuted,
-                  decoration: TextDecoration.underline,
-                  decorationColor: t.linkDecor,
-                ),
-              ),
+          else if (actionLabel != null || tools != null)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (tools != null) tools!,
+                if (tools != null && actionLabel != null)
+                  const SizedBox(width: 14),
+                if (actionLabel != null)
+                  GestureDetector(
+                    onTap: onAction,
+                    child: Text(
+                      actionLabel!,
+                      style: TextStyle(
+                        fontFamily: AppTheme.fontSans,
+                        fontSize: 13,
+                        color: t.fgMuted,
+                        decoration: TextDecoration.underline,
+                        decorationColor: t.linkDecor,
+                      ),
+                    ),
+                  ),
+              ],
             ),
         ],
       ),

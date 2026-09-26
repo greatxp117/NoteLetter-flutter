@@ -1007,12 +1007,12 @@ a new obligation on a finished screen is a new item.
   Porting it would port both defects. Decide the preview's source (the letter's `html_body`, as the Letters
   reader draws it, cannot be cut to `count` passages) on the web side first.
 ## F-54 · Library — the setup checklist, the search field row, and the spine views
-- status: open
+- status: done 2026-09-25
 - screen: library
 - route: /
 - spec: spec/screens/library.md §Composition; spec/screens/onboarding.md; spec/component-kit.md §2.1 §5.3
 - web: src/pages/LibraryHome.jsx; src/styles/app-kit.css
-- flutter: lib/pages/library_page.dart; lib/state/newsletter_notifier.dart; lib/models/newsletter.dart; lib/widgets/kit/kit_cards.dart; test/contract/library_hero_test.dart (new)
+- flutter: lib/pages/library_page.dart; lib/state/newsletter_notifier.dart; lib/models/newsletter.dart; lib/widgets/kit/kit_cards.dart; test/contract/library_hero_test.dart; lib/widgets/kit/kit_headers.dart; lib/widgets/kit/kit_library_head.dart (new); lib/widgets/kit/kit_shelf.dart; lib/state/chat_notifier.dart; test/contract/library_setup_test.dart (new); test/kit/library_head_test.dart (new); test/contract/documents_failure_test.dart; integration_test/hold_screen_test.dart
 - folds: none — found by the F-34/F-37 re-shoot pass
 - device_test: none
 - shots: library
@@ -1040,6 +1040,26 @@ a new obligation on a finished screen is a new item.
   overflowed the phone row by 44px. Still owed here: (1) the setup checklist, (2) the search field
   row with the full-width Add a source, (3) the list/shelf spine toggles (build ShelfView once in the
   kit with F-65).
+  2026-09-25 (done): (1) the checklist is KitSetupChecklist (kit_library_head.dart, a part of
+  kit_headers.dart): the compact strip under the chapter opening (caret, 90px bar, `N of M set up`,
+  the remaining steps as pills, Hide; the pills take their own line on a phone and the label wraps
+  at 320), and the full card on the empty Library. Steps as web's buildSteps — account (done), a
+  first source (any document), a volume on a shelf, the letter set up (`enabled || deliveryTime` on
+  a settings doc that exists; SettingsNotifier.loadAll per visit), a first question (`nl-onboard-
+  asked`, set by ChatNotifier.ask on a RECORDED turn, never a refusal). Hidden (`nl-onboard-
+  dismissed`) or complete, it is gone; `nl-onboard-expanded` remembers the disclosure, default open
+  for the card and closed for the strip; web's established-reader guard (preDone) is kept. (2)
+  KitLibraryActions: the italic-serif search field (a button to /search; the Vector pill wide only)
+  and the accent Add a source (to /sources), stacked full width on a phone — the ghost Search and Add
+  a source left the header's actions slot. Stacked widgets add margins CSS collapses, so the strip
+  has no bottom margin and the row no bottom one (22 and 32 between, as web). (3) SectionHeader gains
+  a `tools` slot (`.lib-section-tools`): Recently read is list (5 rows) or F-65's KitShelfView (12,
+  bare), Shelves is F-65's named KitShelfUnit ledges (320–440 wide, one to a line on a phone, one
+  pulled book across all of them) or the existing card grid — kept under `nl-recent-view` /
+  `nl-shelves-view`, shelf the default. KitShelfUnit/KitSourceCard counts now pluralise (`1 passage`);
+  web's named head says `1 passages` — a web defect, not ported. Frames: after the ask shots the
+  simulator's prefs hold `nl-onboard-asked`, so a later library frame there draws no strip until
+  the key is cleared.
 ## F-55 · Reader — the manuscript counts words from the text, not the passage html, and flattens a table
 - status: done 2026-09-25
 - screen: reader-manuscript

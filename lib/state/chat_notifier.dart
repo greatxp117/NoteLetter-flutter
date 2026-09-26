@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/ask_thread.dart';
 import 'sent_turn.dart';
+import '../shared/local_flags.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -363,6 +364,9 @@ class ChatNotifier extends ChangeNotifier {
     Analytics.track('ask_run', {
       'results_bucket': Analytics.bucket(citations.length),
     });
+    // Completes the Library checklist's "Ask your library a question" — on a
+    // turn that was RECORDED, never on a refusal (web AskView `nl-onboard-asked`).
+    LocalFlags.markAsked();
 
     final id = data['threadId'] as String?;
     // Remember which conversation this turn was recorded in, so the navigation

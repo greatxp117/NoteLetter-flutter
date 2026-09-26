@@ -640,6 +640,20 @@ Future<void> reachState(WidgetTester tester) async {
           alignment: 0.1);
       await settle();
       return;
+    // library.md — Recently read and Shelves, below the fold at rest, with
+    // their list / shelf toggles (F-54). Shot for looking only.
+    case 'library-shelves':
+      await settle();
+      final recentHead = find.textContaining(
+          RegExp(r'^Recently read', caseSensitive: false));
+      for (var i = 0; i < 40; i++) {
+        if (recentHead.evaluate().isNotEmpty) break;
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await Scrollable.ensureVisible(tester.element(recentHead.first),
+          alignment: 0.02);
+      await settle();
+      return;
     // sources.md §Sync control — the sync-folder chooser (F-67), which no
     // route reaches: the Drive sync panel opened, then its folder picker.
     // Needs the shim under NL_DEV_FAKES=1 for the Drive tree. The web

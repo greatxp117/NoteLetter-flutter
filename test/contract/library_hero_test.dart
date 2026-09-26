@@ -17,6 +17,7 @@ import 'package:flutter_app/pages/library_page.dart';
 import 'package:flutter_app/services/firestore_service.dart';
 import 'package:flutter_app/state/documents_notifier.dart';
 import 'package:flutter_app/state/newsletter_notifier.dart';
+import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
@@ -101,6 +102,7 @@ Future<void> _pump(WidgetTester tester, List<Newsletter> all,
       ChangeNotifierProvider(create: (_) => DocumentsNotifier()),
       ChangeNotifierProvider(create: (_) => TagsNotifier()),
       ChangeNotifierProvider<NewsletterNotifier>.value(value: letters),
+      ChangeNotifierProvider<SettingsNotifier>(create: (_) => _QuietSettings()),
     ],
     child: MaterialApp(
       theme: AppTheme.light,
@@ -173,4 +175,11 @@ void main() {
       expect(find.byType(KitHeroCard), findsNothing);
     });
   });
+}
+
+/// The Library's checklist reads the letter settings once per visit; the
+/// read is not this suite's subject, so it answers nothing.
+class _QuietSettings extends SettingsNotifier {
+  @override
+  Future<void> loadAll() async {}
 }

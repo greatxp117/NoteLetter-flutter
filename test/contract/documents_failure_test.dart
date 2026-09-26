@@ -19,6 +19,7 @@ import 'package:flutter_app/state/documents_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
 import 'package:flutter_app/state/newsletter_notifier.dart';
+import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
@@ -105,6 +106,7 @@ Future<DocumentsNotifier> _pumpLibrary(
       ChangeNotifierProvider<DocumentsNotifier>.value(value: docs),
       ChangeNotifierProvider<TagsNotifier>(create: (_) => _StubTags()),
       ChangeNotifierProvider<NewsletterNotifier>(create: (_) => _StubLetters()),
+      ChangeNotifierProvider<SettingsNotifier>(create: (_) => _QuietSettings()),
     ],
     child: MaterialApp(
       theme: AppTheme.light,
@@ -288,4 +290,11 @@ void main() {
             'drawable at BOTH sites, it only refuses an UNREAD figure');
     expect(find.byType(KitFailureBlock), findsNothing);
   });
+}
+
+/// The Library's checklist reads the letter settings once per visit; the
+/// read is not this suite's subject, so it answers nothing.
+class _QuietSettings extends SettingsNotifier {
+  @override
+  Future<void> loadAll() async {}
 }

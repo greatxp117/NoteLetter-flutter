@@ -523,7 +523,8 @@ class KitBookDetail extends StatelessWidget {
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 460),
           child: Text(
-            '${book.passages} passages indexed and searchable. Open it to '
+            '${book.passages} passage${book.passages == 1 ? '' : 's'} '
+            'indexed and searchable. Open it to '
             'read, or pull a single passage into your letter.',
             style: KitText.lede(context, fontSize: 15, height: 23),
           ),
@@ -679,7 +680,7 @@ class KitShelfUnit extends StatelessWidget {
           Flexible(
             child: Text(
               '${books.length} ${books.length == 1 ? 'volume' : 'volumes'} · '
-              '$passages passages',
+              '$passages passage${passages == 1 ? '' : 's'}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTheme.mono(
@@ -703,7 +704,7 @@ class KitShelfUnit extends StatelessWidget {
             const SizedBox(width: 12),
             Flexible(
               child: Text(
-                '$passages passages',
+                '$passages passage${passages == 1 ? '' : 's'}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: KitText.lede(
@@ -1049,7 +1050,7 @@ class _KitSourceCardState extends State<KitSourceCard> {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        '${b.passages} passages',
+                        '${b.passages} passage${b.passages == 1 ? '' : 's'}',
                         style: AppTheme.mono(
                           fontSize: 10.5,
                           color: t.accentText,
