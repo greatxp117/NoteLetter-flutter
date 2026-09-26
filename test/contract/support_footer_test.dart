@@ -37,12 +37,12 @@ import 'package:flutter_app/widgets/support_shell.dart';
 /// The routes INV-22 exempts, named so that each is a decision rather than an
 /// oversight. Anything else outside the shell is a defect.
 ///
-/// - `/landing` — pre-auth. Sending a message requires a signed-in caller
-///   (INV-01), so there is nothing for the footer to link to.
+/// - `/landing` and `/signin` — pre-auth (F-44a). Sending a message requires
+///   a signed-in caller (INV-01), so there is nothing for the footer to link to.
 /// - A first-run onboarding wizard would be the second exemption; this client
 ///   has none, so the set is one entry long. When it gets one it goes *outside*
 ///   the shell route, never behind a condition inside the footer.
-const _exempt = {'/landing'};
+const _exempt = {'/landing', '/signin'};
 
 /// Every `GoRoute` in the tree below [route], as full paths.
 List<String> _goRoutePaths(RouteBase route, String prefix) {

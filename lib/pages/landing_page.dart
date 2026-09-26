@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../state/auth_notifier.dart';
+import '../site/auth_modal.dart';
 import '../theme/app_colors.dart';
-import '../widgets/app_toast.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
 
@@ -226,11 +224,10 @@ class LandingPage extends StatelessWidget {
     );
   }
 
+  // F-44a: the Material dialog this page drew is gone; both doors open the
+  // reference's modal, as LandingActual's nav does. F-44b replaces the page.
   void _showAuthDialog(BuildContext context, {required bool isSignUp}) {
-    showDialog(
-      context: context,
-      builder: (ctx) => _AuthDialog(initialIsSignUp: isSignUp),
-    );
+    showAuthModal(context, isSignUp ? AuthMode.signup : AuthMode.signin);
   }
 }
 
@@ -294,185 +291,5 @@ class _FeatureCard extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _AuthDialog extends StatefulWidget {
-  final bool initialIsSignUp;
-
-  const _AuthDialog({required this.initialIsSignUp});
-
-  @override
-  State<_AuthDialog> createState() => _AuthDialogState();
-}
-
-class _AuthDialogState extends State<_AuthDialog> {
-  late bool _isSignUp;
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
-  final _formKey = GlobalKey<FormState>();
-
-  @override
-  void initState() {
-    super.initState();
-    _isSignUp = widget.initialIsSignUp;
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
-    final authNotifier = context.watch<AuthNotifier>();
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.xlR),
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(32),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Title
-              Text(
-                _isSignUp ? 'Create your account' : 'Welcome back',
-                style: AppTheme.serif(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _isSignUp
-                    ? 'Start building your knowledge base today.'
-                    : 'Sign in to access your knowledge base.',
-                // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
-                style: TextStyle(
-                  color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Email field
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: const Icon(Icons.mail_outline),
-                  border: OutlineInputBorder(borderRadius: AppRadius.controlR(56)),
-                ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Email is required';
-                  if (!v.contains('@')) return 'Enter a valid email';
-                  return null;
-                },
-                onFieldSubmitted: (_) => _submit(context),
-              ),
-              const SizedBox(height: 16),
-
-              // Password field
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                  ),
-                  border: OutlineInputBorder(borderRadius: AppRadius.controlR(56)),
-                ),
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Password is required';
-                  if (_isSignUp && v.length < 6) return 'Password must be at least 6 characters';
-                  return null;
-                },
-                onFieldSubmitted: (_) => _submit(context),
-              ),
-              const SizedBox(height: 24),
-
-              // Submit button
-              FilledButton(
-                onPressed: authNotifier.isLoading ? null : () => _submit(context),
-                style: FilledButton.styleFrom(
-                  backgroundColor: primary,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: authNotifier.isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(_isSignUp ? 'Create Account' : 'Sign In'),
-              ),
-              const SizedBox(height: 16),
-
-              // Toggle
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _isSignUp ? 'Already have an account?' : "Don't have an account?",
-                    // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
-                    style: TextStyle(
-                      color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
-                      fontSize: 14,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() => _isSignUp = !_isSignUp),
-                    child: Text(
-                      _isSignUp ? 'Log In' : 'Sign Up',
-                      // kit-ok: F-44 — the pre-redesign landing, replaced whole, not restyled
-                      style: TextStyle(color: primary, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _submit(BuildContext context) async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final authNotifier = context.read<AuthNotifier>();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-
-    if (_isSignUp) {
-      await authNotifier.signUp(email, password);
-    } else {
-      await authNotifier.signIn(email, password);
-    }
-
-    if (!mounted) return;
-
-    if (authNotifier.error != null) {
-      AppToast.show(context, authNotifier.error!, type: ToastType.error);
-      authNotifier.clearError();
-    } else {
-      Navigator.of(context).pop();
-      // GoRouter's refreshListenable will redirect to '/' automatically
-    }
   }
 }

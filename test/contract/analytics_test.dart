@@ -80,6 +80,9 @@ void main() {
   group('screenName', () {
     test('an empty token is a silence, not a screen', () {
       expect(Analytics.screenName('/landing'), isNull);
+      // Signed out as well (F-44a) — named, so it never falls through to
+      // `unknown` and reports a hit with no session behind it.
+      expect(Analytics.screenName('/signin'), isNull);
     });
 
     test('a route the table does not know reports `unknown`', () {

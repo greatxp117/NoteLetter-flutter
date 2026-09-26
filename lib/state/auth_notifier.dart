@@ -1,16 +1,24 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
+import 'pending_letter_setup.dart';
 
+/// Who is signed in, for the router's redirect.
+///
+/// The sign-in and sign-up calls themselves live on the signed-out screens
+/// (`lib/site/`), which own their loading and failure state the way the
+/// reference's `SignIn` and `AuthModal` do: a success needs no handling there,
+/// because the redirect below takes the reader into the app.
 class AuthNotifier extends ChangeNotifier {
   User? _user;
-  bool _isLoading = false;
-  String? _error;
 
   AuthNotifier() {
     _user = AuthService.instance.currentUser;
+    _replayFor(_user);
     AuthService.instance.authStateChanges.listen((user) {
+      final signedIn = _user == null && user != null;
       _user = user;
+      if (signedIn) _replayFor(user);
       notifyListeners();
     // Deliberately quiet (INV-24 asks why): this is the AUTH stream, not a
     // Firestore query. Its error means the SDK could not determine a session,
@@ -22,71 +30,17 @@ class AuthNotifier extends ChangeNotifier {
     });
   }
 
+  /// The sign-up form's letter opt-in, sent by the signed-in app — the
+  /// reference runs `usePendingLetterSetup` from its authenticated shell.
+  void _replayFor(User? user) {
+    if (user == null) return;
+    PendingLetterSetup.replay(user.email);
+  }
+
   User? get user => _user;
   bool get isLoggedIn => _user != null;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
-
-  Future<void> signIn(String email, String password) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-    try {
-      await AuthService.instance.signIn(email, password);
-    } on FirebaseAuthException catch (e) {
-      _error = _friendlyMessage(e.code);
-    } catch (_) {
-      _error = 'Sign in failed. Please try again.';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> signUp(String email, String password) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-    try {
-      await AuthService.instance.signUp(email, password);
-    } on FirebaseAuthException catch (e) {
-      _error = _friendlyMessage(e.code);
-    } catch (_) {
-      _error = 'Sign up failed. Please try again.';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
 
   Future<void> signOut() async {
     await AuthService.instance.signOut();
-  }
-
-  void clearError() {
-    _error = null;
-    notifyListeners();
-  }
-
-  String _friendlyMessage(String code) {
-    switch (code) {
-      case 'user-not-found':
-      case 'invalid-credential':
-        return 'No account found with this email or password.';
-      case 'wrong-password':
-        return 'Incorrect password.';
-      case 'invalid-email':
-        return 'Please enter a valid email address.';
-      case 'email-already-in-use':
-        return 'An account with this email already exists.';
-      case 'weak-password':
-        return 'Password must be at least 6 characters.';
-      case 'too-many-requests':
-        return 'Too many attempts. Please wait and try again.';
-      case 'network-request-failed':
-        return 'Network error. Check your internet connection.';
-      default:
-        return 'Authentication failed. Please try again.';
-    }
   }
 }

@@ -76,6 +76,12 @@ void main() {
     FirebaseFirestore.instance
         .useFirestoreEmulator(host, ApiService.firestorePort);
     await FirebaseAuth.instance.useAuthEmulator(host, ApiService.authPort);
+    // A signed-out route (F-44a) is held SIGNED OUT: signed in, the router's
+    // redirect would send the frame to `/` under the sign-in page's name.
+    if (signedOutRoutes.contains(route)) {
+      await FirebaseAuth.instance.signOut();
+      return;
+    }
     await FirebaseAuth.instance
         .signInWithEmailAndPassword(email: seedEmail, password: seedPassword);
   });
@@ -173,6 +179,17 @@ Future<void> reachState(WidgetTester tester) async {
 
   switch (holdState) {
     case '':
+      return;
+    // Web `signin-fail` — the §14.2 line in `.si-fail`'s slot.
+    // The reference's own shot presses "Forgot it?" with the email empty, a
+    // refusal the page makes itself; this does the same, so the pair compares
+    // the same sentence in the same place.
+    case 'signin-fail':
+      await settle();
+      await tester.tap(find.text('Forgot it?'));
+      await settle();
+      expect(find.byType(KitFailureInline), findsOneWidget,
+          reason: 'no refusal rendered — this frame would be the page at rest');
       return;
     // letters.md — the letter itself is a state of the Letters screen, opened
     // from its archive. The letterheaded letter `tool/seed_letters.py` writes

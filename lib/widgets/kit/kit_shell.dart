@@ -185,19 +185,31 @@ class KitWordmark extends StatelessWidget {
   final double fontSize;
   final Color color;
 
-  const KitWordmark({super.key, this.fontSize = 15, required this.color});
+  /// The tracking, in ems of [fontSize], and the optical size. The app's
+  /// `.wordmark` is 0.12em at opsz 28; the signed-out pages' harmonised lockup
+  /// (`signin.css` / `landing-actual.css` `.brand .name`) is 0.11em at opsz 24.
+  final double tracking;
+  final double opsz;
+
+  const KitWordmark({
+    super.key,
+    this.fontSize = 15,
+    required this.color,
+    this.tracking = 0.12,
+    this.opsz = 28,
+  });
 
   @override
   Widget build(BuildContext context) {
     TextStyle style(double size) => AppTheme.serif(
           fontSize: size,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.12 * fontSize,
+          letterSpacing: tracking * fontSize,
           height: 1,
           color: color,
-        ).copyWith(fontVariations: const [
-          FontVariation('wght', 600),
-          FontVariation('opsz', 28),
+        ).copyWith(fontVariations: [
+          const FontVariation('wght', 600),
+          FontVariation('opsz', opsz),
         ]);
     final base = style(fontSize);
     final init = style(fontSize * 1.24);

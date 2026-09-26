@@ -115,6 +115,7 @@ const Map<String, String> screenNames = <String, String>{
   // lives inside the authenticated app — and a landing screen_view would be the
   // only hit in the property with no session behind it.
   '/landing': '',
+  '/signin': '',
   // This client's own design surface; the reference has no counterpart and the
   // vocabulary has no token for one. Named rather than left to fall through, so
   // that a missing token is always a mistake and never a silence.

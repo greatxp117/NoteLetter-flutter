@@ -40,6 +40,14 @@ dependencies:
   # `shared/extraction_markers.dart` imports it (and the marker gate runs that
   # file under plain `dart run`), not because anything wanted a newer one.
   html: 0.15.6
+  # Continue with Google (F-44a). google_sign_in_ios 6.2.x (the newest that
+  # runs on Flutter 3.35) wants GoogleSignIn ~> 9.0, whose 9.x line pins
+  # GTMSessionFetcher/Core ~> 3.3 — so adding it moved that ONE transitive pod
+  # from 5.3.1 to 3.5.0, inside FirebaseAuth 12.17.0's own declared range
+  # (>= 3.4, < 6.0). The Firebase iOS SDK itself stays at 12.17.0, and every
+  # Firebase plugin is untouched. Flutter 3.38 lifts this (google_sign_in_ios
+  # 6.3 → GoogleSignIn 10, which allows GTMSessionFetcher 5).
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:

@@ -865,18 +865,18 @@ a new obligation on a finished screen is a new item.
 - extra_gates: none
 - notes: F-17's lint left 9 `kit-ok: F-43` sites whose metric no kit role names, and pinned 63 `AppTheme.serif(`/`AppTheme.mono(` calls across 18 page files (the same inline type in another spelling) in a ratchet that only falls. Drive both to zero, then delete the ratchet. The reader panels are not only respelled — they DRIFT from the reference: web `.player-eyebrow` and `.pf-label` are MONO caps 10 at `--fg-subtle` (Flutter: sans 10/600 at 0.8); `.player-times` and `.history-when` are mono 11 subtle (Flutter: sans 12 muted); `.history-label` is sans 14 (Flutter 13); the manuscript panel is built as `.ms-chunk-head`/`.ms-editbadge` where Flutter has its own toolbar and pill. Recompose against the web, then shoot the panels. Also: `ReaderUi`'s colour getters return raw `AppColors` steps, not `Tokens` — check each against its semantic token while there.
 
-## F-44 · The signed-out landing — the pre-redesign page is still what a new user sees
-- status: open
-- screen: landing-actual
-- route: /landing
-- spec: spec/decisions/ADR-041-composition-is-contract.md
-- web: src/pages/LandingActual.jsx; src/pages/SignIn.jsx
-- flutter: lib/pages/landing_page.dart; lib/router.dart
-- folds: none — found by F-17's lint; the web's signed-out surfaces (2026-09-10) and landing redesign (cb6ee41) were UI-only, no contract version
-- device_test: none
-- shots: landing-actual; signin
+## F-44 · Sign in (F-44a) — `/signin`, the sign-up modal with its letter opt-in, and Continue with Google
+- status: done 2026-09-26
+- screen: signin
+- route: /signin
+- spec: spec/decisions/ADR-041-composition-is-contract.md; spec/component-kit.md §14.2
+- web: src/pages/SignIn.jsx; src/styles/signin.css; src/shared/AuthModal.jsx; src/shared/authErrors.js; src/shared/usePendingLetterSetup.js; src/AuthContext.jsx
+- flutter: lib/site/signin_page.dart (new); lib/site/auth_modal.dart (new); lib/site/site_sheet.dart (new); lib/services/auth_service.dart; lib/services/auth_errors.dart (new); lib/services/google_sign_in_setup.dart (new); lib/state/pending_letter_setup.dart (new); lib/state/auth_notifier.dart; lib/router.dart; lib/services/analytics.dart; lib/pages/landing_page.dart; lib/widgets/kit/kit_shell.dart; ios/Runner/Info.plist; pubspec.yaml; test/contract/signed_out_test.dart (new); test/contract/google_sign_in_setup_test.dart (new); test/contract/support_footer_test.dart; test/contract/analytics_test.dart; test/kit/no_inline_composition_test.dart; integration_test/hold_screen_test.dart; integration_test/device_run_test.dart
+- folds: none — found by F-17's lint; the web's signed-out surfaces (2026-09-10) were UI-only, no contract version
+- device_test: signs in through /signin against the emulator
+- shots: signin; signin-fail
 - extra_gates: none
-- notes: Every signed-out user of this client is redirected to `/landing` (router.dart), and it is the pre-redesign page: 'AI-Powered Knowledge Management', '© 2025', raw `AppColors` isDark branches, a Material dialog for sign-in. The web replaced it with LandingActual + a SignIn screen, with phone frames. No queue item named it, because no parity pass reads signed-out routes. Rebuild from the kit against `landing-actual` and `signin`; the 10 `kit-ok: F-44` marks and the file's 5 ratchet entries leave with the old file. (2026-09-25 sizing, nothing built: the reference is LandingActual.jsx 903 lines + landing-actual.css 507 — masthead with a computed dateline, a retyping hero, a fanned letter stack, ticker, ten numbered departments incl. a drawn SVG forgetting curve, a contents rail, colophon, footer, mobile drawer, theme toggle — plus SignIn.jsx 192 + signin.css 208 as a SECOND route `/signin` (router redirect, `analytics.dart` screen-name map and `support_footer_test` `_exempt` all name `/landing` only), plus AuthModal.jsx 342 for sign-up (its letter opt-in replays through usePendingLetterSetup). Two questions for Xavier before building: (1) both web sheets say the signed-out pages deliberately do NOT compose from the app kit ('site furniture, not app furniture'), while this item says 'rebuild from the kit' — which binds? (2) the web offers Continue with Google; this client has no google_sign_in dependency or native config — build it, or record an n/a. Flutter has email/password sign-in and sign-up only; 'Forgot it?' (sendPasswordResetEmail) is cheap. Split suggestion: F-44a /signin + sign-up, F-44b the landing.)
+- notes: Split from F-44 on Xavier's 2026-09-26 decisions: (1) the WEB REFERENCE BINDS for the signed-out pages — site furniture with their own sheet (`lib/site/site_sheet.dart`, the port of signin.css), not the app kit; tokens still bind; (2) BUILD Continue with Google. The landing is F-68 (F-44b). This item: `/signin` (router redirect for both signed-out routes, `analytics.dart` map, `support_footer_test` exempt), the AuthModal (Sign in | Subscribe, the letter opt-in stashed before the auth call and replayed by the signed-in app), "Forgot it?" that sends, the reference's error vocabulary gated against `authErrors.js` itself, and Google through `google_sign_in` (native) / Firebase's popup (web), guarded by `GoogleSignInSetup` whose flags a test reads from the native config. Android has no OAuth client (no SHA-1) so its button says "Google sign-in is not set up on this build." The old landing's Material dialog is deleted; its two doors open the modal.
 
 ## F-45 · Sources — an import-activity row breaks its title across two lines
 - status: open
@@ -1291,3 +1291,16 @@ a new obligation on a finished screen is a new item.
   emptied selection save when folders were saved before; a save that throws leaves `Could not save these
   folders.`. HOLD_STATE `sync-folders` (shim under NL_DEV_FAKES) shoots it for looking only — web has no
   frame of the state, so none is checked in.
+
+## F-68 · The signed-out landing (F-44b) — LandingActual, an edition of the letter
+- status: open
+- screen: landing-actual
+- route: /landing
+- spec: spec/decisions/ADR-041-composition-is-contract.md
+- web: src/pages/LandingActual.jsx; src/styles/landing-actual.css
+- flutter: lib/pages/landing_page.dart; lib/router.dart
+- folds: none — F-44's second half; the landing redesign (cb6ee41) was UI-only, no contract version
+- device_test: none
+- shots: landing-actual
+- extra_gates: none
+- notes: Split from F-44 (2026-09-26). Web binds: site furniture composed against LandingActual.jsx 903 + landing-actual.css 507, tokens only, in lib/site/ beside the sign-in sheet. Masthead with the computed dateline (Vol. roman(year-2025) · No. day-of-year), the retyping hero, the letter stack (one letter at phone width), ticker, ten departments (the scroll-lit brief, Fig. 1 drawn as a CustomPainter), the contents rail above 980, colophon, the plum footer (its one /signin link), the drawer and the theme toggle. The 7 remaining `kit-ok: F-44` marks and the file's 4 ratchet entries leave with the old file.

@@ -63,5 +63,22 @@
 	     PATTERN. -->
 	<key>FirebaseAutomaticScreenReportingEnabled</key>
 	<false/>
+	<!-- Continue with Google (F-44a). GoogleSignIn returns to the app through
+	     the REVERSED_CLIENT_ID of GoogleService-Info.plist, and a missing scheme
+	     is not an error the Dart side can catch: the SDK raises an NSException
+	     and the app dies on the tap. The value is copied from that plist, never
+	     typed — test/contract/google_sign_in_setup_test.dart fails the day the
+	     two differ, and `GoogleSignInSetup.iosReady` follows the same test. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.402841655223-erqksuts5eds2i9ncecthnvalnvedqhg</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -35,6 +35,10 @@ import 'package:flutter_app/pages/search/reading_pane.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/pages/search/search_field.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
+import 'package:flutter_app/site/signin_page.dart';
+import 'package:flutter_app/site/auth_modal.dart';
+import 'package:flutter_app/services/firestore_service.dart';
+import 'package:flutter_app/models/newsletter_settings.dart';
 
 /// The device run (../TODO.md). Drives the real app on a real renderer against
 /// the emulator suite, because a whole class of this client's work is invisible
@@ -175,6 +179,123 @@ void main() {
       find.text('Your Knowledge Base, Automatically Curated'),
       findsNothing,
     );
+  });
+
+  // F-44a — `/signin` against the Auth emulator: a REAL refusal renders the
+  // reference's sentence in the §14.2 slot, and a real sign-in leaves the page
+  // through the router's redirect, with nothing on the page navigating.
+  testWidgets('signs in through /signin against the emulator', (tester) async {
+    await FirebaseAuth.instance.signOut();
+    try {
+      final router = await pumpApp(tester);
+      router.go('/signin');
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      expect(find.byType(SignInPage), findsOneWidget);
+
+      final fields = find.descendant(
+          of: find.byType(SignInPage), matching: find.byType(TextField));
+      await tester.enterText(fields.at(0), seedEmail);
+      await tester.enterText(fields.at(1), 'not-the-password');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      await tester.tap(find.text('Sign in'));
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        if (find.byType(KitFailureInline).evaluate().isNotEmpty) break;
+      }
+      expect(find.byType(KitFailureInline), findsOneWidget,
+          reason: 'the emulator refused and nothing was said');
+      final said = tester.widget<KitFailureInline>(find.byType(KitFailureInline));
+      expect(said.message,
+          anyOf('Incorrect email or password.', 'Incorrect password.'));
+      expect(FirebaseAuth.instance.currentUser, isNull);
+
+      // Focus it first: the field lost its input connection with the unfocus
+      // above, and a bare enterText then typed into nothing (seen 2026-09-26:
+      // the second attempt sent the first password again).
+      await tester.tap(fields.at(1));
+      await pumpFor(tester, total: const Duration(milliseconds: 500));
+      await tester.enterText(fields.at(1), seedPassword);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      expect(tester.widget<TextField>(fields.at(1)).controller?.text,
+          seedPassword);
+      await tester.tap(find.text('Sign in'));
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        if (find.byType(SignInPage).evaluate().isEmpty) break;
+      }
+      final left = find.byType(KitFailureInline).evaluate().map(
+          (e) => (e.widget as KitFailureInline).message);
+      expect(FirebaseAuth.instance.currentUser?.email, seedEmail,
+          reason: 'not signed in; on screen: $left');
+      expect(find.byType(SignInPage), findsNothing,
+          reason: 'signed in, the redirect should have left /signin');
+      expect(router.state.matchedLocation, '/');
+    } finally {
+      if (FirebaseAuth.instance.currentUser?.email != seedEmail) {
+        await FirebaseAuth.instance.signOut();
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: seedEmail, password: seedPassword);
+      }
+    }
+  });
+
+  // F-44a — the sign-up modal's letter opt-in, end to end: stashed before the
+  // account exists, replayed by the signed-in app through fn_newsletter_settings
+  // (the shim), and read back from the settings document. A throwaway account,
+  // deleted afterwards, so the kept-up emulator does not grow.
+  testWidgets('sign-up replays the letter opt-in', (tester) async {
+    await FirebaseAuth.instance.signOut();
+    final email = 'f44a-${DateTime.now().millisecondsSinceEpoch}@noteletter.test';
+    try {
+      final router = await pumpApp(tester);
+      router.go('/signin');
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      await tester.tap(find.text('Start your library'));
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      expect(find.byType(AuthModal), findsOneWidget);
+      expect(find.text('Begin your subscription.'), findsOneWidget);
+
+      final fields = find.descendant(
+          of: find.byType(AuthModal), matching: find.byType(TextField));
+      await tester.enterText(fields.at(0), email);
+      await tester.enterText(fields.at(1), 'f44a-password-1');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      // 7:00am, not the default, so the read-back proves the CHOICE travelled.
+      await tester.tap(find.text('6:30am').last);
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      await tester.tap(find.text('7:00am').last);
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      final create = find.text('Create my library');
+      await tester.ensureVisible(create);
+      await tester.tap(create);
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        if (FirebaseAuth.instance.currentUser != null &&
+            find.byType(AuthModal).evaluate().isEmpty) {
+          break;
+        }
+      }
+      expect(FirebaseAuth.instance.currentUser?.email, email);
+      NewsletterSettings? s;
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        final read = await FirestoreService.instance.getNewsletterSettings();
+        s = read;
+        if (read.enabled) break;
+      }
+      expect(s?.enabled, isTrue, reason: 'the opt-in was never replayed');
+      expect(s?.deliveryTime, '07:00');
+      expect(s?.emailAddress, email);
+    } finally {
+      final u = FirebaseAuth.instance.currentUser;
+      if (u != null && u.email == email) await u.delete();
+      await FirebaseAuth.instance.signOut();
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: seedEmail, password: seedPassword);
+    }
   });
 
   testWidgets('the library home composes from the kit and really scrolls', (

@@ -7,6 +7,7 @@ import 'state/auth_notifier.dart';
 import 'widgets/app_layout.dart';
 import 'widgets/support_shell.dart';
 import 'pages/landing_page.dart';
+import 'site/signin_page.dart';
 import 'pages/library_page.dart';
 import 'pages/search_page.dart';
 import 'pages/activity_page.dart';
@@ -27,15 +28,23 @@ import 'pages/study/program_editor.dart';
 import 'pages/support_page.dart';
 import 'pages/onboarding/wizard.dart';
 
+/// The routes a signed-out reader may be on. Everything else redirects to
+/// `/landing`; a signed-in reader on one of these goes to `/`.
+const signedOutRoutes = {'/landing', '/signin'};
+
 GoRouter createRouter(AuthNotifier authNotifier) {
   return GoRouter(
     refreshListenable: authNotifier,
     redirect: (context, state) {
       final loggedIn = authNotifier.isLoggedIn;
-      final onLanding = state.matchedLocation == '/landing';
+      // The signed-out surfaces (F-44a): the landing, and `/signin` — the
+      // addressable sign-in a reader can be sent back to. A signed-in reader
+      // on either (a stale bookmark, the tab that just signed in) goes home,
+      // as the reference's App does for `/signin`.
+      final signedOutRoute = signedOutRoutes.contains(state.matchedLocation);
 
-      if (!loggedIn && !onLanding) return '/landing';
-      if (loggedIn && onLanding) return '/';
+      if (!loggedIn && !signedOutRoute) return '/landing';
+      if (loggedIn && signedOutRoute) return '/';
       return null;
     },
     errorBuilder: (context, state) => const NotFoundPage(),
@@ -84,10 +93,11 @@ void attachAnalytics(GoRouter router) {
 List<RouteBase> appRoutes() {
   return [
     GoRoute(path: '/landing', builder: (context, state) => const LandingPage()),
+    GoRoute(path: '/signin', builder: (context, state) => const SignInPage()),
     // INV-22 — the OUTER shell, and the single place the support footer is
     // composed. Every authenticated route is nested inside it, including the
-    // reader, which sits outside the rail-and-pane shell below. `/landing` is
-    // deliberately outside: sending a support message requires a signed-in
+    // reader, which sits outside the rail-and-pane shell below. `/landing` and
+    // `/signin` are deliberately outside: sending a support message requires a signed-in
     // caller (INV-01), so there is nothing for the footer to link to.
     ShellRoute(
       navigatorKey: supportShellNavigatorKey,
