@@ -465,14 +465,15 @@ Future<void> reachState(WidgetTester tester) async {
       // uploading yet" state and NOT the §15.1 stage this frame is of.
       final failed = find.ancestor(
         of: find.text('scan-2026-07-02.png'),
-        matching: find.byType(KitSourceRow),
+        // A processing card since 4.98.0 (F-69), no longer a §4.1 row.
+        matching: find.byType(KitProcCard),
       );
       expect(failed, findsOneWidget,
           reason: 'run tool/seed_recipe_and_sources.py first — without a '
               'failed document that HAS its bytes there is no stage to shoot');
       final view = find.descendant(of: failed, matching: find.text('View file'));
-      // The control sits in the row's STACKED trailing strip below the compact
-      // breakpoint, which is under the fold at rest — a tap at its unscrolled
+      // The control sits in the card's attention strip, which is under the
+      // fold at rest — a tap at its unscrolled
       // position lands on nothing, warns, and leaves the frame showing the
       // tray under the name of the sheet.
       await tester.ensureVisible(view);
