@@ -16,8 +16,8 @@ import '../widgets/app_toast.dart';
 import '../widgets/file_uploader.dart';
 import '../widgets/kit/kit.dart';
 import 'sources/browse_section.dart';
+import 'sources/cloud_picker.dart';
 import 'sources/cloud_sync_copy.dart';
-import 'sources/folder_contents.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sources_info_sheet.dart';
 import 'sources/sync_settings_panel.dart';
@@ -566,7 +566,6 @@ class _PickerPanelState extends State<_PickerPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     final cloud = context.watch<CloudNotifier>();
     final listing = cloud.listing;
     final provider = cloud.browseProvider ?? '';
@@ -577,105 +576,56 @@ class _PickerPanelState extends State<_PickerPanel> {
     final error = cloud.importError ?? cloud.browseError;
     final items = listing?.items ?? const <CloudFile>[];
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: t.surfaceRaised,
-        borderRadius: AppRadius.lgR,
-        border: Border.all(color: t.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    for (var i = 0; i < crumbs.length; i++)
-                      KitSettingLink(
-                        crumbs[i].label,
-                        icon: i < crumbs.length - 1 ? Icons.chevron_right : null,
-                        onTap: i == crumbs.length - 1
-                            ? null
-                            : () => cloud.jumpToCrumb(i),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // The caps are `fn_import_from_cloud`'s own (≤20 folders, ≤50
-              // files) and the picker is what enforces them.
-              KitProcNote(
-                '${cloud.selectedFolders.length}/$kMaxImportFolders folders · '
-                '${cloud.selectedFiles.length}/$kMaxImportFiles files',
-                padding: EdgeInsets.zero,
-              ),
-            ],
+    return CloudPickerPanel(
+      children: [
+        // The caps are `fn_import_from_cloud`'s own (≤20 folders, ≤50 files)
+        // and the picker is what enforces them.
+        CloudPickerCrumbs(
+          labels: [for (final c in crumbs) c.label],
+          onJump: cloud.jumpToCrumb,
+          counter: '${cloud.selectedFolders.length}/$kMaxImportFolders folders · '
+              '${cloud.selectedFiles.length}/$kMaxImportFiles files',
+        ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: KitFailureInline(error),
           ),
-          const SizedBox(height: 8),
-          if (error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: KitFailureInline(error),
-            ),
-          if (_capNote != null)
-            KitProcNote(_capNote!, padding: const EdgeInsets.only(bottom: 8)),
-          // ADR-026 §3: standing guidance on every rendered Notion listing —
-          // Notion never reports what it withheld, so this is never phrased as
-          // a finding about THIS connection.
-          if (provider == 'notion' &&
-              cloud.browseError == null &&
-              !cloud.browsing)
-            const KitProcNote(
-              'Notion passes along only the pages you ticked — to bring more '
-              'in, grant access in Notion and return.',
-              padding: EdgeInsets.only(bottom: 8),
-            ),
-          for (final f in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: _FileRow(
-                  file: f, provider: provider, onToggle: () => _toggle(cloud, f)),
-            ),
-          // ADR-026 §2: empty is a CLAIM about a listing that answered — over a
-          // failed request it is a hole drawn as a zero.
-          if (!cloud.browsing && cloud.browseError == null && items.isEmpty)
-            const KitProcNote('Nothing here.', padding: EdgeInsets.zero),
-          if (cloud.browsing)
-            const KitProcNote('Loading…', padding: EdgeInsets.zero),
-          if (listing?.nextPageToken != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: KitSettingLink(
-                    cloud.loadingMore ? 'Loading…' : 'Load more…',
-                    icon: null,
-                    onTap: cloud.loadingMore ? null : cloud.loadMore),
-              ),
-            ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              KitButton.primary(
-                  _saving
-                      ? 'Queuing…'
-                      : 'Import $total item${total == 1 ? '' : 's'}',
-                  onPressed:
-                      _saving || total == 0 ? null : () => _confirm(cloud)),
-              KitButton.ghost('Cancel',
-                  onPressed: _saving ? null : cloud.closePicker),
-            ],
+        if (_capNote != null)
+          KitProcNote(_capNote!, padding: const EdgeInsets.only(bottom: 8)),
+        // ADR-026 §3: standing guidance on every rendered Notion listing —
+        // Notion never reports what it withheld, so this is never phrased as
+        // a finding about THIS connection.
+        if (provider == 'notion' && cloud.browseError == null && !cloud.browsing)
+          const KitProcNote(
+            'Notion passes along only the pages you ticked — to bring more '
+            'in, grant access in Notion and return.',
+            padding: EdgeInsets.only(bottom: 8),
           ),
-        ],
-      ),
+        for (final f in items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: _FileRow(
+                file: f, provider: provider, onToggle: () => _toggle(cloud, f)),
+          ),
+        // ADR-026 §2: empty is a CLAIM about a listing that answered — over a
+        // failed request it is a hole drawn as a zero.
+        if (!cloud.browsing && cloud.browseError == null && items.isEmpty)
+          const KitProcNote('Nothing here.', padding: EdgeInsets.zero),
+        if (cloud.browsing)
+          const KitProcNote('Loading…', padding: EdgeInsets.zero),
+        if (listing?.nextPageToken != null)
+          CloudPickerLoadMore(
+              loading: cloud.loadingMore, onTap: cloud.loadMore),
+        CloudPickerFoot(
+          confirmLabel: _saving
+              ? 'Queuing…'
+              : 'Import $total item${total == 1 ? '' : 's'}',
+          onConfirm: total == 0 ? null : () => _confirm(cloud),
+          onCancel: cloud.closePicker,
+          busy: _saving,
+        ),
+      ],
     );
   }
 }
@@ -704,53 +654,25 @@ class _FileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     final cloud = context.read<CloudNotifier>();
     final selected = file.isFolder
         ? cloud.selectedFolders.contains(file.id)
         : cloud.selectedFiles.contains(file.id);
     final refusal = cloudFileRefusal(provider, file);
 
-    final box = SizedBox(
-      width: 20,
-      height: 20,
-      child: refusal != null
-          ? null
-          : Semantics(
-              label: 'Import ${file.name}',
-              child: Checkbox(
-                value: selected,
-                onChanged: (_) => onToggle(),
-                activeColor: t.accent,
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
+    final box = CloudPickerCheck(
+      value: refusal != null ? null : selected,
+      label: 'Import ${file.name}',
+      onToggle: onToggle,
     );
 
     if (file.isFolder) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          box,
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                KitSettingLink(file.name,
-                    onTap: () => cloud.enterFolder(file)),
-                // A folder row says what is inside it, on a disclosure the
-                // reader opens (4.59.0, ADR-096) — never scanned eagerly.
-                FolderContents(
-                  key: ValueKey('scan-${file.id}'),
-                  provider: provider,
-                  folderId: file.id,
-                ),
-              ],
-            ),
-          ),
-        ],
+      return CloudPickerFolderRow(
+        check: box,
+        name: file.name,
+        onOpen: () => cloud.enterFolder(file),
+        provider: provider,
+        folderId: file.id,
       );
     }
 

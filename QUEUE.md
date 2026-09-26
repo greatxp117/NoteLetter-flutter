@@ -1224,14 +1224,23 @@ a new obligation on a finished screen is a new item.
 - notes: reader.md §Supersession confirm names "retry of an errored doc": an errored document CAN hold edited passages (a failed RE-extraction keeps them) and be in a study program, so `_runPrimary`'s Retry and Index it anyway both run through SupersessionConfirm.run (F-63's runner) with web 71987f6's words — `Retry “{title}”?` / `Index “{title}” anyway?`, the reference's two lead sentences, `Retry and replace` / `Index it anyway` on the danger control; two definite noes send straight through, a refusal then stays §14.2 under the row. The row's labels never claimed work behind the confirm here, so web's `askingFor` defect has no counterpart. `ProcessingRow` is public with two check seams for the tests. Start a new unit (`UnitPanel`, now public) closed its §18 on `null` and called afterwards (§18 rule 1): the call is now the panel's `onConfirm`, a refusal in its slot, and the row's own failure slot went with the old path; the toast's unit number is taken before the refresh. manuscript_panel.dart's close-first confirm is the leave guard, which calls nothing (the act IS the navigation) and is annotated `confirm-ok:` exactly as web ReaderView's — no change. The contracts owed list lost both Flutter entries (NoteLetter-contracts 54e6738). Neither UnitPanel nor manuscript is declared in confirm_required.json; declaring the unit panel is a contracts change this item was not allowed to make.
 
 ## F-67 · Sync folder picker — the same flat panel as the import picker: `.set-link` crumbs, unboxed rows, the counter beside the crumbs
-- status: open
+- status: done 2026-09-25
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md; spec/component-kit.md §6
 - web: src/pages/sources/CloudFilePicker.jsx
-- flutter: lib/pages/sources/sync_folder_picker.dart
+- flutter: lib/pages/sources/sync_folder_picker.dart; lib/pages/sources/cloud_picker.dart (new); lib/pages/sources_page.dart; lib/pages/sources/sync_settings_panel.dart; test/contract/sync_folders_test.dart; integration_test/hold_screen_test.dart
 - folds: none — found while building F-61
 - device_test: none
 - shots: sources
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: The sync chooser is CloudFilePicker in `folders` mode on web — the same component F-61 rebuilt the import picker to match. sync_folder_picker.dart still draws caps crumbs (`ROOT`), the counter as its own line under them, and each folder as a boxed KitSourceRow with a folder icon. Recompose as F-61's `_PickerPanel` (KitSettingLink crumbs with the counter as a KitProcNote on the same row; checkbox + KitSettingLink name + chevron + FolderContents, unboxed; `Sync N folders` + Cancel). Consider lifting F-61's row and crumb row into one shared picker body so the two cannot drift again. No seed state opens the sync picker; widget tests (sync_folders_test.dart) are the proof.
+  2026-09-25 (done): F-61's composition lifted into lib/pages/sources/cloud_picker.dart (CloudPickerPanel,
+  CloudPickerCrumbs, CloudPickerCheck, CloudPickerFolderRow, CloudPickerLoadMore, CloudPickerFoot); the
+  import picker and the sync chooser both compose from it, so neither can drift alone. The sync chooser:
+  `Root` as a KitSettingLink with `N/20 folders selected` on the crumb row, unboxed checkbox + link +
+  chevron + FolderContents rows, `Sync N folders` + Cancel; the cap note is web f050fe2's folders-mode
+  sentence (`N-folder limit reached — untick one to choose another.`); `allowEmpty` (web 12daabd) lets an
+  emptied selection save when folders were saved before; a save that throws leaves `Could not save these
+  folders.`. HOLD_STATE `sync-folders` (shim under NL_DEV_FAKES) shoots it for looking only — web has no
+  frame of the state, so none is checked in.

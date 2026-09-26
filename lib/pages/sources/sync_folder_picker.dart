@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import '../../models/cloud_file.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart' show ApiException;
-import '../../theme/app_radius.dart';
-import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
-import 'folder_contents.dart';
+import 'cloud_picker.dart';
 
 /// The sync-folder chooser — the cloud picker in **folders-only** mode
 /// (`screens/sources.md` §Sync control: "reuse the file picker in folders-only
@@ -36,6 +34,10 @@ class SyncFolderPicker extends StatefulWidget {
   final Future<String?> Function(List<String> ids) onConfirm;
   final VoidCallback onCancel;
 
+  /// Whether an empty list may be saved when folders were saved before —
+  /// unticking every one clears the scope (web `allowEmpty`).
+  final bool allowEmpty;
+
   /// The *Import these types* control, for §Folder contents' "Change types".
   final VoidCallback? onFixTypes;
 
@@ -54,6 +56,7 @@ class SyncFolderPicker extends StatefulWidget {
     required this.onConfirm,
     required this.onCancel,
     this.cap = 20,
+    this.allowEmpty = false,
     this.onFixTypes,
     this.list,
     this.scan,
@@ -144,10 +147,13 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
     setState(() {
       if (!_selected.contains(id) && _selected.length >= widget.cap) {
         // At the cap a toggle no-ops WITH its reason — a checkbox that
-        // silently refuses reads as broken. Web's sentence, verbatim.
+        // silently refuses reads as broken.
+        // "Import these first" is the import picker's advice: a folder
+        // chooser imports nothing, so its way on is to give a slot back (web
+        // f050fe2's sentence, verbatim).
         _capNote =
-            '${widget.cap}-folder limit reached — import these first, '
-            'then pick more.';
+            '${widget.cap}-folder limit reached — untick one to choose '
+            'another.';
         return;
       }
       _capNote = null;
@@ -160,7 +166,20 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
       _saving = true;
       _error = null;
     });
-    final err = await widget.onConfirm(_selected.toList());
+    final String? err;
+    try {
+      err = await widget.onConfirm(_selected.toList());
+    } catch (_) {
+      // §18: the failure slot is required — a refusal with no sentence must
+      // still leave one, or the button simply re-enables.
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = 'Could not save these folders.';
+        });
+      }
+      return;
+    }
     if (!mounted) return;
     // On success the host closes this picker; on a refusal it stays, with
     // the sentence, and the draft the reader built.
@@ -172,192 +191,73 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     final n = _selected.length;
+    // An empty folder list is a valid `folder_ids` (sources.md §Sync control;
+    // the panel then draws its inert-state warning), so unticking every saved
+    // folder is a save like any other — web `allowEmpty` (12daabd). With
+    // nothing saved and nothing ticked there is nothing to change.
+    final canConfirm =
+        n > 0 || (widget.allowEmpty && widget.initial.isNotEmpty);
 
-    return Container(
+    return CloudPickerPanel(
       margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: t.surfaceRaised,
-        borderRadius: AppRadius.lgR,
-        border: Border.all(color: t.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Breadcrumb, with the pool's counter at the end of the line.
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 2,
-            runSpacing: 4,
-            children: [
-              for (var i = 0; i < _stack.length; i++) ...[
-                if (i > 0)
-                  Icon(Icons.chevron_right, size: 15, color: t.fgSubtle),
-                GestureDetector(
-                  onTap: i == _stack.length - 1 ? null : () => _jump(i),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 4,
-                    ),
-                    child: Text(
-                      _stack[i].name.toUpperCase(),
-                      style: KitText.capsLabel(
-                        context,
-                        fontSize: 10.5,
-                        letterSpacing: 0.13,
-                        color: i == _stack.length - 1 ? t.fg : t.fgSubtle,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          Text(
-            '$n/${widget.cap} folders selected',
-            style: KitText.meta(context),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: KitFailureInline(_error!),
-            ),
-          if (_capNote != null) KitProcNote(_capNote!),
-          // ADR-026 §3: standing guidance on every rendered Notion listing —
-          // Notion never reports what it withheld, so this is never phrased
-          // as a finding about THIS connection.
-          if (widget.provider == 'notion' && _error == null && !_loading)
-            const KitProcNote(
-              'Notion passes along only the pages you ticked — to bring '
-              'more in, grant access in Notion and return.',
-            ),
-          const SizedBox(height: 10),
-          if (_items.isNotEmpty)
-            KitRowList(
-              rows: [
-                for (final f in _items)
-                  _FolderRow(
-                    key: ValueKey('sync-folder-${f.id}'),
-                    folder: f,
-                    provider: widget.provider,
-                    selected: _selected.contains(f.id),
-                    onToggle: () => _toggle(f.id),
-                    onOpen: () => _enter(f),
-                    onFixTypes: widget.onFixTypes,
-                    scan: widget.scan,
-                  ),
-              ],
-            ),
-          // Empty is a CLAIM about a listing that answered (ADR-026 §2). Over
-          // a failed request it is the §14 defect — a hole drawn as a zero.
-          if (!_loading && _error == null && _items.isEmpty)
-            const KitProcNote('No subfolders here.', padding: EdgeInsets.zero),
-          if (_loading)
-            const KitProcNote('Loading…', padding: EdgeInsets.only(top: 6)),
-          if (_pageToken != null)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: KitButton.ghost(
-                  'Load more…',
-                  onPressed: _loading ? null : () => _load(append: true),
-                ),
-              ),
-            ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              KitButton.primary(
-                _saving ? 'Saving…' : 'Sync $n folder${n == 1 ? '' : 's'}',
-                // An empty scope is set by removing chips, not by confirming
-                // nothing — the reference disables the empty confirm too.
-                onPressed: _saving || n == 0 ? null : _confirm,
-              ),
-              KitButton.ghost(
-                'Cancel',
-                onPressed: _saving ? null : widget.onCancel,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// One folder: a checkbox (the pool), the name (navigates in), and §Folder
-/// contents on its own disclosure beneath.
-class _FolderRow extends StatelessWidget {
-  final CloudFile folder;
-  final String provider;
-  final bool selected;
-  final VoidCallback onToggle;
-  final VoidCallback onOpen;
-  final VoidCallback? onFixTypes;
-  final Future<Map<String, dynamic>> Function(String folderId)? scan;
-
-  const _FolderRow({
-    super.key,
-    required this.folder,
-    required this.provider,
-    required this.selected,
-    required this.onToggle,
-    required this.onOpen,
-    this.onFixTypes,
-    this.scan,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        KitSourceRow(
-          // 20 checkbox + 6 + 16 icon — the import picker's own metric.
-          leading: SizedBox(
-            width: 42,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: Semantics(
-                    label: 'Sync ${folder.name}',
-                    child: Checkbox(
-                      value: selected,
-                      onChanged: (_) => onToggle(),
-                      activeColor: t.accent,
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Icon(Icons.folder_outlined, size: 16, color: t.fgMuted),
-              ],
+        CloudPickerCrumbs(
+          labels: [for (final c in _stack) c.name],
+          onJump: _jump,
+          counter: '$n/${widget.cap} folders selected',
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: KitFailureInline(_error!),
+          ),
+        if (_capNote != null)
+          KitProcNote(_capNote!, padding: const EdgeInsets.only(bottom: 8)),
+        // ADR-026 §3: standing guidance on every rendered Notion listing —
+        // Notion never reports what it withheld, so this is never phrased
+        // as a finding about THIS connection.
+        if (widget.provider == 'notion' && _error == null && !_loading)
+          const KitProcNote(
+            'Notion passes along only the pages you ticked — to bring '
+            'more in, grant access in Notion and return.',
+            padding: EdgeInsets.only(bottom: 8),
+          ),
+        for (final f in _items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: CloudPickerFolderRow(
+              key: ValueKey('sync-folder-${f.id}'),
+              check: CloudPickerCheck(
+                value: _selected.contains(f.id),
+                label: 'Sync ${f.name}',
+                onToggle: () => _toggle(f.id),
+              ),
+              name: f.name,
+              onOpen: () => _enter(f),
+              provider: widget.provider,
+              folderId: f.id,
+              onFixTypes: widget.onFixTypes,
+              scan: widget.scan == null ? null : () => widget.scan!(f.id),
             ),
           ),
-          title: folder.name,
-          onTap: onOpen,
-          trailing: Icon(Icons.chevron_right, size: 17, color: t.fgSubtle),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 58, right: 12, bottom: 10),
-          child: FolderContents(
-            key: ValueKey('scan-${folder.id}'),
-            provider: provider,
-            folderId: folder.id,
-            onFixTypes: onFixTypes,
-            scan: scan == null ? null : () => scan!(folder.id),
+        // Empty is a CLAIM about a listing that answered (ADR-026 §2). Over
+        // a failed request it is the §14 defect — a hole drawn as a zero.
+        if (!_loading && _error == null && _items.isEmpty)
+          const KitProcNote('No subfolders here.', padding: EdgeInsets.zero),
+        if (_loading) const KitProcNote('Loading…', padding: EdgeInsets.zero),
+        if (_pageToken != null)
+          CloudPickerLoadMore(
+            loading: _loading,
+            onTap: () => _load(append: true),
           ),
+        CloudPickerFoot(
+          confirmLabel: _saving
+              ? 'Saving…'
+              : 'Sync $n folder${n == 1 ? '' : 's'}',
+          onConfirm: canConfirm ? _confirm : null,
+          onCancel: widget.onCancel,
+          busy: _saving,
         ),
       ],
     );

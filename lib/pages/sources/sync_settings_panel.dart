@@ -338,6 +338,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                         provider: widget.providerId,
                         initial: i.folderIds,
                         cap: _folderCap,
+                        allowEmpty: true,
                         onConfirm: _saveFolders,
                         onCancel: () => setState(() => _picking = false),
                         onFixTypes: () {

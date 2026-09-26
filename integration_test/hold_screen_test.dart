@@ -606,6 +606,33 @@ Future<void> reachState(WidgetTester tester) async {
       expect(find.textContaining('Reading your library'), findsNothing,
           reason: 'the review never answered — this frame would be a wait');
       return;
+    // sources.md §Sync control — the sync-folder chooser (F-67), which no
+    // route reaches: the Drive sync panel opened, then its folder picker.
+    // Needs the shim under NL_DEV_FAKES=1 for the Drive tree. The web
+    // reference has no frame of this state, so it is shot for LOOKING and
+    // never checked in (screenshot_pair_check would find no web frame).
+    case 'sync-folders':
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.textContaining(RegExp(r'^sync ·', caseSensitive: false)).evaluate().isNotEmpty) break;
+      }
+      await tester.ensureVisible(find.textContaining(RegExp(r'^sync ·', caseSensitive: false)).first);
+      await tester.tap(find.textContaining(RegExp(r'^sync ·', caseSensitive: false)).first);
+      await settle();
+      final choose = find.textContaining(RegExp(r'^(Choose|Change) folders…$'));
+      await tester.ensureVisible(choose.first);
+      await tester.tap(choose.first);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.text('What’s in here?').evaluate().isNotEmpty) break;
+      }
+      expect(find.textContaining('folders selected'), findsOneWidget,
+          reason: 'the sync picker did not open — this frame would be the panel');
+      await Scrollable.ensureVisible(
+          tester.element(find.textContaining('folders selected')),
+          alignment: 0.2);
+      await settle();
+      return;
     default:
       fail('hold_screen_test knows no HOLD_STATE "$holdState"');
   }

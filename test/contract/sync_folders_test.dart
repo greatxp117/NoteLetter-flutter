@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/models/cloud_integration.dart';
+import 'package:flutter_app/pages/sources/cloud_picker.dart';
 import 'package:flutter_app/pages/sources/sync_folder_picker.dart';
 import 'package:flutter_app/pages/sources/sync_settings_panel.dart';
 import 'package:flutter_app/services/api_service.dart';
@@ -338,9 +339,7 @@ void main() {
     await tester.pump();
     expect(tester.widget<Checkbox>(check('fld-b')).value, isFalse);
     expect(
-      find.text(
-        '20-folder limit reached — import these first, then pick more.',
-      ),
+      find.text('20-folder limit reached — untick one to choose another.'),
       findsOneWidget,
     );
     expect(find.text('20/20 folders selected'), findsOneWidget);
@@ -401,5 +400,103 @@ void main() {
       findsOneWidget,
       reason: 'empty is a claim about a listing that answered',
     );
+  });
+
+  // F-67: the sync chooser is web's CloudFilePicker in `folders` mode — the
+  // SAME flat panel as the import picker, composed from the same parts.
+  Future<void> pumpPicker(
+    WidgetTester tester, {
+    List<String> initial = const [],
+    bool allowEmpty = true,
+    required Future<String?> Function(List<String>) onConfirm,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SyncFolderPicker(
+              provider: 'google_drive',
+              initial: initial,
+              allowEmpty: allowEmpty,
+              onConfirm: onConfirm,
+              onCancel: () {},
+              list: (_) async => _listing,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('the flat panel: Root crumb, counter on its row, unboxed rows', (
+    tester,
+  ) async {
+    await pumpPicker(tester, onConfirm: (_) async => null);
+    expect(find.byType(CloudPickerPanel), findsOneWidget);
+    expect(find.text('Root'), findsOneWidget, reason: 'a .set-link, not caps');
+    expect(find.text('ROOT'), findsNothing);
+    final crumbs = find.byType(CloudPickerCrumbs);
+    expect(
+      find.descendant(of: crumbs, matching: find.text('0/20 folders selected')),
+      findsOneWidget,
+      reason: 'the counter sits at the right of the crumb row',
+    );
+    expect(find.byType(CloudPickerFolderRow), findsNWidgets(2));
+    expect(
+      find.byType(KitSourceRow),
+      findsNothing,
+      reason: 'a folder row is a checkbox and a link, never a boxed row',
+    );
+    expect(find.byIcon(Icons.folder_outlined), findsNothing);
+    expect(find.text('Cancel'), findsOneWidget);
+  });
+
+  testWidgets('unticking every saved folder is a save (allowEmpty)', (
+    tester,
+  ) async {
+    List<String>? sent;
+    await pumpPicker(
+      tester,
+      initial: const ['fld-b'],
+      onConfirm: (ids) async {
+        sent = ids;
+        return null;
+      },
+    );
+    await tester.tap(check('fld-b'));
+    await tester.pump();
+    final button = find.widgetWithText(KitButton, 'Sync 0 folders');
+    expect(tester.widget<KitButton>(button).onPressed, isNotNull);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(sent, isEmpty);
+  });
+
+  testWidgets('with nothing saved and nothing ticked there is nothing to do', (
+    tester,
+  ) async {
+    await pumpPicker(tester, onConfirm: (_) async => null);
+    expect(
+      tester
+          .widget<KitButton>(find.widgetWithText(KitButton, 'Sync 0 folders'))
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('a refusal with no sentence still leaves one (§18)', (
+    tester,
+  ) async {
+    await pumpPicker(
+      tester,
+      initial: const ['fld-b'],
+      onConfirm: (_) async => throw StateError('no envelope'),
+    );
+    await tester.tap(find.text('Sync 1 folder'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not save these folders.'), findsOneWidget);
+    expect(find.text('Sync 1 folder'), findsOneWidget);
   });
 }
