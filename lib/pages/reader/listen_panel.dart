@@ -352,7 +352,16 @@ class _ListenPanelState extends State<ListenPanel> {
             const SizedBox(width: 12),
             IconButton.filled(
               onPressed: _toggle,
-              icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
+              // `is-play` (web 13c910c): the play triangle's mass sits left
+              // of its box, so it is nudged to the optical centre while the
+              // Play glyph shows. Material's triangle already sits 1.5px right
+              // of centre; 2px more lands it where web's 3px nudge puts
+              // IcoPlay (~3.5px right of centre).
+              icon: _playing
+                  ? const Icon(Icons.pause)
+                  : const Padding(
+                      padding: EdgeInsets.only(left: 2),
+                      child: Icon(Icons.play_arrow)),
               style: IconButton.styleFrom(
                 backgroundColor: ui.primary,
                 foregroundColor: ui.accentFg,

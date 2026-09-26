@@ -592,8 +592,13 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
               Text('№ ${(i + 1).toString().padLeft(2, '0')}',
                   style: AppTheme.mono(fontSize: 11, color: ui.muted)),
               const SizedBox(width: 10),
+              // `.ms-sheet.editing .ms-chunk-words` (web 13c910c): mono 11 at
+              // --fg-muted. Shown only while editing, so always the muted step.
               Text('~${_words(c)} words',
-                  style: KitText.fine(context, color: ui.muted)),
+                  // The mono 11 face of the caps label, set in its own case.
+                  style: KitText.capsLabel(context,
+                          letterSpacing: 0.04, color: ui.muted)
+                      .copyWith(fontWeight: FontWeight.w400)),
               if (c.userEdited) ...[
                 const SizedBox(width: 8),
                 Container(
