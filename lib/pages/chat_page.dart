@@ -557,6 +557,17 @@ String _emptyAnswer(AskScope? scope) {
           'library. A narrower question may reach them.';
 }
 
+/// A citation's corner (ask.md §Composition, 4.99.0): a pill wide, capped at
+/// `--r-xl` on a phone — a wrapped citation is four lines or more there, and a
+/// true pill radius made it an ellipse whose curve crossed the badge and the
+/// actions column. The phone breakpoint is this client's compactWidth
+/// (CLAUDE.md §Composition deviations). It was 22 at every width (F-69's single
+/// cap), which ask.md now rules out.
+@visibleForTesting
+BorderRadius citationRadius(double width) => width < AppSpacing.compactWidth
+    ? AppRadius.xlR
+    : BorderRadius.circular(999);
+
 /// A citation: a bordered pill with a mono index, the document's title, and the
 /// stored excerpt — whose extraction markers render as Marker inline (§17.2).
 class _CitationPill extends StatelessWidget {
@@ -609,11 +620,7 @@ class _CitationPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: t.bg,
           border: Border.all(color: t.border),
-          // Capped at 22 (pillR(44)), never half the block's height: a wrapped
-          // citation is four lines or more on a phone, and a true pill radius
-          // made it an ellipse whose curve crossed the badge and the actions
-          // column (web cdc6e86 caps at --r-xl on <=680).
-          borderRadius: AppRadius.pillR(44),
+          borderRadius: citationRadius(MediaQuery.sizeOf(context).width),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

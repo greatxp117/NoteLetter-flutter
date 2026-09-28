@@ -1,10 +1,13 @@
-/// F-54, the Library hero's rule (web ef14f8a + 5d6fe8d): Today's letter is
-/// the NEWEST daily record — any status, with or without a body — never a
-/// readings letter, and its standfirst is the librarian's note by its
-/// `data-nl-lede` marker, never a slice of the body. The seed's letter drew
-/// no standfirst at all here: the hero sliced `html`, which a letterheaded
-/// record does not carry.
+/// The Library hero's rule. F-54 (web 5d6fe8d): its standfirst is the
+/// librarian's note by its `data-nl-lede` marker, never a slice of the body.
+/// F-70 (4.99.0, ADR-132; library.md §The letter): the hero's letter is the
+/// NEWEST BUILT daily letter (web getLatestLetter) — it was the newest daily
+/// RECORD of any status (web ef14f8a), the rule web left at 4.98.0 — and it
+/// names its day: "Today's letter" only when built on the device's calendar
+/// day, "Latest letter" and "Your latest letter is from {day}" otherwise.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,15 +26,20 @@ import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
 class _Reads extends FirestoreService {
-  _Reads(this.letters, {this.fail = false}) : super.stub();
+  _Reads(this.letters, {this.fail = false, this.hang = false}) : super.stub();
   final List<Newsletter> letters;
   final bool fail;
+
+  /// A read that has not answered yet — the page calls `load()` itself on
+  /// mount, so only a service that never answers can hold that state.
+  final bool hang;
 
   @override
   String? get currentUid => 'u1';
 
   @override
   Future<List<Newsletter>> listAllNewsletters({int limit = 30}) async {
+    if (hang) return Completer<List<Newsletter>>().future;
     if (fail) throw StateError('permission-denied');
     return letters;
   }
@@ -73,6 +81,23 @@ final _legacy = _n('l1', {
   'chunk_ids': ['c1', 'c2'],
   'generated_at': 1757500000000,
 });
+// Local noon on a fixed day, so the day the standfirst names does not move
+// with the machine's time zone.
+final _sep10 = DateTime(2025, 9, 10, 12).millisecondsSinceEpoch;
+final _kindless = _n('k1', {
+  // No `kind` (pre-2.24.0), a body, no `chunk_ids`, no lede marker.
+  'status': 'sent',
+  'html_body': '<p>A plain body.</p>',
+  'generated_at': _sep10,
+});
+final _todays = _n('t1', {
+  'kind': 'daily',
+  'status': 'generating',
+  'subject': 'Being sent',
+  'chunk_ids': ['c1'],
+  'html_body': '<p>Built, and going out now.</p>',
+  'generated_at': DateTime.now().millisecondsSinceEpoch,
+});
 final _letterheaded = _n('h1', {
   'kind': 'daily',
   'status': 'sent',
@@ -82,7 +107,7 @@ final _letterheaded = _n('h1', {
       '<p>Vol. I · No. 3</p><p data-nl-lede="1">Three passages found each '
       'other today.</p></div>',
   'text_body': 'NOTELETTER Vol. I · No. 3 Three passages found each other.',
-  'generated_at': 1757540000000,
+  'generated_at': _sep10,
 });
 
 Future<NewsletterNotifier> _load(List<Newsletter> all, {bool fail = false}) async {
@@ -93,10 +118,10 @@ Future<NewsletterNotifier> _load(List<Newsletter> all, {bool fail = false}) asyn
 }
 
 Future<void> _pump(WidgetTester tester, List<Newsletter> all,
-    {bool fail = false}) async {
-  FirestoreService.instance = _Reads(all, fail: fail);
+    {bool fail = false, bool hang = false}) async {
+  FirestoreService.instance = _Reads(all, fail: fail, hang: hang);
   final letters = NewsletterNotifier();
-  await letters.load();
+  if (!hang) await letters.load();
   await tester.pumpWidget(MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => DocumentsNotifier()),
@@ -116,23 +141,23 @@ Future<void> _pump(WidgetTester tester, List<Newsletter> all,
 void main() {
   tearDown(FirestoreService.resetInstance);
 
-  group('todaysLetter', () {
-    test('the newest DAILY record, of any status — never a readings letter',
+  group('the hero\'s letter is the newest BUILT daily letter', () {
+    test('never a record still being built, never a readings letter',
         () async {
       final n = await _load([_readings, _generating, _letterheaded]);
-      expect(n.todaysLetter?.id, 'g1',
-          reason: 'a generating letter is the newest daily one, as on web');
+      expect(n.latest?.id, 'h1');
     });
 
-    test('a kindless pre-2.24.0 record counts (`!= scripture`, never `== daily`)',
+    test('a kindless record counts (`!= scripture`, never `== daily`)',
+        () async {
+      final n = await _load([_readings, _kindless]);
+      expect(n.latest?.id, 'k1');
+    });
+
+    test('a pre-2.0.0 record (`html`, no `html_body`) is not a built letter',
         () async {
       final n = await _load([_readings, _legacy]);
-      expect(n.todaysLetter?.id, 'l1');
-    });
-
-    test('readings letters only: no Today\'s letter', () async {
-      final n = await _load([_readings]);
-      expect(n.todaysLetter, isNull);
+      expect(n.latest, isNull);
     });
   });
 
@@ -158,18 +183,57 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('a pre-2.0.0 record still draws the hero, with the fallback line',
+    testWidgets('a built letter with no lede draws the fallback line',
         (tester) async {
-      await _pump(tester, [_legacy]);
+      await _pump(tester, [_kindless]);
       expect(find.byType(KitHeroCard), findsOneWidget);
       expect(find.text('Your daily reading, drawn from what you’ve added to '
           'your library.'), findsOneWidget);
     });
 
+    testWidgets('built on an earlier day: Latest letter, and the day named',
+        (tester) async {
+      await _pump(tester, [_letterheaded]);
+      // The section header sets its label in caps (the caller's, as web's
+      // `.eyebrow`).
+      expect(find.text('LATEST LETTER'), findsOneWidget);
+      expect(find.text("TODAY'S LETTER"), findsNothing);
+      expect(
+          find.text('Your latest letter is from Wednesday, September 10 — '
+              '3 passages from your library.'),
+          findsOneWidget);
+      expect(find.text('SENT'), findsOneWidget,
+          reason: 'a sent letter keeps its Sent figure');
+    });
+
+    testWidgets('built today: Today\'s letter, and no day named',
+        (tester) async {
+      await _pump(tester, [_todays]);
+      expect(find.text("TODAY'S LETTER"), findsOneWidget);
+      expect(find.text("Today's letter is ready — 1 passage from your library."),
+          findsOneWidget);
+      expect(find.text('SENT'), findsNothing,
+          reason: 'Sent only for a letter that was (ADR-132)');
+    });
+
+    testWidgets('no chunk_ids: the count clause is dropped, never "0 passages"',
+        (tester) async {
+      await _pump(tester, [_kindless]);
+      expect(find.text('Your latest letter is from Wednesday, September 10.'),
+          findsOneWidget);
+    });
+
+    testWidgets('before the read answers, the standfirst says nothing',
+        (tester) async {
+      await _pump(tester, [_letterheaded], hang: true);
+      expect(find.textContaining('Your library is being read'), findsNothing);
+      expect(find.byType(KitHeroCard), findsNothing);
+    });
+
     testWidgets('a failed read says so, never "tomorrow\'s letter"',
         (tester) async {
       await _pump(tester, const [], fail: true);
-      expect(find.text("Today's letter could not be read."), findsOneWidget);
+      expect(find.text('Your latest letter could not be read.'), findsOneWidget);
       expect(find.byType(KitFailureInline), findsOneWidget);
       expect(find.textContaining("Tomorrow's letter"), findsNothing);
       expect(find.byType(KitHeroCard), findsNothing);

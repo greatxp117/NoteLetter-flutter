@@ -32,9 +32,9 @@ import 'sources/shelf_books.dart';
 /// * **Frame** Index (980) inside a scroll container — §1.4/§1.5.
 /// * **Header** chapter opening: folio `{date} · {n} sources`, the greeting
 ///   title with its **italic accent clause**, and a standfirst that says
-///   whether today's letter is ready.
+///   where the reader's letter stands (library.md §The letter).
 /// * **Body** three sections, each opened by a section header carrying its own
-///   count: today's letter (hero card), recently read (source rows), shelves
+///   count: the letter (hero card), recently read (source rows), shelves
 ///   (a grid of shelf cards).
 /// * **Empty** the drop zone leads — an offer, not an apology.
 class LibraryPage extends StatefulWidget {
@@ -86,11 +86,13 @@ class _LibraryPageState extends State<LibraryPage> {
         final home = _LibraryHome(
           complete: complete,
           shelves: tags.tags,
-          // The newest DAILY record, of any status (web ef14f8a) — see
-          // NewsletterNotifier.todaysLetter.
-          letter: letters.todaysLetter,
+          // The newest BUILT daily letter (4.99.0, ADR-132; web
+          // getLatestLetter) — the Letters card's own record. It was the
+          // newest daily RECORD of any status, the rule web left at 4.98.0.
+          letter: letters.latest,
           // §14.2: a read that failed is not "no letter yet" (INV-24).
           letterError: letters.error,
+          letterLoaded: letters.loaded,
           documents: docs.documents,
         );
 
@@ -133,6 +135,11 @@ class _LibraryHome extends StatefulWidget {
   final Newsletter? letter;
   final String? letterError;
 
+  /// Whether the letter read has answered. Until it has, the standfirst says
+  /// nothing about the letter (library.md §The letter) — "being read" claims
+  /// there is none.
+  final bool letterLoaded;
+
   /// Every document, in flight or not — the checklist's "Add your first
   /// source" is done by the first one that exists, as the reference's is.
   final List<Document> documents;
@@ -142,6 +149,7 @@ class _LibraryHome extends StatefulWidget {
     required this.shelves,
     required this.letter,
     required this.documents,
+    required this.letterLoaded,
     this.letterError,
   });
 
@@ -179,6 +187,12 @@ class _LibraryHomeState extends State<_LibraryHome> {
     final shelves = widget.shelves;
     final letter = widget.letter;
     final letterError = widget.letterError;
+    // library.md §The letter: the letter can be days old, so it names its day.
+    final today = letter != null && _builtToday(letter.generatedAt);
+    // `{n} passages` only from a record that carries `chunk_ids` (ADR-109).
+    final ofLibrary = letter == null || !letter.chunkIdsKnown
+        ? ''
+        : ' — ${_passages(letter)} from your library';
     final total = complete.length;
     final recent = complete.take(12).toList();
     final recentView = LocalFlags.recentView.value;
@@ -191,14 +205,22 @@ class _LibraryHomeState extends State<_LibraryHome> {
           folio: '${_today()} · ${_plural(total, 'source')}',
           title: '${_greeting()}, *reader*',
           standfirst: letter != null
-              ? "Today's letter is ready — "
-                  '${_passages(letter)} from your library.'
+              ? (today
+                  ? "Today's letter is ready$ofLibrary."
+                  : 'Your latest letter is from '
+                      // A record the recency query returned always carries
+                      // generated_at; `?? 0` is the reference's `new Date(null)`.
+                      '${_longDay(DateTime.fromMillisecondsSinceEpoch(letter.generatedAt ?? 0))}'
+                      '$ofLibrary.')
               : letterError != null
                   // Not "tomorrow's letter will draw…": that sentence is a
-                  // claim about a letter we could not read.
-                  ? "Today's letter could not be read."
-                  : "Your library is being read. Tomorrow's letter will draw "
-                      "from what's indexed so far.",
+                  // claim about a letter we could not read — and it names
+                  // no day, because we do not know the letter's.
+                  ? 'Your latest letter could not be read.'
+                  : widget.letterLoaded
+                      ? "Your library is being read. Tomorrow's letter will "
+                          "draw from what's indexed so far."
+                      : null,
         ),
 
         if (letter == null && letterError != null)
@@ -217,10 +239,10 @@ class _LibraryHomeState extends State<_LibraryHome> {
           onAdd: () => context.go('/sources'),
         ),
 
-        // ── Today's letter ───────────────────────────────────────────────
+        // ── Today's / Latest letter ──────────────────────────────────────
         if (letter != null) ...[
           SectionHeader(
-            "Today's letter",
+            today ? "Today's letter" : 'Latest letter',
             actionLabel: 'Preview the letter →',
             onAction: () => context.go('/letters'),
           ),
@@ -497,10 +519,20 @@ const _months = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-String _today() {
+String _today() => _longDay(DateTime.now());
+
+/// The folio's format — "Tuesday, September 22" — in which the standfirst
+/// names an older letter's day (library.md §The letter).
+String _longDay(DateTime d) =>
+    '${_weekdays[d.weekday - 1]}, ${_months[d.month - 1]} ${d.day}';
+
+/// A letter is today's when it was built on the device's calendar day — the
+/// clock the folio is printed from (4.99.0, ADR-132).
+bool _builtToday(int? ms) {
+  if (ms == null) return false;
+  final d = DateTime.fromMillisecondsSinceEpoch(ms);
   final now = DateTime.now();
-  return '${_weekdays[now.weekday - 1]}, '
-      '${_months[now.month - 1]} ${now.day}';
+  return d.year == now.year && d.month == now.month && d.day == now.day;
 }
 
 /// Matches the web reference's boundaries (12 / 18). This client's old

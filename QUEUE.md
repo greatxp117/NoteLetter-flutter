@@ -1356,3 +1356,29 @@ a new obligation on a finished screen is a new item.
   (ask pairs against a separate NL_DEV_FAKES shim on :5598, stopped after). The failed-study and letter-row
   states have no seed frame; composition_4_98_test.dart is the proof. Still different on the reader frame,
   not this item: the Shelves row (F-39, open) and the Listen stat.
+
+## F-70 · The 4.99.0 tandem — the Library hero names its letter's day; the Ask citation radius follows the reference
+- status: done 2026-09-28
+- screen: library
+- route: /
+- spec: spec/decisions/ADR-132-the-hero-names-the-day-of-its-letter.md; spec/screens/library.md §The letter; spec/screens/ask.md §Composition
+- web: src/pages/LibraryHome.jsx; src/api.js; src/styles/app-kit.css
+- flutter: lib/pages/library_page.dart; lib/state/newsletter_notifier.dart; lib/pages/chat_page.dart; test/contract/library_hero_test.dart; test/contract/composition_4_99_test.dart (new)
+- folds: 4.99.0 (tandem 3)
+- device_test: none
+- shots: library; ask-thread
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: CHANGELOG 4.99.0 Flutter tandem. (a) The hero reads NewsletterNotifier.latest (the newest BUILT daily letter, web getLatestLetter); delete todaysLetter. (b) library.md §The letter: header Today's letter / Latest letter by whether generated_at is on the device's calendar day; standfirst `Today's letter is ready — {n} passages from your library.` or `Your latest letter is from {Weekday, Month D} — {n} passages from your library.`, the count clause dropped when chunk_ids is absent (chunkIdsKnown); failure `Your latest letter could not be read.`; Sent already only for status == sent. (c) Ask citation: AppRadius.xl below compactWidth, a full pill above it (was pillR(44) = 22 at every width — F-69's recorded single-cap deviation, now superseded by ask.md 4.99.0).
+
+## F-71 · Library hero — the masthead is web's versal A LETTER, and the stat cluster carries Min read
+- status: open
+- screen: library
+- route: /
+- spec: spec/screens/library.md §Composition; spec/screens/letters.md §The letter-settings preview; spec/component-kit.md §5.3
+- web: src/pages/LibraryHome.jsx; src/styles/app-kit.css
+- flutter: lib/pages/library_page.dart
+- folds: none
+- device_test: none
+- shots: library
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: Seen on F-70's frames (2026-09-28), not F-70's subject. (1) The hero masthead: web draws `.masthead-title versal` — small caps with versal initials (`A LETTER`); this client draws 'A *Letter*' with the accent italic. (2) The stat cluster: web draws Passages · Min read (`~{n+1}`, dash without chunk_ids) · Sent; this client drops Min read on a comment calling it arithmetic, while letters.md specifies `{n} passages · ~{n+1} min read` on the same record. Decide by the reference; KitStat cannot yet carry an unmeasured figure (stat_figure_check CARRIES-ABSENCE).
