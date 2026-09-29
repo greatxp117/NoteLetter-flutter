@@ -314,6 +314,11 @@ const _noBuilder = <String, String>{
       'sends this',
   'fn_reply_support_message':
       'there is no support console in this client (CHANGELOG 4.19.0)',
+  // For your review (4.100.0) — owed by QUEUE F-72, which builds the screen
+  // and this builder together. (The 4.101.0 task endpoints have no entry: their
+  // suite, api/tasks, is not in this client's list until F-72 adds it.)
+  'fn_review_documents':
+      'QUEUE F-72 — For your review\'s Dismiss (4.100.0, ADR-135)',
 };
 
 // A case with no `endpoint` at all asserts what the BACKEND stored, or that it

@@ -315,6 +315,12 @@ const _kinds = <String, _Kind>{
 
   // ── library ────────────────────────────────────────────────────────────────
   'shelf_split': (family: 'library', chip: 'Split', icon: Icons.call_split),
+  // Background tasks (4.101.0, ADR-136) — the vocab gate's CLIENT-SHORT
+  // direction; the task surfaces themselves are QUEUE F-72.
+  'shelf_deleted': (family: 'library', chip: 'Deleted', icon: Icons.delete_outline),
+  'review_ready': (family: 'library', chip: 'Ready for review', icon: Icons.inbox_outlined),
+  'task_finished': (family: 'library', chip: 'Finished', icon: Icons.check_circle_outline),
+  'task_failed': (family: 'library', chip: 'Failed', icon: Icons.error_outline),
   'support_reply': (family: 'library', chip: 'Support', icon: Icons.support_agent_outlined),
   'search_synthesized': (family: 'library', chip: 'Arranged', icon: Icons.auto_awesome_outlined),
 };
