@@ -1382,3 +1382,16 @@ a new obligation on a finished screen is a new item.
 - shots: library
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: Seen on F-70's frames (2026-09-28), not F-70's subject. (1) The hero masthead: web draws `.masthead-title versal` — small caps with versal initials (`A LETTER`); this client draws 'A *Letter*' with the accent italic. (2) The stat cluster: web draws Passages · Min read (`~{n+1}`, dash without chunk_ids) · Sent; this client drops Min read on a comment calling it arithmetic, while letters.md specifies `{n} passages · ~{n+1} min read` on the same record. Decide by the reference; KitStat cannot yet carry an unmeasured figure (stat_figure_check CARRIES-ABSENCE).
+
+## F-72 · For your review — the inbox (4.100.0 tandem)
+- status: open
+- screen: review
+- route: /review
+- spec: spec/screens/review.md; spec/decisions/ADR-135-for-your-review-is-one-inbox.md; spec/invariants.md §INV-30; spec/component-kit.md §1.2 attention count; spec/api/documents.md §fn_review_documents
+- web: src/pages/ReviewView.jsx; src/shared/useReviewInbox.js; src/shell/AppShell.jsx; src/api.js; src/styles/app-kit.css
+- flutter: lib/pages/review_page.dart (new); lib/state/review_inbox.dart (new); lib/services/api.dart; lib/router.dart; lib/widgets/nav_drawer.dart; lib/services/endpoint_budgets.dart; test/contract/api_requests_test.dart
+- folds: 4.100.0 (tandem 3)
+- device_test: signs in, opens For your review from the drawer, dismisses a failed source
+- shots: review
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: CHANGELOG 4.100.0 Flutter tandem. (a) Api.reviewDocuments(docIds) → fn_review_documents {docIds, action:'dismiss'} (fixture documents:review-*); budget above the 60s host. (b) Three subscriptions per screens/review.md §Data — held imports (status == awaiting_review, limit 500, NOT the 50-newest window), pending suggestions, and documents status in [error, skipped, processing] limit 500 — and ONE notifier that yields {needs, count, measured} to both the drawer item and the page (INV-30: a failed subscription makes the count unmeasured, drawn as the dash, never a partial count). (c) The page reuses this client's processing card (+ Dismiss, Dismiss all with the §18 confirm), the import review rows and the suggestion cards with their outcome rows; sections in the order the spec gives, absent when empty, §7 empty state when all are. (d) Drawer: For your review under Home with the §1.2 attention count; the app bar's menu button carries the dot while it is above zero.
