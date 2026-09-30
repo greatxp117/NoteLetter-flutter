@@ -24,6 +24,7 @@ import 'reader/reorganize_sheet.dart';
 import 'reader/source_freshness.dart';
 import 'reader/speed_read_panel.dart';
 import 'reader/summary_panel.dart';
+import 'tags/shelf_sheet.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -111,6 +112,10 @@ class _ReaderPageState extends State<ReaderPage> {
 
   bool _finishBusy = false;
   String? _finishError;
+
+  /// §Document shelves: one write at a time, and its refusal beside the row.
+  bool _shelvesBusy = false;
+  String? _shelvesError;
   bool _loading = true;
   String? _error;
   String? _errorRequestId;
@@ -515,6 +520,7 @@ class _ReaderPageState extends State<ReaderPage> {
                       ],
                     ),
                     _bylineRow(doc),
+                    if (complete) _documentShelves(doc),
                     SourceFreshness(docId: widget.docId, doc: doc),
                     const SizedBox(height: 14),
                     _statRow(doc, readCount),
@@ -637,6 +643,70 @@ class _ReaderPageState extends State<ReaderPage> {
         ),
       ),
     );
+  }
+
+  /// §Document shelves (4.83.0, ADR-117; 4.104.0, ADR-137): a §20 editor over
+  /// the whole document's `tag_ids`, shown for every complete document — with
+  /// no shelves at all it is the add control alone, and its picker is where a
+  /// first shelf is made from here. The reference's `DocumentShelves`.
+  Widget _documentShelves(Document doc) {
+    final tags = context.watch<TagsNotifier>().tags;
+    final byId = {for (final t in tags) t.id: t};
+    final current = doc.tagIds;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      child: KitShelfChipEditor(
+        label: 'Shelves',
+        chips: [
+          for (final id in current)
+            if (byId[id] != null) KitShelfChip(byId[id]!),
+        ],
+        addable: [for (final t in tags) if (!current.contains(t.id)) t],
+        busy: _shelvesBusy,
+        error: _shelvesError,
+        removeLabel: (s) => 'Take this source off ${s.title}',
+        onAdd: (id) => _writeShelves([...current, id]),
+        onRemove: (id) =>
+            _writeShelves([for (final x in current) if (x != id) x]),
+        // The sheet hands the new id back once `fn_create_tag` resolved, and
+        // the add runs then — built from the list last READ at that moment,
+        // not the one this row was drawn from.
+        onCreate: (name) => showShelfSheet(
+          context,
+          // The document is complete, so the library holds a source to scan.
+          canBackfill: true,
+          land: null,
+          initialName: name,
+          createSubtitle: 'This source goes on it as soon as it is created.',
+          onCreated: (id) {
+            final read = _document?.tagIds ?? current;
+            if (!read.contains(id)) _writeShelves([...read, id]);
+          },
+        ),
+      ),
+    );
+  }
+
+  /// One `fn_update_document {tagIds}`. The list sent is the one this screen
+  /// last READ plus or minus one id, and the chips move only once the server
+  /// accepted it — on success the document commits exactly the list it sent.
+  /// A refusal stays beside the row (§14.2) and the chips stay as they were.
+  Future<void> _writeShelves(List<String> next) async {
+    setState(() {
+      _shelvesBusy = true;
+      _shelvesError = null;
+    });
+    try {
+      await Api.instance.updateDocument(widget.docId, {'tagIds': next});
+      if (!mounted) return;
+      setState(() => _document = _document?.withTagIds(next));
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _shelvesError = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _shelvesError = describeSdkError(e));
+    } finally {
+      if (mounted) setState(() => _shelvesBusy = false);
+    }
   }
 
   /// The document's shelf, as the folio line — the reference's `shelfLabel`.

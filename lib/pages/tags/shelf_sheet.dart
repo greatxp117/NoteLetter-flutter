@@ -3,9 +3,9 @@
 /// reference's `ShelfFormFields`, `ShelfBackfillReview` and `ShelfSheet` in
 /// `NoteLetter-web/src/shared/ShelfForm.jsx`.
 ///
-/// **One form for both entry points** — the rail's `+` and the Shelves index's
-/// *New shelf* card — so the two cannot drift into creating shelves
-/// differently. The index card had its own form until F-38: a name and a
+/// **One form for every entry point** — the rail's `+`, the Shelves index's
+/// *New shelf* card and a §20.1 picker's create row (4.104.0, ADR-137) — so
+/// they cannot drift into creating shelves differently. The index card had its own form until F-38: a name and a
 /// colour, no description, so a shelf made on a phone carried nothing for the
 /// backfill (or anything else embedded) to read.
 library;
@@ -52,21 +52,34 @@ class BackfillFor {
 /// with [backfillFor] — straight at the review. Every exit that lands, lands
 /// through [land] on the shelf, whose count arrives by subscription.
 ///
+/// From a picker's create row (4.104.0, ADR-137) the form opens with
+/// [initialName], says what goes on the shelf in [createSubtitle], and hands the
+/// new id to [onCreated] the moment `fn_create_tag` resolves — the reader
+/// stays where they are ([land] is null, so every exit only closes) and the
+/// host files its item through its own write. With the backfill choice the
+/// review still follows in this sheet: this client has not moved the fill to
+/// the background yet (4.102.0 — QUEUE F-72), and neither entry point differs.
+///
 /// A write in flight holds the sheet open — scrim, back gesture and close
 /// included — so a create or a filing cannot be dismissed into looking like it
 /// never ran.
 Future<void> showShelfSheet(
   BuildContext context, {
   required bool canBackfill,
-  required ValueChanged<String> land,
+  required ValueChanged<String>? land,
   BackfillFor? backfillFor,
   CreateTag? create,
   SuggestBackfill? suggest,
   ApplyBackfill? apply,
+  String initialName = '',
+  String? createSubtitle,
+  ValueChanged<String>? onCreated,
 }) {
   final holding = ValueNotifier<bool>(false);
   final heading = ValueNotifier<KitSheetHeading>(backfillFor == null
-      ? _newHeading
+      ? (createSubtitle == null
+          ? _newHeading
+          : KitSheetHeading(_newHeading.title, createSubtitle))
       : _fillHeading(backfillFor.title));
   return KitOverlaySheet.show(
     context,
@@ -84,11 +97,13 @@ Future<void> showShelfSheet(
       close: () => Navigator.of(ctx).pop(),
       land: (id) {
         Navigator.of(ctx).pop();
-        land(id);
+        land?.call(id);
       },
       create: create,
       suggest: suggest,
       apply: apply,
+      initialName: initialName,
+      onCreated: onCreated,
     ),
   ).whenComplete(() {
     holding.dispose();
@@ -116,6 +131,11 @@ class ShelfSheetBody extends StatefulWidget {
   final SuggestBackfill? suggest;
   final ApplyBackfill? apply;
 
+  /// A picker's create row (4.104.0): the name it was typed as, and where the
+  /// new id goes once the create resolved.
+  final String initialName;
+  final ValueChanged<String>? onCreated;
+
   const ShelfSheetBody({
     super.key,
     required this.canBackfill,
@@ -127,6 +147,8 @@ class ShelfSheetBody extends StatefulWidget {
     this.create,
     this.suggest,
     this.apply,
+    this.initialName = '',
+    this.onCreated,
   });
 
   @override
@@ -137,6 +159,9 @@ class _ShelfSheetBodyState extends State<ShelfSheetBody> {
   late BackfillFor? _review = widget.backfillFor;
 
   void _created(ShelfCreated c) {
+    // Handed back BEFORE anything else: the host's write is what the reader
+    // came for, and it runs while the review (if any) is still reading.
+    widget.onCreated?.call(c.tagId);
     if (!c.backfill) {
       widget.land(c.tagId);
       return;
@@ -157,6 +182,7 @@ class _ShelfSheetBodyState extends State<ShelfSheetBody> {
               onCancel: widget.close,
               onBusy: widget.onBusy,
               create: widget.create,
+              initialName: widget.initialName,
             )
           : ShelfBackfillReview(
               key: ValueKey(review.tagId),
@@ -194,7 +220,11 @@ class ShelfFormFields extends StatefulWidget {
     this.onBusy = _noBusy,
     this.submitLabel = 'Create shelf',
     this.create,
+    this.initialName = '',
   });
+
+  /// The name a picker's create row was typed as (4.104.0) — trimmed, ≤ 50.
+  final String initialName;
 
   static void _noBusy(bool _) {}
 
@@ -203,7 +233,8 @@ class ShelfFormFields extends StatefulWidget {
 }
 
 class _ShelfFormFieldsState extends State<ShelfFormFields> {
-  final _name = TextEditingController();
+  late final _name = TextEditingController(
+      text: widget.initialName.trim().characters.take(shelfTitleMax).toString());
   final _desc = TextEditingController();
   String _color = AppColors.shelfColors.keys.first;
   bool _backfill = true;

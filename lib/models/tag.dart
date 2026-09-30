@@ -15,6 +15,13 @@ class Tag {
   /// endpoint 400s below that, so the control is ABSENT rather than disabled.
   final int documentCount;
 
+  /// Whether `document_count` was actually STORED. [documentCount] reads 0 when
+  /// it is absent, which is right for the split gate (the endpoint refuses
+  /// below 5 either way) and wrong for a figure: §20.1's picker draws the count
+  /// only when this is true, as the reference does (`Number.isFinite`), because
+  /// an unread count is not zero (ADR-109).
+  final bool documentCountStored;
+
   /// 2.20.0 (ADR-025) — the shelf this one was split out of. **Provenance
   /// only**: no roll-up, no transitive filter, and child shelves are not nested
   /// in the index. A half-honoured hierarchy makes the same shelf report two
@@ -37,6 +44,7 @@ class Tag {
     this.createdAt,
     this.updatedAt,
     this.documentCount = 0,
+    this.documentCountStored = true,
     this.parentTagId,
     this.letterMode = 'mixed',
   });
@@ -54,6 +62,7 @@ class Tag {
       createdAt: tsMs(json['created_at']),
       updatedAt: tsMs(json['updated_at']),
       documentCount: json['document_count'] as int? ?? 0,
+      documentCountStored: json['document_count'] is int,
       parentTagId: json['parent_tag_id'] as String?,
       letterMode: letterModes.contains(json['letter_mode'])
           ? json['letter_mode'] as String

@@ -607,6 +607,25 @@ Future<void> reachState(WidgetTester tester) async {
       expect(find.text('Back to the letter'), findsOneWidget,
           reason: 'the day did not open — this frame would be the letter');
       return;
+    // component-kit §20.1 Shelf picker (4.104.0, ADR-137; QUEUE F-39) — the
+    // reader's Shelves row with its picker open, and searched for "st" (a
+    // prefix match ranked, its run in 600, the create row naming the query),
+    // as the reference's `reader-shelves` / `shelf-picker-search` frames are.
+    case 'shelf-picker':
+    case 'shelf-picker-search':
+      final plus = find.text('Shelf');
+      await tester.ensureVisible(plus);
+      await settle();
+      await tester.tap(plus);
+      await settle();
+      final search = find.byKey(const ValueKey('shelf-pick-search'));
+      expect(search, findsOneWidget,
+          reason: 'the picker did not open — this frame would be the row');
+      if (holdState == 'shelf-picker-search') {
+        await tester.enterText(search, 'st');
+        await settle();
+      }
+      return;
     // library.md §Creating a shelf / §Backfill review (4.83.0, ADR-117;
     // QUEUE F-38) — the §15 sheet over the shell, as the reference's frames
     // open it from the rail's `+`. On a phone the rail is a drawer, so the

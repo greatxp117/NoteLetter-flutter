@@ -322,6 +322,54 @@ class Document {
     );
   }
 
+  /// Commit the shelves an accepted `fn_update_document {tagIds}` wrote
+  /// (`screens/reader.md` §Document shelves, 4.83.0).
+  ///
+  /// Narrow for the reason the two above are: the call moves **exactly**
+  /// `tag_ids`, and it is applied only once the server accepted it — the list
+  /// passed is the one that was SENT, which the reader built from what it last
+  /// read. Never a guess made before the call resolves.
+  Document withTagIds(List<String> next) {
+    return Document(
+      id: id,
+      userId: userId,
+      title: title,
+      type: type,
+      status: status,
+      mimeType: mimeType,
+      sourceUrl: sourceUrl,
+      gcsPath: gcsPath,
+      createdAt: createdAt,
+      processedAt: processedAt,
+      chunkCount: chunkCount,
+      wordCount: wordCount,
+      summary: summary,
+      keyPoints: keyPoints,
+      themes: themes,
+      tagIds: List.unmodifiable(next),
+      thumbnailUrl: thumbnailUrl,
+      sourceAudioUrl: sourceAudioUrl,
+      audioUrl: audioUrl,
+      sourceImageUrl: sourceImageUrl,
+      author: author,
+      publishDate: publishDate,
+      processingStage: processingStage,
+      processingStallsAt: processingStallsAt,
+      finishedAt: finishedAt,
+      nextLetterRequestedAt: nextLetterRequestedAt,
+      errorMessage: errorMessage,
+      forceProcess: forceProcess,
+      skipReason: skipReason,
+      sourcePriority: sourcePriority,
+      viewCount: viewCount,
+      lastViewedAt: lastViewedAt,
+      contentForm: contentForm,
+      originalContentUrl: originalContentUrl,
+      recipe: recipe,
+      sourceIntegration: sourceIntegration,
+    );
+  }
+
   factory Document.fromJson(String id, Map<String, dynamic> json) {
     return Document(
       id: id,
