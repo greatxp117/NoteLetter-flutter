@@ -90,11 +90,9 @@ class CohesiveColumn extends StatelessWidget {
         if (r.note != null) ...[
           Text(
             'The arrangement needed adjusting; every passage is here.',
-            style: AppTheme.serif(
-              fontSize: 14,
-              height: 20 / 14,
-              color: t.fgMuted,
-            ).copyWith(fontStyle: FontStyle.italic),
+            // `.cohesive-note`
+            style: KitText.lede(context,
+                fontSize: 14, height: 20, color: t.fgMuted),
           ),
           const SizedBox(height: AppSpacing.s5),
         ],
@@ -128,28 +126,24 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           section.title,
-          style: AppTheme.serif(
-            fontSize: 22,
-            height: 1.15,
-            fontWeight: FontWeight.w500,
-            color: t.fg,
-          ).copyWith(letterSpacing: -0.015 * 22),
+          // `.cohesive-title`
+          style: KitText.title(context,
+              fontSize: 22,
+              height: 1.15,
+              weight: FontWeight.w500,
+              tracking: -0.015),
         ),
         if (section.bridge.isNotEmpty) ...[
           const SizedBox(height: 10),
           Text(
             section.bridge,
-            style: AppTheme.serif(
-              fontSize: 16,
-              height: 24 / 16,
-              color: t.fgLede,
-            ).copyWith(fontStyle: FontStyle.italic),
+            // `.cohesive-bridge`
+            style: KitText.lede(context, fontSize: 16, height: 24),
           ),
         ],
         const SizedBox(height: 18),
@@ -229,12 +223,8 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
                     p.document.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTheme.serif(
-                      fontSize: 15,
-                      height: 1.2,
-                      fontWeight: FontWeight.w500,
-                      color: t.fg,
-                    ),
+                    style: KitText.title(context,
+                        fontSize: 15, height: 1.2, weight: FontWeight.w500),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -248,7 +238,8 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
                   cosine: p.cosine,
                   sourcePriority: p.sourcePriority,
                   child: Text(p.score.toStringAsFixed(2),
-                      style: AppTheme.mono(fontSize: 10, color: t.fgMuted)),
+                      style: KitText.monoFigure(context,
+                          fontSize: 10, color: t.fgMuted)),
                 ),
               ],
             ),
@@ -258,8 +249,8 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
               // no-html branch draws its markers as §17.2 rather than as the
               // reader's own sentence.
               KitMarkedText(p.text,
-                  style: AppTheme.serif(
-                      fontSize: 17, height: 28 / 17, color: t.fg))
+                  style: KitText.bodyReading(context,
+                      fontSize: 17, height: 28))
             else
               Html(
                 data: html,

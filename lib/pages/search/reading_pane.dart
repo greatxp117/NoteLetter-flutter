@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../models/search_result.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 
@@ -65,12 +64,9 @@ class SearchReadingPane extends StatelessWidget {
         child: Text(
           'Open a result to read the passage in its surrounding context.',
           textAlign: TextAlign.center,
-          style: AppTheme.serif(
-            fontSize: 16,
-            height: 26 / 16,
-            fontStyle: FontStyle.italic,
-            color: t.fgSubtle,
-          ),
+          // `.rd-empty`
+          style: KitText.lede(buildContext,
+              fontSize: 16, height: 26, color: t.fgSubtle),
         ),
       );
 
@@ -92,12 +88,8 @@ class SearchReadingPane extends StatelessWidget {
                     r.document.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTheme.serif(
-                      fontSize: 19,
-                      height: 1.2,
-                      fontWeight: FontWeight.w600,
-                      color: t.fg,
-                    ),
+                    // `.rd-title`
+                    style: KitText.title(buildContext, fontSize: 19, height: 1.2),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -131,16 +123,11 @@ class SearchReadingPane extends StatelessWidget {
               child: KitMarkedText(
                 c.text,
                 style: c.chunkId == r.chunk.chunkId
-                    ? AppTheme.serif(
-                        fontSize: 17,
-                        height: 30 / 17,
-                        color: t.fg,
-                      ).copyWith(backgroundColor: t.highlightStrong)
-                    : AppTheme.serif(
-                        fontSize: 17,
-                        height: 30 / 17,
-                        color: t.fgLede,
-                      ),
+                    // `.rd-body p.match` / `.rd-body p`
+                    ? KitText.bodyReading(buildContext, fontSize: 17)
+                        .copyWith(backgroundColor: t.highlightStrong)
+                    : KitText.bodyReading(buildContext,
+                        fontSize: 17, color: t.fgLede),
               ),
             ),
         Container(height: 1, color: t.rule),
@@ -154,12 +141,9 @@ class SearchReadingPane extends StatelessWidget {
           Text(
             'Showing the passage that matched plus its neighbours. Open the '
             'full source to keep reading.',
-            style: AppTheme.serif(
-              fontSize: 14,
-              height: 22 / 14,
-              fontStyle: FontStyle.italic,
-              color: t.fgSubtle,
-            ),
+            // `.rd-note-quiet`
+            style: KitText.lede(buildContext,
+                fontSize: 14, height: 22, color: t.fgSubtle),
           ),
       ],
     );

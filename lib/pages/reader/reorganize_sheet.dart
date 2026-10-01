@@ -324,11 +324,8 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(s['title'] ?? 'Section',
-                        // kit-ok: F-43 — section title at sans 14/600; no kit role names it
-                        style: TextStyle(fontFamily: 'Geist', 
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: ui.fg)),
+                        style: KitText.label(context,
+                            weight: FontWeight.w600, color: ui.fg)),
                     Text('${s['summary'] ?? ''} · $chunkCount passage${chunkCount == 1 ? '' : 's'}',
                         style:
                             KitText.small(context, color: ui.muted)),

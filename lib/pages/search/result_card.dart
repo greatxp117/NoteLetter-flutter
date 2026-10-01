@@ -4,7 +4,6 @@ import '../../models/search_result.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'score_explainer.dart';
@@ -88,12 +87,9 @@ class _SearchResultCardState extends State<SearchResultCard> {
                       r.document.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTheme.serif(
-                        fontSize: 15,
-                        height: 1.2,
-                        fontWeight: FontWeight.w500,
-                        color: t.fg,
-                      ),
+                      // `.sresult-head .srctitle`
+                      style: KitText.title(context,
+                          fontSize: 15, height: 1.2, weight: FontWeight.w500),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -117,11 +113,9 @@ class _SearchResultCardState extends State<SearchResultCard> {
               // the content, deleting them deletes the document.
               KitMarkedText(
                 excerpt,
-                style: AppTheme.serif(
-                  fontSize: 17,
-                  height: 28 / 17,
-                  color: t.fg,
-                ).copyWith(backgroundColor: t.highlight),
+                // `.sresult-passage`
+                style: KitText.bodyReading(context, fontSize: 17, height: 28)
+                    .copyWith(backgroundColor: t.highlight),
               ),
               const SizedBox(height: 14),
               Container(height: 1, color: t.rule),
@@ -206,7 +200,8 @@ class _ScoreMeter extends StatelessWidget {
           ),
           const SizedBox(width: 7),
           Text(clamped.toStringAsFixed(2),
-              style: AppTheme.mono(fontSize: 10, color: t.fgMuted)),
+              style: KitText.monoFigure(context,
+                  fontSize: 10, color: t.fgMuted)),
         ],
       ),
     );

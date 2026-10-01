@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../models/cloud_integration.dart';
 import '../../state/cloud_notifier.dart';
 import '../../theme/app_radius.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'folder_contents.dart' show cloudTypeLabel;
@@ -425,14 +424,14 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                         controller: _patternsController,
                         focusNode: _patternsFocus,
                         maxLines: 3,
-                        style: AppTheme.mono(fontSize: 12, color: t.fg),
+                        style: KitText.monoFigure(context, fontSize: 12),
                         decoration: InputDecoration(
                           isDense: true,
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.zero,
                           hintText: '*.tmp\ndrafts/**',
-                          hintStyle:
-                              AppTheme.mono(fontSize: 12, color: t.fgSubtle),
+                          hintStyle: KitText.monoFigure(context,
+                              fontSize: 12, color: t.fgSubtle),
                         ),
                         onTapOutside: (_) => _patternsFocus.unfocus(),
                       ),
@@ -520,7 +519,7 @@ class _HourField extends StatelessWidget {
           isDense: true,
           dropdownColor: t.surface,
           borderRadius: AppRadius.smR,
-          style: AppTheme.mono(fontSize: 12, color: t.fg),
+          style: KitText.monoFigure(context, fontSize: 12),
           items: [
             for (var h = 0; h < 24; h++)
               DropdownMenuItem(

@@ -5,7 +5,6 @@ import '../../models/scripture_lookup.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 
@@ -138,14 +137,13 @@ class _Head extends StatelessWidget {
                 Text(
                   data.reference,
                   style:
-                      AppTheme.serif(
+                      // `.sc-ref`
+                      KitText.title(
+                        context,
                         fontSize: 30,
                         height: 1.05,
-                        fontWeight: FontWeight.w600,
-                        color: t.fg,
-                      ).copyWith(
-                        letterSpacing: -0.02 * 30,
-                        shadows: AppShadows.letterpress,
+                        tracking: -0.02,
+                        letterpress: true,
                       ),
                 ),
                 const SizedBox(height: 7),
@@ -170,11 +168,9 @@ class _Head extends StatelessWidget {
             ),
             child: Text(
               edition.toUpperCase(),
-              style: AppTheme.mono(
-                fontSize: 10,
-                letterSpacing: 0.12 * 10,
-                color: t.accentChipFg,
-              ),
+              // `.sc-trans`
+              style: KitText.monoCaps(context,
+                  letterSpacing: 0.12, color: t.accentChipFg),
             ),
           ),
         ],
@@ -198,11 +194,8 @@ class _Parallels extends StatelessWidget {
       children: [
         Text(
           (parallels.first.relation ?? 'Also told in').toUpperCase(),
-          style: AppTheme.mono(
-            fontSize: 10,
-            letterSpacing: 0.1 * 10,
-            color: t.fgSubtle,
-          ),
+          // `.sc-par-rel`
+          style: KitText.monoCaps(context),
         ),
         for (final p in parallels)
           Container(
@@ -224,12 +217,8 @@ class _Parallels extends StatelessWidget {
                     ),
                 ],
               ),
-              // kit-ok: F-43 — chip label at sans 12.5; no kit role names it
-              style: TextStyle(
-                fontFamily: AppTheme.fontSans,
-                fontSize: 12.5,
-                color: t.accentChipFg,
-              ),
+              // `.sc-par-chip`
+              style: KitText.chipLabel(context, color: t.accentChipFg),
             ),
           ),
       ],
@@ -262,11 +251,9 @@ class _Verse extends StatelessWidget {
             child: Text(
               '${verse.verse}',
               textAlign: TextAlign.right,
-              style: AppTheme.mono(
-                fontSize: 11,
-                letterSpacing: 0.06 * 11,
-                color: t.accentText,
-              ),
+              // `.sc-vno`
+              style: KitText.monoMeta(context,
+                  letterSpacing: 0.06, color: t.accentText),
             ),
           ),
           const SizedBox(width: 12),
@@ -276,16 +263,11 @@ class _Verse extends StatelessWidget {
                   'This verse isn’t in the edition NoteLetter '
                       'carries.',
               style: has
-                  ? AppTheme.serif(
-                      fontSize: 15,
-                      height: 24 / 15,
-                      color: t.fgMuted,
-                    )
-                  : AppTheme.serif(
-                      fontSize: 14,
-                      height: 22 / 14,
-                      color: t.fgSubtle,
-                    ).copyWith(fontStyle: FontStyle.italic),
+                  // `.sc-verse.bare .sc-vtext` / `.sc-vtext.none`
+                  ? KitText.bodyReading(context,
+                      fontSize: 15, height: 24, color: t.fgMuted)
+                  : KitText.lede(context,
+                      fontSize: 14, height: 22, color: t.fgSubtle),
             ),
           ),
         ],
@@ -362,11 +344,9 @@ class _PassageCard extends StatelessWidget {
                     TextSpan(text: ' · ${p.parallelLabel}'),
                 ],
               ),
-              style: AppTheme.mono(
-                fontSize: 10.5,
-                letterSpacing: 0.03 * 10.5,
-                color: t.fgSubtle,
-              ),
+              // `.sc-prov`
+              style: KitText.monoMeta(context,
+                  fontSize: 10.5, letterSpacing: 0.03),
             ),
           ],
           const SizedBox(height: AppSpacing.s2),
@@ -374,11 +354,9 @@ class _PassageCard extends StatelessWidget {
           // here draws as §17.2 rather than as one of the reader's sentences.
           KitMarkedText(
             p.text,
-            style: AppTheme.serif(
-              fontSize: 15,
-              height: 25 / 15,
-              color: t.fgLede,
-            ),
+            // `.sc-p-t`
+            style: KitText.bodyReading(context,
+                fontSize: 15, height: 25, color: t.fgLede),
           ),
         ],
       ),

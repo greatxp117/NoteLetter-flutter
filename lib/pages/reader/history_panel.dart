@@ -101,11 +101,14 @@ class _HistoryPanelState extends State<HistoryPanel> {
       ]);
     }
     if (_events == null) {
+      // The reference says so in the panel's own voice (`.panel-note`, 24px
+      // above and below) rather than drawing a spinner.
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ui.intro('Reading history'),
-        const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: CircularProgressIndicator())),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: ui.note('Loading…'),
+        ),
       ]);
     }
     final events = _events!;
@@ -117,30 +120,47 @@ class _HistoryPanelState extends State<HistoryPanel> {
       ]);
     }
 
+    // `.history-list` — a ruled list: a rule above the first row and between
+    // rows, none under the last. Each row is the icon at `--fg-subtle`, the
+    // label in sans 14 and the time in the mono at 11 (F-43: this drew sans
+    // 13 and sans 12 at `--fg-muted`, unruled, as a list of sentences).
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ui.intro(
           'Reading history · ${events.length} event${events.length == 1 ? '' : 's'}'),
-      ...events.map((e) {
-        final chunkId = e['chunk_id'] as String?;
-        final label = _chunkLabel(chunkId);
-        final base = historyEventLabel(e['event_type']);
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Row(
-            children: [
-              Icon(chunkId != null ? Icons.search : Icons.visibility_outlined,
-                  size: 14, color: ui.muted),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(label != null ? '$base ($label)' : base,
-                    style: KitText.ui(context, color: ui.fg)),
-              ),
-              Text(_fmtWhen(e['created_at'] as int?),
-                  style: KitText.small(context, color: ui.muted)),
-            ],
-          ),
-        );
-      }),
+      Container(
+        decoration:
+            BoxDecoration(border: Border(top: BorderSide(color: ui.rule))),
+        child: Column(children: [
+          for (var i = 0; i < events.length; i++)
+            _row(ui, events[i], last: i == events.length - 1),
+        ]),
+      ),
     ]);
+  }
+
+  Widget _row(ReaderUi ui, Map<String, dynamic> e, {required bool last}) {
+    final chunkId = e['chunk_id'] as String?;
+    final label = _chunkLabel(chunkId);
+    final base = historyEventLabel(e['event_type']);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 2),
+      decoration: last
+          ? null
+          : BoxDecoration(border: Border(bottom: BorderSide(color: ui.rule))),
+      child: Row(
+        children: [
+          Icon(chunkId != null ? Icons.search : Icons.visibility_outlined,
+              size: 14, color: ui.subtle),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label != null ? '$base ($label)' : base,
+                style: KitText.label(context)),
+          ),
+          const SizedBox(width: 12),
+          Text(_fmtWhen(e['created_at'] as int?),
+              style: KitText.monoMeta(context, letterSpacing: 0)),
+        ],
+      ),
+    );
   }
 }

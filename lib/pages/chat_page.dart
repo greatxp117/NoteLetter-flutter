@@ -9,7 +9,6 @@ import '../state/tags_notifier.dart';
 import '../state/chat_notifier.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
-import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 
@@ -513,16 +512,7 @@ class _AskMessageRow extends StatelessWidget {
               // The reader's text is UI sans 15/22; the app's side is its
               // citations. The asymmetry is deliberate (§Composition).
               else if (mine)
-                Text(
-                  message.text ?? '',
-                  // kit-ok: F-43 — Ask's own turn at sans 15/22; no kit role names it
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 15,
-                    height: 22 / 15,
-                    color: t.fg,
-                  ),
-                )
+                Text(message.text ?? '', style: KitText.message(context))
               // Three sentences, because they are three different facts
               // (ADR-098). A scoped turn that searched the shelf exhaustively
               // can say the shelf has nothing about it; one that filtered a
@@ -629,11 +619,10 @@ class _CitationPill extends StatelessWidget {
               padding: const EdgeInsets.only(top: 2),
               child: Text(
                 '$index',
-                style: AppTheme.mono(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: t.accentText,
-                ),
+                style: KitText.monoFigure(context,
+                    fontSize: 10,
+                    weight: FontWeight.w600,
+                    color: t.accentText),
               ),
             ),
             const SizedBox(width: 10),

@@ -114,7 +114,8 @@ void main() {
       ),
     ));
     await tester.pump();
-    expect(find.text('2 passages · 15 words'), findsOneWidget,
+    // The panel bar's `.pf-label`, set in caps by the caller (F-43).
+    expect(find.text('2 PASSAGES · 15 WORDS'), findsOneWidget,
         reason: '7 + 8 from the stored text; the html says 12 (tags as '
             'breaks) or 9 (textContent)');
     await tester.pumpWidget(const SizedBox.shrink());

@@ -48,7 +48,10 @@ import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/support_notifier.dart';
 import 'package:flutter_app/pages/onboarding/wizard.dart';
+import 'package:flutter_app/pages/reader/history_panel.dart';
+import 'package:flutter_app/pages/reader/listen_panel.dart';
 import 'package:flutter_app/pages/reader/manuscript_panel.dart';
+import 'package:flutter_app/pages/reader/speed_read_panel.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
@@ -337,6 +340,33 @@ Future<void> reachState(WidgetTester tester) async {
       expect(find.byType(ManuscriptPanel), findsOneWidget,
           reason: 'the manuscript panel did not open — this frame would be the '
               'summary');
+      return;
+    // Three sections the reference now frames (F-43): a rail jump each, as
+    // `manuscript` is. `listen` draws the PLAYER only once
+    // tool/seed_listen_audio.py has put a recording on the document — run it
+    // before the shot and with `--remove` after, as the reference's own shot
+    // does; without it this frame is the "No narration yet." empty state.
+    case 'speed-read':
+    case 'listen':
+    case 'history':
+      final label = {
+        'speed-read': 'Speed read',
+        'listen': 'Listen',
+        'history': 'History',
+      }[holdState]!;
+      // The rail scrolls sideways on a phone: Listen and History start off
+      // its right edge, and a tap there hits nothing.
+      await tester.ensureVisible(find.text(label).first);
+      await settle();
+      await tester.tap(find.text(label).first);
+      await settle();
+      final panel = {
+        'speed-read': SpeedReadPanel,
+        'listen': ListenPanel,
+        'history': HistoryPanel,
+      }[holdState]!;
+      expect(find.byType(panel), findsOneWidget,
+          reason: 'the $label section did not mount');
       return;
     // reader.md §Recipe body — the §5.4 body swap. Same route, same header,
     // same Manuscript panel: only the BODY differs, which is the whole claim

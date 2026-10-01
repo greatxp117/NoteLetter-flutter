@@ -14,30 +14,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// that exempts nothing is a claim nobody is checking.
 ///
 /// `AppTheme.serif(` and `AppTheme.mono(` are the same composition in another
-/// spelling, and there were 63 of them when this landed. They are RATCHETED,
-/// not forbidden: each file's count is pinned below and may only fall, and a
-/// fall must be written down here in the same commit — a baseline that is
-/// allowed to sit above the truth lets the next site in for free. F-43 owes
-/// the conversion.
-const _ratchet = <String, int>{
-  'lib/pages/branding_page.dart': 9,
-  'lib/pages/chat_page.dart': 1,
-  'lib/pages/library/document_detail_sheet.dart': 2,
-  'lib/pages/not_found_page.dart': 2,
-  'lib/pages/onboarding/wizard.dart': 6,
-  'lib/pages/reader_page.dart': 1,
-  'lib/pages/reader/listen_panel.dart': 2,
-  'lib/pages/reader/manuscript_panel.dart': 3,
-  'lib/pages/reader/speed_read_panel.dart': 1,
-  'lib/pages/search_page.dart': 2,
-  'lib/pages/search/cohesive_column.dart': 6,
-  'lib/pages/search/reading_pane.dart': 5,
-  'lib/pages/search/result_card.dart': 3,
-  'lib/pages/search/scripture_results.dart': 8,
-  'lib/pages/search/search_field.dart': 2,
-  'lib/pages/sources/organization_settings_panel.dart': 2,
-  'lib/pages/sources/sync_settings_panel.dart': 3,
-};
+/// spelling. There were 63 when this landed, held by a ratchet that only fell;
+/// F-43 took them to zero and deleted it, so a page now has none at all. The
+/// mono and serif roles a page needs are `KitText`'s ([KitText.title],
+/// [KitText.bodyReading], [KitText.monoMeta], [KitText.monoFigure],
+/// [KitText.monoCaps]) — a role with no name yet is a kit change, not a site.
 
 final _literal = RegExp(r'(?<![A-Za-z0-9_])(TextStyle|EdgeInsets)\(');
 final _fontHelper = RegExp(r'AppTheme\.(serif|mono)\(');
@@ -193,18 +174,13 @@ void main() {
       expect(scan.badMarks, isEmpty, reason: scan.badMarks.join('\n'));
     });
 
-    test('AppTheme.serif(/mono( only fall, and the fall is written down', () {
-      final drift = <String>[];
-      for (final path in {..._ratchet.keys, ...scan.helpers.keys}) {
-        final pinned = _ratchet[path] ?? 0;
-        final now = scan.helpers[path] ?? 0;
-        if (now > pinned) {
-          drift.add('$path: $now, pinned $pinned — compose from KitText');
-        } else if (now < pinned) {
-          drift.add('$path: $now, pinned $pinned — lower the pin to $now');
-        }
-      }
-      expect(drift, isEmpty, reason: drift.join('\n'));
+    test('no AppTheme.serif( or AppTheme.mono( outside the kit', () {
+      final sites = [
+        for (final e in scan.helpers.entries) '${e.key}: ${e.value}',
+      ];
+      expect(sites, isEmpty,
+          reason: 'Compose from KitText — the font helpers are the inline '
+              'type of a TextStyle( in another spelling:\n${sites.join('\n')}');
     });
   });
 }

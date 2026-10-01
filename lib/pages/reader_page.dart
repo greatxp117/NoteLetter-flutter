@@ -27,7 +27,6 @@ import 'reader/summary_panel.dart';
 import 'tags/shelf_sheet.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
-import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_layout.dart';
 import '../widgets/kit/kit.dart';
@@ -950,11 +949,8 @@ class _ReaderPageState extends State<ReaderPage> {
           children: [
             TextSpan(
               text: '$n ',
-              style: AppTheme.serif(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Tokens.of(context).fg,
-              ),
+              style: KitText.title(context,
+                  fontSize: 16, weight: FontWeight.w500),
             ),
             TextSpan(text: what),
           ],

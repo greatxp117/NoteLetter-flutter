@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 
@@ -102,11 +101,10 @@ class _SearchBigFieldState extends State<SearchBigField> {
                   focusNode: _focus,
                   textInputAction: TextInputAction.search,
                   onSubmitted: widget.onSubmitted,
-                  style: AppTheme.serif(
-                    fontSize: compact ? 18 : 22,
-                    height: 28 / 22,
-                    color: t.fg,
-                  ),
+                  // `.search-bigfield input` — the reading face, upright.
+                  style: KitText.bodyReading(context,
+                      fontSize: compact ? 18 : 22,
+                      height: (compact ? 18 : 22) * 28 / 22),
                   cursorColor: t.accent,
                   decoration: InputDecoration(
                     isDense: true,
@@ -118,12 +116,10 @@ class _SearchBigFieldState extends State<SearchBigField> {
                     // Italic, and in the serif: the placeholder is the one
                     // piece of copy on this screen written in the reader's
                     // voice rather than the app's.
-                    hintStyle: AppTheme.serif(
-                      fontSize: compact ? 18 : 22,
-                      height: 28 / 22,
-                      fontStyle: FontStyle.italic,
-                      color: t.fgSubtle,
-                    ),
+                    hintStyle: KitText.lede(context,
+                        fontSize: compact ? 18 : 22,
+                        height: (compact ? 18 : 22) * 28 / 22,
+                        color: t.fgSubtle),
                   ),
                 ),
               ),

@@ -13,8 +13,6 @@ import '../shared/local_flags.dart';
 import '../state/search_notifier.dart';
 import '../state/tags_notifier.dart';
 import '../theme/app_spacing.dart';
-import '../theme/app_theme.dart';
-import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 import 'search/cohesive_column.dart';
 import 'search/reading_pane.dart';
@@ -675,11 +673,9 @@ class _ResultCount extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     return Text(
       _label(),
-      style: AppTheme.mono(
-          fontSize: 11, letterSpacing: 0.04 * 11, color: t.fgSubtle),
+      style: KitText.monoMeta(context),
     );
   }
 }
@@ -701,7 +697,6 @@ class _CitationCount extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     // Three states, and **no `Not a citation`**: that answer is the server
     // saying the query parsed as ordinary text, and it releases the branch
     // rather than being rendered in it — so a label for it would only ever
@@ -714,8 +709,7 @@ class _CitationCount extends StatelessWidget {
             : 'Reading…';
     return Text(
       label,
-      style: AppTheme.mono(
-          fontSize: 11, letterSpacing: 0.04 * 11, color: t.fgSubtle),
+      style: KitText.monoMeta(context),
     );
   }
 }

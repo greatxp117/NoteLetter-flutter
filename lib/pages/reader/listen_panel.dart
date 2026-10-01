@@ -7,7 +7,7 @@ import '../../services/error_text.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_shadows.dart';
 
 /// Reader → Listen panel. A podcast/video carries its real source audio
 /// (`source_audio_url`, 2.7.0/ADR-016) + real per-line transcript timestamps
@@ -230,16 +230,20 @@ class _ListenPanelState extends State<ListenPanel> {
     await _player.seek(Duration(milliseconds: (clamped * 1000).round()));
   }
 
+  /// The panel note, as the reference words it for each source of sound.
+  String get _note => _sourceAudio != null
+      ? 'The original episode, at your pace. The transcript follows along — tap any line to jump there.'
+      : 'Hear the source read aloud, at your pace. The transcript follows along — tap any line to jump there.';
+
   @override
   Widget build(BuildContext context) {
     final ui = ReaderUi(context);
 
     if (_audioUrl == null) {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ui.intro('Listen',
-            'Hear the source read aloud, at your pace. The transcript follows along — tap any line to jump there.'),
+        ui.intro('Listen', _note),
         ui.empty(
-          Icons.headset_outlined,
+          KitQuill.icon,
           'No narration yet.',
           'Generate an audio reading of this source.',
           action: FilledButton.icon(
@@ -267,70 +271,71 @@ class _ListenPanelState extends State<ListenPanel> {
       ]);
     }
 
-    final total = _dur.inSeconds.toDouble();
-    final progress = total == 0 ? 0.0 : _pos.inSeconds / total;
+    final total = _dur.inMilliseconds / 1000.0;
+    final progress = total == 0 ? 0.0 : (_pos.inMilliseconds / 1000.0) / total;
     final active = _activeLine;
     final starts = _starts;
+    final t = ui.tokens;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      ui.intro(_dur == Duration.zero
-          ? 'Listen'
-          : 'Listen · ${_fmt(_dur)}${_sourceAudio != null ? '' : ' narration'}'),
-      // Player card.
+      // The note stays under the eyebrow once there is something to play —
+      // the reference keeps it in both states; this client dropped it here.
+      ui.intro(
+          _dur == Duration.zero
+              ? 'Listen'
+              : 'Listen · ${_fmt(_dur)}${_sourceAudio != null ? '' : ' narration'}',
+          _note),
+      // `.player` — the card the transport sits on (F-43: this was a flat
+      // `--r-md` box with a Material slider and a waveform glyph).
       Container(
-        padding: const EdgeInsets.all(20),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
         decoration: BoxDecoration(
           color: ui.card,
-          borderRadius: AppRadius.mdR,
+          borderRadius: AppRadius.lgR,
           border: Border.all(color: ui.border),
+          boxShadow: AppShadows.s2,
         ),
-        child: Column(children: [
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // `.player-top` — the seal, then the eyebrow over the title.
           Row(children: [
-            Icon(Icons.graphic_eq, size: 24, color: ui.primary),
-            const SizedBox(width: 12),
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: t.accentSoft,
+                border: Border.all(color: t.accentChipBorder),
+              ),
+              alignment: Alignment.center,
+              child: KitQuill(size: 24, color: t.seal),
+            ),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('NOW READING',
-                    // kit-ok: F-43 — web `.player-eyebrow` is MONO caps 10/0.14em
-                    style: TextStyle(fontFamily: 'Geist', 
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.8,
-                        color: ui.muted)),
+                    style: KitText.monoCaps(context, letterSpacing: 0.14)),
+                const SizedBox(height: 3),
                 Text(widget.doc.title.isEmpty ? 'Untitled' : widget.doc.title,
-                    style: AppTheme.serif(
-                        fontSize: 16, fontWeight: FontWeight.w600, color: ui.fg),
+                    // `.player-title`
+                    style: KitText.title(context, fontSize: 21, height: 1.15),
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis),
               ]),
             ),
           ]),
-          const SizedBox(height: 16),
-          SliderTheme(
-            data: SliderThemeData(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-            ),
-            child: Slider(
-              value: progress.clamp(0, 1).toDouble(),
-              activeColor: ui.primary,
-              inactiveColor: ui.border,
-              onChanged: total == 0
-                  ? null
-                  : (v) => _seek(v * total),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(_fmt(_pos),
-                    style: KitText.small(context, color: ui.muted)),
-                Text('-${_fmt(_dur - _pos)}',
-                    style: KitText.small(context, color: ui.muted)),
-              ],
-            ),
+          const SizedBox(height: 22),
+          ui.track(progress,
+              onSeek: total == 0 ? null : (f) => _seek(f * total)),
+          const SizedBox(height: 4),
+          // `.player-times` — mono 11 at `--fg-subtle`.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_fmt(_pos), style: KitText.monoMeta(context, letterSpacing: 0)),
+              Text('-${_fmt(_dur - _pos)}',
+                  style: KitText.monoMeta(context, letterSpacing: 0)),
+            ],
           ),
           // §14.2 under the times, as web and iOS draw it. The player branch
           // had no failure slot at all, so a recording that would not load had
@@ -342,63 +347,81 @@ class _ListenPanelState extends State<ListenPanel> {
                   alignment: Alignment.centerLeft,
                   child: KitFailureInline(_error!)),
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
+          // `.player-controls` — back 15, play, forward 15, 22 apart. The
+          // skips were Material's replay_10/forward_10, a "10" on a control
+          // that moves fifteen seconds.
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            IconButton(
-              onPressed: () => _seek(_pos.inSeconds - 15),
-              icon: const Icon(Icons.replay_10),
-              color: ui.fg,
+            _skip(ui, back: true),
+            const SizedBox(width: 22),
+            // `is-play` (web 13c910c): the play triangle's mass sits left of
+            // its box, so it is nudged to the optical centre while the Play
+            // glyph shows. Material's triangle already sits 1.5px right of
+            // centre; 2px more lands it where web's 3px nudge puts IcoPlay.
+            ui.playButton(
+              icon: _playing ? Icons.pause : Icons.play_arrow,
+              nudge: _playing ? 0 : 2,
+              tooltip: _playing ? 'Pause' : 'Play',
+              onTap: _toggle,
             ),
-            const SizedBox(width: 12),
-            IconButton.filled(
-              onPressed: _toggle,
-              // `is-play` (web 13c910c): the play triangle's mass sits left
-              // of its box, so it is nudged to the optical centre while the
-              // Play glyph shows. Material's triangle already sits 1.5px right
-              // of centre; 2px more lands it where web's 3px nudge puts
-              // IcoPlay (~3.5px right of centre).
-              icon: _playing
-                  ? const Icon(Icons.pause)
-                  : const Padding(
-                      padding: EdgeInsets.only(left: 2),
-                      child: Icon(Icons.play_arrow)),
-              style: IconButton.styleFrom(
-                backgroundColor: ui.primary,
-                foregroundColor: ui.accentFg,
-              ),
-            ),
-            const SizedBox(width: 12),
-            IconButton(
-              onPressed: () => _seek(_pos.inSeconds + 15),
-              icon: const Icon(Icons.forward_10),
-              color: ui.fg,
-            ),
+            const SizedBox(width: 22),
+            _skip(ui, back: false),
           ]),
         ]),
       ),
-      const SizedBox(height: 24),
+      const SizedBox(height: 30),
       ui.eyebrow('Transcript'),
-      const SizedBox(height: 10),
+      const SizedBox(height: 12),
+      // `.lt-line` — the reading serif at 18/30 in `--fg-muted`, `--fg-lede`
+      // once spoken, and `--fg` on `--accent-chip-bg` with an accent rule at
+      // its left edge while it is the line playing. F-43: these were serif 16
+      // with the active line BOLDED, a weight the reference never sets.
       ...List.generate(widget.paras.length, (i) {
+        final isActive = i == active;
         final spoken = i < active;
         return InkWell(
           onTap: total == 0 ? null : () => _seek(starts[i] + 0.1),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+          borderRadius: AppRadius.smR,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: isActive ? t.accentChipBg : null,
+              borderRadius: AppRadius.smR,
+              border: Border(
+                left: BorderSide(
+                    width: 2,
+                    color: isActive ? t.accent : Colors.transparent),
+              ),
+            ),
             child: Text(
               widget.paras[i],
-              style: AppTheme.serif(
-                fontSize: 16,
-                height: 1.5,
-                color: i == active
-                    ? ui.fg
-                    : (spoken ? ui.muted : ui.muted.withValues(alpha: 0.7)),
-                fontWeight: i == active ? FontWeight.w600 : FontWeight.w400,
-              ),
+              style: KitText.bodyReading(context,
+                  color: isActive ? t.fg : (spoken ? t.fgLede : t.fgMuted)),
             ),
           ),
         );
       }),
     ]);
+  }
+
+  /// `.pbtn` with its `.skip-n` — the circular arrow at `--fg-muted` and the
+  /// mono "15" under it. Material has no fifteen-second glyph, so the arrow is
+  /// `replay`, mirrored for forward.
+  Widget _skip(ReaderUi ui, {required bool back}) {
+    final glyph = Icon(Icons.replay, size: 26, color: ui.muted);
+    return IconButton(
+      tooltip: back ? 'Back 15s' : 'Forward 15s',
+      onPressed: () => _seek(_pos.inSeconds + (back ? -15 : 15).toDouble()),
+      icon: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+        back ? glyph : Transform.flip(flipX: true, child: glyph),
+        Positioned(
+          bottom: -4,
+          child: Text('15',
+              style: KitText.monoMeta(context,
+                  fontSize: 8, letterSpacing: 0, color: ui.muted)),
+        ),
+      ]),
+    );
   }
 }

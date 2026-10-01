@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
-import '../theme/app_theme.dart';
+import '../widgets/kit/kit_text.dart';
 
 class BrandingPage extends StatelessWidget {
   const BrandingPage({super.key});
@@ -37,11 +37,10 @@ class BrandingPage extends StatelessWidget {
                     children: [
                       Text(
                         'NoteLetter Design System',
-                        style: AppTheme.serif(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.onSurface,
-                        ),
+                        style: KitText.title(context,
+                            fontSize: 24,
+                            weight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface),
                       ),
                       Text(
                         'Visual language and design tokens that define the NoteLetter experience.',
@@ -63,11 +62,10 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Core Principles',
-                  style: AppTheme.serif(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurface,
-                  ),
+                  style: KitText.title(context,
+                      fontSize: 18,
+                      weight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface),
                 ),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -119,11 +117,10 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Typography',
-                  style: AppTheme.serif(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurface,
-                  ),
+                  style: KitText.title(context,
+                      fontSize: 18,
+                      weight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface),
                 ),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -159,11 +156,10 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Color Palette',
-                  style: AppTheme.serif(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurface,
-                  ),
+                  style: KitText.title(context,
+                      fontSize: 18,
+                      weight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface),
                 ),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -204,11 +200,10 @@ class BrandingPage extends StatelessWidget {
               children: [
                 Text(
                   'Design Language',
-                  style: AppTheme.serif(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurface,
-                  ),
+                  style: KitText.title(context,
+                      fontSize: 18,
+                      weight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface),
                 ),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -298,11 +293,10 @@ class _PrincipleCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: AppTheme.serif(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.onSurface,
-                      )),
+                      style: KitText.title(context,
+                          fontSize: 14,
+                          weight: FontWeight.w700,
+                          color: theme.colorScheme.onSurface)),
                   Text(
                     description,
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -344,8 +338,10 @@ class _TypographyCard extends StatelessWidget {
             Text(
               name,
               style: (isSerif
-                  ? AppTheme.serif(
-                      fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)
+                  ? KitText.title(context,
+                      fontSize: 22,
+                      weight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface)
                   // kit-ok: a type specimen draws the raw face on purpose
                   : TextStyle(fontFamily: 'Geist', 
                       fontSize: 22, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
@@ -367,11 +363,11 @@ class _TypographyCard extends StatelessWidget {
                   child: Text(
                     s.$1,
                     style: isSerif
-                        ? AppTheme.serif(
-                            fontSize: 14,
-                            fontWeight: s.$2,
-                            fontStyle: s.$3,
-                            color: theme.colorScheme.onSurface)
+                        ? KitText.title(context,
+                                fontSize: 14,
+                                weight: s.$2,
+                                color: theme.colorScheme.onSurface)
+                            .copyWith(fontStyle: s.$3)
                         // kit-ok: a type specimen draws the raw face on purpose
                         : TextStyle(fontFamily: 'Geist', 
                             fontSize: 14,
@@ -458,11 +454,10 @@ class _DesignLanguageCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
-                style: AppTheme.serif(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface,
-                )),
+                style: KitText.title(context,
+                    fontSize: 16,
+                    weight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface)),
             const SizedBox(height: 12),
             ...points.map((p) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),

@@ -4,7 +4,6 @@ import '../../models/cloud_folder.dart';
 import '../../services/firestore_service.dart';
 import '../../state/org_notifier.dart';
 import '../../theme/app_radius.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
@@ -103,7 +102,7 @@ class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
                         style: KitText.body(context)),
                   ),
                   Text('${(threshold * 100).round()}%',
-                      style: AppTheme.mono(fontSize: 13, color: t.fg)),
+                      style: KitText.monoFigure(context)),
                 ],
               ),
               Slider(
@@ -345,7 +344,7 @@ class _FolderRowState extends State<_FolderRow> {
                     const SizedBox(width: 8),
                   ],
                   Text('${f.docCount} docs',
-                      style: AppTheme.mono(fontSize: 11, color: t.fgSubtle)),
+                      style: KitText.monoMeta(context, letterSpacing: 0)),
                 ],
               ),
               if (_editing) ...[

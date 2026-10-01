@@ -11,7 +11,6 @@ import '../../state/scripture_letter_notifier.dart';
 import '../../state/settings_notifier.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import '../../services/analytics.dart';
@@ -418,13 +417,12 @@ class _Rail extends StatelessWidget {
                     AccentTitle(
                       'Your library, *distilled* — a daily letter from what '
                       'you’ve read.',
-                      style: AppTheme.serif(
-                        fontSize: 25,
-                        height: 1.18,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -0.01 * 25,
-                        color: t.chromeFg,
-                      ),
+                      style: KitText.title(context,
+                          fontSize: 25,
+                          height: 1.18,
+                          weight: FontWeight.w500,
+                          tracking: -0.01,
+                          color: t.chromeFg),
                       // The accent ON CHROME is brick-400, never the page's
                       // brick-500: the page accent on the plum field is a
                       // muddy near-match rather than a clause
@@ -458,11 +456,10 @@ class _Rail extends StatelessWidget {
                           const SizedBox(height: AppSpacing.s2),
                           Text(
                             '— ${quote.$2}',
-                            style: AppTheme.mono(
-                              fontSize: 10.5,
-                              letterSpacing: 0.06 * 10.5,
-                              color: t.chromeSubtle,
-                            ),
+                            style: KitText.monoMeta(context,
+                                fontSize: 10.5,
+                                letterSpacing: 0.06,
+                                color: t.chromeSubtle),
                           ),
                         ],
                       ),
@@ -489,11 +486,8 @@ class _Progress extends StatelessWidget {
       children: [
         Text(
           'Step ${step + 1} of ${_steps.length}',
-          style: AppTheme.mono(
-            fontSize: 11,
-            letterSpacing: 0.08 * 11,
-            color: t.chromeMuted,
-          ),
+          style: KitText.monoMeta(context,
+              letterSpacing: 0.08, color: t.chromeMuted),
         ),
         const SizedBox(width: AppSpacing.s3),
         Expanded(
@@ -561,11 +555,10 @@ class _StepRow extends StatelessWidget {
           ? Icon(Icons.check, size: 14, color: t.chromeSubtle)
           : Text(
               s.number!,
-              style: AppTheme.mono(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: active ? t.chrome : t.chromeMuted,
-              ),
+              style: KitText.monoFigure(context,
+                  fontSize: 12,
+                  weight: FontWeight.w500,
+                  color: active ? t.chrome : t.chromeMuted),
             ),
     );
 
@@ -601,16 +594,12 @@ class _StepRow extends StatelessWidget {
                     children: [
                       Text(
                         s.label,
-                        // kit-ok: F-43 — web `.ob-step-label`; no kit role names it
-                        style: TextStyle(
-                          fontFamily: AppTheme.fontSans,
-                          fontSize: 14,
-                          height: 1.3,
-                          fontWeight: active
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: active ? t.chromeFg : t.chromeMuted,
-                        ),
+                        // `.ob-step-label`
+                        style: KitText.label(context,
+                            height: 1.3,
+                            weight:
+                                active ? FontWeight.w600 : FontWeight.w500,
+                            color: active ? t.chromeFg : t.chromeMuted),
                       ),
                       // The sub-line belongs to the ACTIVE step only, as the
                       // reference draws it: five of them at once is a second
@@ -619,12 +608,11 @@ class _StepRow extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           s.sub,
-                          style: AppTheme.mono(
-                            fontSize: 10.5,
-                            height: 1.3,
-                            letterSpacing: 0.04 * 10.5,
-                            color: t.chromeSubtle,
-                          ),
+                          // `.ob-step-sub`
+                          style: KitText.monoMeta(context,
+                              fontSize: 10.5,
+                              height: 1.3,
+                              color: t.chromeSubtle),
                         ),
                       ],
                     ],
@@ -686,11 +674,7 @@ class _Footer extends StatelessWidget {
           else if (!compact)
             Text(
               'A letter from your own library',
-              style: AppTheme.mono(
-                fontSize: 11,
-                letterSpacing: 0.06 * 11,
-                color: t.fgSubtle,
-              ),
+              style: KitText.monoMeta(context, letterSpacing: 0.06),
             ),
           const Spacer(),
           if (step != last) ...[

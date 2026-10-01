@@ -6,7 +6,6 @@ import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/kit/kit_failure.dart';
 import '../../widgets/kit/kit_text.dart';
 
@@ -130,18 +129,12 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                   ),
                 ),
                 Text(_doc?.title ?? 'Document',
-                    style: AppTheme.serif(
-                        fontSize: 18, fontWeight: FontWeight.w700, color: fg),
+                    style: KitText.title(context,
+                        fontSize: 18, weight: FontWeight.w700, color: fg),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 20),
-                Text('SOURCE PRIORITY',
-                    // kit-ok: F-43 — a sans caps label beside the kit Eyebrow
-                    style: TextStyle(fontFamily: 'Geist', 
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.8,
-                        color: muted)),
+                const Eyebrow('Source priority'),
                 Row(children: [
                   Expanded(
                     child: Slider(
@@ -155,20 +148,13 @@ class _DocumentDetailSheetState extends State<DocumentDetailSheet> {
                     width: 40,
                     child: Text(_priority.toStringAsFixed(2),
                         textAlign: TextAlign.end,
-                        style:
-                            AppTheme.mono(fontSize: 13, color: fg)),
+                        style: KitText.monoFigure(context, color: fg)),
                   ),
                 ]),
                 Text(_priorityLabel(_priority),
                     style: KitText.small(context, color: muted)),
                 const SizedBox(height: 24),
-                Text('TAGS',
-                    // kit-ok: F-43 — a sans caps label beside the kit Eyebrow
-                    style: TextStyle(fontFamily: 'Geist', 
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.8,
-                        color: muted)),
+                const Eyebrow('Tags'),
                 const SizedBox(height: 10),
                 if (_tags.isEmpty)
                   Text('No tags yet — create some on the Tags screen.',

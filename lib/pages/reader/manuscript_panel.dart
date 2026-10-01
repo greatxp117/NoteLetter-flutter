@@ -9,6 +9,7 @@ import '../../services/api_service.dart';
 import '../../shared/extraction_markers.dart';
 import '../../shared/leave_guard.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_shadows.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import 'passage_mark.dart';
@@ -540,22 +541,24 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             ? 'Edit a passage, split one in two, or merge it with the one above — saving re-embeds the changed passages. Images and tables can be removed but not edited.'
             : "This is the content NoteLetter read out of your source. Switch on editing to correct the text or adjust how it's split into passages.",
       ),
-      // Toolbar.
+      // `.panel-bar` — the count as a `.pf-label`, and the edit control: a
+      // ghost button at rest, the secondary while editing. F-43: the count was
+      // sans 11/600 and the control an outlined then a FILLED button, which
+      // made Done & save louder than the dock's Save & re-index.
       Row(children: [
-        Text('${visible.length} passages · $totalWords words',
-            style: KitText.fine(context, color: ui.muted, weight: FontWeight.w600)),
-        const Spacer(),
+        Expanded(
+          child: Text(
+              '${visible.length} passages · ${_grouped(totalWords)} words'
+                  .toUpperCase(),
+              style: KitText.monoCaps(context)),
+        ),
+        const SizedBox(width: 12),
         _editing
-            ? FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: const Icon(Icons.check, size: 16),
-                label: const Text('Done & save'),
-              )
-            : OutlinedButton.icon(
-                onPressed: () => setState(() => _editing = true),
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('Edit text'),
-              ),
+            ? KitButton.secondary('Done & save',
+                icon: Icons.check, onPressed: _saving ? null : _save)
+            : KitButton.ghost('Edit text',
+                icon: Icons.edit_outlined,
+                onPressed: () => setState(() => _editing = true)),
       ]),
       // ADR-056 obligation 3 — the rejection renders AT THE CONTROL THAT
       // FAILED, as component-kit §14.2's Inline form (ADR-070): the server's
@@ -569,7 +572,8 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           padding: const EdgeInsets.only(top: 8),
           child: KitFailureInline(_error!),
         ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 18),
+      _sheet(ui, [
       ...List.generate(visible.length, (i) {
         final c = visible[i];
         final realIdx = _chunks.indexOf(c);
@@ -587,51 +591,8 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             // edit-mode only. Those are how the system chunked the text, not a
             // feature of the source. 4.2.0 amended this for the EXTENT alone,
             // which is why the gutter mark below is outside this gate.
-            if (_editing)
-            Row(children: [
-              Text('№ ${(i + 1).toString().padLeft(2, '0')}',
-                  style: AppTheme.mono(fontSize: 11, color: ui.muted)),
-              const SizedBox(width: 10),
-              // `.ms-sheet.editing .ms-chunk-words` (web 13c910c): mono 11 at
-              // --fg-muted. Shown only while editing, so always the muted step.
-              Text('~${_words(c)} words',
-                  // The mono 11 face of the caps label, set in its own case.
-                  style: KitText.capsLabel(context,
-                          letterSpacing: 0.04, color: ui.muted)
-                      .copyWith(fontWeight: FontWeight.w400)),
-              if (c.userEdited) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: ui.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.control(20)),
-                  ),
-                  child: Text('edited',
-                      // kit-ok: F-43 — web draws this as `.ms-editbadge`; recompose, not respell
-                      style: TextStyle(fontFamily: 'Geist', fontSize: 10, color: ui.muted)),
-                ),
-              ],
-              const Spacer(),
-              ...[
-                if (i > 0 && !c.atomic && !visible[i - 1].atomic)
-                  IconButton(
-                    tooltip: 'Merge up',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _mergeUp(i),
-                    icon: const Icon(Icons.vertical_align_top, size: 16),
-                  ),
-                IconButton(
-                  tooltip: 'Remove passage',
-                  visualDensity: VisualDensity.compact,
-                  onPressed:
-                      visible.length <= 1 ? null : () => _remove(i),
-                  icon: Icon(Icons.delete_outline, size: 16, color: ui.criticalText),
-                ),
-              ],
-            ]),
-            if (_editing) const SizedBox(height: 8),
+            if (_editing) _chunkHead(ui, visible, i),
+            if (_editing) const SizedBox(height: 13),
             if (_editing && !c.atomic)
               TextField(
                 controller: _controllerFor(realIdx, c),
@@ -639,14 +600,14 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                 onChanged: (_) {
                   if (!c.dirty) setState(() => c.dirty = true);
                 },
-                style: AppTheme.serif(
-                    fontSize: 16, height: 1.5, color: ui.fg),
-                decoration: InputDecoration(
+                // The sheet's own reading type: the reference edits the
+                // passage IN PLACE (`contentEditable`), so the text does not
+                // change face or size when editing starts.
+                style: _sheetType(context),
+                decoration: const InputDecoration(
                   isDense: true,
-                  border: OutlineInputBorder(
-                      borderSide: BorderSide(color: ui.border)),
-                  enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: ui.border)),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
                 ),
               )
             // The Recipe body swap (4.6.0, ADR-042). It renders INSIDE the
@@ -677,15 +638,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                 child: Text('Contains an image or table — remove only.',
                     style: KitText.fine(context, color: ui.muted)),
               ),
-            if (_editing && !c.atomic)
-              Align(
-                alignment: Alignment.center,
-                child: TextButton.icon(
-                  onPressed: () => _splitAt(i),
-                  icon: const Icon(Icons.content_cut, size: 14),
-                  label: const Text('Split here'),
-                ),
-              ),
+            if (_editing && !c.atomic) _splitControl(ui, i),
           ]);
 
         // The anchor key rides the OUTERMOST element of the passage, so
@@ -710,23 +663,15 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           key: Key('dwell-${c.chunkId ?? 'new-$i'}'),
           onVisibilityChanged: (info) => _onVisibility(c, info.visibleFraction),
           child: Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            // At rest the passage carries NO card chrome: the mark shows extent
-            // rather than dividing, and the prose stays a clean continuous
-            // sheet. Editing keeps the card, because there the passage really
-            // is the object being manipulated.
-            padding: _editing
-                ? const EdgeInsets.all(16)
-                : const EdgeInsets.only(right: 16),
+            // `.ms-chunk` — at rest the passages read as ONE continuous
+            // document (the paragraph gap and no more); editing opens the
+            // seams to 30, because there they are the thing being handled.
+            // A passage is never a card of its own: the SHEET is the card
+            // (F-43 — this drew a bordered card per passage while editing).
+            margin: EdgeInsets.only(
+                bottom: i == visible.length - 1 ? 0 : (_editing ? 30 : 14)),
             decoration: _editing
-                ? BoxDecoration(
-                    color: ui.card,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(
-                        color: c.dirty
-                            ? ui.primary.withValues(alpha: 0.5)
-                            : ui.border),
-                  )
+                ? null
                 // The letter's passage, for 2.6 seconds (4.15.0, ADR-051).
                 // `--accent-soft` because it flips with the theme; a raw step
                 // would stay put and read as a light wash on the dark page.
@@ -763,6 +708,29 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           ),
         );
       }),
+      ]),
+      // `.ms-foot` — the counts again under the sheet, and whether what is on
+      // it is what is saved.
+      Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Wrap(spacing: 16, runSpacing: 4, children: [
+          Text('${visible.length} passages', style: _foot(context)),
+          Text('·', style: _foot(context)),
+          Text('${_grouped(totalWords)} words', style: _foot(context)),
+          _dirty
+              ? Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                          color: ui.primary, shape: BoxShape.circle)),
+                  const SizedBox(width: 6),
+                  Text('unsaved edits',
+                      style: _foot(context, color: ui.tokens.accentText)),
+                ])
+              : Text('saved', style: _foot(context)),
+        ]),
+      ),
       if (_dirty)
         Padding(
           padding: const EdgeInsets.only(top: 12),
@@ -871,12 +839,167 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     }).toString();
   }
 
+  /// The sheet's reading type — `.ms-sheet`'s `--ms-family` / `--ms-size` /
+  /// `--ms-leading` defaults: the reading serif at 19 on 1.68. F-43: the
+  /// resting render set no family at all, so the manuscript — the author's
+  /// own words, the one place the reading serif matters most — drew in the
+  /// UI sans at 16, and the editor in a third size.
+  static TextStyle _sheetType(BuildContext context) =>
+      KitText.bodyReading(context, fontSize: 19, height: 19 * 1.68);
+
+  static TextStyle _foot(BuildContext context, {Color? color}) =>
+      KitText.monoMeta(context, color: color);
+
+  /// `toLocaleString()` for a count: thousands grouped with commas.
+  static String _grouped(int n) => n.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
+
+  /// `.ms-sheet` — the manuscript is one card, `--shadow-1` at rest; editing
+  /// rings it in the accent (`--shadow-2` plus a 4px `--accent-soft` halo)
+  /// and pins the `.ms-editbadge` to its top-right corner. 52/60 padding,
+  /// 30/24 on a phone.
+  Widget _sheet(ReaderUi ui, List<Widget> chunks) {
+    final t = ui.tokens;
+    final narrow = MediaQuery.sizeOf(context).width <= 680;
+    return Stack(children: [
+      AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: double.infinity,
+        padding: narrow
+            ? const EdgeInsets.symmetric(horizontal: 24, vertical: 30)
+            : const EdgeInsets.symmetric(horizontal: 60, vertical: 52),
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: AppRadius.mdR,
+          border: Border.all(color: _editing ? t.accent : t.border),
+          boxShadow: _editing
+              ? [
+                  ...AppShadows.s2,
+                  BoxShadow(color: t.accentSoft, spreadRadius: 4),
+                ]
+              : AppShadows.s1,
+        ),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: chunks),
+      ),
+      if (_editing)
+        Positioned(
+          top: 14,
+          right: 16,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: t.accentChipBg,
+              borderRadius: AppRadius.pillR(20),
+              border: Border.all(color: t.accentChipBorder),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.edit_outlined, size: 12, color: t.accentText),
+              const SizedBox(width: 6),
+              Text('EDITING',
+                  style: KitText.monoCaps(context,
+                      letterSpacing: 0.08, color: t.accentText)),
+            ]),
+          ),
+        ),
+    ]);
+  }
+
+  /// `.ms-chunk-head` — the passage number in an accent chip, a rule to the
+  /// controls, the word count, then Merge up and the remove control.
+  Widget _chunkHead(ReaderUi ui, List<_EditChunk> visible, int i) {
+    final t = ui.tokens;
+    final c = visible[i];
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 24),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: t.accentChipBg,
+            borderRadius: AppRadius.xsR,
+            border: Border.all(color: t.accentChipBorder),
+          ),
+          child: Text('№ ${(i + 1).toString().padLeft(2, '0')}',
+              style: KitText.monoMeta(context,
+                  letterSpacing: 0.08, color: t.accentText)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Container(height: 1, color: t.rule)),
+        const SizedBox(width: 12),
+        // `.ms-sheet.editing .ms-chunk-words` (web 13c910c): mono 11 at
+        // --fg-muted. Shown only while editing, so always the muted step.
+        Text('~${_words(c)} words',
+            style: KitText.monoMeta(context, color: t.fgMuted)),
+        // reader.md §Sections asks for the `user_edited` badge; the reference
+        // draws none in the manuscript. This client keeps the spec's, said
+        // in the head's own voice rather than as a pill of its own.
+        if (c.userEdited) ...[
+          const SizedBox(width: 12),
+          Text('EDITED', style: KitText.monoCaps(context, letterSpacing: 0.06)),
+        ],
+        if (i > 0 && !c.atomic && !visible[i - 1].atomic) ...[
+          const SizedBox(width: 12),
+          // `.ms-merge` — mono caps on `--surface-sunken`.
+          Material(
+            color: t.surfaceSunken,
+            shape: RoundedRectangleBorder(
+                borderRadius: AppRadius.xsR,
+                side: BorderSide(color: t.border)),
+            child: InkWell(
+              borderRadius: AppRadius.xsR,
+              onTap: () => _mergeUp(i),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.vertical_align_top, size: 12, color: t.fgMuted),
+                  const SizedBox(width: 5),
+                  Text('MERGE UP',
+                      style: KitText.monoCaps(context,
+                          letterSpacing: 0.06, color: t.fgMuted)),
+                ]),
+              ),
+            ),
+          ),
+        ],
+        IconButton(
+          tooltip: 'Remove passage',
+          visualDensity: VisualDensity.compact,
+          onPressed: visible.length <= 1 ? null : () => _remove(i),
+          icon: Icon(Icons.delete_outline, size: 14, color: ui.criticalText),
+        ),
+      ]),
+    );
+  }
+
+  /// `.ms-split` — a dashed rule either side of the label. The reference
+  /// reveals the label on hover; a finger has no hover, so here it is always
+  /// there, at `--fg-subtle` (the same reason §16's anchor opens on tap).
+  Widget _splitControl(ReaderUi ui, int i) {
+    final t = ui.tokens;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 16),
+      child: InkWell(
+        onTap: () => _splitAt(i),
+        child: Row(children: [
+          Expanded(child: ui.dashedRule()),
+          const SizedBox(width: 10),
+          Icon(Icons.content_cut, size: 12, color: t.fgSubtle),
+          const SizedBox(width: 5),
+          Text('SPLIT HERE',
+              style: KitText.monoCaps(context, letterSpacing: 0.06)),
+          const SizedBox(width: 10),
+          Expanded(child: ui.dashedRule()),
+        ]),
+      ),
+    );
+  }
+
   Widget _rendered(_EditChunk c, ReaderUi ui) {
     final html = _markShared(markSanitizedHtml(c.html.trim()));
     if (html.isEmpty) {
-      return KitMarkedText(c.text,
-          style:
-              AppTheme.serif(fontSize: 16, height: 1.6, color: ui.fg));
+      return KitMarkedText(c.text, style: _sheetType(context));
     }
     return Html(
       data: html,
@@ -885,8 +1008,9 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         ui.tokens,
         body: Style(
           margin: Margins.zero,
-          fontSize: FontSize(16),
-          lineHeight: LineHeight.number(1.6),
+          fontFamily: AppTheme.fontSerif,
+          fontSize: FontSize(19),
+          lineHeight: LineHeight.number(1.68),
           color: ui.fg,
         ),
       ),

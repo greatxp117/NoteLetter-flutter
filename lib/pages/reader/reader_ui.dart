@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_shadows.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 
@@ -32,28 +32,26 @@ class ReaderUi {
   /// facade does not name (the Html style map) does not add a third copy.
   Tokens get tokens => dark ? Tokens.dark : Tokens.light;
 
-  Color get muted =>
-      dark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
-  Color get border => dark ? AppColors.borderDark : AppColors.borderLight;
-  Color get card => dark ? AppColors.cardDark : AppColors.cardLight;
-  Color get surface => dark ? AppColors.secondaryDark : AppColors.secondaryLight;
-  Color get fg => dark ? AppColors.foregroundDark : AppColors.foregroundLight;
-  Color get primary => dark ? AppColors.primaryDark : AppColors.primary;
-  Color get accentFg =>
-      dark ? AppColors.primaryForegroundDark : AppColors.primaryForeground;
-  // Both of these used to be pinned to their light steps — `critical` under a
-  // comment claiming it is "token-identical to brick in both themes", true
-  // until 4.21.0 (ADR-057) made all three severities flip. In dark it resolved
-  // to the ACCENT, so the five rules that draw error text in the reader drew it
-  // in the same vermilion as a primary button.
-  Color get criticalText =>
-      dark ? AppColors.criticalTextDark : AppColors.criticalTextLight;
-  Color get rule => dark ? AppColors.ruleDark : AppColors.ruleLight;
-  Color get subtle =>
-      dark ? AppColors.subtleForegroundDark : AppColors.subtleForegroundLight;
-  Color get sunken =>
-      dark ? AppColors.surfaceSunkenDark : AppColors.surfaceSunkenLight;
-  Color get positive => dark ? AppColors.positiveDark : AppColors.positive;
+  // Every getter is a semantic token, never a palette step. They were raw
+  // `AppColors` pairs until F-43 — the same values for eleven of them, and the
+  // twelfth is why that mattered: [surface] was `--surface-raised` in light
+  // and `--secondary`'s white wash in dark, two different roles under one
+  // name, so nothing could say which one a box was meant to be. It is
+  // `--surface-raised` in both now. A raw pair is also how `criticalText` sat
+  // pinned to its light step after 4.21.0 (ADR-057) made the severities flip,
+  // drawing the reader's error text in the accent in dark.
+  Color get muted => tokens.fgMuted;
+  Color get border => tokens.border;
+  Color get card => tokens.surface;
+  Color get surface => tokens.surfaceRaised;
+  Color get fg => tokens.fg;
+  Color get primary => tokens.accent;
+  Color get accentFg => tokens.accentFg;
+  Color get criticalText => tokens.criticalText;
+  Color get rule => tokens.rule;
+  Color get subtle => tokens.fgSubtle;
+  Color get sunken => tokens.surfaceSunken;
+  Color get positive => tokens.positive;
 
   /// The section label opening a panel (web `.eyebrow`) — the kit's type role,
   /// not a local approximation of it.
@@ -81,6 +79,84 @@ class ReaderUi {
         ),
       );
 
+  /// `.rsvp-track` — the 4px progress rail Listen and Speed read share: a
+  /// `--surface-sunken` pill with an `--accent` fill. Where [onSeek] is given
+  /// a tap or a drag seeks to that fraction, as the reference's `onTrack`
+  /// does. It is drawn, not a Material [Slider]: the slider's thumb and
+  /// overlay are no part of the reference, and its inactive track is
+  /// `--border`, a line rather than a well.
+  Widget track(double fraction, {void Function(double)? onSeek}) =>
+      LayoutBuilder(builder: (context, box) {
+        void at(double dx) =>
+            onSeek?.call((dx / box.maxWidth).clamp(0.0, 1.0));
+        final rail = SizedBox(
+          height: 4,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: ColoredBox(
+              color: sunken,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: fraction.clamp(0.0, 1.0),
+                  heightFactor: 1,
+                  child: ColoredBox(color: primary),
+                ),
+              ),
+            ),
+          ),
+        );
+        if (onSeek == null) return rail;
+        // A 4px rail is not a target a finger can find; the hit area is 24.
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => at(d.localPosition.dx),
+          onHorizontalDragUpdate: (d) => at(d.localPosition.dx),
+          child: SizedBox(height: 24, child: Center(child: rail)),
+        );
+      });
+
+  /// `.player-play` / `.rsvp-play` — the 60px `--accent` disc with
+  /// `--shadow-1` that both transports centre on. A play triangle's mass sits
+  /// left of its box, so [nudge] moves it right while the Play glyph shows
+  /// (`.is-play`, 3px on Listen; `:not(.is-pause)`, 2px on Speed read).
+  Widget playButton(
+          {required IconData icon,
+          required VoidCallback onTap,
+          double iconSize = 26,
+          double nudge = 0,
+          String? tooltip}) =>
+      Tooltip(
+        message: tooltip ?? '',
+        child: Material(
+          color: primary,
+          shape: const CircleBorder(),
+          elevation: 0,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: const BoxDecoration(
+                  shape: BoxShape.circle, boxShadow: AppShadows.s1),
+              alignment: Alignment.center,
+              child: Padding(
+                padding: EdgeInsets.only(left: nudge),
+                child: Icon(icon, size: iconSize, color: accentFg),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  /// A 1px dashed rule in `--border` (`border-top: 1px dashed`), for the
+  /// manuscript's split control.
+  Widget dashedRule() => SizedBox(
+        height: 1,
+        child: CustomPaint(painter: _DashPainter(border)),
+      );
+
   /// §7 — the empty state, from the kit. The [action] is the panel's offer and
   /// becomes the pattern's action row: an empty state is an offer, not an
   /// apology, and a centred sentence saying "nothing here yet" is not this
@@ -95,4 +171,24 @@ class ReaderUi {
           actions: action == null ? const [] : [action],
         ),
       );
+}
+
+class _DashPainter extends CustomPainter {
+  final Color color;
+  const _DashPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    // A browser draws a 1px dashed border as 3px dashes with 3px gaps.
+    for (var x = 0.0; x < size.width; x += 6) {
+      canvas.drawLine(Offset(x, 0.5), Offset((x + 3).clamp(0, size.width), 0.5),
+          paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashPainter old) => old.color != color;
 }

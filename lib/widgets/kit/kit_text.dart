@@ -77,14 +77,18 @@ class KitText {
   /// title. **Italic serif, never the UI sans**: rendering a standfirst in the
   /// body face is the second-most-common way a header stops looking like this
   /// app while every colour in it stays correct.
+  ///
+  /// [color] is for the same italic voice set quieter — a remark about a state
+  /// at `--fg-subtle` (`.rd-empty`, `.cohesive-note`, `.sc-vtext.none`, the
+  /// search field's placeholder), never a second standfirst.
   static TextStyle lede(BuildContext context,
-          {double fontSize = 18, double? height}) =>
+          {double fontSize = 18, double? height, Color? color}) =>
       AppTheme.serif(
         fontSize: fontSize,
         height: (height ?? 30) / fontSize,
         fontWeight: FontWeight.w400,
         fontStyle: FontStyle.italic,
-        color: Tokens.of(context).fgLede,
+        color: color ?? Tokens.of(context).fgLede,
       );
 
   /// `.meta` — sans 14/20 at `--fg-subtle`.
@@ -173,12 +177,118 @@ class KitText {
         color: color ?? Tokens.of(context).fgMuted,
       );
 
-  /// `.body-reading` — serif 18/30. Prose. Pair with [readingMeasure].
-  static TextStyle bodyReading(BuildContext context) => AppTheme.serif(
-        fontSize: 18,
-        height: 30 / 18,
-        fontWeight: FontWeight.w400,
+  /// Sans 14 at `--fg` — a row's or a step's own label (`.history-label`,
+  /// `.ob-step-label`), a section title inside a sheet.
+  static TextStyle label(BuildContext context,
+          {Color? color, FontWeight? weight, double? height}) =>
+      TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 14,
+        height: height,
+        fontWeight: weight,
+        color: color ?? Tokens.of(context).fg,
+      );
+
+  /// Sans 15/22 at `--fg` — a sentence the reader wrote, set in the UI face
+  /// because it is theirs and not the app's (`.ask-msg.you .text`).
+  static TextStyle message(BuildContext context) => TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 15,
+        height: 22 / 15,
         color: Tokens.of(context).fg,
+      );
+
+  /// Sans 12.5 at `--fg-muted` — the label inside a small chip or a parse
+  /// echo (`.sc-par-chip`, `.qs-parse-meta`, `.lect-ref`).
+  static TextStyle chipLabel(BuildContext context, {Color? color}) =>
+      TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 12.5,
+        color: color ?? Tokens.of(context).fgMuted,
+      );
+
+  /// `.body-reading` — serif 18/30. Prose. Pair with [readingMeasure].
+  ///
+  /// The reading face at the other steps the reference sets prose in passes
+  /// [fontSize] and [height] (the leading in px): `.sresult-passage` 17/28,
+  /// `.rd-body p` 17/30, `.sc-p-t` 15/25, `.rsvp-para` 15/26, the manuscript
+  /// sheet 19/32. Upright serif, the author's voice — never the UI sans.
+  static TextStyle bodyReading(BuildContext context,
+          {double fontSize = 18,
+          double? height,
+          Color? color,
+          FontWeight weight = FontWeight.w400}) =>
+      AppTheme.serif(
+        fontSize: fontSize,
+        height: (height ?? 30) / fontSize,
+        fontWeight: weight,
+        color: color ?? Tokens.of(context).fg,
+      );
+
+  /// A serif title between the ramp's steps — the title a card, a row, a
+  /// panel or a result carries (`.srctitle` 15/1.2/500, `.rd-title` 19/600,
+  /// `.player-title` 21/1.15/600, `.cohesive-title` 22/1.15/500, `.sc-ref`
+  /// 30/1.05/600 letterpressed). [h1]–[h4] are a page's headings; this is the
+  /// heading of a thing ON the page. [height] is a multiple, as the reference
+  /// writes it; [tracking] is in em.
+  static TextStyle title(BuildContext context,
+          {required double fontSize,
+          double? height,
+          FontWeight weight = FontWeight.w600,
+          double tracking = 0,
+          Color? color,
+          bool letterpress = false}) =>
+      AppTheme.serif(
+        fontSize: fontSize,
+        height: height,
+        fontWeight: weight,
+        letterSpacing: tracking == 0 ? null : tracking * fontSize,
+        color: color ?? Tokens.of(context).fg,
+      ).copyWith(shadows: letterpress ? AppShadows.letterpress : null);
+
+  // ── Mono below the caps label ────────────────────────────────────────────
+
+  /// Mono 11 / 0.04em at `--fg-subtle` — a count, a time, a reference or an
+  /// attribution set beside the content it describes, in its own case
+  /// (`.search-result-count`, `.player-times`, `.history-when`,
+  /// `.rsvp-readout`, `.ms-chunk-words`, `.ms-foot`, `.sc-vno`, `.sc-p-h .r`,
+  /// `.ob-step-sub`). Not [capsLabel]: that is a LABEL, set in caps at 500.
+  static TextStyle monoMeta(BuildContext context,
+          {Color? color,
+          double fontSize = 11,
+          double letterSpacing = 0.04,
+          double? height,
+          FontWeight? weight}) =>
+      AppTheme.mono(
+        fontSize: fontSize,
+        height: height,
+        fontWeight: weight,
+        letterSpacing: letterSpacing * fontSize,
+        color: color ?? Tokens.of(context).fgSubtle,
+      );
+
+  /// Mono 13 at `--fg`, untracked — a figure or a typed value read as one: a
+  /// score (`.score .val`, 10 at `--fg-muted`), a percentage, a step number,
+  /// a priority, a glob pattern in its field.
+  static TextStyle monoFigure(BuildContext context,
+          {Color? color, double fontSize = 13, FontWeight? weight}) =>
+      AppTheme.mono(
+        fontSize: fontSize,
+        fontWeight: weight,
+        color: color ?? Tokens.of(context).fg,
+      );
+
+  /// Mono 10 / 0.1em caps at `--fg-subtle`, regular weight — the label of a
+  /// control or of one part of a panel (`.pf-label`, `.player-eyebrow` and
+  /// `.rsvp-stamp` at 0.14em, `.ms-editbadge` 0.08em, `.ms-merge` and
+  /// `.ms-split-label` 0.06em, `.sc-trans` 0.12em, `.sc-par-rel`). Smaller and
+  /// lighter than [capsLabel]; the CALLER uppercases, as for every caps role.
+  static TextStyle monoCaps(BuildContext context,
+          {Color? color, double letterSpacing = 0.1}) =>
+      AppTheme.mono(
+        fontSize: 10,
+        letterSpacing: letterSpacing * 10,
+        color: color ?? Tokens.of(context).fgSubtle,
       );
 
   /// `.pull-quote` — italic serif 22/32 at `--fg-muted`.

@@ -854,15 +854,15 @@ a new obligation on a finished screen is a new item.
 - notes: normalizeUrl + detectUrlType top-level; shared table fixtures/url-detection/cases.json
 
 ## F-43 · Type the last pages from the kit — 9 kit-ok marks and 63 font-helper calls
-- status: open
+- status: done 2026-10-01
 - screen: various
 - route: various
 - spec: spec/component-kit.md §How to read a pattern; spec/design-tokens.md §Type
 - web: src/styles/app-source.css; src/styles/app-kit.css; src/pages/reader/ListenPanel.jsx; src/pages/reader/SpeedReadPanel.jsx; src/pages/reader/HistoryPanel.jsx; src/pages/reader/ManuscriptPanel.jsx
-- flutter: lib/widgets/kit/kit_text.dart; test/kit/no_inline_composition_test.dart; lib/pages/reader/listen_panel.dart; lib/pages/reader/speed_read_panel.dart; lib/pages/reader/history_panel.dart; lib/pages/reader/manuscript_panel.dart; lib/pages/reader/reorganize_sheet.dart; lib/pages/library/document_detail_sheet.dart; lib/pages/chat_page.dart; lib/pages/search/scripture_results.dart; lib/pages/onboarding/wizard.dart
+- flutter: lib/widgets/kit/kit_text.dart; test/kit/no_inline_composition_test.dart; lib/pages/reader/listen_panel.dart; lib/pages/reader/speed_read_panel.dart; lib/pages/reader/history_panel.dart; lib/pages/reader/manuscript_panel.dart; lib/pages/reader/reorganize_sheet.dart; lib/pages/library/document_detail_sheet.dart; lib/pages/chat_page.dart; lib/pages/search/scripture_results.dart; lib/pages/onboarding/wizard.dart; lib/pages/reader/reader_ui.dart; integration_test/hold_screen_test.dart; tool/seed_listen_audio.py
 - folds: none — found by F-17's lint
 - device_test: none
-- shots: none
+- shots: reader-manuscript; reader-speed-read; reader-listen; reader-history
 - extra_gates: none
 - notes: F-17's lint left 9 `kit-ok: F-43` sites whose metric no kit role names, and pinned 63 `AppTheme.serif(`/`AppTheme.mono(` calls across 18 page files (the same inline type in another spelling) in a ratchet that only falls. Drive both to zero, then delete the ratchet. The reader panels are not only respelled — they DRIFT from the reference: web `.player-eyebrow` and `.pf-label` are MONO caps 10 at `--fg-subtle` (Flutter: sans 10/600 at 0.8); `.player-times` and `.history-when` are mono 11 subtle (Flutter: sans 12 muted); `.history-label` is sans 14 (Flutter 13); the manuscript panel is built as `.ms-chunk-head`/`.ms-editbadge` where Flutter has its own toolbar and pill. Recompose against the web, then shoot the panels. Also: `ReaderUi`'s colour getters return raw `AppColors` steps, not `Tokens` — check each against its semantic token while there.
 
@@ -1409,3 +1409,29 @@ a new obligation on a finished screen is a new item.
 - shots: reader
 - extra_gates: confirm_check.py
 - notes: Contract 4.105.0. (a) The reader's last header action is a ghost *Delete* with a trash glyph, for complete/error/skipped documents, opening a §18 KitConfirm: `Delete “{title}”?`, the body naming what is lost (its {n} passages, original file, reading history, its shelves by name) and what is not (letters received, other sources, the shelves; a study program drops its passages at its next session), *Keep it* / *Delete source* (danger). One `Api.deleteDocument` (add it: `fn_delete_document {docId}`); the panel holds until it resolves, a refusal answers inside it, success pops back to the reader's origin. (b) §20.2 Shelf select as a kit widget beside §20 in `kit_shelf_chips.dart` — a trigger (dot + title, or the none label in --fg-muted, chevron) opening the §20.1 panel over every shelf, the chosen one checked, a none row first while nothing is typed, the create row last — and `reshelve_sheet.dart`'s `KitSelect` becomes it (none = Leave unshelved; the create row opens showShelfSheet and the new id becomes the row's choice).
+
+## F-74 · Reader — the manuscript's reading controls: Aa, the reading-progress rule, Pick up where you left off, the drop cap
+- status: open
+- screen: reader-manuscript
+- route: /reader/{id}
+- spec: spec/screens/reader.md §Composition §Sections; spec/component-kit.md §5.2
+- web: src/pages/reader/ManuscriptPanel.jsx; src/styles/app-source.css
+- flutter: lib/pages/reader/manuscript_panel.dart
+- folds: none — left by F-43's recomposition
+- device_test: none
+- shots: reader-manuscript
+- extra_gates: none
+- notes: F-43 recomposed the panel bar, the sheet, its type, the edit-mode chunk head, the split control and the foot. Four reference parts were left for this item, each a behaviour rather than a type role: (1) `TypeControls` — the `Aa` popover beside Edit text (`.ms-type`, useReaderPrefs: size, leading, family, measure as `--ms-*` vars on the sheet); (2) `.ms-progress` — the accent reading-progress rule above the sheet, a MEASURED fraction of the sheet scrolled (only measured numbers on screen); (3) `.ms-resume` — `You stopped about N% of the way through.` with Pick up where you left off / Start over; (4) the drop cap on the first passage's first paragraph (`::first-letter`, serif 58/0.86/600 at --accent-text) — flutter_html has no first-letter, so it needs a decision on how the first paragraph is drawn. Read ManuscriptPanel.jsx for where (2) and (3) take their numbers before building either.
+
+## F-75 · Search — the cohesive column's passage type and source title follow the reference
+- status: open
+- screen: search
+- route: /search
+- spec: spec/screens/search.md §Composition; spec/component-kit.md §5.2
+- web: src/pages/SearchView.jsx; src/styles/app-kit.css
+- flutter: lib/pages/search/cohesive_column.dart
+- folds: none — found by F-43's respelling
+- device_test: none
+- shots: search
+- extra_gates: none
+- notes: F-43 respelled these sites into KitText roles without moving a pixel, and found four drifts it did not fix: (1) the cohesive passage body is `.passage .quote` serif 18/30 on the reference, 17/28 here; (2) its `Html` branch sets no family, so stored html renders in the UI SANS while the no-html branch is serif — the manuscript had the same defect (fixed in F-43 by `fontFamily: AppTheme.fontSerif` on the body Style); (3) `.cohesive-passage .pmeta .srctitle` is 14/500, 15/1.2/500 here; (4) `.cohesive-note` is at --fg-subtle, --fg-muted here. Needs a frame of the COHESIVE mode — the `search` pair's query does not reach it.
