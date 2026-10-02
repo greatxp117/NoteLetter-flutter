@@ -11,6 +11,7 @@ import 'site/signin_page.dart';
 import 'pages/library_page.dart';
 import 'pages/search_page.dart';
 import 'pages/activity_page.dart';
+import 'pages/review_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/notification_settings_page.dart';
@@ -158,6 +159,11 @@ List<RouteBase> appRoutes() {
             GoRoute(
               path: '/activity',
               builder: (context, state) => const ActivityPage(),
+            ),
+            // 4.100.0 (ADR-135) — For your review, the one inbox.
+            GoRoute(
+              path: '/review',
+              builder: (context, state) => const ReviewPage(),
             ),
             // Ask's three forms (4.65.0, ADR-101) — a new conversation, one
             // SCOPED to a shelf (4.62.0, ADR-098), and an OPEN one. The thread

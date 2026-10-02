@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/import_job.dart';
-import '../models/organization_suggestion.dart';
 import '../state/cloud_notifier.dart';
 import '../state/documents_notifier.dart';
 import '../state/org_notifier.dart';
@@ -18,6 +17,8 @@ import '../widgets/kit/kit.dart';
 import 'sources/browse_section.dart';
 import 'sources/cloud_picker.dart';
 import 'sources/cloud_sync_copy.dart';
+import 'sources/import_review_queue.dart';
+import 'sources/suggestion_queue.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sources_info_sheet.dart';
 import 'sources/sync_settings_panel.dart';
@@ -335,8 +336,8 @@ class _SourcesPageState extends State<SourcesPage> {
               // unmounts that section, and a line about what just happened
               // would vanish with the thing it is about.
               if (cloud.reviewOutcome != null)
-                _ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
-              _ReviewQueue(
+                ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
+              ImportReviewQueue(
                 held: cloud.heldJobs,
                 rulesFor: (p) =>
                     cloud.integrationFor(p)?.reviewRules ?? const {},
@@ -677,7 +678,7 @@ class _FileRow extends StatelessWidget {
     }
 
     final note = [
-      _fmtSize(file.size),
+      fmtFileSize(file.size),
       // A Google-native file Drive exports says what it imports AS (4.94.0).
       cloudExportLabel(file) ?? '',
     ].where((s) => s.isNotEmpty).join(' · ');
@@ -905,221 +906,6 @@ class _ImportHistoryState extends State<_ImportHistory> {
   }
 }
 
-/// A triage batch's partial outcome (4.69.0, ADR-103 §4 amended). Two lines
-/// that must never merge: `skipped` is a measured count and a note — nothing
-/// failed — while `failed` is §14.2 inline, naming the FILE, because the
-/// retry is per-row and the reader has to find it. It sits beside the note,
-/// never in place of the section: what the batch did do is real.
-class _ReviewOutcomeNotes extends StatelessWidget {
-  final ReviewOutcome outcome;
-  const _ReviewOutcomeNotes({required this.outcome});
-
-  @override
-  Widget build(BuildContext context) {
-    final o = outcome;
-    final skipped = o.skipped;
-    final failed = o.failedNames;
-    final rest = o.notAttempted;
-    if (skipped == 0 && failed.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 4.90.0 (ADR-124 §7): an approve on a provider that is no longer
-          // connected is `skipped` too, and the response does not say which —
-          // so the note names both causes and asserts neither.
-          if (skipped > 0)
-            KitProcNote(reviewSkippedNote(skipped), padding: EdgeInsets.zero),
-          if (failed.isNotEmpty)
-            Padding(
-              padding: EdgeInsets.only(top: skipped > 0 ? 6 : 0),
-              child: KitFailureInline(
-                'Could not start ${failed.join(', ')} — the import queue did '
-                'not accept ${failed.length == 1 ? 'it' : 'them'}. Retry from '
-                'the list below.'
-                '${rest > 0 ? ' $rest other ${rest == 1 ? 'file is' : 'files are'} '
-                    'still waiting for review — nothing was started for '
-                    '${rest == 1 ? 'it' : 'them'}.' : ''}',
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// **The import review queue** (`screens/sources.md` §Import review queue,
-/// 4.45.0, ADR-083) — the files a sync held because the reader asked to be
-/// asked. Above the progress list, because it is the one thing here that is
-/// waiting on them.
-///
-/// **Empty is not a state worth drawing.** With no rules configured the section
-/// never renders; with rules configured and nothing held, it stays absent too.
-/// "Nothing waiting" is the normal condition, not an achievement.
-///
-/// Every action renders **pessimistically** off the subscription — nothing
-/// moves here until the write lands. A control that moves first hides the
-/// failure completely, and this one acts on files that may be scrolled out of
-/// sight.
-class _ReviewQueue extends StatefulWidget {
-  final List<ImportJob> held;
-
-  /// The provider's `review_rules`, so a size hold can name its threshold.
-  final Map<String, ReviewRule> Function(String provider) rulesFor;
-  const _ReviewQueue({required this.held, required this.rulesFor});
-
-  @override
-  State<_ReviewQueue> createState() => _ReviewQueueState();
-}
-
-class _ReviewQueueState extends State<_ReviewQueue> {
-  /// §14.2 — one slot for the section's own rejection. One outstanding batch at
-  /// a time, so one slot.
-  String? _error;
-  bool _busy = false;
-
-  Future<void> _run(List<String> ids, String action) async {
-    if (ids.isEmpty || _busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final err = await context.read<CloudNotifier>().reviewJobs(ids, action);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _error = err;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final held = widget.held;
-    if (held.isEmpty) return const SizedBox.shrink();
-    final ids = [for (final j in held) j.id];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(
-          '${held.length} ${held.length == 1 ? 'file' : 'files'} waiting for you',
-        ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            KitButton.primary('Import all',
-                onPressed: _busy ? null : () => _run(ids, 'approve')),
-            // §18 on **"Dismiss all" only**, and the asymmetry is the decision
-            // rather than an omission: a reader dismissing one row has just
-            // read that row, while this control acts on files that may be
-            // scrolled out of sight. Both are undoable from Import history, so
-            // a panel on every row would make a triage queue slower without
-            // making anything safer.
-            KitButton.ghost('Dismiss all', onPressed: _busy
-                ? null
-                : () async {
-                    final done = await KitConfirm.show(
-                      context,
-                      title: 'Dismiss ${held.length} '
-                          '${held.length == 1 ? 'file' : 'files'}?',
-                      body: 'They will not be offered again, even if they '
-                          'change at the provider. Nothing is deleted where it '
-                          'lives. You can undo this with Import again on the '
-                          'dismissed row in your import history.',
-                      confirmLabel: 'Dismiss them',
-                      cancelLabel: 'Keep waiting',
-                      onConfirm: () => context
-                          .read<CloudNotifier>()
-                          .reviewJobs(ids, 'dismiss'),
-                    );
-                    if (done == true && mounted) setState(() => _error = null);
-                  }),
-          ],
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: 8),
-          KitFailureInline(_error!),
-        ],
-        const SizedBox(height: 10),
-        KitRowList(
-          rows: [
-            for (final j in held)
-              _HeldRow(
-                  job: j, rules: widget.rulesFor(j.provider), onRun: _run),
-          ],
-        ),
-        // The standing sentence the per-row control keeps above the list, so a
-        // single Dismiss is not silent about being permanent.
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(
-            'Dismissing a file means it will not be offered again, even if it '
-            'changes at the provider. Import again on the dismissed row undoes '
-            'it.',
-            style: KitText.meta(context),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// A held row: the progress-row anatomy, plus the **size** and the **reason**.
-class _HeldRow extends StatelessWidget {
-  final ImportJob job;
-  final Map<String, ReviewRule> rules;
-  final Future<void> Function(List<String> ids, String action) onRun;
-
-  const _HeldRow({required this.job, required this.rules, required this.onRun});
-
-  /// "PDF · 42 MB — over your 5 MB review size" / "PPTX — you asked about
-  /// every one". **Named by size, never by length**: there is no page count to
-  /// promise, because no provider reports one (ADR-083).
-  ///
-  /// The head is the TYPE KEY of the file's MIME, never `kitDocKind(mime)`:
-  /// that table is keyed by document `type`, so a MIME fell through to `note`
-  /// and every held row read "NOTE · 42 MB". The threshold is the rule's own
-  /// number, read off the provider's `review_rules` — "over your review size"
-  /// without it asked the reader to remember what they had set.
-  String _reason() {
-    final key = job.typeKey;
-    final kind = key == null ? 'File' : _typeLabel(key);
-    final size = _fmtSize(job.fileSize);
-    final head = size.isEmpty ? kind : '$kind · $size';
-    if (job.reviewReason == 'type') return '$head — you asked about every one';
-    final rule = key == null ? null : rules[key];
-    return rule != null && !rule.isAlways && rule.overMb != null
-        ? '$head — over your ${rule.overMb} MB review size'
-        : head;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return KitSourceRow(
-      leading: KitFileBadge(kitDocKind(job.docType)),
-      title: job.providerFileName.isEmpty
-          ? '(fetching name…)'
-          : job.providerFileName,
-      subtitle: [
-        _reason(),
-        if (job.providerPath.isNotEmpty) job.providerPath,
-      ].join(' · '),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          KitButton.ghost('Import',
-              onPressed: () => onRun([job.id], 'approve')),
-          const SizedBox(width: 4),
-          KitButton.ghost('Dismiss',
-              onPressed: () => onRun([job.id], 'dismiss')),
-        ],
-      ),
-    );
-  }
-}
-
 class _JobRow extends StatefulWidget {
   final ImportJob job;
   const _JobRow({super.key, required this.job});
@@ -1310,177 +1096,10 @@ class _OrganizationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final org = context.watch<OrgNotifier>();
-    final pending = org.suggestions;
-    final error = org.suggestionsError;
-    final outcomes = org.outcomes;
-
-    // Same shape as Import activity above, and the notifier's own comment says
-    // it: no suggestions and unreadable suggestions are the same empty list
-    // downstream, and this section's answer to empty is to vanish (C3).
-    if (error != null && pending.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SectionHeader('Organization suggestions'),
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: KitFailureInline(error),
-          ),
-        ],
-      );
-    }
-    if (pending.isEmpty && outcomes.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(error != null
-            ? 'Organization suggestions'
-            : 'Organization suggestions · ${pending.length}'),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: KitFailureInline(error),
-          ),
-        // What this session's approvals came to (4.92.0, ADR-126): the queue
-        // reads `pending` only, so without these an approved card vanished
-        // and a `failed` one — an interrupted move that may already have
-        // landed — never reached the screen.
-        if (outcomes.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: KitRowList(rows: [
-              for (final o in outcomes)
-                _ApprovalOutcome(
-                    key: ValueKey('outcome-${o.id}'), suggestion: o),
-            ]),
-          ),
-        for (final s in pending)
-          _SuggestionCard(key: ValueKey('sugg-${s.id}'), suggestion: s),
-      ],
-    );
-  }
-}
-
-/// One approval this session made, until it lands: `approved` works
-/// (spinner), `failed` says the worker's sentence verbatim (§14.2) and offers
-/// Clear. `applied` never reaches here — the notifier drops it.
-class _ApprovalOutcome extends StatelessWidget {
-  final OrganizationSuggestion suggestion;
-  const _ApprovalOutcome({super.key, required this.suggestion});
-
-  @override
-  Widget build(BuildContext context) {
-    final s = suggestion;
-    final failed = s.status == 'failed';
-    final row = KitSourceRow(
-      title: s.outcomeTitle,
-      trailing: failed
-          ? KitButton.ghost('Clear',
-              onPressed: () =>
-                  context.read<OrgNotifier>().clearOutcome(s.id))
-          : const KitStatusPill('Applying'),
-    );
-    if (!failed) return row;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        row,
-        Padding(
-          padding: const EdgeInsets.only(left: 18, right: 18, bottom: 12),
-          child: KitFailureInline(
-              s.resolutionError ?? 'This change could not be made.',
-              dense: true),
-        ),
-      ],
-    );
-  }
-}
-
-class _SuggestionCard extends StatefulWidget {
-  final OrganizationSuggestion suggestion;
-  const _SuggestionCard({super.key, required this.suggestion});
-
-  @override
-  State<_SuggestionCard> createState() => _SuggestionCardState();
-}
-
-class _SuggestionCardState extends State<_SuggestionCard> {
-  /// §14.2 — the resolve's refusal on the card it is about (a 400
-  /// `UNKNOWN_KEYS`, a 404), not a toast that is gone before it is read.
-  String? _error;
-
-  @override
-  Widget build(BuildContext context) {
-    final suggestion = widget.suggestion;
-    final org = context.read<OrgNotifier>();
-    final busy = org.isResolving(suggestion.id);
-
-    Future<void> act(String action) async {
-      setState(() => _error = null);
-      final err = await org.resolve([suggestion.id], action);
-      if (mounted) setState(() => _error = err);
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: KitCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Expanded(child: Text(suggestion.title, style: KitText.h4(context))),
-                const SizedBox(width: 12),
-                KitStatusPill('${(suggestion.confidence * 100).round()}% sure'),
-              ],
-            ),
-            if (suggestion.reason.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(suggestion.reason,
-                  style: KitText.lede(context, fontSize: 15, height: 22)),
-            ],
-            if (suggestion.detail.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(suggestion.detail, style: KitText.meta(context)),
-            ],
-            // 4.92.0 (ADR-126 §3): approving a README adoption changes the
-            // folder's charter and writes nothing at the provider — the card
-            // says both, because "Approve" alone reads as a file operation.
-            if (suggestion.type == 'readme') ...[
-              const SizedBox(height: 4),
-              Text(suggestion.adoptionNote, style: KitText.meta(context)),
-            ],
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              KitFailureInline(_error!),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (busy) ...[
-                  const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2)),
-                  const SizedBox(width: 12),
-                ],
-                KitButton.ghost('Decline',
-                    onPressed: busy ? null : () => act('decline')),
-                const SizedBox(width: 8),
-                // Pessimistic: the status transition arrives on the same
-                // subscription, so nothing is rendered as done before it lands.
-                KitButton.primary('Approve',
-                    onPressed: busy ? null : () => act('approve')),
-              ],
-            ),
-          ],
-        ),
-      ),
+    return SuggestionQueue(
+      eyebrow: 'Organization suggestions',
+      suggestions: org.suggestions,
+      error: org.suggestionsError,
     );
   }
 }
@@ -1547,22 +1166,3 @@ String _count(int n) {
   return out.toString();
 }
 
-/// The spelling of a cloud type key on a held row. The spec's own examples
-/// ("PDF · 42 MB", "PPTX — …") upper-case the file keys; `notion` is not an
-/// acronym, and upper-cased it read "NOTION ·".
-String _typeLabel(String key) => switch (key) {
-      'notion' => 'Notion page',
-      _ => key.toUpperCase(),
-    };
-
-/// Bytes as the reference spells them (`fmtSize`): KB under a megabyte —
-/// "0.0 MB" is a measured file drawn as nothing.
-String _fmtSize(int bytes) {
-  const mb = 1024 * 1024;
-  if (bytes <= 0) return '';
-  if (bytes >= mb) {
-    return '${(bytes / mb).toStringAsFixed(bytes >= 10 * mb ? 0 : 1)} MB';
-  }
-  final kb = (bytes / 1024).round();
-  return '${kb < 1 ? 1 : kb} KB';
-}

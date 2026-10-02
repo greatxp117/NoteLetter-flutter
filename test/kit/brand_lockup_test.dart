@@ -7,6 +7,8 @@
 // three chose the same wrong glyph, which is why no frame looked "off" alone.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_app/state/review_inbox.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:flutter_app/theme/app_theme.dart';
@@ -84,13 +86,18 @@ void main() {
           builder: (_, _) => const AppLayout(child: Text('library'))),
       GoRoute(path: '/search', builder: (_, _) => const Text('search page')),
     ]);
-    await tester.pumpWidget(
-        MaterialApp.router(theme: AppTheme.light, routerConfig: router));
+    // The menu button reads For your review's inbox for its attention dot
+    // (4.100.0); unstarted, it has no count and draws none.
+    await tester.pumpWidget(ChangeNotifierProvider<ReviewInbox>(
+        create: (_) => ReviewInbox(),
+        child:
+            MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle();
 
     expect(find.byType(KitBrand), findsOneWidget);
     expect(find.byType(KitQuill), findsOneWidget);
-    final search = find.byType(KitAppBarButton);
+    final search = find.byWidgetPredicate(
+        (w) => w is KitAppBarButton && w.label == 'Search');
     expect(search, findsOneWidget);
     expect(tester.getSize(search), const Size(36, 36));
 

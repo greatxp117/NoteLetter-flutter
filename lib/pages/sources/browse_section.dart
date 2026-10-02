@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
 import '../../models/tag.dart';
+import '../../services/api.dart';
+import '../../services/api_service.dart';
 import '../../shared/local_flags.dart';
 import '../../state/activity_notifier.dart';
 import '../../state/documents_notifier.dart';
@@ -383,8 +385,23 @@ class ProcessingRow extends StatefulWidget {
   final Future<bool?> Function(String docId)? studyCheck;
   final Future<bool?> Function(String docId)? editCheck;
 
+  /// For your review's one addition (4.100.0, `screens/review.md` §Sources
+  /// that need you): **Dismiss** beside Remove on a row that needs a person.
+  /// It takes the source out of that screen and its count and changes nothing
+  /// else — the Library shows every source it holds, so the control is that
+  /// screen's alone.
+  final bool dismissible;
+
+  /// Test seam for Dismiss; null is `Api.reviewDocuments`.
+  final Future<void> Function(String docId)? dismiss;
+
   const ProcessingRow(
-      {super.key, required this.doc, this.studyCheck, this.editCheck});
+      {super.key,
+      required this.doc,
+      this.studyCheck,
+      this.editCheck,
+      this.dismissible = false,
+      this.dismiss});
 
   @override
   State<ProcessingRow> createState() => _ProcessingRowState();
@@ -396,6 +413,33 @@ class _ProcessingRowState extends State<ProcessingRow> {
   /// cooldown and cap copy is user-facing.
   String? _error;
   bool _busy = false;
+  bool _dismissing = false;
+
+  /// No confirmation on one row — the reader has just read it, and nothing is
+  /// lost. The row leaves when the subscription says `review_dismissed_at` is
+  /// set, never on the press; an id the server reports in `skipped` was
+  /// already moved by something else and leaves the same way.
+  Future<void> _dismiss() async {
+    if (_dismissing) return;
+    setState(() {
+      _dismissing = true;
+      _error = null;
+    });
+    String? err;
+    try {
+      await (widget.dismiss ??
+          (id) => Api.instance.reviewDocuments([id]))(widget.doc.id);
+    } on ApiException catch (e) {
+      err = e.message;
+    } catch (_) {
+      err = 'That request could not be completed.';
+    }
+    if (!mounted) return;
+    setState(() {
+      _dismissing = false;
+      _error = err;
+    });
+  }
 
   /// A row crosses its stall moment with NO Firestore write behind it, so
   /// nothing would rebuild it and the stage label would keep claiming progress
@@ -566,7 +610,12 @@ class _ProcessingRowState extends State<ProcessingRow> {
                       onPressed:
                           _busy ? null : () => _runPrimary(primary.$2)),
                 KitButton.ghost('Remove',
-                    onPressed: _busy ? null : () => confirmRemove(context, doc)),
+                    onPressed: _busy || _dismissing
+                        ? null
+                        : () => confirmRemove(context, doc)),
+                if (widget.dismissible)
+                  KitButton.ghost(_dismissing ? 'Dismissing…' : 'Dismiss',
+                      onPressed: _busy || _dismissing ? null : _dismiss),
                 source,
               ],
             )

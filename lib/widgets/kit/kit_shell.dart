@@ -454,6 +454,15 @@ class _RailGroupAddState extends State<_RailGroupAdd> {
 /// it is a broken one; the feed is where the number lives.
 String kitBadgeLabel(int count) => count > 9 ? '9+' : '$count';
 
+/// §1.2 attention count (4.100.0, ADR-135): the pill's text for [count] —
+/// null (no pill) at zero, `9+` past nine, and the em dash while the count is
+/// unmeasured (null). Pair it with [KitNavItem.badgeUnmeasured].
+String? kitAttentionLabel(int? count) => count == null
+    ? '—'
+    : count > 0
+        ? kitBadgeLabel(count)
+        : null;
+
 /// A rail nav item.
 ///
 /// The **active item is marked by a 2px accent bar in the leading margin** plus
@@ -474,6 +483,11 @@ class KitNavItem extends StatefulWidget {
   /// one worth the space.
   final String? badge;
 
+  /// §1.2's **attention count** whose read failed or has not answered
+  /// (INV-30): [badge] (the em dash) is drawn in the same pill at the label's
+  /// alpha, without the accent fill — a failed read is not work waiting.
+  final bool badgeUnmeasured;
+
   const KitNavItem({
     super.key,
     required this.icon,
@@ -482,6 +496,7 @@ class KitNavItem extends StatefulWidget {
     this.onTap,
     this.count,
     this.badge,
+    this.badgeUnmeasured = false,
   });
 
   @override
@@ -531,7 +546,8 @@ class _KitNavItemState extends State<KitNavItem> {
                     ),
                   ),
                   if (widget.badge != null)
-                    _KitNavBadge(widget.badge!)
+                    _KitNavBadge(widget.badge!,
+                        unmeasured: widget.badgeUnmeasured)
                   else if (widget.count != null)
                     Text(
                       widget.count!,
@@ -573,8 +589,9 @@ class _KitNavItemState extends State<KitNavItem> {
 /// as everywhere else on the chrome.
 class _KitNavBadge extends StatelessWidget {
   final String label;
+  final bool unmeasured;
 
-  const _KitNavBadge(this.label);
+  const _KitNavBadge(this.label, {this.unmeasured = false});
 
   @override
   Widget build(BuildContext context) {
@@ -585,13 +602,17 @@ class _KitNavBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: t.chromeAccentBar,
+        // Unmeasured: `rgba(255,255,255,.10)` under the label's `.40`.
+        color: unmeasured ? t.chromeBorder : t.chromeAccentBar,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         textAlign: TextAlign.center,
-        style: AppTheme.mono(fontSize: 11, height: 1.2, color: t.chromeFg),
+        style: AppTheme.mono(
+            fontSize: 11,
+            height: 1.2,
+            color: unmeasured ? t.chromeSubtle : t.chromeFg),
       ),
     );
   }

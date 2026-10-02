@@ -28,6 +28,30 @@ class ReshelveItem {
 }
 
 const reshelveSlice = 150;
+
+/// The re-shelve review **from a stored proposal** (4.101.0, ADR-136 —
+/// `screens/review.md` §Proposals): a `shelf_delete` task's `result` (the
+/// `fn_suggest_reshelve` body) seeds the rows, and filing is ONE
+/// `fn_resolve_task apply` with every assignment — the writer reports what it
+/// could not file in `skipped`, which the sheet says before Done.
+class StoredReshelve {
+  /// The task and the moment its proposal landed: a later snapshot of the same
+  /// proposal must not re-seed the reader's choices.
+  final String key;
+  final Map<String, dynamic> result;
+
+  /// Complete members past the 500 the capture holds — said, never hidden.
+  final int unconsidered;
+  final Future<Map<String, dynamic>> Function(
+      List<Map<String, String>> assignments) apply;
+
+  const StoredReshelve({
+    required this.key,
+    required this.result,
+    required this.unconsidered,
+    required this.apply,
+  });
+}
 const _unshelved = '';
 
 typedef SuggestReshelve = Future<Map<String, dynamic>> Function(
@@ -69,6 +93,41 @@ Future<void> showReshelveSheet(
   ).whenComplete(holding.dispose);
 }
 
+/// Opens the re-shelve review over a stored `shelf_delete` proposal, in a §15
+/// sheet: rows from `capture.sources`, presets from `result.proposals`, the
+/// selects over the live shelves (`deleting` ones are already gone from the
+/// tags stream). Not now closes it and the proposal keeps waiting.
+Future<void> showStoredReshelveSheet(
+  BuildContext context, {
+  required String title,
+  required String deletedId,
+  required List<ReshelveItem> sources,
+  required StoredReshelve stored,
+}) {
+  final holding = ValueNotifier<bool>(false);
+  return KitOverlaySheet.show(
+    context,
+    icon: Icons.drive_file_move_outline,
+    title: 'Re-shelve $title',
+    subtitle: 'The shelf is deleted. Choose where its sources go next.',
+    width: 560,
+    holding: holding,
+    builder: (ctx) => Consumer<TagsNotifier>(
+      builder: (ctx, tags, _) => ShelfReshelveReview(
+        title: title,
+        sources: sources,
+        shelves: [
+          for (final t in tags.tags)
+            if (t.id != deletedId) t,
+        ],
+        stored: stored,
+        onBusy: (b) => holding.value = b,
+        onDone: () => Navigator.of(ctx).pop(),
+      ),
+    ),
+  ).whenComplete(holding.dispose);
+}
+
 class ShelfReshelveReview extends StatefulWidget {
   final String title;
   final List<ReshelveItem> sources;
@@ -81,6 +140,9 @@ class ShelfReshelveReview extends StatefulWidget {
   /// Seams for the widget test; default to the canonical builders.
   final SuggestReshelve? suggest;
   final ApplyBackfill? apply;
+
+  /// Set: the review of a stored proposal (no read, one apply).
+  final StoredReshelve? stored;
 
   /// A row's create row, with the query; default opens §Creating a shelf's
   /// form, and calls back with the new id once `fn_create_tag` resolved.
@@ -96,6 +158,7 @@ class ShelfReshelveReview extends StatefulWidget {
     this.suggest,
     this.apply,
     this.create,
+    this.stored,
   });
 
   static void _noBusy(bool _) {}
@@ -114,6 +177,9 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
   bool _applying = false;
   String? _applyError;
 
+  /// A stored apply that could not file everything: `{filed, skipped}`.
+  Map<String, dynamic>? _summary;
+
   SuggestReshelve get _suggest =>
       widget.suggest ?? Api.instance.suggestReshelve;
   ApplyBackfill get _apply => widget.apply ?? Api.instance.applyShelfBackfill;
@@ -121,7 +187,71 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
   @override
   void initState() {
     super.initState();
-    _read();
+    final stored = widget.stored;
+    if (stored != null) {
+      _seed(stored.result);
+    } else {
+      _read();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ShelfReshelveReview old) {
+    super.didUpdateWidget(old);
+    final stored = widget.stored;
+    if (stored != null && stored.key != old.stored?.key) _seed(stored.result);
+  }
+
+  void _seed(Map<String, dynamic> result) {
+    final proposals = [
+      for (final x in (result['proposals'] as List?) ?? const [])
+        (x as Map).cast<String, dynamic>(),
+    ];
+    _choice
+      ..clear()
+      ..addEntries(widget.sources.map((s) => MapEntry(s.id, _unshelved)));
+    for (final p in proposals) {
+      _choice[p['documentId'] as String] = p['tagId'] as String;
+    }
+    _proposals = proposals;
+    _shelfCount = (result['shelves'] as num?)?.toInt() ?? 0;
+    _reading = false;
+  }
+
+  Future<void> _applyStored(StoredReshelve stored) async {
+    final assignments = [
+      for (final s in widget.sources)
+        if ((_choice[s.id] ?? _unshelved).isNotEmpty)
+          {'documentId': s.id, 'tagId': _choice[s.id]!},
+    ];
+    if (assignments.isEmpty) return;
+    setState(() {
+      _applying = true;
+      _applyError = null;
+    });
+    widget.onBusy(true);
+    try {
+      final res = await stored.apply(assignments);
+      if (!mounted) return;
+      final sk = (res['skipped'] as Map?)?.cast<String, dynamic>() ?? const {};
+      int n(String k) => ((sk[k] as List?) ?? const []).length;
+      final missed = n('deleted') + n('not_ready') + n('shelf_gone');
+      setState(() => _applying = false);
+      widget.onBusy(false);
+      if (missed > 0) {
+        setState(() => _summary = {'filed': res['filed'] ?? 0, 'skipped': sk});
+        return;
+      }
+      widget.onDone();
+    } catch (e) {
+      // §18 rule 2's shape: the sheet stays, with the sentence.
+      if (!mounted) return;
+      setState(() {
+        _applyError = _detail(e);
+        _applying = false;
+      });
+      widget.onBusy(false);
+    }
   }
 
   Future<void> _read() async {
@@ -175,6 +305,8 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
 
   Future<void> _file() async {
     if (_applying) return;
+    final stored = widget.stored;
+    if (stored != null) return _applyStored(stored);
     final groups = <String, List<String>>{};
     for (final s in widget.sources) {
       final t = _choice[s.id] ?? _unshelved;
@@ -267,8 +399,45 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
       );
     }
 
+    final summary = _summary;
+    if (summary != null) {
+      final sk = summary['skipped'] as Map<String, dynamic>;
+      int k(String key) => ((sk[key] as List?) ?? const []).length;
+      final said = [
+        if (k('deleted') > 0)
+          '${k('deleted')} ${k('deleted') == 1 ? 'was' : 'were'} deleted since '
+              'this was suggested',
+        if (k('not_ready') > 0)
+          '${k('not_ready')} ${k('not_ready') == 1 ? 'is' : 'are'} being '
+              'processed again',
+        if (k('shelf_gone') > 0)
+          '${k('shelf_gone')} ${k('shelf_gone') == 1 ? 'was' : 'were'} going '
+              'to a shelf that is gone',
+      ];
+      final filed = (summary['filed'] as num).toInt();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text.rich(
+            TextSpan(children: [
+              const TextSpan(text: 'Filed '),
+              TextSpan(text: '$filed', style: em),
+              TextSpan(
+                  text: ' ${filed == 1 ? 'source' : 'sources'}. Of the rest, '
+                      '${said.join('; ')} — those were left as they are.'),
+            ]),
+            style: lede,
+          ),
+          const SizedBox(height: 14),
+          _actions([KitButton.primary('Done', onPressed: widget.onDone)]),
+        ],
+      );
+    }
+
     final t = Tokens.of(context);
     final m = _proposals.length;
+    final unconsidered = widget.stored?.unconsidered ?? 0;
     final reasons = {
       for (final p in _proposals)
         p['documentId'] as String: (p['reason'] as String?) ?? ''
@@ -296,6 +465,11 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
             'any source you want to file.',
             style: lede,
           ),
+        if (unconsidered > 0)
+          KitProcNote(
+              '$unconsidered more ${unconsidered == 1 ? 'source' : 'sources'} '
+              'on this shelf ${unconsidered == 1 ? 'was' : 'were'} not asked '
+              'about.'),
         const SizedBox(height: 12),
         for (final s in widget.sources)
           _row(context, t, s, _choice[s.id] ?? _unshelved, reasons[s.id]),

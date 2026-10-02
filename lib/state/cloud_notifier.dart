@@ -85,7 +85,11 @@ class CloudNotifier extends ChangeNotifier {
   /// still `awaiting_review`; this stops sending further chunks too, because
   /// the queue is down, not that file. Reading neither list put a queue outage
   /// under "success".
-  Future<String?> reviewJobs(List<String> jobIds, String action) async {
+  ///
+  /// [names] names the files a refusal is about when the caller holds rows
+  /// this notifier's 50-newest window does not (For your review's queue).
+  Future<String?> reviewJobs(List<String> jobIds, String action,
+      {Map<String, String>? names}) async {
     if (jobIds.isEmpty) return null;
     _reviewOutcome = null;
     _notify();
@@ -112,7 +116,10 @@ class CloudNotifier extends ChangeNotifier {
       }
       _reviewOutcome = ReviewOutcome(
         skipped: skipped,
-        failedNames: [for (final id in failed) _nameOf(id)],
+        failedNames: [
+          for (final id in failed)
+            (names?[id]?.isNotEmpty ?? false) ? names![id]! : _nameOf(id)
+        ],
         notAttempted: failed.isEmpty ? 0 : jobIds.length - attempted,
       );
       _notify();

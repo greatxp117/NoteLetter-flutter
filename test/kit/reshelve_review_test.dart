@@ -312,4 +312,83 @@ void main() {
       expect(pick.width, greaterThan(300), reason: 'the whole line, not its 180 floor');
     });
   });
+
+  group('from a stored proposal (4.101.0)', () {
+    Future<List<List<Map<String, String>>>> mountStored(WidgetTester tester,
+        {Map<String, dynamic> answer = const {'filed': 2, 'skipped': {}},
+        int unconsidered = 0,
+        VoidCallback? onDone}) async {
+      final sent = <List<Map<String, String>>>[];
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: ShelfReshelveReview(
+              title: 'Misc',
+              sources: _sources,
+              shelves: _shelves,
+              onDone: onDone ?? () {},
+              suggest: (_) async => throw StateError('a stored review reads nothing'),
+              stored: StoredReshelve(
+                key: 'tsk-1:1',
+                result: const {
+                  'scanned': 3,
+                  'shelves': 2,
+                  'proposals': [
+                    {'documentId': 'd1', 'tagId': 't-bread', 'reason': 'About bread.'},
+                  ],
+                },
+                unconsidered: unconsidered,
+                apply: (a) async {
+                  sent.add(a);
+                  return answer;
+                },
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      return sent;
+    }
+
+    testWidgets('presets from the result and files in ONE apply', (tester) async {
+      var done = 0;
+      final sent = await mountStored(tester, onDone: () => done++);
+      expect(_picks(tester), ['t-bread', '', '']);
+      tester.widget<KitShelfSelect>(find.byKey(const ValueKey('reshelve-pick-d2'))).onChanged('t-tax');
+      await tester.pump();
+      await tester.tap(find.text('File 2 sources'));
+      await tester.pumpAndSettle();
+      expect(sent, [
+        [
+          {'documentId': 'd1', 'tagId': 't-bread'},
+          {'documentId': 'd2', 'tagId': 't-tax'},
+        ]
+      ]);
+      expect(done, 1);
+    });
+
+    testWidgets('what the writer skipped is said before Done; unconsidered is said',
+        (tester) async {
+      var done = 0;
+      await mountStored(tester,
+          unconsidered: 2,
+          answer: const {
+            'filed': 0,
+            'skipped': {'deleted': ['d1'], 'not_ready': [], 'shelf_gone': []},
+          },
+          onDone: () => done++);
+      expect(find.text('2 more sources on this shelf were not asked about.'), findsOneWidget);
+      await tester.tap(find.text('File 1 source'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('1 was deleted since this was suggested'), findsOneWidget);
+      expect(done, 0);
+      await tester.tap(find.text('Done'));
+      expect(done, 1);
+    });
+  });
 }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../pages/tags/shelf_sheet.dart';
 import '../shared/local_flags.dart';
 import '../state/activity_notifier.dart';
+import '../state/review_inbox.dart';
 import '../state/auth_notifier.dart';
 import '../state/documents_notifier.dart';
 import '../state/theme_notifier.dart';
@@ -71,6 +72,9 @@ class _RailContentState extends State<RailContent> {
       if (!mounted) return;
       context.read<DocumentsNotifier>().start();
       context.read<ActivityNotifier>().start();
+      // For your review's attention count is seen from every screen but its
+      // own, so the rail opens the one inbox too (INV-30).
+      context.read<ReviewInbox>().start();
     });
     LocalFlags.ensureLoaded();
   }
@@ -124,6 +128,20 @@ class _RailContentState extends State<RailContent> {
               active: route == '/',
               onTap: () => go('/'),
             ),
+            // 4.100.0 (ADR-135): directly under Home, in the unlabelled lead
+            // group, carrying §1.2's attention count — the same object the
+            // page's folio reads, so the two cannot disagree.
+            Consumer<ReviewInbox>(builder: (context, inbox, _) {
+              final count = inbox.view.count;
+              return KitNavItem(
+                icon: Icons.inbox_outlined,
+                label: 'For your review',
+                active: route == '/review',
+                onTap: () => go('/review'),
+                badge: kitAttentionLabel(count),
+                badgeUnmeasured: count == null,
+              );
+            }),
             const KitRailGroupLabel('Knowledge'),
             KitRailCard(
               icon: Icons.menu_book_outlined,

@@ -75,6 +75,9 @@ class KitProcPill extends StatelessWidget {
 /// title, as web's does at 720.
 class KitProcCard extends StatelessWidget {
   final String kind;
+
+  /// Replaces the File badge in the 32×40 slot — §22's kind mark.
+  final Widget? mark;
   final String title;
   final String subtitle;
   final Widget pill;
@@ -91,6 +94,7 @@ class KitProcCard extends StatelessWidget {
     required this.pill,
     required this.foot,
     this.failed = false,
+    this.mark,
   });
 
   @override
@@ -135,7 +139,7 @@ class KitProcCard extends StatelessWidget {
                   ? CrossAxisAlignment.start
                   : CrossAxisAlignment.center,
               children: [
-                KitFileBadge(kind, size: KitBadgeSize.proc),
+                mark ?? KitFileBadge(kind, size: KitBadgeSize.proc),
                 const SizedBox(width: 14),
                 Expanded(child: info),
                 if (!compact) ...[
@@ -192,7 +196,9 @@ class KitProcActive extends StatelessWidget {
 /// optional §14.2 [failure], then the actions — trailing beside the sentence
 /// on a wide row, under it (right-aligned) below the compact width.
 class KitProcAttention extends StatelessWidget {
-  final String detail;
+  /// Null: the strip holds only its [failure] and actions (§22 — a proposal
+  /// whose kind no renderer lists has no one-line summary to give).
+  final String? detail;
   final Widget? failure;
   final List<Widget> actions;
 
@@ -206,13 +212,17 @@ class KitProcAttention extends StatelessWidget {
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(detail,
-            style: AppTheme.serif(
-                fontSize: 14,
-                height: 20 / 14,
-                fontStyle: FontStyle.italic,
-                color: t.fgLede)),
-        if (failure != null) ...[const SizedBox(height: 6), failure!],
+        if (detail != null)
+          Text(detail!,
+              style: AppTheme.serif(
+                  fontSize: 14,
+                  height: 20 / 14,
+                  fontStyle: FontStyle.italic,
+                  color: t.fgLede)),
+        if (failure != null) ...[
+          if (detail != null) const SizedBox(height: 6),
+          failure!,
+        ],
       ],
     );
     final acts = Wrap(
@@ -241,6 +251,86 @@ class KitProcAttention extends StatelessWidget {
                 acts,
               ],
             ),
+    );
+  }
+}
+
+/// §22 · Review row (4.101.0, ADR-136) — one background task in For your
+/// review: the processing card's family, because it is the same kind of
+/// thing — work the reader started, with a state and a next step.
+///
+/// Required parts: a **kind mark** (the 32×40 plate; a shelf's colour dot for
+/// a shelf task) · the subject [title] over a mono [detail] line built only
+/// from measured values · a §6.3 [pill] in the work tones · on a row that
+/// [waiting]s on the reader, the ruled strip with its [sentence], any
+/// [failure], and the [actions] (one primary beside Dismiss). A running row
+/// has no strip: work in flight is not the reader's to discard from here.
+class KitReviewRow extends StatelessWidget {
+  final String title;
+  final String detail;
+  final Widget pill;
+
+  /// Draw the shelf mark — the dot in [shelfColor] (a stored colour token, or
+  /// null for the subtle default). False: the plate alone.
+  final bool shelfMark;
+  final String? shelfColor;
+  final bool failed;
+  final bool waiting;
+  final String? sentence;
+  final Widget? failure;
+  final List<Widget> actions;
+
+  const KitReviewRow({
+    super.key,
+    required this.title,
+    required this.detail,
+    required this.pill,
+    this.shelfMark = false,
+    this.shelfColor,
+    this.failed = false,
+    this.waiting = false,
+    this.sentence,
+    this.failure,
+    this.actions = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    // `.review-kind`: 32×40, --r-xs, 1px --border on --surface-sunken; the
+    // dot 12px at --r-pill with a 1px --border-strong hairline.
+    final mark = Container(
+      width: 32,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: t.surfaceSunken,
+        borderRadius: AppRadius.xsR,
+        border: Border.all(color: t.border),
+      ),
+      child: shelfMark
+          ? Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: AppColors.shelfColor(shelfColor) ?? t.fgSubtle, // pair-ok: a shelf's stored colour is a fixed data token
+                shape: BoxShape.circle,
+                border: Border.all(color: t.borderStrong),
+              ),
+            )
+          : null,
+    );
+    return KitProcCard(
+      kind: '',
+      mark: mark,
+      title: title,
+      subtitle: detail,
+      pill: pill,
+      failed: failed,
+      foot: waiting
+          ? KitProcAttention(
+              detail: sentence, failure: failure, actions: actions)
+          : const SizedBox.shrink(),
     );
   }
 }

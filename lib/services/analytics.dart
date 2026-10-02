@@ -97,6 +97,8 @@ const Map<String, String> screenNames = <String, String>{
   '/ask/thread/:threadId': 'ask',
   '/chat': 'ask',
   '/activity': 'activity',
+  // 4.100.0 (ADR-135) — the reference's `review` token.
+  '/review': 'review',
   '/sources': 'sources',
   '/settings': 'settings',
   '/settings/notifications': 'notification-settings',
