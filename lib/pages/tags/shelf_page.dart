@@ -159,10 +159,7 @@ class _ShelfPageState extends State<ShelfPage> {
   Future<void> _delete(Tag shelf, List<Document> vols, List<Tag> all) async {
     final tags = context.read<TagsNotifier>();
     final nav = Navigator.of(context, rootNavigator: true);
-    final others = [
-      for (final s in all)
-        if (s.id != shelf.id) ReshelveItem(s.id, s.title),
-    ];
+    final others = [for (final s in all) if (s.id != shelf.id) s];
     final canReshelve = vols.isNotEmpty && others.isNotEmpty;
     final orphans =
         vols.where((d) => d.tagIds.every((t) => t == shelf.id)).length;
@@ -204,7 +201,7 @@ class _ShelfPageState extends State<ShelfPage> {
     context.go('/shelves');
     if (canReshelve && reshelveOn && nav.mounted) {
       showReshelveSheet(nav.context,
-          title: title, sources: sources, shelves: others);
+          title: title, deletedId: shelf.id, sources: sources);
     }
   }
 

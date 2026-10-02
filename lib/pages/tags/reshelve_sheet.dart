@@ -10,13 +10,17 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../models/tag.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../state/tags_notifier.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
+import 'shelf_sheet.dart' show showShelfSheet;
 
-/// `{id, title}` — a captured source, or a remaining shelf.
+/// `{id, title}` — a captured source.
 class ReshelveItem {
   final String id;
   final String title;
@@ -32,11 +36,15 @@ typedef ApplyBackfill = Future<Map<String, dynamic>> Function(
     String tagId, List<String> documentIds);
 
 /// Opens §15's sheet on the review. Held open while a filing is in flight.
+///
+/// The rows' §20.2 selects read the shelves LIVE (every shelf but [deletedId]):
+/// each draws its shelf's dot and count, and a shelf created from one row's
+/// create row appears in all of them.
 Future<void> showReshelveSheet(
   BuildContext context, {
   required String title,
+  required String deletedId,
   required List<ReshelveItem> sources,
-  required List<ReshelveItem> shelves,
 }) {
   final holding = ValueNotifier<bool>(false);
   return KitOverlaySheet.show(
@@ -46,12 +54,17 @@ Future<void> showReshelveSheet(
     subtitle: 'The shelf is deleted. Choose where its sources go next.',
     width: 560,
     holding: holding,
-    builder: (ctx) => ShelfReshelveReview(
-      title: title,
-      sources: sources,
-      shelves: shelves,
-      onBusy: (b) => holding.value = b,
-      onDone: () => Navigator.of(ctx).pop(),
+    builder: (ctx) => Consumer<TagsNotifier>(
+      builder: (ctx, tags, _) => ShelfReshelveReview(
+        title: title,
+        sources: sources,
+        shelves: [
+          for (final t in tags.tags)
+            if (t.id != deletedId) t,
+        ],
+        onBusy: (b) => holding.value = b,
+        onDone: () => Navigator.of(ctx).pop(),
+      ),
     ),
   ).whenComplete(holding.dispose);
 }
@@ -59,13 +72,19 @@ Future<void> showReshelveSheet(
 class ShelfReshelveReview extends StatefulWidget {
   final String title;
   final List<ReshelveItem> sources;
-  final List<ReshelveItem> shelves;
+
+  /// Every remaining shelf — whole tags, for the §20.2 selects.
+  final List<Tag> shelves;
   final VoidCallback onDone;
   final ValueChanged<bool> onBusy;
 
   /// Seams for the widget test; default to the canonical builders.
   final SuggestReshelve? suggest;
   final ApplyBackfill? apply;
+
+  /// A row's create row, with the query; default opens §Creating a shelf's
+  /// form, and calls back with the new id once `fn_create_tag` resolved.
+  final void Function(String name, ValueChanged<String> created)? create;
 
   const ShelfReshelveReview({
     super.key,
@@ -76,6 +95,7 @@ class ShelfReshelveReview extends StatefulWidget {
     this.onBusy = _noBusy,
     this.suggest,
     this.apply,
+    this.create,
   });
 
   static void _noBusy(bool _) {}
@@ -301,52 +321,64 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
   Widget _row(BuildContext context, Tokens t, ReshelveItem s, String tagId,
       String? reason) {
     final filed = tagId.isNotEmpty && _filed.contains(tagId);
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(s.title.isEmpty ? 'Untitled' : s.title,
+            style: KitText.body(context)),
+        if (reason != null && reason.isNotEmpty)
+          Text(reason,
+              style: KitText.meta(context).copyWith(color: t.fgMuted)),
+      ],
+    );
+    final control = filed
+        ? Text('Filed', style: KitText.meta(context))
+        : KitShelfSelect(
+            key: ValueKey('reshelve-pick-${s.id}'),
+            value: tagId,
+            shelves: widget.shelves,
+            none: 'Leave unshelved',
+            label: 'Shelf for ${s.title.isEmpty ? 'Untitled' : s.title}',
+            disabled: _applying,
+            onChanged: (v) => setState(() => _choice[s.id] = v),
+            onCreate: (name) => _create(name, (id) {
+              if (mounted) setState(() => _choice[s.id] = id);
+            }),
+          );
+    // `.rs-row`: the select beside the title, gap 10; at ≤ 560 it drops under
+    // the title and takes the whole line.
+    final phone = MediaQuery.sizeOf(context).width <= 560;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: t.rule)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: phone
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [text, const SizedBox(height: 10), control],
+            )
+          : Row(
               children: [
-                Text(s.title.isEmpty ? 'Untitled' : s.title,
-                    style: KitText.body(context)),
-                if (reason != null && reason.isNotEmpty)
-                  Text(reason,
-                      style: KitText.meta(context)
-                          .copyWith(color: t.fgMuted)),
+                Expanded(child: text),
+                const SizedBox(width: 10),
+                control,
               ],
             ),
-          ),
-          const SizedBox(width: 12),
-          if (filed)
-            Text('Filed', style: KitText.meta(context))
-          else
-            SizedBox(
-              width: 200,
-              child: KitSelect<String>(
-                key: ValueKey('reshelve-pick-${s.id}'),
-                face: KitFieldFace.serif,
-                value: tagId,
-                options: [_unshelved, for (final sh in widget.shelves) sh.id],
-                label: (id) => id.isEmpty
-                    ? 'Leave unshelved'
-                    : widget.shelves
-                            .where((sh) => sh.id == id)
-                            .firstOrNull
-                            ?.title ??
-                        id,
-                onChanged: _applying
-                    ? null
-                    : (v) => setState(() => _choice[s.id] = v),
-              ),
-            ),
-        ],
-      ),
+    );
+  }
+
+  void _create(String name, ValueChanged<String> created) {
+    final seam = widget.create;
+    if (seam != null) return seam(name, created);
+    showShelfSheet(
+      context,
+      canBackfill: true,
+      land: null,
+      initialName: name,
+      createSubtitle: "It becomes this source's choice. Nothing is filed "
+          'until you choose File.',
+      onCreated: created,
     );
   }
 

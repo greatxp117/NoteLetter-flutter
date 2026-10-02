@@ -15,6 +15,7 @@ import '../services/firestore_service.dart';
 import '../shared/extraction_markers.dart';
 import '../state/tags_notifier.dart';
 import 'reader/content_form_action.dart';
+import 'reader/delete_source.dart';
 import 'reader/history_panel.dart';
 import 'reader/listen_panel.dart';
 import 'reader/manuscript_panel.dart';
@@ -516,6 +517,15 @@ class _ReaderPageState extends State<ReaderPage> {
                           icon: Icons.mail_outlined,
                           onPressed: () => context.go('/settings'),
                         ),
+                        // reader.md §Deleting a source (4.105.0, ADR-138).
+                        if (DeleteSourceAction.offeredFor(doc))
+                          DeleteSourceAction(
+                            docId: widget.docId,
+                            doc: doc,
+                            passages: _chunks.length,
+                            shelves: context.watch<TagsNotifier>().tags,
+                            onDeleted: _goBack,
+                          ),
                       ],
                     ),
                     _bylineRow(doc),
@@ -602,15 +612,22 @@ class _ReaderPageState extends State<ReaderPage> {
       widget.from,
       tags: context.watch<TagsNotifier>().tags,
     );
-    return KitBackControl(
-      origin.label,
-      // A PUSHED reader (a citation's Open, ADR-101) pops back to the screen
-      // that pushed it, which is the same place `origin.path` names and keeps
-      // that screen's own state. Only a reader with no stack behind it — a cold
-      // open — navigates.
-      onTap: () =>
-          context.canPop() ? context.pop() : context.go(origin.path),
-    );
+    return KitBackControl(origin.label, onTap: _goBack);
+  }
+
+  /// §The way back. A PUSHED reader (a citation's Open, ADR-101) pops back to
+  /// the screen that pushed it, which is the same place `origin.path` names and
+  /// keeps that screen's own state. Only a reader with no stack behind it — a
+  /// cold open — navigates. A deleted source leaves the same way.
+  void _goBack() {
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(readerOrigin(widget.from,
+            tags: context.read<TagsNotifier>().tags)
+        .path);
   }
 
   /// 404 / foreign document, and a document that could not be read at all.
