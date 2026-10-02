@@ -55,17 +55,6 @@ class TagsNotifier extends ChangeNotifier {
     }
   }
 
-  Future<String?> deleteTag(String tagId) async {
-    try {
-      await Api.instance.deleteTag(tagId);
-      return null;
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (_) {
-      return 'Could not delete the tag.';
-    }
-  }
-
   /// Persist accepted suggestions in one batch.
   Future<String?> approveTags(List<Map<String, dynamic>> tags) async {
     try {

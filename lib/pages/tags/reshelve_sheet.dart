@@ -59,40 +59,6 @@ typedef SuggestReshelve = Future<Map<String, dynamic>> Function(
 typedef ApplyBackfill = Future<Map<String, dynamic>> Function(
     String tagId, List<String> documentIds);
 
-/// Opens §15's sheet on the review. Held open while a filing is in flight.
-///
-/// The rows' §20.2 selects read the shelves LIVE (every shelf but [deletedId]):
-/// each draws its shelf's dot and count, and a shelf created from one row's
-/// create row appears in all of them.
-Future<void> showReshelveSheet(
-  BuildContext context, {
-  required String title,
-  required String deletedId,
-  required List<ReshelveItem> sources,
-}) {
-  final holding = ValueNotifier<bool>(false);
-  return KitOverlaySheet.show(
-    context,
-    icon: Icons.drive_file_move_outline,
-    title: 'Re-shelve $title',
-    subtitle: 'The shelf is deleted. Choose where its sources go next.',
-    width: 560,
-    holding: holding,
-    builder: (ctx) => Consumer<TagsNotifier>(
-      builder: (ctx, tags, _) => ShelfReshelveReview(
-        title: title,
-        sources: sources,
-        shelves: [
-          for (final t in tags.tags)
-            if (t.id != deletedId) t,
-        ],
-        onBusy: (b) => holding.value = b,
-        onDone: () => Navigator.of(ctx).pop(),
-      ),
-    ),
-  ).whenComplete(holding.dispose);
-}
-
 /// Opens the re-shelve review over a stored `shelf_delete` proposal, in a §15
 /// sheet: rows from `capture.sources`, presets from `result.proposals`, the
 /// selects over the live shelves (`deleting` ones are already gone from the

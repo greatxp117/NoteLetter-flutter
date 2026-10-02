@@ -40,6 +40,9 @@ class ReadLogged {
 /// Direct Firestore access (INV-02): documents/activity/tags are realtime
 /// subscriptions; newsletters/settings/import jobs are one-shot reads.
 /// Every query filters `where('user_id', '==', uid)` — mirrors web `api.js`.
+/// A tag the background delete has marked (4.101.0): `status == "deleting"`.
+bool isDeletingTag(Map<String, dynamic> data) => data['status'] == 'deleting';
+
 class FirestoreService {
   static FirestoreService _instance = FirestoreService._();
 
@@ -190,7 +193,14 @@ class FirestoreService {
         .where('user_id', isEqualTo: uid)
         .orderBy('created_at', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map((d) {
+        .map((snap) => snap.docs
+            // A shelf being deleted in the background (4.101.0, ADR-136) is
+            // gone to the reader the moment they confirmed: the rail, the
+            // index, every picker and every source's shelf row. One filter
+            // here reaches all of them; a delete that fails puts the mark
+            // back, and the shelf reappears.
+            .where((d) => !isDeletingTag(d.data()))
+            .map((d) {
               final data = Map<String, dynamic>.from(d.data());
               data.remove('embedding');
               return Tag.fromJson(d.id, data);

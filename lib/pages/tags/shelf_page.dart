@@ -4,11 +4,13 @@ import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
 import '../../models/tag.dart';
+import '../../services/api.dart';
+import '../../services/api_service.dart';
 import '../../state/documents_notifier.dart';
 import '../../state/tags_notifier.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
-import 'reshelve_sheet.dart';
 import 'shelf_parts.dart';
 import 'shelf_sheet.dart';
 import 'split_shelf_sheet.dart';
@@ -152,18 +154,19 @@ class _ShelfPageState extends State<ShelfPage> {
   // from the button that was pressed.
   //
   // 4.85.0 (ADR-119): the confirmation names the sources left on no shelf and
-  // offers to re-shelve them. The ids are captured BEFORE the delete — after
-  // it no query can find what the shelf held — and the review sheet opens on
-  // the root navigator, because this page has nothing to render once its
-  // shelf is gone.
+  // offers to re-shelve them.
+  //
+  // 4.101.0 (ADR-136 — library.md §Deleting a shelf): the delete runs in the
+  // BACKGROUND. This call only records the task and marks the shelf
+  // `deleting`, so it is fast, and the confirmation still holds until it
+  // answers (§18 rule 1). The capture, the strip and the proposal are the
+  // worker's; whatever it proposes waits in For your review, not in a sheet
+  // that closing loses.
   Future<void> _delete(Tag shelf, List<Document> vols, List<Tag> all) async {
-    final tags = context.read<TagsNotifier>();
-    final nav = Navigator.of(context, rootNavigator: true);
     final others = [for (final s in all) if (s.id != shelf.id) s];
     final canReshelve = vols.isNotEmpty && others.isNotEmpty;
     final orphans =
         vols.where((d) => d.tagIds.every((t) => t == shelf.id)).length;
-    final sources = [for (final d in vols) ReshelveItem(d.id, d.title)];
     final title = shelf.title;
     var reshelveOn = true;
     final body = 'The shelf and its settings are removed. Its '
@@ -185,8 +188,8 @@ class _ShelfPageState extends State<ShelfPage> {
                 value: reshelveOn,
                 title: 'Suggest new shelves for its sources',
                 subtitle: 'After the delete, NoteLetter suggests one of your '
-                    'other shelves for each. Nothing is filed until you '
-                    'choose.',
+                    'other shelves for each. They wait in For your review, '
+                    'and nothing is filed until you choose.',
                 onChanged: (v) => setLocal(() => reshelveOn = v),
               ),
             ],
@@ -195,14 +198,28 @@ class _ShelfPageState extends State<ShelfPage> {
       ),
       confirmLabel: 'Delete shelf',
       cancelLabel: 'Keep it',
-      onConfirm: () => tags.deleteTag(shelf.id),
+      onConfirm: () async {
+        try {
+          await Api.instance.requestTask('shelf_delete', {
+            'tagId': shelf.id,
+            'reshelve': canReshelve && reshelveOn,
+          });
+          return null;
+        } on ApiException catch (e) {
+          return e.message;
+        } catch (_) {
+          // Not swallowed: no envelope came back, so this is the §18 slot's
+          // sentence, rendered in the panel.
+          return 'The shelf could not be deleted right now.';
+        }
+      },
     );
     if (done != true || !mounted) return;
     context.go('/shelves');
-    if (canReshelve && reshelveOn && nav.mounted) {
-      showReshelveSheet(nav.context,
-          title: title, deletedId: shelf.id, sources: sources);
-    }
+    AppToast.show(
+        context,
+        'Deleting “$title” in the background. '
+        "You'll find it in For your review.");
   }
 
   void _findSources(Tag shelf) {
