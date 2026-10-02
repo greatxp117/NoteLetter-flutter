@@ -124,6 +124,18 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   'fn_suggest_reshelve': (b) => Api.instance
       .suggestReshelve((b['documentIds'] as List).cast<String>()),
   'fn_cancel_document': (b) => Api.instance.cancelDocument(b['docId']),
+  // For your review (4.100.0) and the background tasks (4.101.0–4.103.0).
+  // The negative cases' stray keys (`until`, `force`, an unknown kind) are
+  // ones no builder here can send; the loop then asserts only that the
+  // builder does not resolve on the error status.
+  'fn_review_documents': (b) =>
+      Api.instance.reviewDocuments(_strs(b['docIds']) ?? const []),
+  'fn_request_task': (b) => Api.instance.requestTask(
+      b['kind'] as String, Map<String, dynamic>.of(b)..remove('kind')),
+  'fn_resolve_task': (b) => Api.instance.resolveTask(
+      b['taskId'] as String,
+      b['action'] as String,
+      (b['decision'] as Map?)?.cast<String, dynamic>()),
   // Batch triage of held import jobs (4.45.0, ADR-083). `job_ids` and `action`
   // are snake_case on this endpoint, unlike most of the surface — the fixture
   // is the authority and the builder mirrors it.
@@ -287,6 +299,8 @@ const _suites = [
   // absent from here is the same silence the `_noBuilder` note describes, one
   // level up.
   'api/plans',
+  // 4.101.0 (ADR-136) — the background tasks For your review answers (F-72).
+  'api/tasks',
 ];
 
 // ── What this client does NOT drive, declared ───────────────────────────────
@@ -314,11 +328,6 @@ const _noBuilder = <String, String>{
       'sends this',
   'fn_reply_support_message':
       'there is no support console in this client (CHANGELOG 4.19.0)',
-  // For your review (4.100.0) — owed by QUEUE F-72, which builds the screen
-  // and this builder together. (The 4.101.0 task endpoints have no entry: their
-  // suite, api/tasks, is not in this client's list until F-72 adds it.)
-  'fn_review_documents':
-      'QUEUE F-72 — For your review\'s Dismiss (4.100.0, ADR-135)',
 };
 
 // A case with no `endpoint` at all asserts what the BACKEND stored, or that it

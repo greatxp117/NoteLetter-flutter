@@ -112,6 +112,12 @@ class Document {
   /// null is **not** stalled: absence is not evidence.
   final int? processingStallsAt;
 
+  /// 4.100.0 (ADR-135, INV-30) — when the reader dismissed this source from For
+  /// your review, in epoch millis; null while it is in the set. Written only by
+  /// `fn_review_documents`, and cleared by every re-entry into a failure, so a
+  /// retry that fails again brings it back.
+  final int? reviewDismissedAt;
+
   /// Is this run past its own stall moment? One comparison, no threshold.
   ///
   /// `fn_chunk_and_embed` is Pub/Sub-triggered with no retry, so a run its host
@@ -210,6 +216,7 @@ class Document {
     this.publishDate,
     this.processingStage,
     this.processingStallsAt,
+    this.reviewDismissedAt,
     this.finishedAt,
     this.nextLetterRequestedAt,
     this.errorMessage,
@@ -258,6 +265,7 @@ class Document {
       publishDate: publishDate,
       processingStage: processingStage,
       processingStallsAt: processingStallsAt,
+      reviewDismissedAt: reviewDismissedAt,
       finishedAt: finishedAt,
       nextLetterRequestedAt: nextLetterRequestedAt,
       errorMessage: errorMessage,
@@ -307,6 +315,7 @@ class Document {
       publishDate: publishDate,
       processingStage: processingStage,
       processingStallsAt: processingStallsAt,
+      reviewDismissedAt: reviewDismissedAt,
       finishedAt: finishedAt,
       nextLetterRequestedAt: nextLetterRequestedAt,
       errorMessage: errorMessage,
@@ -355,6 +364,7 @@ class Document {
       publishDate: publishDate,
       processingStage: processingStage,
       processingStallsAt: processingStallsAt,
+      reviewDismissedAt: reviewDismissedAt,
       finishedAt: finishedAt,
       nextLetterRequestedAt: nextLetterRequestedAt,
       errorMessage: errorMessage,
@@ -397,6 +407,7 @@ class Document {
       publishDate: json['publish_date'] as String?,
       processingStage: json['processing_stage'] as String?,
       processingStallsAt: tsMs(json['processing_stalls_at']),
+      reviewDismissedAt: tsMs(json['review_dismissed_at']),
       finishedAt: tsMs(json['finished_at']),
       nextLetterRequestedAt: tsMs(json['next_letter_requested_at']),
       errorMessage: json['error_message'] as String?,

@@ -20,6 +20,7 @@ import 'state/newsletter_notifier.dart';
 import 'state/scripture_letter_notifier.dart';
 import 'state/cloud_notifier.dart';
 import 'state/org_notifier.dart';
+import 'state/review_inbox.dart';
 import 'state/tags_notifier.dart';
 import 'state/support_notifier.dart';
 import 'state/theme_notifier.dart';
@@ -102,6 +103,9 @@ void main() async {
         ),
         ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
         ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
+        // For your review's one inbox (4.100.0, ADR-135, INV-30): the rail's
+        // attention count and the page read this same object.
+        ChangeNotifierProvider<ReviewInbox>(create: (_) => ReviewInbox()),
         ChangeNotifierProvider<TagsNotifier>(create: (_) => TagsNotifier()),
         ChangeNotifierProvider<SupportNotifier>(
           create: (_) => SupportNotifier(),

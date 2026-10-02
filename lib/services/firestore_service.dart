@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/activity_item.dart';
+import '../models/background_task.dart';
 import '../models/ask_thread.dart';
 import '../models/chunk.dart';
 import '../models/cloud_folder.dart';
@@ -210,6 +211,65 @@ class FirestoreService {
         .snapshots()
         .map((snap) =>
             snap.docs.map((d) => ImportJob.fromJson(d.id, d.data())).toList());
+  }
+
+  /// For your review's held imports (4.100.0, `screens/review.md` §Data):
+  /// `status == awaiting_review`, newest first, limit [limit]. Its own query —
+  /// NOT a window over [subscribeCloudImportJobs]'s 50 newest, where a file
+  /// held before the fiftieth job was invisible.
+  Stream<List<ImportJob>> subscribeHeldImportJobs({int limit = 500}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('cloud_import_jobs')
+        .where('user_id', isEqualTo: uid)
+        .where('status', isEqualTo: 'awaiting_review')
+        .orderBy('created_at', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => ImportJob.fromJson(d.id, d.data())).toList());
+  }
+
+  /// For your review's sources (4.100.0): `status in [error, skipped,
+  /// processing]`, newest first, limit [limit]. `processing` is read so a
+  /// stalled run can be seen crossing its threshold; a fresh one is not in the
+  /// needs-decision set.
+  Stream<List<Document>> subscribeAttentionDocuments({int limit = 500}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('documents')
+        .where('user_id', isEqualTo: uid)
+        .where('status', whereIn: const ['error', 'skipped', 'processing'])
+        .orderBy('created_at', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+              final data = Map<String, dynamic>.from(d.data());
+              data.remove('embedding');
+              return Document.fromJson(d.id, data);
+            }).toList());
+  }
+
+  /// The open background tasks (4.101.0, ADR-136) — in flight, waiting on the
+  /// reader, or failed. Closed ones have nothing left to say here; Activity is
+  /// their record. Index `(user_id, status, created_at desc)`.
+  Stream<List<BackgroundTask>> subscribeBackgroundTasks({int limit = 200}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('background_tasks')
+        .where('user_id', isEqualTo: uid)
+        .where('status', whereIn: const [
+          'queued', 'running', 'awaiting_review', 'applying', 'failed', //
+        ])
+        .orderBy('created_at', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => BackgroundTask.fromJson(d.id, d.data()))
+            .toList());
   }
 
   /// Realtime pending organization suggestions (1.2.0): `user_id ==`,

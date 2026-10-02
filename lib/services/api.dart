@@ -173,6 +173,33 @@ class Api {
   Future<Map<String, dynamic>> cancelDocument(String docId) =>
       _http.post('/fn_cancel_document', data: {'docId': docId});
 
+  /// For your review's Dismiss (4.100.0, ADR-135): takes the sources out of
+  /// the inbox and its count, and changes nothing else. At most 50 ids; the
+  /// 200's `skipped` ids are not a failure — something else already moved
+  /// them, and they leave by subscription.
+  Future<Map<String, dynamic>> reviewDocuments(List<String> docIds) =>
+      _http.post('/fn_review_documents',
+          data: {'docIds': docIds, 'action': 'dismiss'});
+
+  /// Start a background task (4.101.0, ADR-136; `api/tasks.md`): `kind` plus
+  /// the kind's closed key set — `{tagId, reshelve?}` for `shelf_delete`,
+  /// `{tagId}` for `shelf_backfill`/`shelf_split`, `{programId, documentId}`
+  /// for `syllabus_plan`, `{documentId}` for `reorg_plan`. 202 `{taskId,
+  /// status}`, or 200 with `existing: true` when that subject's slot is open.
+  Future<Map<String, dynamic>> requestTask(
+          String kind, Map<String, dynamic> fields) =>
+      _http.post('/fn_request_task', data: {'kind': kind, ...fields});
+
+  /// Answer a task: `apply` (with the kind's [decision]), `dismiss` or
+  /// `retry`. [decision] is sent only with `apply` — the key set is closed.
+  Future<Map<String, dynamic>> resolveTask(String taskId, String action,
+          [Map<String, dynamic>? decision]) =>
+      _http.post('/fn_resolve_task', data: {
+        'taskId': taskId,
+        'action': action,
+        if (decision != null) 'decision': decision,
+      });
+
   /// Retry from the failed stage — or, with [force], index a SKIPPED image
   /// anyway (4.47.0, ADR-085). [force] widens the endpoint's callable statuses
   /// to `error | skipped` and writes `force_process: true` onto the document,
