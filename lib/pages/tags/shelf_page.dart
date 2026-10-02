@@ -50,6 +50,15 @@ class _ShelfPageState extends State<ShelfPage> {
   bool _savingLetter = false;
   String? _letterError;
   String? _nameError;
+
+  /// "Find sources for this shelf" and "Split this shelf" start background
+  /// tasks (4.102.0, ADR-136); each holds its control while asking and keeps
+  /// a refusal beside it (§14.2).
+  bool _fillBusy = false;
+  String? _fillError;
+  bool _splitBusy = false;
+  bool _splitRequested = false;
+  String? _splitError;
   int _sort = 0;
 
   static const _weights = [KitSegment('Lead'), KitSegment('Mixed')];
@@ -222,14 +231,48 @@ class _ShelfPageState extends State<ShelfPage> {
         "You'll find it in For your review.");
   }
 
-  void _findSources(Tag shelf) {
-    final router = GoRouter.of(context);
-    showShelfSheet(
-      context,
-      canBackfill: true,
-      backfillFor: BackfillFor(shelf.id, shelf.title),
-      land: (id) => router.go('/shelves/$id'),
-    );
+  /// The proposal is a worker's and waits in For your review, where closing a
+  /// sheet cannot lose it (4.102.0).
+  Future<void> _findSources(Tag shelf) async {
+    setState(() {
+      _fillBusy = true;
+      _fillError = null;
+    });
+    final refused = await requestShelfBackfill(shelf.id);
+    if (!mounted) return;
+    setState(() {
+      _fillBusy = false;
+      _fillError = refused;
+    });
+    if (refused == null) AppToast.show(context, backfillStartedToast(shelf.title));
+  }
+
+  Future<void> _requestSplit(Tag shelf) async {
+    setState(() {
+      _splitBusy = true;
+      _splitError = null;
+    });
+    String? refused;
+    try {
+      await Api.instance.requestTask('shelf_split', {'tagId': shelf.id});
+    } on ApiException catch (e) {
+      refused = e.message;
+    } catch (_) {
+      // Not swallowed: no envelope came back; rendered beside the control.
+      refused = 'That request could not be completed.';
+    }
+    if (!mounted) return;
+    setState(() {
+      _splitBusy = false;
+      _splitError = refused;
+      _splitRequested = refused == null;
+    });
+    if (refused == null) {
+      AppToast.show(
+          context,
+          'Suggesting a split of “${shelf.title}” in the background. '
+          "You'll find it in For your review.");
+    }
   }
 
   @override
@@ -281,9 +324,11 @@ class _ShelfPageState extends State<ShelfPage> {
                   // ADR-117). Absent with no complete source: there is
                   // nothing to read, so the offer would be a no-op.
                   if (docs.complete.isNotEmpty)
-                    KitButton.ghost('Find sources for this shelf',
+                    KitButton.ghost(
+                        _fillBusy ? 'Asking…' : 'Find sources for this shelf',
                         icon: Icons.search,
-                        onPressed: () => _findSources(shelf)),
+                        onPressed:
+                            _fillBusy ? null : () => _findSources(shelf)),
                   _settings
                       ? KitButton.secondary('Settings',
                           icon: Icons.tune,
@@ -295,6 +340,10 @@ class _ShelfPageState extends State<ShelfPage> {
               ),
               if (error != null) ...[
                 KitFailureInline('This shelf could not be read — $error'),
+                const SizedBox(height: 14),
+              ],
+              if (_fillError != null) ...[
+                KitFailureInline(_fillError!),
                 const SizedBox(height: 14),
               ],
               // §8 — measured, every one: counted from the documents this
@@ -510,20 +559,32 @@ class _ShelfPageState extends State<ShelfPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                KitButton.secondary(
-                  'Split this shelf',
-                  icon: Icons.call_split,
-                  onPressed: () => SplitShelfSheet.show(
-                      context, shelf.id, shelf.title),
-                  // Nothing to reload after: tags are a live subscription
-                  // (INV-02), so the new shelves and the parent's recomputed
-                  // count arrive on their own.
-                ),
-                const SizedBox(height: 8),
-                KitRowNote(
-                  'Divide $volumes volumes into narrower shelves. '
-                  'Nothing changes until you confirm.',
-                ),
+                // 4.102.0: the suggestion runs in the background and its
+                // review is For your review's — a proposal that lived in a
+                // sheet here was lost the moment the sheet closed.
+                if (_splitRequested)
+                  const KitRowNote(
+                    'A split is being suggested — it will wait for you in '
+                    'For your review. Nothing changes until you confirm '
+                    'there.',
+                  )
+                else ...[
+                  KitButton.secondary(
+                    _splitBusy ? 'Asking…' : 'Split this shelf',
+                    icon: Icons.call_split,
+                    onPressed: _splitBusy ? null : () => _requestSplit(shelf),
+                  ),
+                  const SizedBox(height: 8),
+                  KitRowNote(
+                    'Divide $volumes volumes into narrower shelves. The '
+                    'suggestion waits in For your review; nothing changes '
+                    'until you confirm.',
+                  ),
+                ],
+                if (_splitError != null) ...[
+                  const SizedBox(height: 8),
+                  KitFailureInline(_splitError!),
+                ],
               ],
             ),
           ),

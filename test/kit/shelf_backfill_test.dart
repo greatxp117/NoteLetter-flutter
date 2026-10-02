@@ -219,8 +219,8 @@ void main() {
     expect(landed, 't1');
   });
 
-  testWidgets('the rail sheet continues from the form into the review',
-      (tester) async {
+  testWidgets('a create with the fill asked for starts the background task and '
+      'closes (4.102.0)', (tester) async {
     tester.view.physicalSize = const Size(900, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -232,12 +232,18 @@ void main() {
         return const Scaffold();
       }),
     ));
+    String? landed;
+    final asked = <String>[];
     showShelfSheet(
       host,
       canBackfill: true,
-      land: (_) {},
+      land: (id) => landed = id,
       create: (title, {description, color}) async => {'tagId': 't9'},
-      suggest: (_) async => {'scanned': 3, 'candidates': []},
+      suggest: (_) async => throw StateError('the fill is not read here any more'),
+      requestBackfill: (id) async {
+        asked.add(id);
+        return null;
+      },
     );
     await tester.pumpAndSettle();
     expect(find.text('New shelf'), findsOneWidget);
@@ -245,8 +251,69 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Create shelf'));
     await tester.pumpAndSettle();
-    expect(find.text('Fill Bread'), findsOneWidget);
-    expect(find.textContaining('looks like it belongs on'), findsOneWidget);
+    expect(asked, ['t9']);
+    expect(landed, 't9');
+    expect(find.text('Fill Bread'), findsNothing);
+    expect(find.textContaining('in the background'), findsOneWidget);
+  });
+
+  group('from a stored proposal (4.102.0)', () {
+    Future<List<List<String>>> mountStored(WidgetTester tester,
+        {required Map<String, dynamic> answer, VoidCallback? onDone}) async {
+      final sent = <List<String>>[];
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: ShelfBackfillReview(
+              tagId: 't1',
+              title: 'Bread',
+              onDone: onDone ?? () {},
+              onCancel: () {},
+              suggest: (_) async => throw StateError('a stored review reads nothing'),
+              stored: StoredBackfill(
+                key: 'tsk:1',
+                result: _two(),
+                apply: (ids) async {
+                  sent.add(ids);
+                  return answer;
+                },
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      return sent;
+    }
+
+    testWidgets('the candidates, all kept, filed in ONE apply', (tester) async {
+      var done = 0;
+      final sent = await mountStored(tester,
+          answer: {'filed': 2, 'skipped': {'deleted': [], 'not_ready': []}},
+          onDone: () => done++);
+      expect(find.text('Reading your library…'), findsNothing);
+      await tester.tap(find.text('File 2 sources'));
+      await tester.pumpAndSettle();
+      expect(sent, [
+        ['d1', 'd2']
+      ]);
+      expect(done, 1);
+    });
+
+    testWidgets('what went away meanwhile is said before Done', (tester) async {
+      var done = 0;
+      await mountStored(tester,
+          answer: {'filed': 1, 'skipped': {'deleted': ['d2'], 'not_ready': []}},
+          onDone: () => done++);
+      await tester.tap(find.text('File 2 sources'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('1 was deleted or re-indexed since this was suggested'),
+          findsOneWidget);
+      expect(done, 0);
+      await tester.tap(find.text('Done'));
+      expect(done, 1);
+    });
   });
 }
 

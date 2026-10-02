@@ -10,11 +10,15 @@ import 'package:flutter/material.dart';
 import '../../models/background_task.dart';
 import '../../services/api.dart';
 import '../tags/reshelve_sheet.dart';
+import '../tags/shelf_sheet.dart';
+import '../tags/split_shelf_sheet.dart';
 
 /// The kinds this client can review. A kind outside it is still a row — its
 /// subject, its status, Dismiss — and still counted (§22).
 bool canReviewTask(BackgroundTask t) =>
-    t.result != null && t.kind == 'shelf_delete';
+    t.result != null && _reviewable.contains(t.kind);
+
+const _reviewable = {'shelf_delete', 'shelf_backfill', 'shelf_split'};
 
 Future<void> openTaskReview(BuildContext context, BackgroundTask t) {
   final result = t.result;
@@ -41,6 +45,35 @@ Future<void> openTaskReview(BuildContext context, BackgroundTask t) {
           apply: (assignments) => Api.instance
               .resolveTask(t.id, 'apply', {'assignments': assignments}),
         ),
+      );
+    // 4.102.0: the candidates from `result.candidates`, all kept; File is one
+    // apply with the kept ids, and what went away meanwhile is said before
+    // Done. Done only closes: the reader came from the inbox.
+    case 'shelf_backfill':
+      return showShelfSheet(
+        context,
+        canBackfill: true,
+        land: null,
+        backfillFor: BackfillFor(
+          t.subjectId ?? '',
+          t.subjectTitle ?? 'this shelf',
+          stored: StoredBackfill(
+            key: key,
+            result: result,
+            apply: (ids) => Api.instance
+                .resolveTask(t.id, 'apply', {'documentIds': ids}),
+          ),
+        ),
+      );
+    // 4.102.0: the parts from `result.parts`, kept, skipped and renamed; the
+    // apply names each kept part by its index — never document ids.
+    case 'shelf_split':
+      return SplitShelfSheet.showStored(
+        context,
+        title: t.subjectTitle ?? 'this shelf',
+        proposal: result,
+        apply: (parts) =>
+            Api.instance.resolveTask(t.id, 'apply', {'parts': parts}),
       );
   }
   return Future.value();

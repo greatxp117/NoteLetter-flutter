@@ -14,11 +14,18 @@
 /// is an overlay sheet over the same screen — the same parts, in the same
 /// order, composed from the kit since F-08 (it was Material `TextField`s and a
 /// `FilledButton` before).
+///
+/// **From a stored proposal** (4.102.0, ADR-136 — web `SplitReview.jsx`): the
+/// `shelf_split` task's `result` is `fn_suggest_shelf_split`'s body exactly,
+/// and the apply is `fn_resolve_task {parts: [{index, title, description}]}` —
+/// the DOCUMENTS each part moves are the proposal's and are never sent; the
+/// server narrows each to the sources still on the shelf (INV-15 stays
+/// strict), reports the ones that left in `skipped.moved_away`, and answers a
+/// shelf that no longer divides with 409 STALE, said here (§14.2).
 library;
 
 import 'package:flutter/material.dart';
 
-import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -30,18 +37,30 @@ import '../../services/analytics.dart';
 /// the endpoint 400s there and a control that cannot work is worse than none.
 const splitMinDocuments = 5;
 
+typedef ApplySplit = Future<Map<String, dynamic>> Function(
+    List<Map<String, dynamic>> parts);
+
 class SplitShelfSheet extends StatefulWidget {
-  const SplitShelfSheet({super.key, required this.tagId, required this.title});
+  const SplitShelfSheet(
+      {super.key,
+      required this.title,
+      required this.proposal,
+      required this.apply});
 
-  final String tagId;
   final String title;
+  final Map<String, dynamic> proposal;
+  final ApplySplit apply;
 
-  static Future<bool?> show(BuildContext context, String tagId, String title) =>
+  static Future<bool?> showStored(BuildContext context,
+          {required String title,
+          required Map<String, dynamic> proposal,
+          required ApplySplit apply}) =>
       showModalBottomSheet<bool>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Tokens.of(context).surface,
-        builder: (_) => SplitShelfSheet(tagId: tagId, title: title),
+        builder: (_) =>
+            SplitShelfSheet(title: title, proposal: proposal, apply: apply),
       );
 
   @override
@@ -49,8 +68,10 @@ class SplitShelfSheet extends StatefulWidget {
 }
 
 class _SplitShelfSheetState extends State<SplitShelfSheet> {
-  bool _loading = true;
   bool _saving = false;
+
+  /// A stored apply that moved fewer than proposed: `(created, movedAway)`.
+  (int, int)? _summary;
   String? _error;
   String? _rationale;
   int _documentCount = 0;
@@ -63,7 +84,7 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _seed(widget.proposal);
   }
 
   @override
@@ -75,20 +96,19 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    try {
-      final res = await Api.instance.suggestShelfSplit(widget.tagId);
-      if (!mounted) return;
-      setState(() {
-        _documentCount = (res['documentCount'] as num?)?.toInt() ?? 0;
-        _unassigned =
-            (res['unassignedDocumentIds'] as List?)?.length ?? 0;
-        _rationale = res['rationale'] as String?;
-        _parts
-          ..clear()
-          ..addAll(((res['parts'] as List?) ?? const []).map((p) {
-            final m = (p as Map).cast<String, dynamic>();
+  void _seed(Map<String, dynamic> res) {
+    _documentCount = (res['documentCount'] as num?)?.toInt() ?? 0;
+    _unassigned = (res['unassignedDocumentIds'] as List?)?.length ?? 0;
+    _rationale = res['rationale'] as String?;
+    final parts = (res['parts'] as List?) ?? const [];
+    _parts
+      ..clear()
+      ..addAll([
+        for (var i = 0; i < parts.length; i++)
+          () {
+            final m = (parts[i] as Map).cast<String, dynamic>();
             return _Part(
+              index: i,
               title: TextEditingController(text: m['title'] as String? ?? ''),
               description: TextEditingController(
                   text: m['description'] as String? ?? ''),
@@ -96,16 +116,8 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
               documentIds:
                   ((m['documentIds'] as List?) ?? const []).cast<String>(),
             );
-          }));
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = _message(e);
-        _loading = false;
-      });
-    }
+          }(),
+      ]);
   }
 
   Future<void> _apply() async {
@@ -116,20 +128,29 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
       _error = null;
     });
     try {
-      await Api.instance.splitShelf(widget.tagId, [
+      final res = await widget.apply([
         for (final p in kept)
           {
+            'index': p.index,
             'title': p.title.text.trim(),
-            if (p.description.text.trim().isNotEmpty)
-              'description': p.description.text.trim(),
-            if (p.color != null) 'color': p.color,
-            'documentIds': p.documentIds,
+            'description': p.description.text.trim(),
           }
       ]);
       // That a shelf was split, and nothing about into what: every part carries
       // a title the reader wrote.
       Analytics.track('shelf_split');
-      if (mounted) Navigator.pop(context, true);
+      if (!mounted) return;
+      final away =
+          (((res['skipped'] as Map?)?['moved_away'] as List?) ?? const [])
+              .length;
+      if (away > 0) {
+        setState(() {
+          _saving = false;
+          _summary = (((res['created'] as List?) ?? const []).length, away);
+        });
+        return;
+      }
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       // Surfaced inline (§14.2), never swallowed — the ADR-022 lesson: a client
@@ -162,21 +183,19 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
           children: [
             Text('Split “${widget.title}”', style: KitText.h4(context)),
             const SizedBox(height: 6),
-            if (_loading)
-              const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 28),
-                  child: Center(child: CircularProgressIndicator()))
-            else if (_error != null && _parts.isEmpty) ...[
-              // The proposal itself was refused — a hole, not an empty state.
-              KitFailureBlock(
-                sentence: 'That shelf could not be analysed.',
-                detail: _error!,
+            if (_summary != null) ...[
+              Text(
+                'Created ${_summary!.$1} ${_summary!.$1 == 1 ? 'shelf' : 'shelves'}. '
+                '${_summary!.$2} ${_summary!.$2 == 1 ? 'source had' : 'sources had'} '
+                'left “${widget.title}” since this was suggested and '
+                '${_summary!.$2 == 1 ? 'was' : 'were'} not moved.',
+                style: KitText.reviewLede(context),
               ),
               const SizedBox(height: AppSpacing.s4),
               Align(
                 alignment: Alignment.centerRight,
-                child: KitButton.ghost('Close',
-                    onPressed: () => Navigator.pop(context, false)),
+                child: KitButton.primary('Done',
+                    onPressed: () => Navigator.pop(context, true)),
               ),
             ] else if (_parts.isEmpty) ...[
               // A 200 with no parts is "this shelf already looks coherent",
@@ -313,12 +332,15 @@ String _message(Object e) =>
 
 class _Part {
   _Part({
+    required this.index,
     required this.title,
     required this.description,
     required this.color,
     required this.documentIds,
   });
 
+  /// The part's place in the stored proposal — what the apply names it by.
+  final int index;
   final TextEditingController title;
   final TextEditingController description;
   final String? color;

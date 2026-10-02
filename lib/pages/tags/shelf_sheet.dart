@@ -17,6 +17,7 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import 'reshelve_sheet.dart' show ApplyBackfill;
 import 'shelf_parts.dart';
@@ -27,6 +28,42 @@ const shelfDescriptionMax = 300;
 typedef CreateTag = Future<Map<String, dynamic>> Function(String title,
     {String? description, String? color});
 typedef SuggestBackfill = Future<Map<String, dynamic>> Function(String tagId);
+
+/// Starts the background fill; resolves to the refusal's sentence, or null.
+typedef RequestBackfill = Future<String?> Function(String tagId);
+
+/// Finding sources for a shelf runs in the BACKGROUND (4.102.0, ADR-136): the
+/// proposal is made by a worker and waits in For your review, where closing a
+/// sheet cannot lose it. Null, or the refusal's sentence for the caller to show
+/// where the reader pressed (§14.2). Web `requestBackfill`.
+Future<String?> requestShelfBackfill(String tagId) async {
+  try {
+    await Api.instance.requestTask('shelf_backfill', {'tagId': tagId});
+    return null;
+  } on ApiException catch (e) {
+    return e.message;
+  } catch (_) {
+    // Not swallowed: no envelope came back; the caller renders this sentence.
+    return 'That request could not be completed.';
+  }
+}
+
+/// The local toast a started fill says (web `announce`).
+String backfillStartedToast(String title) =>
+    'Finding sources for “$title” in the background. '
+    "You'll find them in For your review.";
+
+/// A backfill review **from a stored proposal** (4.102.0 — `screens/review.md`
+/// §Proposals): the `shelf_backfill` task's `result` (the
+/// `fn_suggest_shelf_backfill` body) seeds the candidates, all kept, and
+/// filing is ONE `fn_resolve_task apply {documentIds}`.
+class StoredBackfill {
+  final String key;
+  final Map<String, dynamic> result;
+  final Future<Map<String, dynamic>> Function(List<String> documentIds) apply;
+  const StoredBackfill(
+      {required this.key, required this.result, required this.apply});
+}
 
 /// What the form hands on — only after `fn_create_tag` resolved.
 class ShelfCreated {
@@ -45,7 +82,11 @@ class BackfillFor {
   final String tagId;
   final String title;
   final bool created;
-  const BackfillFor(this.tagId, this.title, {this.created = false});
+
+  /// Set: review this stored proposal rather than reading one now.
+  final StoredBackfill? stored;
+  const BackfillFor(this.tagId, this.title,
+      {this.created = false, this.stored});
 }
 
 /// §15's sheet (480) over whatever the reader was on. Opens at the form, or —
@@ -57,8 +98,8 @@ class BackfillFor {
 /// new id to [onCreated] the moment `fn_create_tag` resolves — the reader
 /// stays where they are ([land] is null, so every exit only closes) and the
 /// host files its item through its own write. With the backfill choice the
-/// review still follows in this sheet: this client has not moved the fill to
-/// the background yet (4.102.0 — QUEUE F-72), and neither entry point differs.
+/// fill starts in the background (4.102.0, ADR-136) and the sheet closes: the
+/// proposal waits in For your review, said by a local toast.
 ///
 /// A write in flight holds the sheet open — scrim, back gesture and close
 /// included — so a create or a filing cannot be dismissed into looking like it
@@ -71,10 +112,13 @@ Future<void> showShelfSheet(
   CreateTag? create,
   SuggestBackfill? suggest,
   ApplyBackfill? apply,
+  RequestBackfill? requestBackfill,
   String initialName = '',
   String? createSubtitle,
   ValueChanged<String>? onCreated,
 }) {
+  // The toast is said after the sheet is gone, over whatever it covered.
+  final host = Navigator.of(context, rootNavigator: true).context;
   final holding = ValueNotifier<bool>(false);
   final heading = ValueNotifier<KitSheetHeading>(backfillFor == null
       ? (createSubtitle == null
@@ -104,6 +148,17 @@ Future<void> showShelfSheet(
       apply: apply,
       initialName: initialName,
       onCreated: onCreated,
+      onBackfill: (tagId, title) async {
+        final refused = await (requestBackfill ?? requestShelfBackfill)(tagId);
+        if (!host.mounted) return;
+        AppToast.show(
+          host,
+          refused == null
+              ? backfillStartedToast(title)
+              : 'Sources for “$title” could not be looked for. $refused',
+          type: refused == null ? ToastType.info : ToastType.error,
+        );
+      },
     ),
   ).whenComplete(() {
     holding.dispose();
@@ -136,6 +191,10 @@ class ShelfSheetBody extends StatefulWidget {
   final String initialName;
   final ValueChanged<String>? onCreated;
 
+  /// A created shelf the reader asked to fill: the fill is a background task
+  /// (4.102.0), started once the sheet has landed.
+  final Future<void> Function(String tagId, String title)? onBackfill;
+
   const ShelfSheetBody({
     super.key,
     required this.canBackfill,
@@ -149,6 +208,7 @@ class ShelfSheetBody extends StatefulWidget {
     this.apply,
     this.initialName = '',
     this.onCreated,
+    this.onBackfill,
   });
 
   @override
@@ -156,18 +216,16 @@ class ShelfSheetBody extends StatefulWidget {
 }
 
 class _ShelfSheetBodyState extends State<ShelfSheetBody> {
-  late BackfillFor? _review = widget.backfillFor;
+  late final BackfillFor? _review = widget.backfillFor;
 
   void _created(ShelfCreated c) {
     // Handed back BEFORE anything else: the host's write is what the reader
     // came for, and it runs while the review (if any) is still reading.
     widget.onCreated?.call(c.tagId);
-    if (!c.backfill) {
-      widget.land(c.tagId);
-      return;
-    }
-    setState(() => _review = BackfillFor(c.tagId, c.title, created: true));
-    widget.onHeading(_fillHeading(c.title));
+    widget.land(c.tagId);
+    // 4.102.0: the fill runs in the background; the new shelf opens at once
+    // and the proposal waits in For your review.
+    if (c.backfill) widget.onBackfill?.call(c.tagId, c.title);
   }
 
   @override
@@ -194,6 +252,7 @@ class _ShelfSheetBodyState extends State<ShelfSheetBody> {
                   review.created ? widget.land(review.tagId) : widget.close(),
               suggest: widget.suggest,
               apply: widget.apply,
+              stored: review.stored,
             ),
     );
   }
@@ -391,6 +450,9 @@ class ShelfBackfillReview extends StatefulWidget {
   final SuggestBackfill? suggest;
   final ApplyBackfill? apply;
 
+  /// Set: the review of a stored proposal (no read, one apply).
+  final StoredBackfill? stored;
+
   const ShelfBackfillReview({
     super.key,
     required this.tagId,
@@ -400,6 +462,7 @@ class ShelfBackfillReview extends StatefulWidget {
     this.onBusy = ShelfFormFields._noBusy,
     this.suggest,
     this.apply,
+    this.stored,
   });
 
   @override
@@ -415,6 +478,9 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
   bool _applying = false;
   String? _applyError;
 
+  /// A stored apply that could not file everything: `(filed, missed)`.
+  (int, int)? _summary;
+
   SuggestBackfill get _suggest =>
       widget.suggest ?? Api.instance.suggestShelfBackfill;
   ApplyBackfill get _apply => widget.apply ?? Api.instance.applyShelfBackfill;
@@ -422,7 +488,25 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
   @override
   void initState() {
     super.initState();
-    _read();
+    final stored = widget.stored;
+    if (stored != null) {
+      _seed(stored.result);
+    } else {
+      _read();
+    }
+  }
+
+  void _seed(Map<String, dynamic> res) {
+    final candidates = [
+      for (final c in (res['candidates'] as List?) ?? const [])
+        (c as Map).cast<String, dynamic>(),
+    ];
+    _scanned = (res['scanned'] as num?)?.toInt() ?? 0;
+    _candidates = candidates;
+    _kept
+      ..clear()
+      ..addAll(candidates.map((c) => c['documentId'] as String));
+    _reading = false;
   }
 
   Future<void> _read() async {
@@ -467,6 +551,24 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
         for (final c in _candidates)
           if (_kept.contains(c['documentId'])) c['documentId'] as String,
       ];
+      final stored = widget.stored;
+      if (stored != null) {
+        final res = await stored.apply(ids);
+        if (!mounted) return;
+        final sk = (res['skipped'] as Map?) ?? const {};
+        final missed = ((sk['deleted'] as List?) ?? const []).length +
+            ((sk['not_ready'] as List?) ?? const []).length;
+        widget.onBusy(false);
+        if (missed > 0) {
+          setState(() {
+            _applying = false;
+            _summary = ((res['filed'] as num?)?.toInt() ?? 0, missed);
+          });
+          return;
+        }
+        widget.onDone();
+        return;
+      }
       await _apply(widget.tagId, ids);
       if (!mounted) return;
       widget.onBusy(false);
@@ -508,6 +610,31 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
     // No figure: `scanned` does not exist until the answer does.
     if (_reading) {
       return Text('Reading your library…', style: lede);
+    }
+    final summary = _summary;
+    if (summary != null) {
+      final (filed, missed) = summary;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text.rich(
+            TextSpan(children: [
+              const TextSpan(text: 'Filed '),
+              TextSpan(text: '$filed', style: em),
+              TextSpan(text: ' ${filed == 1 ? 'source' : 'sources'} on '),
+              TextSpan(text: widget.title, style: em),
+              TextSpan(
+                  text: '. $missed ${missed == 1 ? 'was' : 'were'} deleted or '
+                      're-indexed since this was suggested and left as '
+                      '${missed == 1 ? 'it was' : 'they were'}.'),
+            ]),
+            style: lede,
+          ),
+          const SizedBox(height: 14),
+          _actions([KitButton.primary('Done', onPressed: widget.onDone)]),
+        ],
+      );
     }
     if (_candidates.isEmpty) {
       return Column(
