@@ -1015,6 +1015,22 @@ class KitPassageAction extends StatefulWidget {
     this.maxWidth,
   });
 
+  /// *Open source* — `openReader(document_id)` — wears the **book**, on every
+  /// card that offers it (search.md §Action glyphs, 4.105.1; web `IcoBook`).
+  /// The glyph is the action's, not the caller's: until 4.105.1 three call
+  /// sites drew it with three glyphs (the eye, which already meant *Open in
+  /// context*, and the bookmark of a Save button deleted at 4.43.2).
+  const KitPassageAction.openSource({super.key, required this.onTap})
+      : icon = Icons.menu_book_outlined,
+        label = 'Open source',
+        maxWidth = null;
+
+  /// *Open in context* wears the **eye** (web `IcoEye`).
+  const KitPassageAction.openInContext({super.key, required this.onTap})
+      : icon = Icons.visibility_outlined,
+        label = 'Open in context',
+        maxWidth = null;
+
   @override
   State<KitPassageAction> createState() => _KitPassageActionState();
 }

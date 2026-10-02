@@ -318,11 +318,7 @@ class _PassageCard extends StatelessWidget {
                 KitSourceLink(
                   docId: p.documentId,
                   onOpen: () => onOpenSource(p.documentId),
-                  builder: (context, open) => KitPassageAction(
-                    icon: Icons.visibility_outlined,
-                    label: 'Open source',
-                    onTap: open,
-                  ),
+                  builder: (context, open) => KitPassageAction.openSource(onTap: open),
                 ),
             ],
           ),

@@ -125,11 +125,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
                   KitSourceLink(
                     docId: r.chunk.documentId,
                     onOpen: widget.onOpenSource,
-                    builder: (context, open) => KitPassageAction(
-                      icon: Icons.visibility_outlined,
-                      label: 'Open source',
-                      onTap: open,
-                    ),
+                    builder: (context, open) => KitPassageAction.openSource(onTap: open),
                   ),
                   if (widget.shelfTitle != null) ...[
                     const Spacer(),

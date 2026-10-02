@@ -270,20 +270,12 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
             const SizedBox(height: 10),
             Row(
               children: [
-                KitPassageAction(
-                  icon: Icons.visibility_outlined,
-                  label: 'Open in context',
-                  onTap: widget.onOpenInContext,
-                ),
+                KitPassageAction.openInContext(onTap: widget.onOpenInContext),
                 const SizedBox(width: AppSpacing.s4),
                 KitSourceLink(
                   docId: p.documentId,
                   onOpen: widget.onOpenSource,
-                  builder: (context, open) => KitPassageAction(
-                    icon: Icons.bookmark_border,
-                    label: 'Open source',
-                    onTap: open,
-                  ),
+                  builder: (context, open) => KitPassageAction.openSource(onTap: open),
                 ),
               ],
             ),
