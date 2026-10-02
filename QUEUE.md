@@ -1409,6 +1409,7 @@ a new obligation on a finished screen is a new item.
 - shots: reader
 - extra_gates: confirm_check.py
 - notes: Contract 4.105.0. (a) The reader's last header action is a ghost *Delete* with a trash glyph, for complete/error/skipped documents, opening a §18 KitConfirm: `Delete “{title}”?`, the body naming what is lost (its {n} passages, original file, reading history, its shelves by name) and what is not (letters received, other sources, the shelves; a study program drops its passages at its next session), *Keep it* / *Delete source* (danger). One `Api.deleteDocument` (add it: `fn_delete_document {docId}`); the panel holds until it resolves, a refusal answers inside it, success pops back to the reader's origin. (b) §20.2 Shelf select as a kit widget beside §20 in `kit_shelf_chips.dart` — a trigger (dot + title, or the none label in --fg-muted, chevron) opening the §20.1 panel over every shelf, the chosen one checked, a none row first while nothing is typed, the create row last — and `reshelve_sheet.dart`'s `KitSelect` becomes it (none = Leave unshelved; the create row opens showShelfSheet and the new id becomes the row's choice).
+  2026-10-02: built 4790210 (analyze clean, contract+kit 1026 green, confirm_check PASS); device run + the reader pair owed — no emulator this wave.
 
 ## F-74 · Reader — the manuscript's reading controls: Aa, the reading-progress rule, Pick up where you left off, the drop cap
 - status: open
