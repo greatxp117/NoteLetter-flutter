@@ -394,8 +394,8 @@ enum KitBadgeSize {
 }
 
 class KitFileBadge extends StatelessWidget {
-  /// `pdf` · `epub` · `web` · `youtube` · `instagram` · `tiktok` · `podcast` · `note` — anything else renders
-  /// neutral. Build it from a document's `type` with [kitDocKind].
+  /// `pdf` · `epub` · `web` · `youtube` · `instagram` · `tiktok` · `podcast` · `video` · `note` — anything
+  /// else renders neutral. Build it from a document's `type` with [kitDocKind].
   final String kind;
   final KitBadgeSize size;
 
@@ -405,7 +405,13 @@ class KitFileBadge extends StatelessWidget {
   /// reads AUDIO, and an unknown kind reads DOC rather than printing whatever
   /// token was passed in. Printing the raw value is the same class of defect as
   /// showing a user the literal status `pending_upload`.
-  static const _labels = <String, String>{
+  ///
+  /// Keyed by every kind [kKindByType] can produce, and nothing else
+  /// (test/kit/file_badge_labels_test.dart reads both directions, and web's
+  /// `LABELS`): `video` was missing until 4.105.1's burn-down, so every
+  /// uploaded video plated as DOC — a kind the renderer never lists falls
+  /// through to the fallback with no error.
+  static const labels = <String, String>{
     'pdf': 'PDF',
     'epub': 'EPUB',
     'web': 'WEB',
@@ -415,6 +421,9 @@ class KitFileBadge extends StatelessWidget {
     'instagram': 'IG',
     'tiktok': 'TT',
     'podcast': 'AUDIO',
+    // 4.13.0 (ADR-049): its own kind, never the audio bucket — a lecture video
+    // plated AUDIO would read as a voice memo.
+    'video': 'VIDEO',
     'note': 'NOTE',
   };
 
@@ -442,6 +451,7 @@ class KitFileBadge extends StatelessWidget {
       case 'tiktok':
       case 'note':
       case 'podcast':
+      case 'video':
         bg = t.surfaceSunken;
         fg = t.fgMuted;
         border = t.border;
@@ -466,7 +476,7 @@ class KitFileBadge extends StatelessWidget {
         border: Border.all(color: border),
       ),
       child: Text(
-        _labels[k] ?? 'DOC',
+        labels[k] ?? 'DOC',
         style: AppTheme.mono(
           fontSize: size.fontSize,
           height: 1,
