@@ -14,17 +14,38 @@ import '../../widgets/kit/kit_text.dart';
 /// plan (per-section destination + split/copy) → explicit confirm for any split
 /// → execute → live progress off the `/reorg_plans/{planId}` subscription.
 /// Execution never happens outside this flow (INV-13).
+/// A reorganization **from a stored proposal** (4.103.0, ADR-136 —
+/// `screens/review.md` §Proposals): the `reorg_plan` task's `result` is
+/// `fn_analyze_reorganization`'s body (its `/reorg_plans` draft is the plan's
+/// only home), so there is no Reading state; Reorganize is one
+/// `fn_resolve_task apply {operations}`, and a 409 STALE offers Run again —
+/// `retry`, which closes the sheet: the fresh draft arrives in the inbox.
+class StoredReorg {
+  final Map<String, dynamic> result;
+  final Future<Map<String, dynamic>> Function(
+      List<Map<String, dynamic>> operations) apply;
+  final Future<void> Function() rerun;
+  const StoredReorg(
+      {required this.result, required this.apply, required this.rerun});
+}
+
 class ReorganizeSheet extends StatefulWidget {
   final String docId;
   final VoidCallback onExecuted;
+  final StoredReorg? stored;
   const ReorganizeSheet(
-      {super.key, required this.docId, required this.onExecuted});
+      {super.key,
+      required this.docId,
+      required this.onExecuted,
+      this.stored});
 
   static Future<void> show(
-      BuildContext context, String docId, VoidCallback onExecuted) {
+      BuildContext context, String docId, VoidCallback onExecuted,
+      {StoredReorg? stored}) {
     return showDialog(
       context: context,
-      builder: (_) => ReorganizeSheet(docId: docId, onExecuted: onExecuted),
+      builder: (_) => ReorganizeSheet(
+          docId: docId, onExecuted: onExecuted, stored: stored),
     );
   }
 
@@ -59,7 +80,37 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
         // and 'split' is the same default the backend applies. Nothing on the
         // sheet states it as a fact.
         .catchError((_) {});
-    _analyze();
+    final stored = widget.stored;
+    if (stored != null) {
+      _seed(stored.result);
+    } else {
+      _analyze();
+    }
+  }
+
+  void _seed(Map<String, dynamic> p) {
+    _plan = p;
+    for (final s in (p['sections'] as List? ?? [])) {
+      final dests = s['destinations'] as List? ?? [];
+      _choices[s['section_id']] = _Choice(
+        destKey: dests.isNotEmpty ? _destKey(dests[0]) : null,
+        include: dests.isNotEmpty,
+      );
+    }
+  }
+
+  /// The stored plan's Run again: `retry` drafts a fresh plan, which arrives
+  /// in For your review — so this sheet closes. A refused retry stays here.
+  Future<void> _rerun() async {
+    try {
+      await widget.stored!.rerun();
+      if (mounted) Navigator.of(context).pop();
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      // Not swallowed: no envelope came back; the sentence is rendered above.
+      if (mounted) setState(() => _error = 'That request could not be completed.');
+    }
   }
 
   /// A 409 from execute (the server's sentence): the plan can no longer run —
@@ -83,16 +134,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
   void _analyze() {
     Api.instance.analyzeReorganization(widget.docId).then((p) {
       if (!mounted) return;
-      setState(() {
-        _plan = p;
-        for (final s in (p['sections'] as List? ?? [])) {
-          final dests = s['destinations'] as List? ?? [];
-          _choices[s['section_id']] = _Choice(
-            destKey: dests.isNotEmpty ? _destKey(dests[0]) : null,
-            include: dests.isNotEmpty,
-          );
-        }
-      });
+      setState(() => _seed(p));
     }).catchError((e) {
       if (mounted) {
         setState(() => _error = e is ApiException ? e.message : 'Analysis failed.');
@@ -139,8 +181,10 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
       _confirming = false;
     });
     try {
-      final res = await Api.instance
-          .executeReorganization(_plan!['plan_id'], _ops);
+      final stored = widget.stored;
+      final res = stored != null
+          ? ((await stored.apply(_ops))['plan'] as Map).cast<String, dynamic>()
+          : await Api.instance.executeReorganization(_plan!['plan_id'], _ops);
       final planId = res['plan_id'] as String;
       setState(() => _live = {'status': res['status']});
       _sub = FirestoreService.instance.subscribeReorgPlan(planId).listen((p) {
@@ -192,9 +236,13 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                     const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: FilledButton(
-                          onPressed: _reanalyze,
-                          child: const Text('Analyze again')),
+                      child: widget.stored != null
+                          ? FilledButton(
+                              onPressed: _rerun,
+                              child: const Text('Run again'))
+                          : FilledButton(
+                              onPressed: _reanalyze,
+                              child: const Text('Analyze again')),
                     ),
                     const SizedBox(height: 12),
                   ],

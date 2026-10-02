@@ -21,7 +21,6 @@ import 'reader/listen_panel.dart';
 import 'reader/manuscript_panel.dart';
 import 'reader/original_panel.dart';
 import 'reader/reader_ui.dart';
-import 'reader/reorganize_sheet.dart';
 import 'reader/source_freshness.dart';
 import 'reader/speed_read_panel.dart';
 import 'reader/summary_panel.dart';
@@ -30,6 +29,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_layout.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/kit/kit.dart';
 import '../services/analytics.dart';
 import '../services/error_text.dart';
@@ -494,15 +494,16 @@ class _ReaderPageState extends State<ReaderPage> {
                           icon: Icons.forum_outlined,
                           onPressed: () => context.go('/ask'),
                         ),
+                        // 4.103.0 (ADR-136): the analysis runs in the
+                        // background and its plan waits in For your review,
+                        // where the sheet opens over it.
                         if (canReorg)
                           KitButton.ghost(
-                            'Reorganize',
+                            _reorganizing ? 'Asking…' : 'Reorganize',
                             icon: Icons.account_tree_outlined,
-                            onPressed: () => ReorganizeSheet.show(
-                              context,
-                              widget.docId,
-                              () => _reload(),
-                            ),
+                            onPressed: _reorganizing
+                                ? null
+                                : () => _requestReorganize(doc),
                           ),
                         // reader.md §Supersession confirm (4.6.0, ADR-042).
                         if (ContentFormAction.offeredFor(doc))
@@ -613,6 +614,37 @@ class _ReaderPageState extends State<ReaderPage> {
       tags: context.watch<TagsNotifier>().tags,
     );
     return KitBackControl(origin.label, onTap: _goBack);
+  }
+
+  bool _reorganizing = false;
+
+  /// A refusal is said as a toast — the action has no panel to hold it.
+  Future<void> _requestReorganize(Document doc) async {
+    setState(() => _reorganizing = true);
+    final title = doc.title.isEmpty ? 'this document' : doc.title;
+    try {
+      await Api.instance.requestTask('reorg_plan', {'documentId': widget.docId});
+      if (mounted) {
+        AppToast.show(
+            context,
+            'Drafting a reorganization of “$title” in the background. '
+            "You'll find it in For your review.");
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        AppToast.show(context,
+            'This document could not be reorganized. ${e.message}',
+            type: ToastType.error);
+      }
+    } catch (_) {
+      // Not swallowed: said as the error toast, with no envelope to quote.
+      if (mounted) {
+        AppToast.show(context, 'This document could not be reorganized.',
+            type: ToastType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _reorganizing = false);
+    }
   }
 
   /// §The way back. A PUSHED reader (a citation's Open, ADR-101) pops back to

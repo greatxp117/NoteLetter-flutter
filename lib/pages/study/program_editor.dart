@@ -497,64 +497,42 @@ class _SyllabusPanel extends StatefulWidget {
 class _SyllabusPanelState extends State<_SyllabusPanel> {
   bool _busy = false;
 
-  /// C6. Both of this panel's calls answer with something the reader acts on
-  /// — a syllabus the model could not parse, a plan the endpoint refused —
-  /// and both rendered the same kind of constant in a surface that dismisses
-  /// itself after four seconds.
+  /// C6. The panel's calls answer with something the reader acts on — a
+  /// document the endpoint refuses as a syllabus, a detach that failed — and
+  /// the answer stays here (§14.2).
   String? _error;
   String? _sourceId;
-  List<Map<String, dynamic>> _units = [];
-  List<Map<String, dynamic>> _assessments = [];
-  List<Map<String, dynamic>> _skipped = [];
-  bool _proposed = false;
+
+  /// The read runs in the background (4.103.0, ADR-136) and its plan waits in
+  /// For your review — a plan held in this panel was lost when it closed.
+  bool _requested = false;
 
   Future<void> _suggest() async {
-    if (_sourceId == null) return;
-    setState(() => _busy = true);
+    final docId = _sourceId;
+    if (docId == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
-      final res =
-          await Api.instance.suggestSyllabusPlan(widget.program.id, _sourceId!);
+      await Api.instance.requestTask('syllabus_plan',
+          {'programId': widget.program.id, 'documentId': docId});
       if (!mounted) return;
       setState(() {
-        _units = ((res['units'] as List?) ?? const [])
-            .map((u) => (u as Map).cast<String, dynamic>())
-            .toList();
-        _assessments = ((res['assessments'] as List?) ?? const [])
-            .map((a) => (a as Map).cast<String, dynamic>())
-            .toList();
-        _skipped = ((res['skipped'] as List?) ?? const [])
-            .map((s) => (s as Map).cast<String, dynamic>())
-            .toList();
-        _proposed = true;
+        _requested = true;
+        _sourceId = null;
       });
+      AppToast.show(
+          context,
+          'Reading the syllabus for “${widget.program.title}” in the '
+          "background. You'll find it in For your review.");
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
+      // Not swallowed: no envelope came back; rendered in the panel's slot.
       if (mounted) {
         setState(() =>
             _error = 'That syllabus could not be read. Nothing was changed.');
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _apply() async {
-    setState(() => _busy = true);
-    try {
-      await Api.instance.applySyllabusPlan(
-          widget.program.id, _sourceId!, _units, _assessments);
-      await widget.onDone();
-      if (mounted) {
-        setState(() => _proposed = false);
-        AppToast.show(context, 'Syllabus attached.', type: ToastType.success);
-      }
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } catch (_) {
-      if (mounted) {
-        setState(() =>
-            _error = 'That plan could not be applied. Nothing was changed.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -584,13 +562,11 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
           style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),
         const SizedBox(height: 8),
-        // One failure slot for the whole panel: its two calls are two steps of
-        // one action, and a reader only ever has one of them in flight.
         if (_error != null) ...[
           KitFailureInline(_error!),
           const SizedBox(height: 8),
         ],
-        if (attached != null && !_proposed) ...[
+        if (attached != null) ...[
           Text('${attached.units.length} topics · '
               '${attached.assessments.length} assessments',
               style: theme.textTheme.bodySmall?.copyWith(color: muted)),
@@ -609,7 +585,13 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
                   },
             child: const Text('Detach — keeps every passage and all progress'),
           ),
-        ] else if (!_proposed) ...[
+        ] else if (_requested)
+          Text(
+            'The syllabus is being read — its plan will wait for you in For '
+            'your review. Nothing changes until you apply it there.',
+            style: theme.textTheme.bodySmall?.copyWith(color: muted),
+          )
+        else ...[
           DropdownButtonFormField<String>(
             initialValue: _sourceId,
             isExpanded: true,
@@ -627,82 +609,10 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
           const SizedBox(height: 8),
           OutlinedButton(
             onPressed: (_busy || _sourceId == null) ? null : _suggest,
-            child: Text(_busy ? 'Reading…' : 'Read this syllabus'),
+            child: Text(_busy ? 'Asking…' : 'Read this syllabus'),
           ),
-        ] else ...[
-          // The proposal is EDITABLE before it is applied — the suggest/apply
-          // split is the whole safety mechanism, and a review you cannot
-          // change is not a review.
-          for (var i = 0; i < _units.length; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: TextFormField(
-                initialValue: _units[i]['topic'] as String? ?? '',
-                decoration: InputDecoration(
-                    labelText: 'Topic ${i + 1}',
-                    helperText: _units[i]['starts_on'] as String?),
-                onChanged: (v) => _units[i] = {..._units[i], 'topic': v},
-              ),
-            ),
-          const SizedBox(height: 8),
-          if (_assessments.isEmpty)
-            Text(
-              'No dated assessments were read from this syllabus. An exam is '
-              'what pulls its topics forward in the week before it — if there '
-              'are some, they may be in a grading table rather than the '
-              'calendar.',
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
-            )
-          else
-            for (final a in _assessments)
-              Text(
-                '${a['title']} · ${a['on']}'
-                '${a['assessment_kind'] == 'paper' ? ' · a paper you hand in' : ' · a test you sit'}'
-                '${a['cumulative'] == true ? ' · cumulative' : ''}',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
-              ),
-          // skipped[] reports rows understood and deliberately NOT used —
-          // never collapsed away, and worded as a decision you may reverse.
-          if (_skipped.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text('Left out — add anything back that should not have been:',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted)),
-            for (final s in _skipped)
-              Text(
-                '${s['label'] ?? ''}${s['on'] != null ? ' · ${s['on']}' : ''} — ${_skipReason(s['reason'] as String?)}',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
-              ),
-          ],
-          const SizedBox(height: 10),
-          Row(children: [
-            FilledButton(
-              onPressed: _busy ? null : _apply,
-              child: Text(_busy ? 'Applying…' : 'Apply'),
-            ),
-            const SizedBox(width: 8),
-            TextButton(
-                onPressed: () => setState(() => _proposed = false),
-                child: const Text('Cancel')),
-          ]),
         ],
       ],
     );
-  }
-
-  /// Open vocabulary — an unknown reason takes generic copy rather than
-  /// rendering the raw token.
-  static String _skipReason(String? reason) {
-    switch (reason) {
-      case 'non_teaching':
-        return 'not a teaching week';
-      case 'exam_unit_unmatched':
-        return 'its topics could not be matched';
-      case 'exam_no_units':
-        return 'it named no topics';
-      case 'over_cap':
-        return 'beyond the limit for one syllabus';
-      default:
-        return 'left out of the plan';
-    }
   }
 }
