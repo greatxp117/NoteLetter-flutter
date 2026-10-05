@@ -288,10 +288,15 @@ void main() {
     // state that is a centred apology is a failed composition, not a state.
     final seeded = find.byType(SectionHeader).evaluate().isNotEmpty;
     if (seeded) {
+      // Recently read is the §21 shelf by default since 4.98.0 (ADR-131,
+      // library.md: spine shelf + a list toggle the reader's choice is kept
+      // under) — rows only when the reader chose the list. Either is the
+      // pattern; neither is a bare list.
       expect(
-        find.byType(KitRowList),
-        findsWidgets,
-        reason: 'recently-read renders as source rows (kit §4.1)',
+        find.byType(KitShelfView).evaluate().isNotEmpty ||
+            find.byType(KitRowList).evaluate().isNotEmpty,
+        isTrue,
+        reason: 'recently-read renders as the §21 shelf or §4.1 rows',
       );
       // The eyebrow renders its text UPPERCASED, so that is what is in the
       // tree — matching the sentence-case source string finds nothing.
@@ -798,8 +803,10 @@ void main() {
     // because `error_message` is a claim about a source and nothing else on
     // this screen shows the source. The seed carries a failed docx (`file`)
     // and a queued article (`link`), so both §6.4.2 branches are on screen.
-    final procRows = find.byType(KitSourceRow).evaluate().length;
-    debugPrint('DEVICE-RUN sources: $procRows §4.1 row(s), '
+    // Processing rows are §22 processing CARDS since 4.98.0 (F-69), not §4.1
+    // source rows; counted as rows, every primary looked like a second one.
+    final procRows = find.byType(KitProcCard).evaluate().length;
+    debugPrint('DEVICE-RUN sources: $procRows processing card(s), '
         'viewFile=${find.text('View file').evaluate().length}, '
         'openLink=${find.text('Open the link').evaluate().length}, '
         'retry=${find.text('Retry').evaluate().length}, '
@@ -1100,10 +1107,18 @@ void main() {
     }
 
     // The control bar appears with the query, carrying the type vocabulary —
-    // all SIX kinds (§6.4.1). A chip set that is short of a kind is a bucket
-    // nothing can reach, and it looks exactly like a complete vocabulary.
+    // All sources and every LIVE kind (§6.4.1; eight since 4.13.0's video,
+    // which `doc_kind_check` holds both ways). A chip set that is short of a
+    // kind is a bucket nothing can reach, and it looks exactly like a complete
+    // vocabulary. This said SIX until 2026-10-05: the vocabulary grew and the
+    // device run, unrun, did not.
     expect(find.byType(KitControlBar), findsOneWidget);
-    expect(find.byType(KitFilterChip), findsNWidgets(6));
+    expect(find.byType(KitFilterChip), findsNWidgets(9));
+    for (final kind in ['All sources', 'Books & PDFs', 'My notes', 'Web',
+        'YouTube', 'Instagram', 'TikTok', 'Audio', 'Video']) {
+      expect(find.widgetWithText(KitFilterChip, kind), findsOneWidget,
+          reason: 'no $kind chip');
+    }
     // **No counts** (ADR-065 §4): a count over one page of results is a
     // statement about that page, and it disabled chips that had matches. The
     // chips filter SERVER-side now, so none of them is ever disabled either.
@@ -1835,7 +1850,9 @@ void main() {
 
     // The Live statement is present and states a MEASURED count — the page
     // says what it just found, never what the letter stored.
-    expect(find.text('Live'), findsOneWidget);
+    // The tag is set in caps by its source string (`.sc-live-tag`), so the
+    // tree holds `LIVE` — matching the sentence-case word finds nothing.
+    expect(find.text('LIVE'), findsOneWidget);
     expect(find.textContaining('passages'), findsWidgets);
 
     // One section per reading, each naming its own citation.
@@ -1960,7 +1977,13 @@ void main() {
     // the action that makes one.
     expect(find.byType(KitEmptyState), findsOneWidget);
     expect(find.text('Go deeper on one subject'), findsOneWidget);
-    expect(find.byType(KitNumberedMove), findsNWidgets(3));
+    // The three moves, by what they say: a group of moves draws each one's
+    // CONTENT inside one bordered surface (kit_empty `_MoveGroup`), so the
+    // KitNumberedMove widgets themselves are never in the tree.
+    for (final title in ['One subject at a time',
+        'It arrives as its own session', 'Recall first, then grade yourself']) {
+      expect(find.text(title), findsOneWidget, reason: 'no "$title" move');
+    }
     expect(find.text('New program'), findsWidgets);
     expect(find.byType(Card), findsNothing);
     expect(find.byType(ListTile), findsNothing);

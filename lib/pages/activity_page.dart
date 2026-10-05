@@ -417,7 +417,8 @@ class _ActivityRow {
         kind = (
           family: 'processing',
           chip: item.status == 'skipped' ? 'Skipped' : 'Failed',
-          icon: Icons.error_outline
+          // web `mapActivity`: IcoAlert, the triangle — as the table's.
+          icon: Icons.warning_amber_rounded
         );
         detail = item.errorMessage;
       } else {
