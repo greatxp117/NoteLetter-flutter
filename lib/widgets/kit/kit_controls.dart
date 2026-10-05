@@ -68,6 +68,15 @@ class KitButton extends StatefulWidget {
   /// at the left, so this is opt-in, never the default.
   final bool center;
 
+  /// Take focus when first built — §18's safe choice, which the reference
+  /// focuses on open (`cancelRef.current.focus()`), so Enter or Space on a
+  /// keyboard answers with the alternative rather than the destruction.
+  ///
+  /// A button is a focus target whether or not this is set: until 2026-10-05
+  /// it was a bare `GestureDetector`, so nothing could focus it and §18's
+  /// "the safe choice first and autofocused" had no widget to land on.
+  final bool autofocus;
+
   const KitButton(
     this.label, {
     super.key,
@@ -76,27 +85,34 @@ class KitButton extends StatefulWidget {
     this.variant = KitButtonVariant.primary,
     this.iconTrailing = false,
     this.center = false,
+    this.autofocus = false,
   });
 
   const KitButton.primary(this.label,
-      {super.key, this.icon, this.onPressed, this.iconTrailing = false})
+      {super.key,
+      this.icon,
+      this.onPressed,
+      this.iconTrailing = false,
+      this.autofocus = false})
       : variant = KitButtonVariant.primary,
         center = false;
   const KitButton.secondary(this.label,
-      {super.key, this.icon, this.onPressed})
+      {super.key, this.icon, this.onPressed, this.autofocus = false})
       : variant = KitButtonVariant.secondary,
         iconTrailing = false,
         center = false;
-  const KitButton.danger(this.label, {super.key, this.icon, this.onPressed})
+  const KitButton.danger(this.label,
+      {super.key, this.icon, this.onPressed, this.autofocus = false})
       : variant = KitButtonVariant.danger,
         iconTrailing = false,
         center = false;
   const KitButton.dangerText(this.label,
-      {super.key, this.icon, this.onPressed})
+      {super.key, this.icon, this.onPressed, this.autofocus = false})
       : variant = KitButtonVariant.dangerText,
         iconTrailing = false,
         center = false;
-  const KitButton.ghost(this.label, {super.key, this.icon, this.onPressed})
+  const KitButton.ghost(this.label,
+      {super.key, this.icon, this.onPressed, this.autofocus = false})
       : variant = KitButtonVariant.ghost,
         iconTrailing = false,
         center = false;
@@ -107,6 +123,11 @@ class KitButton extends StatefulWidget {
 
 class _KitButtonState extends State<KitButton> {
   bool _hover = false;
+
+  /// True only while focus should be SHOWN — keyboard traversal, never a tap
+  /// ([FocusableActionDetector.onShowFocusHighlight] answers for the
+  /// platform's highlight mode, so a touch screen never draws the ring).
+  bool _focusRing = false;
 
   static const double _height = 36;
 
@@ -145,7 +166,7 @@ class _KitButtonState extends State<KitButton> {
         ? null
         : Icon(widget.icon, size: 14, color: fg);
 
-    return MouseRegion(
+    final button = MouseRegion(
       cursor: disabled
           ? SystemMouseCursors.basic
           : SystemMouseCursors.click,
@@ -205,6 +226,50 @@ class _KitButtonState extends State<KitButton> {
             ),
           ),
         ),
+      ),
+    );
+
+    // Enter and Space activate it (the app's default shortcuts map both to
+    // ActivateIntent); a disabled button is not a focus target at all, so a
+    // panel whose cancel disables in flight cannot be answered by a key.
+    return FocusableActionDetector(
+      enabled: !disabled,
+      autofocus: widget.autofocus,
+      actions: <Type, Action<Intent>>{
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onPressed?.call();
+            return null;
+          },
+        ),
+      },
+      onShowFocusHighlight: (v) => setState(() => _focusRing = v),
+      // The kit's focus-visible ring (`outline: 2px solid var(--accent);
+      // outline-offset: 2px`), drawn OUTSIDE the button so showing it never
+      // moves a pixel. `passthrough`: the button keeps the exact constraints
+      // it had before this Stack existed (a loose Stack would let a button a
+      // flow stretches shrink back to its label).
+      child: Stack(
+        fit: StackFit.passthrough,
+        clipBehavior: Clip.none,
+        children: [
+          button,
+          if (_focusRing)
+            Positioned(
+              left: -4,
+              top: -4,
+              right: -4,
+              bottom: -4,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: t.accent, width: 2),
+                    borderRadius: AppRadius.controlR(_height + 8),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

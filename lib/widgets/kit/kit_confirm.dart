@@ -81,10 +81,13 @@ class KitConfirm extends StatefulWidget {
   }) {
     return showDialog<bool>(
       context: context,
-      // §18 rule 3 is enforced inside, per press: a barrier that is always
-      // dismissible would let a reader tap away from a delete mid-flight and
-      // be left unable to tell whether it happened.
-      barrierDismissible: false,
+      // §18 rule 4: the scrim cancels — at every moment but one. The barrier
+      // and Esc both arrive as `Navigator.maybePop`, which the panel's
+      // [PopScope] refuses while the call is in flight (rule 3), so a reader
+      // cannot tap away from a delete mid-flight and be left unable to tell
+      // whether it happened. Until 2026-10-05 this was `false` outright, and
+      // the scrim — a REQUIRED part — cancelled nothing at all.
+      barrierDismissible: true,
       builder: (_) => KitConfirm(
         title: title,
         body: body,
@@ -157,8 +160,11 @@ class _KitConfirmState extends State<KitConfirm> {
           ),
         ),
         actions: [
+          // The safe choice first AND focused (§18 required parts, rule 4):
+          // a reader who answers from the keyboard keeps what they have.
           KitButton.ghost(
             widget.cancelLabel,
+            autofocus: true,
             onPressed: _busy ? null : () => Navigator.of(context).pop(false),
           ),
           if (widget.danger)

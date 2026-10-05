@@ -1,39 +1,37 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_shadows.dart';
+import '../theme/app_theme.dart';
+import '../theme/tokens.dart';
 
 enum ToastType { success, error, info }
 
+/// The transient on-screen answer to an action the reader just took — the
+/// reference's `ToastHost` (`src/shell/notify.jsx`).
+///
+/// **Every colour is a token, and the level colours are the reference's
+/// `LEVEL_COLOR`**: success `--positive`, error `--critical-text`, info
+/// `--fg-muted`, on a `--surface` card with a `--border` hairline and a 3px
+/// level rule down the leading edge. Until 2026-10-05 this drew
+/// `Colors.green.shade400` / `Colors.red.shade400` — Material palette steps in
+/// no token file, identical in both themes — and `--accent` for info, which is
+/// the colour the reference spent 4.30.0 (ADR-067) taking OFF its own toast:
+/// a completed action and a failed one must not arrive in two shades of the
+/// same hue. No gate could see it: LITERAL reads hex constructors and a
+/// `Colors.green` is a name.
 class AppToast {
   static void show(
     BuildContext context,
     String message, {
     ToastType type = ToastType.info,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final t = Tokens.of(context);
 
-    Color borderColor;
-    Color iconColor;
-    IconData iconData;
-
-    switch (type) {
-      case ToastType.success:
-        borderColor = Colors.green.shade400;
-        iconColor = Colors.green.shade400;
-        iconData = Icons.check_circle_outline;
-        break;
-      case ToastType.error:
-        borderColor = Colors.red.shade400;
-        iconColor = Colors.red.shade400;
-        iconData = Icons.error_outline;
-        break;
-      case ToastType.info:
-        borderColor =
-            isDark ? AppColors.primaryDark : AppColors.primary;
-        iconColor = isDark ? AppColors.primaryDark : AppColors.primary;
-        iconData = Icons.info_outline;
-        break;
-    }
+    final (Color level, IconData iconData) = switch (type) {
+      ToastType.success => (t.positive, Icons.check_circle_outline),
+      ToastType.error => (t.criticalText, Icons.error_outline),
+      ToastType.info => (t.fgMuted, Icons.notifications_none),
+    };
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -46,37 +44,49 @@ class AppToast {
           backgroundColor: Colors.transparent,
           elevation: 0,
           content: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: isDark ? AppColors.cardDark : Colors.white,
-              border: Border.all(color: borderColor, width: 1.5),
+              color: t.surface,
+              border: Border.all(color: t.border),
               borderRadius: AppRadius.mdR,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: AppShadows.s3,
             ),
-            child: Row(
-              children: [
-                Icon(iconData, color: iconColor, size: 18),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    message,
-                    style: TextStyle(
-                      color: isDark
-                          ? AppColors.foregroundDark
-                          : AppColors.foregroundLight,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+            // The level rule is a child, not a `Border(left:)`: Flutter draws
+            // a rounded border only when every side has the same colour.
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ColoredBox(color: level, child: const SizedBox(width: 3)),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 1),
+                            child: Icon(iconData, color: level, size: 16),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              message,
+                              style: TextStyle(
+                                fontFamily: AppTheme.fontSans,
+                                color: t.fg,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

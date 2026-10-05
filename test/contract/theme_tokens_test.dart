@@ -106,6 +106,29 @@ void main() {
       expect(AppColors.linkDark, AppColors.foregroundDark);
       expect(AppColors.linkDecorLight, AppColors.primary);
     });
+
+    test('nothing in lib/ paints with a Material palette hue', () {
+      // `Colors.green.shade400` is a palette step in no token file, identical
+      // in both themes. The toast drew its success and error levels that way
+      // until 2026-10-05, and no colour gate could see it: 5l's LITERAL reads
+      // hex constructors, and this is a NAME. The neutral and transparent
+      // members (`Colors.transparent`, `black`/`white` under an alpha for a
+      // scrim or a shadow) are not hues and are 5l's subject, not this test's.
+      final hue = RegExp(
+          r'\bColors\.(red|pink|purple|deepPurple|indigo|blue|lightBlue|cyan|'
+          r'teal|green|lightGreen|lime|yellow|amber|orange|deepOrange|brown|'
+          r'grey|blueGrey)(Accent)?\b');
+      final offenders = <String>[];
+      for (final f in Directory('lib').listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        final lines = f.readAsLinesSync();
+        for (var i = 0; i < lines.length; i++) {
+          final code = lines[i].split('//').first;
+          if (hue.hasMatch(code)) offenders.add('${f.path}:${i + 1}');
+        }
+      }
+      expect(offenders, isEmpty);
+    });
   });
 
   group('type tokens', () {

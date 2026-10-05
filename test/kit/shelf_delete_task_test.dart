@@ -62,15 +62,19 @@ class _Docs extends DocumentsNotifier {
   String? get error => null;
   @override
   List<Document> get documents => complete;
+  _Docs({this.volumes = const []});
+  final List<Document> volumes;
+
   @override
-  // Empty: with a volume the header grows a fourth action, which the test
-  // font (Ahem) overflows at the 768 frame — so this case sends
-  // `reshelve: false`, and the request shape with `true` is the fixture's
-  // (api/tasks `tasks:request-shelf-delete`, driven in api_requests_test).
-  List<Document> get complete => const [];
+  // With a volume the header carries a third action (Find sources for this
+  // shelf), which overflowed the 768 column by 96px in the test font (Ahem)
+  // while the actions were a Row (2026-10-02). They wrap now, so the case with
+  // a volume — the one that sends `reshelve: true` — is driven here too.
+  List<Document> get complete => volumes;
 }
 
-Future<_Capture> _delete(WidgetTester tester, {int status = 202}) async {
+Future<_Capture> _delete(WidgetTester tester,
+    {int status = 202, List<Document> volumes = const []}) async {
   tester.view.physicalSize = const Size(1200, 1800);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -90,7 +94,8 @@ Future<_Capture> _delete(WidgetTester tester, {int status = 202}) async {
   await tester.pumpWidget(MultiProvider(
     providers: [
       ChangeNotifierProvider<TagsNotifier>(create: (_) => _Tags()),
-      ChangeNotifierProvider<DocumentsNotifier>(create: (_) => _Docs()),
+      ChangeNotifierProvider<DocumentsNotifier>(
+          create: (_) => _Docs(volumes: volumes)),
     ],
     child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
   ));
@@ -115,6 +120,23 @@ void main() {
         {'kind': 'shelf_delete', 'tagId': 's1', 'reshelve': false});
     expect(c.bodies.containsKey('/fn_delete_tag'), isFalse);
     expect(find.text('all shelves'), findsOneWidget);
+  });
+
+  testWidgets('with a volume the header wraps, and the delete offers the re-shelve',
+      (tester) async {
+    final c = await _delete(tester, volumes: [
+      Document(
+          id: 'd1',
+          userId: 'u1',
+          title: 'Psalm 23',
+          type: 'text',
+          status: DocumentStatus.complete,
+          tagIds: const ['s1']),
+    ]);
+    // The overflow was a layout exception; a wrapped header raises none.
+    expect(tester.takeException(), isNull);
+    expect(c.bodies['/fn_request_task'],
+        {'kind': 'shelf_delete', 'tagId': 's1', 'reshelve': true});
   });
 
   testWidgets('a refusal answers inside the panel, and the shelf stays', (tester) async {

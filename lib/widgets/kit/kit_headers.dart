@@ -6,6 +6,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_controls.dart';
 import 'kit_text.dart';
 
 part 'kit_library_head.dart';
@@ -149,23 +150,17 @@ class ChapterOpening extends StatelessWidget {
             else if (compact) ...[
               titleBlock,
               const SizedBox(height: AppSpacing.s4),
-              Wrap(
-                spacing: AppSpacing.s2,
-                runSpacing: AppSpacing.s2,
-                children: actions,
-              ),
+              KitActionFlow(children: actions),
             ] else
+              // `.ch-acts { display: flex; flex-wrap: wrap; gap: 8px;
+              // max-width: 100% }` — the actions WRAP. They were a `Row`
+              // here, which cannot: a shelf with a volume carries three
+              // actions, and in the test font they overflowed the 768 column
+              // by 96px (2026-10-02). A real font fits at 768 today; a longer
+              // label or a fourth action would not have.
               KitTitleActionsRow(
                 title: titleBlock,
-                actions: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < actions.length; i++) ...[
-                      if (i > 0) const SizedBox(width: AppSpacing.s2),
-                      actions[i],
-                    ],
-                  ],
-                ),
+                actions: KitActionFlow(children: actions),
               ),
             if (rule) ...[
               const SizedBox(height: 22),

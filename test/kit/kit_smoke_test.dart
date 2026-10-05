@@ -1576,6 +1576,93 @@ void main() {
       expect(calls, 0);
       expect(outcome, isFalse);
     });
+
+    // §18 required parts + rule 4: the safe choice is AUTOFOCUSED, the scrim
+    // cancels, and while the call is in flight nothing dismisses it (rule 3).
+    Future<Completer<String?>> openConfirm(
+      WidgetTester tester, {
+      required void Function() onRun,
+      void Function(bool?)? onOutcome,
+    }) async {
+      final gate = Completer<String?>();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => TextButton(
+                onPressed: () async {
+                  final r = await KitConfirm.show(
+                    ctx,
+                    title: 'Delete “Pasta”?',
+                    body: 'The questions go. Nothing leaves your library.',
+                    confirmLabel: 'Delete conversation',
+                    cancelLabel: 'Keep it',
+                    onConfirm: () {
+                      onRun();
+                      return gate.future;
+                    },
+                  );
+                  onOutcome?.call(r);
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      return gate;
+    }
+
+    testWidgets('the safe choice is focused on open, and Enter keeps it', (
+      tester,
+    ) async {
+      var calls = 0;
+      bool? outcome = true;
+      await openConfirm(tester,
+          onRun: () => calls++, onOutcome: (r) => outcome = r);
+      final focused = FocusManager.instance.primaryFocus?.context;
+      expect(focused, isNotNull);
+      expect(
+        find.descendant(
+            of: find.byWidget(focused!.widget), matching: find.text('Keep it')),
+        findsOneWidget,
+        reason: 'the cancel control — not the destructive one — holds focus',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+      expect(outcome, isFalse);
+      expect(find.text('Delete “Pasta”?'), findsNothing);
+    });
+
+    testWidgets('the scrim cancels — and does nothing while the call is in flight', (
+      tester,
+    ) async {
+      var calls = 0;
+      var gate = await openConfirm(tester, onRun: () => calls++);
+      // Idle: a press on the scrim cancels, and the action never ran.
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete “Pasta”?'), findsNothing);
+      expect(calls, 0);
+
+      gate = await openConfirm(tester, onRun: () => calls++);
+      await tester.tap(find.text('Delete conversation'));
+      await tester.pump();
+      expect(find.text('Working…'), findsOneWidget);
+      // In flight: neither the scrim nor Esc closes it.
+      await tester.tapAt(const Offset(4, 4));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.text('Delete “Pasta”?'), findsOneWidget);
+      gate.complete(null);
+      await tester.pumpAndSettle();
+      expect(find.text('Delete “Pasta”?'), findsNothing);
+      expect(calls, 1);
+    });
   });
 
   group('§12 notice', () {
