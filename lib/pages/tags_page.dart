@@ -104,7 +104,7 @@ class _ShelvesPageState extends State<ShelvesPage> {
                     _NewShelfCard(
                       canBackfill: complete.isNotEmpty,
                       onCancel: () => setState(() => _adding = false),
-                      onCreated: (c) => _created(c, complete.isNotEmpty),
+                      onCreated: _created,
                     )
                   else
                     KitNewCard(
@@ -122,21 +122,17 @@ class _ShelvesPageState extends State<ShelvesPage> {
   }
 
   /// Write before move: the form hands on only after `fn_create_tag`
-  /// resolved. Without the backfill the new shelf opens; with it, §Backfill
-  /// review opens in the §15 sheet, and every exit lands on the shelf.
-  void _created(ShelfCreated c, bool canBackfill) {
+  /// resolved, and the new shelf opens at once. The fill, when asked for,
+  /// runs in the BACKGROUND (4.102.0, ADR-136) and waits in For your review —
+  /// web ShelvesView `created`. Until 2026-10-05 this card still opened the
+  /// live in-sheet review (`fn_suggest_shelf_backfill`) that F-72 (f) retired
+  /// from the rail's sheet: the same form, two behaviours, by where it was
+  /// opened.
+  void _created(ShelfCreated c) {
     setState(() => _adding = false);
-    if (!c.backfill) {
-      context.go('/shelves/${c.tagId}');
-      return;
-    }
-    final router = GoRouter.of(context);
-    showShelfSheet(
-      context,
-      canBackfill: canBackfill,
-      backfillFor: BackfillFor(c.tagId, c.title, created: true),
-      land: (id) => router.go('/shelves/$id'),
-    );
+    final host = Navigator.of(context, rootNavigator: true).context;
+    context.go('/shelves/${c.tagId}');
+    if (c.backfill) startCreatedBackfill(host, c.tagId, c.title);
   }
 
   Widget _shelfCard(BuildContext context, Tag shelf, List<Document> complete) {

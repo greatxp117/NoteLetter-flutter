@@ -53,6 +53,25 @@ String backfillStartedToast(String title) =>
     'Finding sources for “$title” in the background. '
     "You'll find them in For your review.";
 
+/// A shelf was just created with the fill asked for: start the background
+/// task and say so over [host] — the sheet's create and the Shelves index
+/// card's create both end here (web `requestBackfill` + `announce`, called
+/// from ShelfForm's sheet and ShelvesView's `created`). [host] is a context
+/// that outlives the form (the root navigator's), since the reader has
+/// already moved on to the new shelf.
+Future<void> startCreatedBackfill(BuildContext host, String tagId, String title,
+    {RequestBackfill? request}) async {
+  final refused = await (request ?? requestShelfBackfill)(tagId);
+  if (!host.mounted) return;
+  AppToast.show(
+    host,
+    refused == null
+        ? backfillStartedToast(title)
+        : 'Sources for “$title” could not be looked for. $refused',
+    type: refused == null ? ToastType.info : ToastType.error,
+  );
+}
+
 /// A backfill review **from a stored proposal** (4.102.0 — `screens/review.md`
 /// §Proposals): the `shelf_backfill` task's `result` (the
 /// `fn_suggest_shelf_backfill` body) seeds the candidates, all kept, and
@@ -148,17 +167,8 @@ Future<void> showShelfSheet(
       apply: apply,
       initialName: initialName,
       onCreated: onCreated,
-      onBackfill: (tagId, title) async {
-        final refused = await (requestBackfill ?? requestShelfBackfill)(tagId);
-        if (!host.mounted) return;
-        AppToast.show(
-          host,
-          refused == null
-              ? backfillStartedToast(title)
-              : 'Sources for “$title” could not be looked for. $refused',
-          type: refused == null ? ToastType.info : ToastType.error,
-        );
-      },
+      onBackfill: (tagId, title) =>
+          startCreatedBackfill(host, tagId, title, request: requestBackfill),
     ),
   ).whenComplete(() {
     holding.dispose();
