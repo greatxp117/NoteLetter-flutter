@@ -79,42 +79,7 @@ class AppLayout extends StatelessWidget {
             // your review's count is above zero: on a phone that item lives in
             // the drawer, out of sight (4.100.0).
             automaticallyImplyLeading: false,
-            leading: Builder(
-              builder: (ctx) {
-                final waiting =
-                    (ctx.watch<ReviewInbox>().view.count ?? 0) > 0;
-                return Center(
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      KitAppBarButton(
-                        icon: Icons.menu,
-                        label: waiting
-                            ? 'Menu — something is waiting for your review'
-                            : 'Menu',
-                        onPressed: () => Scaffold.of(ctx).openDrawer(),
-                      ),
-                      if (waiting)
-                        Positioned(
-                          top: 6,
-                          right: 6,
-                          child: IgnorePointer(
-                            child: Container(
-                              key: const ValueKey('menu-attention-dot'),
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: t.chromeAccentBar,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
+            leading: const _MenuButton(),
             title: const KitBrand.appBar(),
             // `.app-mobile-header`: menu · brand · spacer · search. Web's
             // search opens its QuickSearch overlay; this client has no overlay,
@@ -133,6 +98,68 @@ class AppLayout extends StatelessWidget {
           body: KitShellCompact(child: child),
         );
       },
+    );
+  }
+}
+
+/// The compact app bar's drawer button, carrying §1.2's attention DOT while For
+/// your review's count is above zero (4.100.0).
+///
+/// It opens the inbox ITSELF. On a phone the rail — the only other thing that
+/// starts it — lives inside the drawer and is not built until the drawer is
+/// opened, so a dot reading an inbox nobody had started could never appear:
+/// the one signal on a phone that something was waiting was unreachable until
+/// the reader had already gone looking (seen on the first device frames of
+/// F-72, 2026-10-05). `start()` is idempotent (INV-02: one subscription).
+class _MenuButton extends StatefulWidget {
+  const _MenuButton();
+
+  @override
+  State<_MenuButton> createState() => _MenuButtonState();
+}
+
+class _MenuButtonState extends State<_MenuButton> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ReviewInbox>().start();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final waiting = (context.watch<ReviewInbox>().view.count ?? 0) > 0;
+    return Center(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          KitAppBarButton(
+            icon: Icons.menu,
+            label: waiting
+                ? 'Menu — something is waiting for your review'
+                : 'Menu',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+          if (waiting)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: IgnorePointer(
+                child: Container(
+                  key: const ValueKey('menu-attention-dot'),
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: t.chromeAccentBar,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

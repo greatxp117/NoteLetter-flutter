@@ -7,6 +7,8 @@
 // three chose the same wrong glyph, which is why no frame looked "off" alone.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:flutter_app/models/document.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_app/state/review_inbox.dart';
 import 'package:go_router/go_router.dart';
@@ -87,11 +89,13 @@ void main() {
       GoRoute(path: '/search', builder: (_, _) => const Text('search page')),
     ]);
     // The menu button reads For your review's inbox for its attention dot
-    // (4.100.0); unstarted, it has no count and draws none.
+    // (4.100.0) and starts it itself; an empty inbox draws none.
     await tester.pumpWidget(ChangeNotifierProvider<ReviewInbox>(
-        create: (_) => ReviewInbox(),
+        create: (_) => _inbox(),
         child:
             MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('menu-attention-dot')), findsNothing);
     await tester.pumpAndSettle();
 
     expect(find.byType(KitBrand), findsOneWidget);
@@ -105,4 +109,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('search page'), findsOneWidget);
   });
+
+  // On a phone the rail lives in the drawer and is not built until it opens,
+  // so the dot cannot wait for the rail to start the inbox: the menu button
+  // starts it. Until 2026-10-05 nothing did, and the dot never appeared.
+  testWidgets('the phone menu button starts the inbox and carries the dot',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final router = GoRouter(routes: [
+      GoRoute(
+          path: '/',
+          builder: (_, _) => const AppLayout(child: Text('library'))),
+    ]);
+    final failed = Document.fromJson('d1', {
+      'user_id': 'u1',
+      'title': 'corrupt.docx',
+      'type': 'docx',
+      'status': 'error',
+    });
+    await tester.pumpWidget(ChangeNotifierProvider<ReviewInbox>(
+        create: (_) => _inbox(docs: [failed]),
+        child:
+            MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('menu-attention-dot')), findsOneWidget);
+    expect(
+        find.byWidgetPredicate((w) =>
+            w is KitAppBarButton &&
+            w.label == 'Menu — something is waiting for your review'),
+        findsOneWidget);
+  });
 }
+
+ReviewInbox _inbox({List<Document> docs = const []}) => ReviewInbox(
+      docs: () => Stream.value(docs),
+      holds: () => Stream.value(const []),
+      suggestions: () => Stream.value(const []),
+      tasks: () => Stream.value(const []),
+    );
