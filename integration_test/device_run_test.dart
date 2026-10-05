@@ -1762,7 +1762,7 @@ void main() {
     router.go('/letters');
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
-      if (find.byType(KitSourceRow).evaluate().isNotEmpty) break;
+      if (find.byType(KitLetterRow).evaluate().isNotEmpty) break;
     }
     await pumpFor(tester, total: const Duration(seconds: 1));
 
@@ -1844,7 +1844,7 @@ void main() {
     // control there. The row is far down a phone screen, and a tap at an
     // off-screen offset lands on whatever IS there, silently.
     final row = find.byWidgetPredicate((w) =>
-        w is KitSourceRow && w.title.contains('Thursday of week 23'));
+        w is KitLetterRow && w.title.contains('Thursday of week 23'));
     expect(row, findsOneWidget,
         reason: 'run tool/seed_letters.py first — no readings letter to open');
     await tester.ensureVisible(row);

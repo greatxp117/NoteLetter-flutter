@@ -1437,3 +1437,16 @@ a new obligation on a finished screen is a new item.
 - shots: search
 - extra_gates: none
 - notes: F-43 respelled these sites into KitText roles without moving a pixel, and found four drifts it did not fix: (1) the cohesive passage body is `.passage .quote` serif 18/30 on the reference, 17/28 here; (2) its `Html` branch sets no family, so stored html renders in the UI SANS while the no-html branch is serif — the manuscript had the same defect (fixed in F-43 by `fontFamily: AppTheme.fontSerif` on the body Style); (3) `.cohesive-passage .pmeta .srctitle` is 14/500, 15/1.2/500 here; (4) `.cohesive-note` is at --fg-subtle, --fg-muted here. Needs a frame of the COHESIVE mode — the `search` pair's query does not reach it.
+
+## F-76 · Letters and Sources — the reader bar's Copy and Open in email; readings rows are letter rows; the source control's glyph
+- status: open
+- screen: letter-reader
+- route: /letters
+- spec: spec/screens/letters.md §Composition; spec/screens/sources.md §Document processing; spec/component-kit.md §1.3
+- web: src/pages/letters/LetterBarActions.jsx; src/pages/letters/letterActions.js; src/pages/letters/ReadingsLetter.jsx; src/pages/SourcesBrowse.jsx; src/styles/app-scripture.css
+- flutter: lib/pages/letters/letter_reader.dart; lib/pages/letters/readings_letter.dart; lib/widgets/kit/kit_letter.dart; lib/pages/sources/source_sheet.dart; lib/pages/sources/browse_section.dart
+- folds: TODO CS-6 "Owed on Flutter: Letters reader bar has no Copy / Open in email (d153111); processing card source link has no file/external glyph; readings-letter archive rows still old style"
+- device_test: none
+- shots: letter-reader; proc-affordances; letters
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: Found owed inside TODO CS-6's 4.98.0 Letter-settings line (web d153111, b51f414 — the latter already closed by F-70's NewsletterNotifier.latest). (1) The reader bar (`.lr-bar`): Copy copies html_body (disabled with no body; Copied; §14.2 under the bar on refusal), Open in email is `mailto:?subject=` (a handoff no mail app takes is said, never swallowed); below ~400px the two keep their glyphs and drop their labels — the reference's own `.lr-actions .btn span { display: none }`, which reaches nothing on web because its labels are not spans. (2) The readings archive is `.archive-list` of `.letter-row.rl-row`: KitLetterRow gains `kind` (`.lr-kind`, the book glyph + READINGS on the accent chip) and `refs` (`.lr-refs`, mono 10.5 at --fg-subtle, wrapping below the compact width). (3) The processing card's source control carries web SourceAffordance's glyph: open_in_new / layers / file.

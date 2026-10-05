@@ -38,6 +38,19 @@ class SourceSheet {
         _ => 'View file',
       };
 
+  /// The row's glyph for this document's shape — web `SourceAffordance`'s
+  /// `IcoExternal` / `IcoLayers` / `IcoFile`. The label says what opens; the
+  /// glyph says WHERE: out of the app, or a sheet inside it.
+  static IconData iconFor(Document doc) => switch (kitSourceShape(
+        type: doc.type,
+        gcsPath: doc.gcsPath,
+        sourceUrl: doc.sourceUrl,
+      )) {
+        'link' => Icons.open_in_new,
+        'set' => Icons.layers_outlined,
+        _ => Icons.insert_drive_file_outlined,
+      };
+
   /// Open it. A `link` never reaches the sheet — it has no stored object, so
   /// there is nothing to sign and nothing to draw.
   static Future<void> open(BuildContext context, Document doc) async {

@@ -121,7 +121,9 @@ class _ReadingsLetterSectionState extends State<ReadingsLetterSection> {
           _OptIn(busy: n.isSaving, error: n.saveError, onTurnOn: n.turnOn),
         if (issues.isNotEmpty) ...[
           SectionHeader('Readings sent · ${issues.length}'),
-          KitRowList(
+          // The daily archive's own surface and row (`.archive-list`,
+          // `.letter-row.rl-row`) — not §4.1 source rows.
+          KitLetterRowList(
             rows: [
               for (var i = 0; i < issues.length; i++)
                 _archiveRow(context, issues[i], issues.length - i),
@@ -152,18 +154,19 @@ class _ReadingsLetterSectionState extends State<ReadingsLetterSection> {
                   attempts: n.delivery?.attempts ?? 0,
                 ) ??
                 refs.join('  ·  '));
-    return KitSourceRow(
-      leading: Text('№ $number',
-          style: KitText.capsLabel(context,
-              color: Tokens.of(context).accentText,
-              fontSize: 12,
-              letterSpacing: 0.03)),
+    final found = n.passagesFound ?? 0;
+    return KitLetterRow(
+      number: number,
       title: n.liturgicalDay?.title ?? 'Readings',
-      subtitle: note.isEmpty ? null : note,
+      kind: 'Readings',
+      refs: true,
+      lede: note,
       // Stored AS SENT, so "5 of 23" stays honest as the library grows.
-      count: '${n.passagesSent ?? 0} of ${n.passagesFound ?? 0} passages',
+      figures: '${n.passagesSent ?? 0} of $found '
+          '${found == 1 ? 'passage' : 'passages'}',
       date: shortDate(n.generatedAt),
-      trailing: KitStatusPill(badge.text, positive: badge.settled),
+      badge: badge.text,
+      settled: badge.settled,
       onTap: n.status != 'empty' && n.readings.isNotEmpty
           ? () => widget.onOpen(n)
           : null,

@@ -1,5 +1,5 @@
 #!/bin/sh
-# The device run, or one test of it, on the iPhone 17 simulator against the
+# The device run, or one test of it, on the iPhone 17 Pro simulator against the
 # emulator suite.
 #
 #   tool/device_test.sh                                   the whole run

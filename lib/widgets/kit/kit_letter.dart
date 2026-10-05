@@ -13,6 +13,7 @@
 /// of both shapes render correctly, in either deploy order.
 library;
 
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -493,6 +494,13 @@ class KitLetterRowList extends StatelessWidget {
 /// (mono 9 caps; settled on the positive chip, open on the accent soft). Below
 /// the compact width the row keeps the number, the text and the badge, and the
 /// lede steps to 12. [onTap] null: an informational row (ADR-011).
+///
+/// **The readings letter's row is this row** (`.letter-row.rl-row`, web
+/// `ReadingsArchiveRow`), with two parts only it fills: [kind], the `.lr-kind`
+/// tag after the title (a book glyph and `READINGS`, on the accent chip), and
+/// [refs], which sets the second line as `.lr-refs` — the day's citations in
+/// mono 10.5 at `--fg-subtle`, wrapping on a phone — rather than as a lede.
+/// Until 2026-10-05 this client filed readings letters as §4.1 source rows.
 class KitLetterRow extends StatefulWidget {
   final int number;
   final String title;
@@ -502,6 +510,12 @@ class KitLetterRow extends StatefulWidget {
   final String badge;
   final bool settled;
   final VoidCallback? onTap;
+
+  /// `.lr-kind` — a tag after the title naming which letter this is.
+  final String? kind;
+
+  /// Set [lede] as `.lr-refs` (citations), not as the italic serif lede.
+  final bool refs;
 
   const KitLetterRow({
     super.key,
@@ -513,6 +527,8 @@ class KitLetterRow extends StatefulWidget {
     required this.badge,
     required this.settled,
     this.onTap,
+    this.kind,
+    this.refs = false,
   });
 
   @override
@@ -549,13 +565,42 @@ class _KitLetterRowState extends State<KitLetterRow> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.title,
-                    style: AppTheme.serif(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        height: 1.15,
-                        color: t.fg)),
-                if (widget.lede.isNotEmpty) ...[
+                if (widget.kind == null)
+                  Text(widget.title,
+                      style: AppTheme.serif(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          height: 1.15,
+                          color: t.fg))
+                else
+                  // `.rl-row .lr-title { display: flex; gap: 9px }`.
+                  Wrap(
+                    spacing: 9,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(widget.title,
+                          style: AppTheme.serif(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              height: 1.15,
+                              color: t.fg)),
+                      _KindTag(widget.kind!),
+                    ],
+                  ),
+                if (widget.lede.isNotEmpty && widget.refs) ...[
+                  const SizedBox(height: 4),
+                  // `.lr-refs`, and `white-space: normal` below 900 on the
+                  // reference — a phone wraps the citations rather than
+                  // cutting the last one off.
+                  Text(widget.lede,
+                      maxLines: compact ? null : 1,
+                      overflow: compact ? null : TextOverflow.ellipsis,
+                      style: AppTheme.mono(
+                          fontSize: 10.5,
+                          letterSpacing: 0.02 * 10.5,
+                          color: t.fgSubtle)),
+                ] else if (widget.lede.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Text(widget.lede,
                       maxLines: 1,
@@ -612,6 +657,37 @@ class _KitLetterRowState extends State<KitLetterRow> {
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
         child: row,
+      ),
+    );
+  }
+}
+
+/// `.lr-kind` — mono 9/0.12em caps on the accent chip trio, `--r-xs`,
+/// `3px 6px`, an 11px book glyph 5px before the word.
+class _KindTag extends StatelessWidget {
+  final String label;
+
+  const _KindTag(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: t.accentChipBg,
+        border: Border.all(color: t.accentChipBorder),
+        borderRadius: AppRadius.xsR,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.menu_book_outlined, size: 11, color: t.accentChipFg),
+          const SizedBox(width: 5),
+          Text(label.toUpperCase(),
+              style: KitText.capsLabel(context,
+                  fontSize: 9, letterSpacing: 0.12, color: t.accentChipFg)),
+        ],
       ),
     );
   }

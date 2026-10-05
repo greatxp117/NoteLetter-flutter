@@ -61,8 +61,11 @@ emu_assert_ours() {
 
 # The simulator by NAME, resolved to a UDID. Never `booted`: two simulators
 # are routinely booted on this machine and `xcrun simctl io booted` picks one.
+# "iPhone 17 Pro" is the device every committed frame was shot on; the default
+# said "iPhone 17", which this Mac has never had, so every run needed
+# NL_SIM_NAME. Another agent on the same machine names its own device.
 emu_sim_udid() {
-  name="${NL_SIM_NAME:-iPhone 17}"
+  name="${NL_SIM_NAME:-iPhone 17 Pro}"
   xcrun simctl list devices available -j | python3 -c "
 import json,sys
 name=sys.argv[1]

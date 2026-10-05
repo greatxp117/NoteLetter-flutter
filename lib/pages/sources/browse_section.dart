@@ -583,6 +583,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
     // chosen by the document's shape, which is known at creation and does not
     // depend on `status`.
     final source = KitButton.ghost(SourceSheet.labelFor(doc),
+        icon: SourceSheet.iconFor(doc),
         onPressed: () => SourceSheet.open(context, doc));
 
     return KitProcCard(

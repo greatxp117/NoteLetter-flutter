@@ -5,7 +5,7 @@
 # guard, and the identity check is what makes "the emulator" mean OURS.
 #
 #   tool/dev.sh chrome            fast iteration; a different renderer from the phone
-#   tool/dev.sh ios               the iPhone 17 simulator (NL_SIM_NAME to change)
+#   tool/dev.sh ios               the iPhone 17 Pro simulator (NL_SIM_NAME to change)
 #   tool/dev.sh ios --release     extra args are passed to flutter run
 set -e
 . "$(dirname "$0")/_emu_defines.sh"

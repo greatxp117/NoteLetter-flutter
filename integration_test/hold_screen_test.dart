@@ -616,7 +616,7 @@ Future<void> reachState(WidgetTester tester) async {
       // By the ROW's own type: the same text is in the card above it, where
       // it is not a control, and a tap that lands on nothing is silent.
       final row = find.byWidgetPredicate((w) =>
-          w is KitSourceRow && w.title.contains('Thursday of week 23'));
+          w is KitLetterRow && w.title.contains('Thursday of week 23'));
       expect(row, findsOneWidget,
           reason: 'run tool/seed_letters.py first — no readings letter to '
               'open');
