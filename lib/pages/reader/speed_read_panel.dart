@@ -513,6 +513,50 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
     );
   }
 
+  /// The page this panel scrolls in: the nearest VERTICAL scrollable above
+  /// it. Looked up, not depended on — it is read from a notification.
+  ScrollPosition? _page() {
+    var s = context.findAncestorStateOfType<ScrollableState>();
+    while (s != null && s.position.axis != Axis.vertical) {
+      s = s.context.findAncestorStateOfType<ScrollableState>();
+    }
+    return s?.position;
+  }
+
+  /// Whether this drag has already run past the box's end onto the page.
+  bool _chained = false;
+
+  /// `.rsvp-text` is `overflow-y: auto`, and a browser CHAINS a drag that
+  /// box has spent to the page. Flutter does not: the inner scrollable keeps
+  /// the gesture at its end, so a thumb that lands on the text stops the
+  /// reader's page dead — the device run's real drags stalled on this box at
+  /// 13531/14024 (2026-10-05). So the box scrolls by hand first (its words are
+  /// tap targets, and the text past its fold is only reachable that way), and
+  /// what is left of a drag at its end moves the page, a fling included.
+  /// The follow (`_follow`) is not a drag and never reaches the page.
+  bool _chain(ScrollNotification n) {
+    if (n.depth != 0) return false;
+    if (n is ScrollStartNotification) {
+      _chained = false;
+    } else if (n is OverscrollNotification && n.dragDetails != null) {
+      final page = _page();
+      if (page == null) return false;
+      final to = (page.pixels + n.overscroll)
+          .clamp(page.minScrollExtent, page.maxScrollExtent);
+      if (to != page.pixels) page.jumpTo(to);
+      _chained = true;
+    } else if (n is ScrollEndNotification && _chained) {
+      _chained = false;
+      final v = n.dragDetails?.primaryVelocity;
+      final page = _page();
+      if (v != null && v != 0 && page is ScrollActivityDelegate) {
+        // A finger moving UP (negative) scrolls the page DOWN.
+        (page as ScrollActivityDelegate).goBallistic(-v);
+      }
+    }
+    return false;
+  }
+
   /// `.rsvp-aside` — the eyebrow, then the whole text in a box that scrolls
   /// on its own and keeps the active word in view.
   Widget _aside(ReaderUi ui, {required double maxHeight}) {
@@ -523,26 +567,36 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
       ConstrainedBox(
         key: _textBox,
         constraints: BoxConstraints(maxHeight: maxHeight),
-        child: SingleChildScrollView(
-          controller: _textScroll,
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            for (var pi = 0; pi < _blocks.length; pi++)
-              if (_blocks[pi].isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.only(
-                      bottom: pi == _blocks.length - 1 ? 0 : 14),
-                  child: _ParaText(
-                    textKey: _paraKeys[pi],
-                    words: _words,
-                    ids: _blocks[pi],
-                    // A paragraph wholly before or after the cursor draws the
-                    // same at every tick; only the one holding it moves.
-                    cur: cur.clamp(_blocks[pi].first - 1, _blocks[pi].last + 1),
-                    onWord: _go,
-                  ),
-                ),
-          ]),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _chain,
+          child: SingleChildScrollView(
+            controller: _textScroll,
+            // Clamping, on every platform: a bouncing box takes the spent
+            // drag as its own overscroll and reports none for [_chain].
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var pi = 0; pi < _blocks.length; pi++)
+                    if (_blocks[pi].isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(
+                            bottom: pi == _blocks.length - 1 ? 0 : 14),
+                        child: _ParaText(
+                          textKey: _paraKeys[pi],
+                          words: _words,
+                          ids: _blocks[pi],
+                          // A paragraph wholly before or after the cursor
+                          // draws the same at every tick; only the one
+                          // holding it moves.
+                          cur: cur.clamp(
+                              _blocks[pi].first - 1, _blocks[pi].last + 1),
+                          onWord: _go,
+                        ),
+                      ),
+                ]),
+          ),
         ),
       ),
     ]);
