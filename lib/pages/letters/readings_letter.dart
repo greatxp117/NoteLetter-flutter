@@ -263,9 +263,13 @@ class _OnCard extends StatelessWidget {
                   // `emailEnabled` false is NOT "off": the letter still
                   // arrives here every morning, and saying otherwise is the
                   // merge 4.24.0 forbids.
+                  // The zone as stored, as the reference prints it
+                  // (`ReadingsLetterCard`: `${cfg.timezone || browserTimezone()}`)
+                  // — the daily card's city spelling is scheduleSentence's,
+                  // not this line's.
                   (cfg.emailEnabled
-                          ? 'On · arrives ${cfg.deliveryTime}'
-                              '${cfg.timezone.isEmpty ? '' : ' ${zoneCity(cfg.timezone)}'}'
+                          ? 'On · arrives ${cfg.deliveryTime} '
+                              '${cfg.timezone.isEmpty ? deviceTimezone() : cfg.timezone}'
                           : 'On · in the app only')
                       .toUpperCase(),
                   maxLines: 2,

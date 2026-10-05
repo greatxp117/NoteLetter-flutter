@@ -325,10 +325,11 @@ class LatestLetterCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.s3),
             // `chunk_ids` names exactly the passages the body holds (4.39.0),
             // so this is counted, not estimated.
+            // `.nl-meta`: sans 13 at --fg-muted, not §3's 14 at --fg-subtle.
             Text(
                 '$passages ${passages == 1 ? 'passage' : 'passages'} · '
                 '~${passages + 1} min read',
-                style: KitText.meta(context)),
+                style: KitText.ui(context, color: Tokens.of(context).fgMuted)),
           ],
           if (sendError != null) ...[
             const SizedBox(height: AppSpacing.s2),

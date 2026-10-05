@@ -68,14 +68,23 @@ class LetterReaderView extends StatelessWidget {
       openMail: openMail,
       body: Expanded(
           child: KitScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
-              // Scripture has its own document; a daily letter goes through
-              // the one host the letter-settings preview shares (ADR-131).
-              child: letter.isScripture && !letter.hasLetterhead
-                  ? ReadingsLetterDocument(letter: letter, onSeeAll: onSeeAll)
-                  : LetterHost(letter),
-            ),
+            // A letter with its own letterhead is hosted BARE, flush under
+            // the bar — web `.letter-sheet` has "no padding that would fight
+            // the letter's own"; a band of app ground above the paper was a
+            // frame the sent object does not have. The frame-less shapes keep
+            // theirs (`.letter-page`).
+            child: letter.hasLetterhead
+                ? LetterHost(letter)
+                : Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
+                    // Scripture has its own document; a daily letter goes
+                    // through the one host the letter-settings preview shares
+                    // (ADR-131).
+                    child: letter.isScripture
+                        ? ReadingsLetterDocument(
+                            letter: letter, onSeeAll: onSeeAll)
+                        : LetterHost(letter),
+                  ),
           ),
       ),
     );
