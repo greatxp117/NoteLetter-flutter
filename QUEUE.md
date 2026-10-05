@@ -1397,6 +1397,7 @@ a new obligation on a finished screen is a new item.
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: CHANGELOG 4.100.0 + 4.101.0 Flutter tandems. (a) Api.reviewDocuments(docIds) → `fn_review_documents` {docIds, action:'dismiss'} (fixture documents:review-*); budget above the 60s host. (b) Three subscriptions per screens/review.md §Data — held imports (status == awaiting_review, limit 500, NOT the 50-newest window), pending suggestions, and documents status in [error, skipped, processing] limit 500 — and ONE notifier that yields {needs, count, measured} to both the drawer item and the page (INV-30: a failed subscription makes the count unmeasured, drawn as the dash, never a partial count). (c) The page reuses this client's processing card (+ Dismiss, Dismiss all with the §18 confirm), the import review rows and the suggestion cards with their outcome rows; sections in the order the spec gives, absent when empty, §7 empty state when all are. (d) Drawer: For your review under Home with the §1.2 attention count; the app bar's menu button carries the dot while it is above zero. (e) 4.101.0: `fn_request_task` / `fn_resolve_task` builders (add api/tasks to api_requests_test's suites), the background_tasks subscription in the same notifier, Proposals + Running (§22 Review row), the stored re-shelve review, the shelf delete through the task, and hiding a `deleting` shelf in the tags stream. (f) 4.102.0: "Find sources for this shelf", the create form's backfill and "Split this shelf" become `fn_request_task` {kind: shelf_backfill | shelf_split} + a local toast; the backfill review gains a stored mode (apply = `fn_resolve_task` {documentIds}, `skipped` said before Done) and the split review applies `{parts: [{index, title, description}]}` — never document ids — saying `skipped.moved_away` and drawing a 409 STALE inline; a task row with `apply_error` carries Run again (`retry`). Until this lands the held client keeps `fn_suggest_shelf_backfill`/`fn_suggest_shelf_split`, which stay served. (g) 4.103.0: "Read the syllabus" and the reader's Reorganize become `fn_request_task` {kind: syllabus_plan {programId, documentId} | reorg_plan {documentId}} + a local toast; For your review opens the syllabus plan editor over `result` (apply = `fn_resolve_task` {units, assessments} — the reader's edited plan) and the reorganize sheet over `result` (apply = {operations}; a 409 STALE offers Run again = `retry`); an apply answering 409 SUBJECT_GONE has already dismissed the task. The held client keeps `fn_suggest_syllabus_plan`/`fn_analyze_reorganization`, which stay served.
   2026-10-02: built 538cd99 (a, b), 8eb9b57 (c, d, e: screen, rail count, §22 rows, stored re-shelve), 72c0d80 (e: delete via task, `deleting` filter), 1b004dc (f), 6cc0dc3 (g); analyze clean, contract+kit 1098 green, confirm_check PASS; device run + the review pair owed — no emulator this wave.
+  2026-10-05: the review pair MATCHES and is committed (a8e9ec6). (f) was incomplete: the Shelves index's New shelf card still opened the live in-sheet backfill review — fixed f03961c. The device test exists (711f7a8) and has never run: the device run was stopped by the disk (under 5 GB). Still owed: the device run.
 
 ## F-73 · Reader — Delete a source; the re-shelve review's shelf select (4.105.0)
 - status: open
@@ -1411,6 +1412,7 @@ a new obligation on a finished screen is a new item.
 - extra_gates: confirm_check.py
 - notes: Contract 4.105.0. (a) The reader's last header action is a ghost *Delete* with a trash glyph, for complete/error/skipped documents, opening a §18 KitConfirm: `Delete “{title}”?`, the body naming what is lost (its {n} passages, original file, reading history, its shelves by name) and what is not (letters received, other sources, the shelves; a study program drops its passages at its next session), *Keep it* / *Delete source* (danger). One `Api.deleteDocument` (add it: `fn_delete_document {docId}`); the panel holds until it resolves, a refusal answers inside it, success pops back to the reader's origin. (b) §20.2 Shelf select as a kit widget beside §20 in `kit_shelf_chips.dart` — a trigger (dot + title, or the none label in --fg-muted, chevron) opening the §20.1 panel over every shelf, the chosen one checked, a none row first while nothing is typed, the create row last — and `reshelve_sheet.dart`'s `KitSelect` becomes it (none = Leave unshelved; the create row opens showShelfSheet and the new id becomes the row's choice).
   2026-10-02: built 4790210 (analyze clean, contract+kit 1026 green, confirm_check PASS); device run + the reader pair owed — no emulator this wave.
+  2026-10-05: the reader pair was re-shot from 0d329b8; this item's own parts (the ghost Delete with its trash glyph, §20.2's select) are on screen, but the pair does NOT match for other reasons, booked as F-77 — so it is not committed and this stays open until F-77's reader frame matches.
 
 ## F-74 · Reader — the manuscript's reading controls: Aa, the reading-progress rule, Pick up where you left off, the drop cap
 - status: open
@@ -1450,3 +1452,82 @@ a new obligation on a finished screen is a new item.
 - shots: letter-reader; proc-affordances; letters
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: Found owed inside TODO CS-6's 4.98.0 Letter-settings line (web d153111, b51f414 — the latter already closed by F-70's NewsletterNotifier.latest). (1) The reader bar (`.lr-bar`): Copy copies html_body (disabled with no body; Copied; §14.2 under the bar on refusal), Open in email is `mailto:?subject=` (a handoff no mail app takes is said, never swallowed); below ~400px the two keep their glyphs and drop their labels — the reference's own `.lr-actions .btn span { display: none }`, which reaches nothing on web because its labels are not spans. (2) The readings archive is `.archive-list` of `.letter-row.rl-row`: KitLetterRow gains `kind` (`.lr-kind`, the book glyph + READINGS on the accent chip) and `refs` (`.lr-refs`, mono 10.5 at --fg-subtle, wrapping below the compact width). (3) The processing card's source control carries web SourceAffordance's glyph: open_in_new / layers / file.
+  2026-10-05: built 06bdce6. proc-affordances MATCHES (committed a8e9ec6). letter-reader and letters did not: a 24pt band of app ground above a letterhead letter, the card's figures at --fg-subtle 14 instead of `.nl-meta`, and the readings card's zone as a city — all three fixed in f417c96, and their re-shoot was stopped by the disk. Still owed: the letter-reader and letters pairs from f417c96 or later.
+
+## F-77 · Reader — the parts the 2026-10-05 pairs found: LISTEN stat, a link web has not, the rail's ground, History lands short
+- status: open
+- screen: reader
+- route: /reader/{id}
+- spec: spec/screens/reader.md §Composition §Sections; spec/component-kit.md §19 §5.4 §15.2
+- web: src/pages/ReaderView.jsx; src/styles/app-source.css; src/pages/reader/ManuscriptPanel.jsx
+- flutter: lib/pages/reader_page.dart; lib/widgets/kit/kit_section_rail.dart; lib/pages/reader/manuscript_panel.dart; lib/pages/reader/speed_read_panel.dart; lib/widgets/kit/kit_recipe.dart; lib/widgets/kit/kit_overlay.dart
+- folds: none — found by the 2026-10-05 re-shoot (burn-down report, flutter)
+- device_test: none
+- shots: reader; reader-history; reader-manuscript; reader-speed-read; reader-shelves; shelf-picker-search; recipe; source-set
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: Each read off a pair re-shot from 0d329b8, against web code. (1) The stat cluster has no `— LISTEN` cell; web always draws it (ReaderView.jsx ~692); left out on purpose at reader_page.dart ~929-961 but recorded nowhere (F-55 note 3 booked it). (2) A "How these passages reached you" link under Mark finished (reader_page.dart ~1077) that web does not draw at rest (its toggle is Reading stats inside the Aa popover — F-74). (3) The §19 rail paints --surface full width (kit_section_rail.dart ~73, reader_page.dart ~557): web `.src-rail` is --bg with a right-edge fade on a phone. (4) History lands short: the rail reports Original and the list starts half way down; web gives the last section `min-height: calc(100vh - var(--src-rail-h) - 72px)` (app-source.css ~100); here only a trailing SizedBox. (5) No rule between sections (`.src-section + .src-section`). (6) Glyphs: Ask forum_outlined vs IcoChat, Reorganize account_tree vs IcoText, rail auto_awesome/notes/history vs IcoSparkle/IcoText/IcoClock. (7) Manuscript: the passage mark takes 26pt inside the column (web `.ms-mark` sits in the sheet padding, left -26/-14); table cells 19 vs `.ms-body table` 15. (8) Speed read: the hint row under the stage is absent and recorded nowhere (`Hold to pause & rest` applies on touch). (9) Recipe: ingredients 16 vs 15, a rule under every item (web rules between), caption 14 --fg-subtle vs 12 --fg-muted. (10) Image set: the 3:4 aspect applies to the whole cell, caption included (kit_overlay.dart ~503); `.srcset-frame` is 3:4. Reader pair is also F-73's: F-73's own parts (ghost Delete with trash, §20.2 select) were seen present.
+
+## F-78 · Ask and Search — passage text keeps its line breaks, the Ask header and composer, the rail overlay, the open result card
+- status: open
+- screen: ask
+- route: /ask
+- spec: spec/screens/ask.md §Composition; spec/screens/search.md §Composition; spec/component-kit.md §6.6 §17
+- web: src/pages/AskView.jsx; src/pages/SearchView.jsx; src/styles/app-kit.css; src/styles/app-responsive.css
+- flutter: lib/pages/chat_page.dart; lib/widgets/kit/kit_markers.dart; lib/pages/search/result_card.dart; lib/widgets/kit/kit_controls.dart; lib/widgets/kit/kit_composer.dart; lib/widgets/kit/kit_headers.dart
+- folds: none — found by the 2026-10-05 re-shoot (burn-down report, flutter)
+- device_test: none
+- shots: ask; ask-thread; ask-rail; ask-turn-failed; search
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: (1) One root, two screens: kit_markers.dart ~169 renders `TextSpan(text: p.text)`, so a `\n` in chunk text breaks the line in Search snippets and Ask citation excerpts; web collapses white space (`.sresult-passage`). (2) Ask: History is a padded KitButton.ghost (chat_page.dart ~180) where web has a bare `.pact` link (sans 12, padding 0, 13px glyph); the title stays 30 at phone width, web 26 at ≤680 (app-responsive.css ~385); the empty state starts ~48pt lower (chat_page.dart ~370 `s8` on KitEmptyState's own `s8`); the prompt glyph is a filled auto_awesome vs IcoSparkle; the empty send is drawn at 0.45 (kit_composer.dart ~209, Support's rule) where Ask's `.send` has no disabled rule. (3) ask-thread: the reader avatar uses the flipping toneSage; web pins raw `--sage-700` in both themes (app-kit.css ~365). (4) ask-rail: the overlay is a Stack inside the page body, so the app bar and footer stay undimmed; web's rail is position fixed over everything with its backdrop. (5) Search: the open card draws an accent border + shadow-2 (result_card.dart ~56) that web has no rule for; the count line is left-aligned (kit_controls.dart ~913) where search.md says it stays trailing. (6) ask-turn-failed: the batch hold reported OK yet the frame is the empty scoped screen — no question, no refusal, no Try again; find out how a hold that asserts `Try again` photographed a state without it. The web hold for it runs on /ask with an injected shelf key (theme-shots.mjs ~690), so the headers differ by construction — align the two holds first.
+
+## F-79 · Sources, the folder picker and Activity — the drop zone, a disabled Add link, the import counter row, the timeline spine
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md §Composition; spec/screens/activity.md §Composition; spec/component-kit.md §4.2 §6.4
+- web: src/pages/SourcesBrowse.jsx; src/pages/sources/CloudFilePicker.jsx; src/pages/ActivityView.jsx; src/styles/app-kit.css
+- flutter: lib/widgets/file_uploader.dart; lib/pages/sources_page.dart; lib/widgets/kit/kit_rows.dart; lib/widgets/kit/kit_controls.dart; lib/pages/activity_page.dart
+- folds: none — found by the 2026-10-05 re-shoot (burn-down report, flutter)
+- device_test: none
+- shots: sources; folder-contents; activity
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: (1) Drop zone: a centred filled Material upload arrow vs web's stroke upload-tray glyph at the leading edge; copy says "tap to add a few" where web says "click to add a few" — a touch adaptation recorded nowhere, so either record it in CLAUDE.md §Composition deviations or follow web. (2) Add link with an empty field is drawn disabled, nearly invisible in dark; web draws `.btn-secondary` at full strength. (3) An "Add an image set (up to 20)" row under the link row that is in no §Composition and no recorded deviation. (4) Folder picker: "Import 0 items" is dimmed where web is full-strength (web may be the side at fault — a disabled control drawn enabled; decide by spec), Import + Cancel left-aligned where web right-aligns at phone width (`.proc-error-actions`), the checkbox a heavy 2px Material square vs web's 1px rounded box. (5) Activity: the spine sits at left 15 but rows lack web's `margin: 0 -12px` inset, so it runs along the nodes' left edge, not their centres (kit_rows.dart KitTimeline); the youtube/instagram/tiktok/podcast/video badges are filled --surface-sunken where web leaves them untinted.
+
+## F-80 · Readings day, Notifications, Settings, Onboarding — the drifts the 2026-10-05 pairs found
+- status: open
+- screen: scripture-day
+- route: /letters
+- spec: spec/screens/letters.md §Composition; spec/screens/notifications.md §Composition; spec/screens/settings.md §Composition; spec/screens/onboarding.md §Composition
+- web: src/pages/letters/ScriptureDayView.jsx; src/styles/app-scripture.css; src/pages/NotificationSettings.jsx; src/shell/AppShell.jsx; src/pages/onboarding/OnboardingWizard.jsx; src/styles/app-onboarding-wizard.css
+- flutter: lib/pages/letters/scripture_day_page.dart; lib/pages/notification_settings_page.dart; lib/pages/settings_page.dart; lib/pages/onboarding/wizard.dart
+- folds: none — found by the 2026-10-05 re-shoot (burn-down report, flutter)
+- device_test: none
+- shots: scripture-day; notifications; settings; onboarding; letter-settings
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: (1) Readings day: the reading reference is h3 28 where `.sc-day-ref` is serif 21/600; on a phone web wraps the header with `.sc-day-ct{margin-left:0}` so the count follows the reference, here it is pinned right by an Expanded; the live notice's figures are plain where web wraps them in <b>. (2) Notifications: the Type group is `KitFieldGroup(first: true)` and draws no top rule; web's `.cfg-group:first-of-type` does not match there, so web rules it. (3) Settings: Theme is a labelled segmented control (Light / System / Dark, settings_page.dart ~99); web's ThemeToggle is three glyphs with titles, no text. (4) Onboarding: the head borrows §2.1's two-bar rule where web draws `.ob-rule` (a 38px --ink-300 dash with a 12px accent tick); title 32 vs `.ob-title` 27 at ≤460 (wraps "library." alone); standfirst ~19 vs 17; the rail band reads lighter than --chrome in dark. (5) Letter settings — a RULING, not a fix: web phone stacks two separately scrolling panes with the preview on the first screen; here the preview follows the whole form. The spec says only "below it on a phone". The web references for letter-settings are v4.97.0 and show the pre-4.98.0 preview — re-shoot web first.
+
+## F-81 · Shelves — the grid's top margin, spine heights, the selected swatch's size, the sheet's glyph; serif optical size everywhere
+- status: open
+- screen: shelves
+- route: /shelves
+- spec: spec/screens/library.md §Shelves §Shelf color; spec/component-kit.md §15 §21; spec/design-tokens.md
+- web: src/pages/ShelvesView.jsx; src/styles/app-shelves.css; src/shared/ShelfForm.jsx; src/styles/theme.css
+- flutter: lib/pages/tags_page.dart; lib/widgets/kit/kit_cards.dart; lib/widgets/kit/kit_controls.dart; lib/pages/tags/shelf_sheet.dart; lib/widgets/kit/kit_overlay.dart; lib/theme/app_theme.dart
+- folds: none — found by the 2026-10-05 re-shoot (burn-down report, flutter)
+- device_test: none
+- shots: shelves; shelf-color-picker; shelf-create-sheet
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: (1) The grid follows the chapter opening directly; web `.shelf-grid { margin-top: 26px }`. (2) Spines scale on 44 (kit_cards.dart ~644) where web's percent heights are of a 56px strip. (3) `Empty shelf` is serif italic; `.scv-empty` is sans italic. (4) The index standfirst says `N volumes, shelved.` with no singular. (5) KitSwatch draws the 2px selection ring OUTSIDE the 24pt circle, so the selected swatch is 28; web's ring is the circle's own border, every swatch one size, hairline 2px inside. (6) The create sheet's glyph is layers_outlined vs IcoStack (three layers), coloured accentText where web uses --seal (same value today, wrong name). (7) Cross-cutting, seen on ask, search, recipe and the landing: serif text sets 8-15% wider than web at the same glyph height. app_theme.dart drives only the `wght` axis; web sets `opsz` per role (theme.css ~480-519). Cause unproven — measure before changing a face every screen uses. (8) shelf-backfill-review is RETIRED (4.102.0) and fails its hold, but done item F-38 still lists it in shots:, so screenshot_pair_check reports it STALE-PAIR forever; the review's pair is web's review-backfill, which needs a stored shelf_backfill task. Needs a pair-check rule for a retired state, not an edit to F-38.
+
+## F-82 · Holds that shoot a different surface than the reference, and the site's control heights and hero lines
+- status: open
+- screen: source-file
+- route: /reader/{id}
+- spec: spec/component-kit.md §15.1 §15.2; spec/clients/flutter.md
+- web: scripts/theme-shots.mjs; src/styles/signin.css; src/pages/LandingActual.jsx; src/styles/landing-actual.css
+- flutter: integration_test/hold_screen_test.dart; lib/widgets/kit/kit_overlay.dart; lib/site/site_sheet.dart; lib/site/landing_page.dart
+- folds: none — found by the 2026-10-05 re-shoot (burn-down report, flutter)
+- device_test: none
+- shots: source-file; source-set; signin; signin-fail; landing-actual
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: (1) source-file and source-set: the Flutter holds frame the reader's Original section (§15.1/§15.2 inline on the reader) while web theme-shots frames the §15 overlay sheet opened from /sources (theme-shots.mjs ~1067, ~1621), so the pairs compare two surfaces — align one side's hold before judging either. §15.1 asks for a PDF in a frame on a white sheet; Flutter prints a sentence (kit_overlay.dart ~398), recorded nowhere. (2) signin / signin-fail: fields 49 vs 43, Sign in 47 vs 43, Google 46 vs 43 — the field's 13pt vertical padding vs `padding: 11px 13px`, the button's 13 vs 12, line height 1.3 vs normal (site_sheet.dart ~307-348, signin.css ~137-159). (3) landing-actual: on a phone the hero's two fixed lines are joined with a space (landing_page.dart ~912), so "deserve" and "to be re-" share a line; web's lines are display:block. The masthead is ~26pt shorter (tighter line boxes, landing_page.dart ~698).
