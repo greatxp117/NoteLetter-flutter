@@ -30,32 +30,22 @@ import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/app.dart';
+import 'package:flutter_app/app_providers.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/pages/tags/shelf_sheet.dart';
-import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
 import 'package:flutter_app/state/chat_notifier.dart';
-import 'package:flutter_app/state/cloud_notifier.dart';
-import 'package:flutter_app/state/documents_notifier.dart';
-import 'package:flutter_app/state/newsletter_notifier.dart';
-import 'package:flutter_app/state/scripture_letter_notifier.dart';
-import 'package:flutter_app/state/org_notifier.dart';
-import 'package:flutter_app/state/search_notifier.dart';
-import 'package:flutter_app/state/settings_notifier.dart';
-import 'package:flutter_app/state/support_notifier.dart';
 import 'package:flutter_app/pages/onboarding/wizard.dart';
 import 'package:flutter_app/pages/reader/history_panel.dart';
 import 'package:flutter_app/pages/reader/listen_panel.dart';
 import 'package:flutter_app/pages/reader/manuscript_panel.dart';
 import 'package:flutter_app/pages/reader/speed_read_panel.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
-import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
-import 'package:flutter_app/state/upload_notifier.dart';
 
 const seedEmail = 'seed@noteletter.test';
 const seedPassword = 'seed-password-1';
@@ -94,33 +84,9 @@ void main() {
     final theme = ThemeNotifier();
     final router = createRouter(auth);
     await tester.pumpWidget(MultiProvider(
-      providers: [
-        ChangeNotifierProvider<AuthNotifier>.value(value: auth),
-        ChangeNotifierProvider<UploadNotifier>(create: (_) => UploadNotifier()),
-        ChangeNotifierProvider<SearchNotifier>(create: (_) => SearchNotifier()),
-        ChangeNotifierProvider<ChatNotifier>(create: (_) => ChatNotifier()),
-        ChangeNotifierProvider<ActivityNotifier>(
-            create: (_) => ActivityNotifier()),
-        ChangeNotifierProvider<DocumentsNotifier>(
-            create: (_) => DocumentsNotifier()),
-        ChangeNotifierProvider<SettingsNotifier>(
-            create: (_) => SettingsNotifier()),
-        ChangeNotifierProvider<NewsletterNotifier>(
-            create: (_) => NewsletterNotifier()),
-        // The readings letter's own settings document (ADR-029) —
-        // separate from the daily letter's, as the endpoint is.
-        ChangeNotifierProvider<ScriptureLetterNotifier>(
-            create: (_) => ScriptureLetterNotifier()),
-        ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
-        ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
-        ChangeNotifierProvider<TagsNotifier>(create: (_) => TagsNotifier()),
-        // INV-22: every authenticated screen sits inside SupportShell, which
-        // reads this. Without it the hold renders a ProviderNotFoundError
-        // wall — in both themes, for every screen — instead of the screen.
-        ChangeNotifierProvider<SupportNotifier>(
-            create: (_) => SupportNotifier()),
-        ChangeNotifierProvider<ThemeNotifier>.value(value: theme),
-      ],
+      // The app's own list (lib/app_providers.dart) — a copy here is how
+      // F-72's ReviewInbox reached the app and not the hold.
+      providers: appProviders(auth, theme: theme),
       child: NoteLetterApp(router: router),
     ));
     // The landing never settles — its ticker runs and its caret blinks — and a

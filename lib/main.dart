@@ -8,22 +8,9 @@ import 'services/analytics.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'app.dart';
+import 'app_providers.dart';
 import 'router.dart';
 import 'state/auth_notifier.dart';
-import 'state/upload_notifier.dart';
-import 'state/search_notifier.dart';
-import 'state/chat_notifier.dart';
-import 'state/activity_notifier.dart';
-import 'state/documents_notifier.dart';
-import 'state/settings_notifier.dart';
-import 'state/newsletter_notifier.dart';
-import 'state/scripture_letter_notifier.dart';
-import 'state/cloud_notifier.dart';
-import 'state/org_notifier.dart';
-import 'state/review_inbox.dart';
-import 'state/tags_notifier.dart';
-import 'state/support_notifier.dart';
-import 'state/theme_notifier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -79,39 +66,7 @@ void main() async {
 
   runApp(
     MultiProvider(
-      providers: [
-        ChangeNotifierProvider<AuthNotifier>.value(value: authNotifier),
-        ChangeNotifierProvider<UploadNotifier>(create: (_) => UploadNotifier()),
-        ChangeNotifierProvider<SearchNotifier>(create: (_) => SearchNotifier()),
-        ChangeNotifierProvider<ChatNotifier>(create: (_) => ChatNotifier()),
-        ChangeNotifierProvider<ActivityNotifier>(
-          create: (_) => ActivityNotifier(),
-        ),
-        ChangeNotifierProvider<DocumentsNotifier>(
-          create: (_) => DocumentsNotifier(),
-        ),
-        ChangeNotifierProvider<SettingsNotifier>(
-          create: (_) => SettingsNotifier(),
-        ),
-        ChangeNotifierProvider<NewsletterNotifier>(
-          create: (_) => NewsletterNotifier(),
-        ),
-        // The readings letter's own settings document (ADR-029) — separate
-        // from the daily letter's, exactly as its endpoint is.
-        ChangeNotifierProvider<ScriptureLetterNotifier>(
-          create: (_) => ScriptureLetterNotifier(),
-        ),
-        ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
-        ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
-        // For your review's one inbox (4.100.0, ADR-135, INV-30): the rail's
-        // attention count and the page read this same object.
-        ChangeNotifierProvider<ReviewInbox>(create: (_) => ReviewInbox()),
-        ChangeNotifierProvider<TagsNotifier>(create: (_) => TagsNotifier()),
-        ChangeNotifierProvider<SupportNotifier>(
-          create: (_) => SupportNotifier(),
-        ),
-        ChangeNotifierProvider<ThemeNotifier>(create: (_) => ThemeNotifier()),
-      ],
+      providers: appProviders(authNotifier),
       child: NoteLetterApp(router: router),
     ),
   );

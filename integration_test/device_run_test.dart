@@ -9,26 +9,18 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/app.dart';
+import 'package:flutter_app/app_providers.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
+import 'package:flutter_app/pages/sources/browse_section.dart';
 import 'package:flutter_app/pages/sources/folder_contents.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
 import 'package:flutter_app/state/chat_notifier.dart';
-import 'package:flutter_app/state/cloud_notifier.dart';
-import 'package:flutter_app/state/documents_notifier.dart';
-import 'package:flutter_app/state/newsletter_notifier.dart';
-import 'package:flutter_app/state/org_notifier.dart';
-import 'package:flutter_app/state/scripture_letter_notifier.dart';
 import 'package:flutter_app/shared/local_flags.dart';
 import 'package:flutter_app/state/search_notifier.dart';
-import 'package:flutter_app/state/settings_notifier.dart';
-import 'package:flutter_app/state/tags_notifier.dart';
-import 'package:flutter_app/state/support_notifier.dart';
-import 'package:flutter_app/state/theme_notifier.dart';
-import 'package:flutter_app/state/upload_notifier.dart';
 import 'package:flutter_app/pages/onboarding/wizard.dart';
 import 'package:flutter_app/pages/reader/passage_mark.dart';
 import 'package:flutter_app/pages/search/reading_pane.dart';
@@ -124,42 +116,10 @@ void main() {
     final router = createRouter(auth);
     await tester.pumpWidget(
       MultiProvider(
-        providers: [
-          ChangeNotifierProvider<AuthNotifier>.value(value: auth),
-          ChangeNotifierProvider<UploadNotifier>(
-            create: (_) => UploadNotifier(),
-          ),
-          ChangeNotifierProvider<SearchNotifier>(
-            create: (_) => SearchNotifier(),
-          ),
-          ChangeNotifierProvider<ChatNotifier>(create: (_) => ChatNotifier()),
-          ChangeNotifierProvider<ActivityNotifier>(
-            create: (_) => ActivityNotifier(),
-          ),
-          ChangeNotifierProvider<DocumentsNotifier>(
-            create: (_) => DocumentsNotifier(),
-          ),
-          ChangeNotifierProvider<SettingsNotifier>(
-            create: (_) => SettingsNotifier(),
-          ),
-          ChangeNotifierProvider<NewsletterNotifier>(
-            create: (_) => NewsletterNotifier(),
-          ),
-          // The readings letter's own settings document (ADR-029) — separate
-          // from the daily letter's, exactly as its endpoint is. A provider
-          // missing HERE does not fail the app: it fails the run, with a
-          // ProviderNotFoundError wall where the screen should be.
-          ChangeNotifierProvider<ScriptureLetterNotifier>(
-            create: (_) => ScriptureLetterNotifier(),
-          ),
-          ChangeNotifierProvider<CloudNotifier>(create: (_) => CloudNotifier()),
-          ChangeNotifierProvider<OrgNotifier>(create: (_) => OrgNotifier()),
-          ChangeNotifierProvider<TagsNotifier>(create: (_) => TagsNotifier()),
-          ChangeNotifierProvider<SupportNotifier>(
-            create: (_) => SupportNotifier(),
-          ),
-          ChangeNotifierProvider<ThemeNotifier>(create: (_) => ThemeNotifier()),
-        ],
+        // The app's own list (lib/app_providers.dart). A provider missing
+        // HERE does not fail the app: it fails the run, with a
+        // ProviderNotFoundError wall where the screen should be.
+        providers: appProviders(auth),
         child: NoteLetterApp(router: router),
       ),
     );
@@ -2085,6 +2045,63 @@ void main() {
   // a device that has onboarded correctly sees no wizard. The flag is cleared
   // here to put the device in first-run condition — that is the gate's stated
   // precondition, not a nudge toward green.
+  // F-72 (4.100.0, ADR-135, INV-30): For your review is reached from the
+  // drawer — under Home, carrying §1.2's attention count — and a failed source
+  // leaves it by DISMISS, which changes nothing but `review_dismissed_at`. The
+  // row leaves when the subscription says so, never on the press (write before
+  // you move). Mutates the seed: run it after the screenshot holds.
+  testWidgets('signs in, opens For your review from the drawer, dismisses a failed source',
+      (tester) async {
+    final router = await pumpApp(tester);
+    router.go('/');
+    for (var i = 0; i < 60; i++) {
+      if (find.byIcon(Icons.menu).evaluate().isNotEmpty) break;
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await tester.tap(find.byIcon(Icons.menu));
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    final item = find.widgetWithText(KitNavItem, 'For your review');
+    expect(item, findsOneWidget,
+        reason: 'For your review is not in the rail under Home');
+    // The rail's count is measured (the dash is INV-30's unmeasured state).
+    final countBefore = tester.widget<KitNavItem>(item).badge;
+    expect(countBefore, isNotNull,
+        reason: 'the seed has sources that need the reader; the rail says none');
+    await tester.tap(item);
+    await pumpFor(tester, total: const Duration(seconds: 3));
+    expect(router.state.matchedLocation, '/review');
+    expect(find.textContaining(RegExp(r'^Sources that need you', caseSensitive: false)),
+        findsOneWidget);
+
+    final rows = find.byType(ProcessingRow);
+    for (var i = 0; i < 40; i++) {
+      if (rows.evaluate().isNotEmpty) break;
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(rows, findsWidgets, reason: 'no source needs the reader — check the seed');
+    final first = tester.widget<ProcessingRow>(rows.first);
+    final key = find.byKey(ValueKey('review-src-${first.doc.id}'));
+    final dismiss = find.descendant(of: key, matching: find.text('Dismiss'));
+    await tester.ensureVisible(dismiss);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    await tester.tap(dismiss);
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+      if (key.evaluate().isEmpty) break;
+    }
+    expect(key, findsNothing,
+        reason: 'the dismissed source is still on For your review');
+    expect(find.byType(KitFailureInline), findsNothing,
+        reason: 'the dismiss was refused');
+    // Dismissing never deletes: the source is still in the Library.
+    final stillThere = await FirebaseFirestore.instance
+        .collection('documents')
+        .doc(first.doc.id)
+        .get();
+    expect(stillThere.exists, isTrue);
+    expect(stillThere.data()?['review_dismissed_at'], isNotNull);
+  });
+
   testWidgets('a first-run account sees the wizard', (tester) async {
     final seed = FirebaseAuth.instance.currentUser;
     final email = 'firstrun-${DateTime.now().microsecondsSinceEpoch}@noteletter.test';
