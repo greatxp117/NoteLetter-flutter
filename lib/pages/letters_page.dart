@@ -345,8 +345,10 @@ class LatestLetterCard extends StatelessWidget {
           KitActionFlow(
             grow: compact,
             children: [
+              // web `IcoSend` is a right arrow (`M5 12h14M13 5l7 7-7 7`), as
+              // the Ask composer's send already draws it — never a paper plane.
               KitButton(sending ? 'Sending…' : 'Send now',
-                  icon: Icons.send_outlined,
+                  icon: Icons.arrow_forward,
                   center: compact,
                   onPressed: sending ? null : () => onSend()),
               if (onPreview != null)

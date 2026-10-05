@@ -54,7 +54,7 @@ construction.
 tool/dev.sh chrome|ios                        # emulator only, proven ours
 flutter analyze --no-fatal-infos --no-fatal-warnings
 flutter test test/contract test/kit -x pin    # pin excluded by policy
-tool/shots.sh <screen> <route> && tool/web_frames.sh <screen>
+tool/shots_batch.sh <list> && tool/web_frames.sh <screen>…
 ```
 
 Device run: `tool/device_test.sh ["<test name>"]` — always the script: zsh

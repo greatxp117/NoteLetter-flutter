@@ -266,12 +266,17 @@ typedef _Kind = ({
 /// The node tone is NOT in this table any more: it is the family's colour,
 /// overridden by `level` (see [_toneFor]). Shape is load-bearing for the gate's
 /// parser — one entry per line, `family:` then `chip:`, single-quoted.
+///
+/// The glyph follows web `activityKinds.jsx`: its `IcoAlert` is the TRIANGLE
+/// (`warning_amber_rounded`, the kit's own alert), never the circled `!` this
+/// table drew for all thirteen until 2026-10-05; its `IcoSend` is a right
+/// arrow, never a paper plane.
 const _kinds = <String, _Kind>{
   // ── processing — the document pipeline ─────────────────────────────────────
   'doc_indexed': (family: 'processing', chip: 'Indexed', icon: Icons.check),
   'doc_processing_note': (family: 'processing', chip: 'Note', icon: Icons.notes_outlined),
-  'doc_processing_failed': (family: 'processing', chip: 'Failed', icon: Icons.error_outline),
-  'doc_indexing_failed': (family: 'processing', chip: 'Failed', icon: Icons.error_outline),
+  'doc_processing_failed': (family: 'processing', chip: 'Failed', icon: Icons.warning_amber_rounded),
+  'doc_indexing_failed': (family: 'processing', chip: 'Failed', icon: Icons.warning_amber_rounded),
   'doc_skipped': (family: 'processing', chip: 'Skipped', icon: Icons.close),
   'doc_cancelled': (family: 'processing', chip: 'Cancelled', icon: Icons.close),
   'article_resolved': (family: 'processing', chip: 'Article found', icon: Icons.article_outlined),
@@ -280,38 +285,38 @@ const _kinds = <String, _Kind>{
   'service_connected': (family: 'sources', chip: 'Connected', icon: Icons.link),
   'service_disconnected': (family: 'sources', chip: 'Disconnected', icon: Icons.link_off),
   'sync_session': (family: 'sources', chip: 'Synced', icon: Icons.sync),
-  'cloud_sync_failed': (family: 'sources', chip: 'Sync failed', icon: Icons.sync_problem),
-  'plan_limit_reached': (family: 'sources', chip: 'Plan limit', icon: Icons.error_outline),
-  'integration_reconnect_required': (family: 'sources', chip: 'Reconnect', icon: Icons.error_outline),
+  'cloud_sync_failed': (family: 'sources', chip: 'Sync failed', icon: Icons.warning_amber_rounded),
+  'plan_limit_reached': (family: 'sources', chip: 'Plan limit', icon: Icons.warning_amber_rounded),
+  'integration_reconnect_required': (family: 'sources', chip: 'Reconnect', icon: Icons.warning_amber_rounded),
   'organization_move': (family: 'sources', chip: 'Moved', icon: Icons.drive_file_move_outlined),
   'organization_placement': (family: 'sources', chip: 'Filed', icon: Icons.drive_file_move_outlined),
-  'organization_error': (family: 'sources', chip: 'Organizing', icon: Icons.error_outline),
-  'organization_scope_denied': (family: 'sources', chip: 'Permission', icon: Icons.error_outline),
+  'organization_error': (family: 'sources', chip: 'Organizing', icon: Icons.warning_amber_rounded),
+  'organization_scope_denied': (family: 'sources', chip: 'Permission', icon: Icons.warning_amber_rounded),
   'readme_written': (family: 'sources', chip: 'README', icon: Icons.description_outlined),
   'reorg_executed': (family: 'sources', chip: 'Reorganized', icon: Icons.folder_open_outlined),
 
   // ── letters — everything outbound ──────────────────────────────────────────
   'newsletter_sent': (family: 'letters', chip: 'Letter', icon: Icons.mail_outlined),
-  'newsletter_delivery_failed': (family: 'letters', chip: 'Not delivered', icon: Icons.error_outline),
-  'newsletter_delivery_delayed': (family: 'letters', chip: 'Still sending', icon: Icons.send_outlined),
+  'newsletter_delivery_failed': (family: 'letters', chip: 'Not delivered', icon: Icons.warning_amber_rounded),
+  'newsletter_delivery_delayed': (family: 'letters', chip: 'Still sending', icon: Icons.arrow_forward),
   'newsletter_unsubscribed': (family: 'letters', chip: 'Unsubscribed', icon: Icons.unsubscribe_outlined),
   'scripture_emails_off': (family: 'letters', chip: 'Readings email off', icon: Icons.unsubscribe_outlined),
   'scripture_newsletter_sent': (family: 'letters', chip: 'Readings', icon: Icons.menu_book_outlined),
   'scripture_newsletter_empty': (family: 'letters', chip: 'Readings', icon: Icons.menu_book_outlined),
-  'scripture_newsletter_email_failed': (family: 'letters', chip: 'Readings email', icon: Icons.error_outline),
-  'scripture_delivery_failed': (family: 'letters', chip: 'Not delivered', icon: Icons.error_outline),
-  'scripture_delivery_delayed': (family: 'letters', chip: 'Still sending', icon: Icons.send_outlined),
+  'scripture_newsletter_email_failed': (family: 'letters', chip: 'Readings email', icon: Icons.warning_amber_rounded),
+  'scripture_delivery_failed': (family: 'letters', chip: 'Not delivered', icon: Icons.warning_amber_rounded),
+  'scripture_delivery_delayed': (family: 'letters', chip: 'Still sending', icon: Icons.arrow_forward),
 
   // ── study ──────────────────────────────────────────────────────────────────
   'study_session_sent': (family: 'study', chip: 'Study', icon: Icons.style_outlined),
   'study_session_empty': (family: 'study', chip: 'Study empty', icon: Icons.style_outlined),
-  'study_session_failed': (family: 'study', chip: 'Study failed', icon: Icons.error_outline),
-  'study_session_email_failed': (family: 'study', chip: 'Study email', icon: Icons.send_outlined),
+  'study_session_failed': (family: 'study', chip: 'Study failed', icon: Icons.warning_amber_rounded),
+  'study_session_email_failed': (family: 'study', chip: 'Study email', icon: Icons.arrow_forward),
   'study_material_low': (family: 'study', chip: 'Material low', icon: Icons.speed_outlined),
   'study_emails_off': (family: 'study', chip: 'Study email off', icon: Icons.unsubscribe_outlined),
   'study_items_retired': (family: 'study', chip: 'Retired', icon: Icons.history),
-  'study_delivery_failed': (family: 'study', chip: 'Not delivered', icon: Icons.error_outline),
-  'study_delivery_delayed': (family: 'study', chip: 'Still sending', icon: Icons.send_outlined),
+  'study_delivery_failed': (family: 'study', chip: 'Not delivered', icon: Icons.warning_amber_rounded),
+  'study_delivery_delayed': (family: 'study', chip: 'Still sending', icon: Icons.arrow_forward),
 
   // ── library ────────────────────────────────────────────────────────────────
   'shelf_split': (family: 'library', chip: 'Split', icon: Icons.call_split),
@@ -320,7 +325,7 @@ const _kinds = <String, _Kind>{
   'shelf_deleted': (family: 'library', chip: 'Deleted', icon: Icons.delete_outline),
   'review_ready': (family: 'library', chip: 'Ready for review', icon: Icons.inbox_outlined),
   'task_finished': (family: 'library', chip: 'Finished', icon: Icons.check_circle_outline),
-  'task_failed': (family: 'library', chip: 'Failed', icon: Icons.error_outline),
+  'task_failed': (family: 'library', chip: 'Failed', icon: Icons.warning_amber_rounded),
   'support_reply': (family: 'library', chip: 'Support', icon: Icons.support_agent_outlined),
   'search_synthesized': (family: 'library', chip: 'Arranged', icon: Icons.auto_awesome_outlined),
 };

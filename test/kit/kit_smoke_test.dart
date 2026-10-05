@@ -1835,6 +1835,38 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('READINGS'), findsNothing);
     });
+
+    // A dropped crumb used to leave its flex share EMPTY at the end of the
+    // row, so the actions stood mid-bar (the readings day view, 2026-10-05).
+    for (final width in [200.0, 402.0, 760.0]) {
+      testWidgets('the actions end the row at $width, crumb or none', (
+        tester,
+      ) async {
+        await tester.pumpWidget(MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: width,
+                child: KitUtilityBar(
+                  leading: const SizedBox(width: 60, height: 20),
+                  crumb: 'Readings · Thursday, September 10',
+                  actions: const [
+                    SizedBox(key: ValueKey('act'), width: 40, height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        // The bar's horizontal padding is --s-4.
+        expect(tester.getTopRight(find.byKey(const ValueKey('act'))).dx,
+            width - 16);
+      });
+    }
   });
 
   group('§8 unmeasured figure (4.75.0, ADR-109)', () {

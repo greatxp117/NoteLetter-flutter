@@ -33,6 +33,7 @@ import 'package:flutter_app/app.dart';
 import 'package:flutter_app/app_providers.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
+import 'package:flutter_app/shared/local_flags.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
@@ -56,6 +57,33 @@ const route = String.fromEnvironment('HOLD_ROUTE', defaultValue: '/activity');
 /// is the one place that knows how each is reached.
 const holdState = String.fromEnvironment('HOLD_STATE');
 
+/// A BATCH of holds in one build and one app process —
+/// `screen|route|state;screen|route|state;…` (`tool/shots_batch.sh` passes
+/// it). Every hold is its own testWidgets over a fresh app tree, exactly as
+/// the device run's tests are, so a state reached in one cannot leak into the
+/// next. Exists because each `tool/shots.sh` call rebuilds the app for its
+/// compile-time route — minutes a pair, and a full re-shoot is forty pairs.
+/// Markers are `HOLD:LIGHT[<screen>]` / `HOLD:DARK[<screen>]`, and a hold
+/// that cannot reach its state says `HOLD:FAIL[<screen>]` before it fails.
+const holdList = String.fromEnvironment('HOLD_LIST');
+
+typedef _Hold = ({String screen, String route, String state});
+
+List<_Hold> _holds() {
+  if (holdList.isEmpty) return [(screen: '', route: route, state: holdState)];
+  final out = <_Hold>[];
+  for (final entry in holdList.split(';')) {
+    if (entry.trim().isEmpty) continue;
+    final f = entry.split('|');
+    out.add((
+      screen: f[0].trim(),
+      route: f.length > 1 ? f[1].trim() : '/',
+      state: f.length > 2 ? f[2].trim() : '',
+    ));
+  }
+  return out;
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -69,77 +97,102 @@ void main() {
     FirebaseFirestore.instance
         .useFirestoreEmulator(host, ApiService.firestorePort);
     await FirebaseAuth.instance.useAuthEmulator(host, ApiService.authPort);
-    // A signed-out route (F-44a) is held SIGNED OUT: signed in, the router's
-    // redirect would send the frame to `/` under the sign-in page's name.
-    if (signedOutRoutes.contains(route)) {
-      await FirebaseAuth.instance.signOut();
-      return;
-    }
+  });
+
+  for (final h in _holds()) {
+    testWidgets('holds [${h.screen}] ${h.route} ${h.state} in both themes',
+        (tester) async {
+      try {
+        await _holdOne(tester, h);
+      } catch (e) {
+        debugPrint('HOLD:FAIL[${h.screen}] $e');
+        rethrow;
+      }
+    });
+  }
+}
+
+Future<void> _holdOne(WidgetTester tester, _Hold h) async {
+  final route = h.route;
+  final mark = h.screen.isEmpty ? '' : '[${h.screen}]';
+  // Process-level state a hold can set and a fresh tree does not reset. The
+  // `onboarding` hold presses Run setup, which raises a static ValueNotifier
+  // (by design it outlives no LAUNCH — but a batch is one launch), and the
+  // first batch drew the wizard under every later screen's name.
+  LocalFlags.onboardingReplay.value = false;
+  // A signed-out route (F-44a) is held SIGNED OUT: signed in, the router's
+  // redirect would send the frame to `/` under the sign-in page's name.
+  if (signedOutRoutes.contains(route)) {
+    await FirebaseAuth.instance.signOut();
+  } else {
+    // Every signed-in hold signs in itself: a batch can arrive here signed out
+    // (after a signed-out hold), and a session persisted on the simulator
+    // from another emulator boot is not evidence of this one.
     await FirebaseAuth.instance
         .signInWithEmailAndPassword(email: seedEmail, password: seedPassword);
-  });
-
-  testWidgets('holds $route in both themes', (tester) async {
-    final auth = AuthNotifier();
-    final theme = ThemeNotifier();
-    final router = createRouter(auth);
-    await tester.pumpWidget(MultiProvider(
-      // The app's own list (lib/app_providers.dart) — a copy here is how
-      // F-72's ReviewInbox reached the app and not the hold.
-      providers: appProviders(auth, theme: theme),
-      child: NoteLetterApp(router: router),
-    ));
-    // The landing never settles — its ticker runs and its caret blinks — and a
-    // settle does not fail on a live animation, it hangs until the load window
-    // kills the run (2026-09-26). Signed-out routes get bounded pumps.
-    if (signedOutRoutes.contains(route)) {
-      for (var i = 0; i < 10; i++) {
-        await tester.pump(const Duration(milliseconds: 200));
-      }
-    } else {
-      await tester.pumpAndSettle(const Duration(seconds: 2));
-    }
-    router.go(route);
-    for (var i = 0; i < 30; i++) {
+  }
+  final auth = AuthNotifier();
+  final theme = ThemeNotifier();
+  final router = createRouter(auth);
+  await tester.pumpWidget(MultiProvider(
+    // The app's own list (lib/app_providers.dart) — a copy here is how
+    // F-72's ReviewInbox reached the app and not the hold.
+    providers: appProviders(auth, theme: theme),
+    child: NoteLetterApp(router: router),
+  ));
+  // The landing never settles — its ticker runs and its caret blinks — and a
+  // settle does not fail on a live animation, it hangs until the load window
+  // kills the run (2026-09-26). Signed-out routes get bounded pumps.
+  if (signedOutRoutes.contains(route)) {
+    for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 200));
     }
-    await reachState(tester);
+  } else {
+    await tester.pumpAndSettle(const Duration(seconds: 2));
+  }
+  router.go(route);
+  for (var i = 0; i < 30; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  await reachState(tester, h.state);
 
-    Future<void> hold(String label, ThemeMode mode) async {
-      // `ThemeNotifier` starts an async read of the stored preference in its
-      // own constructor, and that read OVERWRITES whatever was set before it
-      // lands. Every hold run ends on dark, so it is the light capture that
-      // loses the race — and it loses it silently: the file is written, it is
-      // named `.light.png`, and it is a dark frame. Set, pump, and CONFIRM the
-      // mode the app is in before the marker says it is safe to shoot.
-      for (var attempt = 0; attempt < 10; attempt++) {
-        if (theme.themeMode == mode && attempt > 0) break;
-        await theme.setMode(mode);
-        for (var i = 0; i < 5; i++) {
-          await tester.pump(const Duration(milliseconds: 200));
-        }
-      }
-      if (theme.themeMode != mode) {
-        fail('theme is ${theme.themeMode}, not $mode — the capture would be '
-            'the wrong theme under the right name');
-      }
-      for (var i = 0; i < 10; i++) {
-        await tester.pump(const Duration(milliseconds: 200));
-      }
-      debugPrint('HOLD:$label');
-      for (var i = 0; i < 150; i++) {
+  Future<void> hold(String label, ThemeMode mode) async {
+    // `ThemeNotifier` starts an async read of the stored preference in its
+    // own constructor, and that read OVERWRITES whatever was set before it
+    // lands. Every hold run ends on dark, so it is the light capture that
+    // loses the race — and it loses it silently: the file is written, it is
+    // named `.light.png`, and it is a dark frame. Set, pump, and CONFIRM the
+    // mode the app is in before the marker says it is safe to shoot.
+    for (var attempt = 0; attempt < 10; attempt++) {
+      if (theme.themeMode == mode && attempt > 0) break;
+      await theme.setMode(mode);
+      for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 200));
       }
     }
+    if (theme.themeMode != mode) {
+      fail('theme is ${theme.themeMode}, not $mode — the capture would be '
+          'the wrong theme under the right name');
+    }
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    debugPrint('HOLD:$label$mark');
+    // A batch holds ~12s (its driver shoots within seconds of the marker);
+    // a single hold keeps the 30s a hand capture was given.
+    for (var i = 0; i < (mark.isEmpty ? 150 : 60); i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+  }
 
-    await hold('LIGHT', ThemeMode.light);
-    await hold('DARK', ThemeMode.dark);
-    // `shelf-backfill-review` made a real shelf through the sheet; every
-    // later frame reads the same database, so it goes (the reference deletes
-    // its own the same way).
-    final made = _createdShelf;
-    if (made != null) await Api.instance.deleteTag(made);
-  });
+  await hold('LIGHT', ThemeMode.light);
+  await hold('DARK', ThemeMode.dark);
+  // `shelf-backfill-review` made a real shelf through the sheet; every
+  // later frame reads the same database, so it goes (the reference deletes
+  // its own the same way).
+  final made = _createdShelf;
+  _createdShelf = null;
+  if (made != null) await Api.instance.deleteTag(made);
 }
 
 /// The shelf `shelf-backfill-review` created, for deletion after the holds.
@@ -148,7 +201,7 @@ String? _createdShelf;
 /// Drive the screen into [holdState]. Bounded `pump` loops, never
 /// `pumpAndSettle`: a screen with a live animation does not settle, and the
 /// wait reads as green until something is actually pulsing on it.
-Future<void> reachState(WidgetTester tester) async {
+Future<void> reachState(WidgetTester tester, String holdState) async {
   Future<void> settle() async {
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 200));

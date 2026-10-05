@@ -870,7 +870,14 @@ class KitUtilityBar extends StatelessWidget {
             const SizedBox(width: AppSpacing.s2),
           ],
           if (crumb != null)
-            Flexible(
+            // Expanded, not Flexible + a Spacer: a loose Flexible that draws
+            // nothing (the crumb dropped below its floor) still leaves its
+            // share of the row EMPTY at the end, so the actions sat mid-bar
+            // — the readings day view's Library control stood in the middle of
+            // a phone's bar while the reference's sits at the edge (frames,
+            // 2026-10-05). The crumb takes all the free room; the actions end
+            // the row either way.
+            Expanded(
               // A crumb squeezed to a stub is worse than no crumb: `§ LET…`
               // and `READI…` are what this bar drew on the readings day view
               // at phone width, where the back control and one action leave
@@ -880,7 +887,7 @@ class KitUtilityBar extends StatelessWidget {
               // the ellipsis still earns its place, because a truncated
               // `READINGS · THURSDAY, SEPTEMB…` is a crumb.
               //
-              // The LayoutBuilder sits INSIDE the Flexible deliberately: its
+              // The LayoutBuilder sits INSIDE the Expanded deliberately: its
               // `maxWidth` is the room the crumb actually got, after the
               // leading control and the actions have taken theirs. Measured
               // at the outer bar it would be the whole width, and the rule
@@ -893,6 +900,7 @@ class KitUtilityBar extends StatelessWidget {
                   }
                   return Text(
                     crumb!.toUpperCase(),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: KitText.capsLabel(
                       context,
@@ -903,8 +911,11 @@ class KitUtilityBar extends StatelessWidget {
                   );
                 },
               ),
-            ),
-          const Spacer(),
+            )
+          else
+            const Spacer(),
+          if (crumb != null && actions.isNotEmpty)
+            const SizedBox(width: AppSpacing.s2),
           for (var i = 0; i < actions.length; i++) ...[
             if (i > 0) const SizedBox(width: AppSpacing.s1),
             actions[i],

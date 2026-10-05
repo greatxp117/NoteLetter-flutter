@@ -149,7 +149,8 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
                 ),
                 KitButton(
                   widget.sending ? 'Sending…' : 'Send now',
-                  icon: Icons.send_outlined,
+                  // web `IcoSend`: a right arrow, never a paper plane.
+                  icon: Icons.arrow_forward,
                   onPressed: widget.onSend,
                 ),
               ],
