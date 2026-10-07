@@ -238,12 +238,18 @@ void main() {
         }
       }
       expect(FirebaseAuth.instance.currentUser?.email, email);
+      // Two writes land here, not one: the replay ({enabled, deliveryTime,
+      // timezone, emailAddress}) and sign-up's own recipient seed
+      // ({emailAddress}, AuthService._seedRecipient), in either order. The
+      // poll waits for the END state — breaking on `enabled` alone read the
+      // document between the two and saw no address (2026-10-07: the
+      // emulator then held the right one).
       NewsletterSettings? s;
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 250));
         final read = await FirestoreService.instance.getNewsletterSettings();
         s = read;
-        if (read.enabled) break;
+        if (read.enabled && read.emailAddress.isNotEmpty) break;
       }
       expect(s?.enabled, isTrue, reason: 'the opt-in was never replayed');
       expect(s?.deliveryTime, '07:00');
