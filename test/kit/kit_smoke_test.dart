@@ -219,6 +219,27 @@ void main() {
       );
     });
 
+    testWidgets('the FRAME is 3:4 and the caption sits under it (F-77 10)',
+        (tester) async {
+      await pumpBoth(
+        tester,
+        const KitSourceSetGallery(members: [
+          KitSetMember(name: 'front.jpg'),
+          KitSetMember(name: 'back.jpg'),
+        ]),
+        size: const Size(900, 1200),
+      );
+      // `.srcset-frame { aspect-ratio: 3 / 4 }` — the frame alone, not the
+      // cell with its caption (which squeezed the frame to 3:4.6 minus a line).
+      final frames = find.byType(AspectRatio);
+      expect(frames, findsNWidgets(2));
+      final size = tester.getSize(frames.first);
+      expect(size.width / size.height, closeTo(3 / 4, 0.001));
+      final caption = tester.getTopLeft(find.text('front.jpg')).dy;
+      expect(caption, greaterThan(tester.getBottomLeft(frames.first).dy),
+          reason: 'the caption line is under the frame, not inside it');
+    });
+
     testWidgets('an empty set is a state, not an empty screen', (tester) async {
       await pumpBoth(tester, const KitSourceSetGallery(members: []));
       expect(find.textContaining('no pages stored'), findsOneWidget);

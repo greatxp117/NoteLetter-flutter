@@ -482,12 +482,15 @@ class KitSourceSetGallery extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(AppSpacing.s3),
+            // `.srcset-grid { padding: 14px; gap: 12px }`.
+            padding: const EdgeInsets.all(14),
             child: LayoutBuilder(
               builder: (context, c) {
                 // `auto-fill` from a 150px minimum, so a 2-page set does not
                 // stretch to fill the sheet.
                 final columns = (c.maxWidth / 150).floor().clamp(1, 6);
+                final tileW =
+                    (c.maxWidth - (columns - 1) * AppSpacing.s3) / columns;
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -496,11 +499,14 @@ class KitSourceSetGallery extends StatelessWidget {
                     crossAxisCount: columns,
                     crossAxisSpacing: AppSpacing.s3,
                     mainAxisSpacing: AppSpacing.s3,
-                    // The tile is a fixed 3:4 plus its caption line. A grid
-                    // that honoured each page's own ratio would be ragged, and
-                    // this grid is the MAP of the set; the full-size view is
-                    // where a page is seen uncropped.
-                    childAspectRatio: 3 / 4.6,
+                    // The FRAME is a fixed 3:4 (`.srcset-frame`), and the
+                    // caption line sits under it — not inside the ratio. A
+                    // ratio over the whole cell squeezed the frame to fit the
+                    // caption (F-77 10). A grid that honoured each page's own
+                    // ratio would be ragged, and this grid is the MAP of the
+                    // set; the full-size view is where a page is seen
+                    // uncropped.
+                    mainAxisExtent: tileW * 4 / 3 + _Tile.captionExtent(context),
                   ),
                   itemBuilder: (context, i) => _Tile(
                     index: i,
@@ -525,6 +531,11 @@ class _Tile extends StatelessWidget {
   final VoidCallback? onOpen;
 
   const _Tile({required this.index, required this.member, this.onOpen});
+
+  /// The 6px gap and the one caption line (`.srcset-cap`, 11 / 1.4) under the
+  /// 3:4 frame, at the reader's text scale.
+  static double captionExtent(BuildContext context) =>
+      6 + MediaQuery.textScalerOf(context).scale(11) * 1.4 + 1;
 
   @override
   Widget build(BuildContext context) {
@@ -566,7 +577,8 @@ class _Tile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
+        AspectRatio(
+          aspectRatio: 3 / 4,
           child: onOpen == null
               ? frame
               : GestureDetector(
