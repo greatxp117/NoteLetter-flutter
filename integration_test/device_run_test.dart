@@ -22,7 +22,12 @@ import 'package:flutter_app/state/chat_notifier.dart';
 import 'package:flutter_app/shared/local_flags.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/pages/onboarding/wizard.dart';
+import 'package:flutter_app/pages/reader/history_panel.dart';
+import 'package:flutter_app/pages/reader/listen_panel.dart';
+import 'package:flutter_app/pages/reader/manuscript_panel.dart';
 import 'package:flutter_app/pages/reader/passage_mark.dart';
+import 'package:flutter_app/pages/reader/speed_read_panel.dart';
+import 'package:flutter_app/pages/reader/summary_panel.dart';
 import 'package:flutter_app/pages/search/reading_pane.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/pages/search/search_field.dart';
@@ -430,11 +435,23 @@ void main() {
     expect(int.parse(views.value!), greaterThan(0),
         reason: 'Views must fold in what the doc_opened write committed');
 
-    final manuscript = find.text('Manuscript');
-    if (manuscript.evaluate().isNotEmpty) {
-      await tester.tap(manuscript.first);
-      await pumpFor(tester, total: const Duration(seconds: 2));
-    }
+    // The §19 rail is a pinned header UNDER the chapter opening, and on a
+    // phone the opening (four actions in three rows, two stat rows, Mark
+    // finished) is taller than the screen plus the cache extent, so the rail
+    // is not laid out until the reader scrolls toward it. This skipped the tap
+    // silently when it found no jump (2026-10-07); a reader DRAGS to the rail,
+    // and so does this.
+    // dragUntilVisible, not scrollUntilVisible: the latter ends in
+    // `Scrollable.ensureVisible`, which over a PINNED header scrolled deep into
+    // the document — past every passage, so every mark was already full
+    // before the drags below (the rerun's "no fill rose", 2026-10-07).
+    final manuscript = find.text('Manuscript').hitTestable();
+    await tester.dragUntilVisible(
+        manuscript, _readerScrollable, const Offset(0, -200),
+        maxIteration: 20);
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
+    await tester.tap(manuscript.first);
+    await pumpFor(tester, total: const Duration(seconds: 2));
 
     expect(
       find.byType(PassageMark),
@@ -578,6 +595,27 @@ void main() {
 
     // Every section is MOUNTED on open — no tap, no reveal. This is the whole
     // of ADR-100: a section behind a control is a render target nobody mounts.
+    // Offstage counts: mounted is the claim, not on screen.
+    for (final panel in [
+      SummaryPanel,
+      ManuscriptPanel,
+      SpeedReadPanel,
+      ListenPanel,
+      HistoryPanel,
+    ]) {
+      expect(find.byType(panel, skipOffstage: false), findsOneWidget,
+          reason: '$panel is not mounted on open');
+    }
+    // The rail itself is a pinned header under the chapter opening; on a
+    // phone the opening is taller than the screen and its cache, so the rail
+    // is laid out only once the reader scrolls toward it (2026-10-07). A real
+    // drag brings it in — the header still on screen, so Summary is current.
+    // dragUntilVisible: scrollUntilVisible's closing ensureVisible over the
+    // pinned rail jumped to the end of the document (History, 2026-10-07).
+    await tester.dragUntilVisible(find.byType(KitSectionRail).hitTestable(),
+        _readerScrollable, const Offset(0, -200),
+        maxIteration: 20);
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
     expect(find.byType(KitSectionRail), findsOneWidget,
         reason: 'the reader draws no §19 rail');
     expect(current(), 'summary',
@@ -628,7 +666,12 @@ void main() {
     // Both numbers BEFORE either assertion: a run that fails has to say where
     // the jump actually landed, or the next attempt is a guess.
     final railBottom = tester.getBottomLeft(find.byType(KitSectionRail)).dy;
-    final head = tester.getTopLeft(find.text('LISTEN')).dy;
+    // The Listen SECTION's eyebrow — the header's stat cluster draws a
+    // LISTEN label too since F-77 (1).
+    final head = tester
+        .getTopLeft(find.descendant(
+            of: find.byType(ListenPanel), matching: find.text('LISTEN')))
+        .dy;
     debugPrint('DEVICE-RUN reader jump: current=${current()} '
         'head=$head railBottom=$railBottom');
     expect(current(), 'listen',
@@ -2303,3 +2346,10 @@ void main() {
     }
   });
 }
+
+/// The reader's own vertical scroller — the first Scrollable under its
+/// CustomScrollView (the rail's horizontal row is a descendant of it).
+final Finder _readerScrollable = find
+    .descendant(
+        of: find.byType(CustomScrollView), matching: find.byType(Scrollable))
+    .first;
