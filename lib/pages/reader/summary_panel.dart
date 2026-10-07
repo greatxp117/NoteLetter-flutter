@@ -131,18 +131,22 @@ class _RegenerateControlState extends State<_RegenerateControl> {
             KitFailureInline(_failure!),
           ],
           const SizedBox(height: 6),
-          // The 429 is the 60s cooldown and reads as CALM COPY in the note's
-          // own voice — never a §14 failure, because the summary on screen is
-          // still correct and nothing was blanked.
-          Lede(
-            wait.sentence ??
-                _note ??
-                'Rewrites the summary, key points and themes under your summary '
-                    'style. The title and passages don’t change.',
-            fontSize: 14,
-            height: 21,
-            maxWidth: 440,
-          ),
+          // The 429 is the 60s cooldown and reads as CALM COPY — never a §14
+          // failure, because the summary on screen is still correct and
+          // nothing was blanked. It is the kit's one calm caption (§6.1,
+          // 4.108.0, ADR-145), in the slot the description holds while the
+          // wait runs; it drew in the description's serif lede until then.
+          if (wait.sentence != null)
+            KitWaitNote(wait.sentence!)
+          else
+            Lede(
+              _note ??
+                  'Rewrites the summary, key points and themes under your summary '
+                      'style. The title and passages don’t change.',
+              fontSize: 14,
+              height: 21,
+              maxWidth: 440,
+            ),
         ],
       ),
     );

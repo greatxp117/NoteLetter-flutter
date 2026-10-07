@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../../shared/cooldown.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/tokens.dart';
+import 'kit_failure.dart';
 
 /// §6.1 Button · **State — Waiting** (4.107.0, ADR-140): a control whose
 /// request was refused by a cooldown that carried `retry_after_s`.
@@ -118,4 +121,49 @@ Widget kitWaitLabel(
     overflow: overflow,
     style: style,
   );
+}
+
+/// §6.1 **the calm caption** (4.108.0, ADR-145 — calm everywhere): a
+/// cooldown's sentence while its wait runs, in the slot under or beside its
+/// control. `--fg-muted` UI sans 12.5/18, web's `.wait-note`.
+///
+/// A cooldown is a wait, not a failure: nothing broke, the thing on screen is
+/// correct, and waiting fixes it — so it is never §14.2's `--critical-text`
+/// line, on any screen. Until 4.108.0 the kit allowed "the calm caption, or
+/// §14.2", and this client drew six of its cooldown sentences as
+/// [KitFailureInline] while Summary, Study and the organization rescan were
+/// calm, each in a face of its own. **Red stays for real refusals** — a cap
+/// that will not lift by waiting, a validation failure, an error.
+class KitWaitNote extends StatelessWidget {
+  final String sentence;
+  final EdgeInsetsGeometry padding;
+
+  const KitWaitNote(this.sentence, {super.key, this.padding = EdgeInsets.zero});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: padding,
+        child: Text(
+          sentence,
+          style: TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 12.5,
+            height: 18 / 12.5,
+            color: Tokens.of(context).fgMuted,
+          ),
+        ),
+      );
+}
+
+/// The one sentence slot a control's refusals share, decided by what the
+/// sentence IS (§6.1, 4.108.0): the [wait]'s sentence — a refusal that
+/// carried `retry_after_s` — is the calm caption, and any other [refusal] is
+/// §14.2. Null when there is neither. `retry_after_s` decides, never the
+/// wording: a refusal with no number is not a wait, even one that says so.
+Widget? kitRefusalSlot(CooldownWait wait, String? refusal,
+    {bool dense = false}) {
+  final waiting = wait.sentence;
+  if (waiting != null) return KitWaitNote(waiting);
+  if (refusal != null) return KitFailureInline(refusal, dense: dense);
+  return null;
 }

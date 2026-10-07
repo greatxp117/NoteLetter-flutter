@@ -199,8 +199,10 @@ class _KitButtonState extends State<KitButton> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: onPressed,
+        // §6.1 State — Held (4.108.0, ADR-145): disabled, waiting or busy,
+        // every variant, at the shared token.
         child: Opacity(
-          opacity: disabled ? 0.5 : 1,
+          opacity: disabled ? AppSpacing.heldOpacity : 1,
           child: Container(
             height: quiet ? null : _height,
             padding: quiet

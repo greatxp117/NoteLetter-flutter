@@ -47,6 +47,14 @@ class AppSpacing {
   /// advance this is the em-based equivalent used by the reading surfaces.
   static const double measure = 660;
 
+  /// `--held-opacity` (design-tokens.md, 4.108.0, ADR-145): the one dimming a
+  /// control takes while it is **held** — disabled, waiting out a cooldown,
+  /// or busy (component-kit §6.1 State — Held). An opacity on the whole
+  /// control, never a colour tier for quieter text. This client drew 0.5
+  /// first, as a literal inside [KitButton]; web and iOS now dim by the same
+  /// token.
+  static const double heldOpacity = 0.5;
+
   /// Chrome rail width (`component-kit.md` §1.1) and the main pane's inset.
   static const double railWidth = 260;
   static const double shellInset = 8;

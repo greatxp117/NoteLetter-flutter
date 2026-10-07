@@ -267,7 +267,9 @@ class LatestLetterCard extends StatelessWidget {
     final cfg = settings.newsletter;
     final n = latest;
     final passages = n?.chunkIds.length ?? 0;
-    final sendError = wait.sentence ?? this.sendError;
+    // The cooldown is the calm caption, any other refusal §14.2 (letters.md,
+    // 4.108.0, ADR-145 — calm everywhere).
+    final sendSlot = kitRefusalSlot(wait, sendError);
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
 
@@ -364,9 +366,9 @@ class LatestLetterCard extends StatelessWidget {
                 style: KitText.ui(context, color: Tokens.of(context).fgMuted)
                     .copyWith(height: _lineBox / 13)),
           ],
-          if (sendError != null) ...[
+          if (sendSlot != null) ...[
             const SizedBox(height: AppSpacing.s2),
-            KitFailureInline(sendError),
+            sendSlot,
           ] else if (sendMessage != null) ...[
             const SizedBox(height: AppSpacing.s2),
             KitRowNote(sendMessage!),

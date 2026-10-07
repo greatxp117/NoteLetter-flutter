@@ -304,9 +304,11 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
           builder: (context, wait) {
             final said = wait.sentence ??
                 context.watch<OrgNotifier?>()?.scanWaitNote(provider);
+            // The kit's one calm caption (§6.1, 4.108.0, ADR-145) — it was
+            // `.proc-note`'s serif italic until then.
             return said == null
                 ? const SizedBox.shrink()
-                : KitProcNote(said, padding: const EdgeInsets.only(top: 6));
+                : KitWaitNote(said, padding: const EdgeInsets.only(top: 6));
           },
         ),
         _FolderList(provider: provider, scanning: scanning),

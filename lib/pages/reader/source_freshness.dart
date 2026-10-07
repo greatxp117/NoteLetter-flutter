@@ -131,7 +131,9 @@ class _SourceFreshnessState extends State<SourceFreshness> {
 
   Widget _banner(BuildContext context, CooldownWait wait) {
     final f = _freshness;
-    final error = wait.sentence ?? _error;
+    // The cooldown is the calm caption, any other refusal §14.2, under the
+    // line they are about (reader.md, 4.108.0, ADR-145; web's banner).
+    final slot = kitRefusalSlot(wait, _error);
     if (widget.doc.sourceIntegration == null || f == null) {
       return const SizedBox.shrink();
     }
@@ -166,10 +168,18 @@ class _SourceFreshnessState extends State<SourceFreshness> {
               ? Text(
                   'Update queued — this source is being re-imported from $provider. Its content will refresh when processing finishes.',
                   style: KitText.ui(context, color: ui.fg))
-              : error != null
-                  ? KitFailureInline(error)
-                  : Text('A newer version of this file exists in $provider.',
-                      style: KitText.ui(context, color: ui.fg)),
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('A newer version of this file exists in $provider.',
+                        style: KitText.ui(context, color: ui.fg)),
+                    if (slot != null) ...[
+                      const SizedBox(height: 6),
+                      slot,
+                    ],
+                  ],
+                ),
         ),
         if (!_queued) ...[
           const SizedBox(width: 8),

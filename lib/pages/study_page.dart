@@ -263,7 +263,10 @@ class _ProgramCard extends StatelessWidget {
     final p = program;
     final on = p.enabled;
     final low = runwayNotice(p);
-    final note = wait.sentence ?? this.note;
+    // The cooldown's sentence is the kit's calm caption (§6.1, 4.108.0); the
+    // program's own note keeps its row-note face.
+    final waitNote = wait.sentence;
+    final note = this.note;
 
     return KitCard(
       padding: const EdgeInsets.all(AppSpacing.s4 + 2),
@@ -313,6 +316,9 @@ class _ProgramCard extends StatelessWidget {
           if (error != null) ...[
             const SizedBox(height: AppSpacing.s3),
             KitFailureInline(error!),
+          ] else if (waitNote != null) ...[
+            const SizedBox(height: AppSpacing.s3),
+            KitWaitNote(waitNote),
           ] else if (note != null) ...[
             const SizedBox(height: AppSpacing.s3),
             KitRowNote(note),

@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../shared/cooldown.dart' show waitSuffix;
 import 'kit_failure.dart';
+import 'kit_wait.dart' show KitWaitNote;
 
 /// §10 — the composer dock: a persistent input anchored to the bottom of a
 /// scrolling pane.
@@ -50,8 +51,13 @@ class KitComposerDock extends StatelessWidget {
   /// §6.1 Waiting (4.107.0, ADR-140): seconds left on a cooldown the send was
   /// refused with. Above zero the send control is disabled and, having no
   /// label, carries ` · m:ss` in its accessible title — the server's sentence
-  /// goes in [error], the dock's existing slot. The text stays in the box.
+  /// goes in [waitNote], the same slot as [error]. The text stays in the box.
   final int waitLeft;
+
+  /// The cooldown's sentence while [waitLeft] runs: the calm caption in the
+  /// dock's sentence slot, never §14.2 (support.md, 4.108.0, ADR-145). It
+  /// takes the slot over [error] — one sentence at a time.
+  final String? waitNote;
 
   const KitComposerDock({
     super.key,
@@ -65,6 +71,7 @@ class KitComposerDock extends StatelessWidget {
     this.minLines = 1,
     this.maxLines = 5,
     this.waitLeft = 0,
+    this.waitNote,
   });
 
   @override
@@ -116,7 +123,16 @@ class KitComposerDock extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (error != null) ...[
+                  if (waitNote != null)
+                    // §6.1 — a wait is the calm caption (4.108.0).
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: AppSpacing.s2,
+                        left: AppSpacing.s2,
+                      ),
+                      child: KitWaitNote(waitNote!),
+                    )
+                  else if (error != null) ...[
                     // §14.2 — the rejection at the control that refused. This
                     // was the same three declarations written out again; a kit
                     // file re-spelling a pattern is the drift the kit exists

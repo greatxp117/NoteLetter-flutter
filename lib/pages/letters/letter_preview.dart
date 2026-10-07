@@ -108,7 +108,9 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
     final t = Tokens.of(context);
     final n = widget.letter;
     final figures = n == null ? null : letterFigures(n);
-    final sendError = wait.sentence ?? widget.sendError;
+    // The cooldown is the calm caption, any other refusal §14.2 (letters.md,
+    // 4.108.0, ADR-145 — calm everywhere).
+    final sendSlot = kitRefusalSlot(wait, widget.sendError);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -171,9 +173,9 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
           const SizedBox(height: AppSpacing.s2),
           KitFailureInline(_copyError!),
         ],
-        if (sendError != null) ...[
+        if (sendSlot != null) ...[
           const SizedBox(height: AppSpacing.s2),
-          KitFailureInline(sendError),
+          sendSlot,
         ] else if (widget.sendMessage != null) ...[
           const SizedBox(height: AppSpacing.s2),
           KitRowNote(widget.sendMessage!),

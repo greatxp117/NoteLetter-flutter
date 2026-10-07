@@ -4,7 +4,6 @@ import '../../shared/cooldown.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
-import 'kit_failure.dart';
 import 'kit_text.dart';
 import 'kit_wait.dart';
 
@@ -151,7 +150,9 @@ class _KitConfirmState extends State<KitConfirm> {
 
   Widget _panel(BuildContext context, CooldownWait wait) {
     final t = Tokens.of(context);
-    final error = wait.sentence ?? _error;
+    // A cooldown refused inside the panel is the calm caption; any other
+    // refusal is §18's failure slot, red (§6.1, 4.108.0, ADR-145).
+    final slot = kitRefusalSlot(wait, _error);
     final held = _busy ? 0 : wait.left;
     return PopScope(
       // Nothing dismisses it while the call is in flight — not the system back
@@ -174,9 +175,9 @@ class _KitConfirmState extends State<KitConfirm> {
                 widget.bodyWidget!
               else if (widget.body != null)
                 Text(widget.body!, style: KitText.meta(context)),
-              if (error != null) ...[
+              if (slot != null) ...[
                 const SizedBox(height: 12),
-                KitFailureInline(error),
+                slot,
               ],
             ],
           ),

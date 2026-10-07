@@ -530,9 +530,10 @@ class _ProviderCardState extends State<_ProviderCard> {
       footnote: !connected || needsReconnect
           ? null
           // The wait's sentence takes the slot a 429 has always used: the
-          // calm note, never §14.2 — a wait is the system working.
+          // calm caption, never §14.2 — a wait is the system working
+          // (§6.1, 4.108.0, ADR-145).
           : wait.sentence != null
-              ? Text(wait.sentence!, style: KitText.meta(context))
+              ? KitWaitNote(wait.sentence!)
           : _syncNote != null
               ? (_syncRefused
                   ? KitFailureInline(_syncNote!, dense: true)
@@ -1067,19 +1068,22 @@ class _JobRowState extends State<_JobRow> {
         ],
       ),
     );
-    final errors = [
-      ?(retryWait.sentence ?? _retryError),
-      ?(updateWait.sentence ?? _updateError),
+    // Each control's one slot: its cooldown as the calm caption, the cap or
+    // any other refusal as §14.2 (sources.md §Trust & feedback, 4.108.0 —
+    // `retry_after_s` decides).
+    final slots = [
+      ?kitRefusalSlot(retryWait, _retryError, dense: true),
+      ?kitRefusalSlot(updateWait, _updateError, dense: true),
     ];
-    if (errors.isEmpty) return row;
+    if (slots.isEmpty) return row;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         row,
-        for (final e in errors)
+        for (final w in slots)
           Padding(
             padding: const EdgeInsets.only(left: 18, right: 18, bottom: 12),
-            child: KitFailureInline(e, dense: true),
+            child: w,
           ),
       ],
     );

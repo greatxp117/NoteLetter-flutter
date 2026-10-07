@@ -175,15 +175,17 @@ class _SupportPageState extends State<SupportPage> {
           alignment: Alignment.bottomCenter,
           // The 10s send cooldown is the caller's (4.107.0, ADR-140): send is
           // held for the wait a refusal carried, its title says the time
-          // left, and the server's sentence is the dock's error line while it
-          // runs. The draft is kept either way (write before you move).
+          // left, and the server's sentence is the dock's calm caption while
+          // it runs — never its red error line (support.md, 4.108.0,
+          // ADR-145). The draft is kept either way (write before you move).
           child: KitWait(
             waitKey: WaitKey.supportSend(),
             builder: (context, wait) => KitComposerDock(
               controller: _controller,
               placeholder: 'What happened?',
               busy: support.sending,
-              error: wait.sentence ?? support.error,
+              error: support.error,
+              waitNote: wait.sentence,
               maxLength: 4000,
               minLines: 2,
               waitLeft: wait.left,

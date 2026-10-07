@@ -202,7 +202,7 @@ void main() {
         reason: 'the cooldown is the PROVIDER\'s: the folder waits on it too');
     expect(find.text(sentence), findsOneWidget);
     expect(
-        find.ancestor(of: find.text(sentence), matching: find.byType(KitProcNote)),
+        find.ancestor(of: find.text(sentence), matching: find.byType(KitWaitNote)),
         findsOneWidget,
         reason: 'a wait is calm copy, not §14.2');
     expect(find.byType(KitFailureInline), findsNothing);

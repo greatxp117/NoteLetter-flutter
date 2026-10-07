@@ -565,7 +565,8 @@ class _ProcessingRowState extends State<ProcessingRow> {
   /// The document's retry cooldown (4.107.0, ADR-140) holds BOTH primaries —
   /// a forced retry is a retry — on this row wherever it is drawn (the
   /// Sources tray and For your review wait on one clock), and is the row's
-  /// §14.2 sentence while it runs.
+  /// sentence while it runs: the calm caption, where the hard retry cap and
+  /// every other refusal stay §14.2 (sources.md, 4.108.0, ADR-145).
   @override
   Widget build(BuildContext context) => KitWait(
         waitKey: WaitKey.documentRetry(widget.doc.id),
@@ -577,7 +578,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
     final failed = doc.status == DocumentStatus.error ||
         doc.status == DocumentStatus.skipped;
     final stalled = doc.isStalled();
-    final refusal = wait.sentence ?? _error;
+    final refusal = kitRefusalSlot(wait, _error, dense: true);
     // A stalled run takes the attention branch — Retry, Remove and the source
     // live there — but not the failed EDGE: it is not an error.
     final attention = failed || stalled;
@@ -616,9 +617,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
       foot: attention
           ? KitProcAttention(
               detail: stalled ? stalledMsg : (doc.errorMessage ?? defaultMsg),
-              failure: refusal == null
-                  ? null
-                  : KitFailureInline(refusal, dense: true),
+              failure: refusal,
               actions: [
                 // One primary, never two: an `error` row and a `skipped` row
                 // are the same pattern with a different decision in it.

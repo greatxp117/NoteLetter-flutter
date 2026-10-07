@@ -465,6 +465,12 @@ void main() {
       expect(find.text(sentence), findsOneWidget);
       expect(find.byType(KitFailureInline), findsNothing,
           reason: 'a wait is not a failure');
+      // The kit's one calm caption, not the description's serif lede (§6.1,
+      // 4.108.0).
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
+          findsOneWidget);
 
       await tester.tap(b);
       await tester.pump();
@@ -550,6 +556,10 @@ void main() {
       expect(_button('Study now'), findsOneWidget,
           reason: 'the other program is untouched — the cooldown is per program');
       expect(find.text(sentence), findsOneWidget);
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
+          findsOneWidget);
       expect(Cooldowns.instance.left(WaitKey.studySession('p1')), 58);
       expect(Cooldowns.instance.left(WaitKey.studySession('p2')), 0);
     });
@@ -595,7 +605,7 @@ void main() {
       // Study say theirs (web 23d21a8). 7b0e5fd drew it red.
       expect(
           find.ancestor(
-              of: find.text(sentence), matching: find.byType(KitProcNote)),
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
           findsOneWidget);
       expect(find.byType(KitFailureInline), findsNothing);
     });
@@ -626,7 +636,7 @@ void main() {
 
       expect(
           find.ancestor(
-              of: find.text(sentence), matching: find.byType(KitProcNote)),
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
           findsOneWidget,
           reason: 'a wait with no number is said in the same calm slot');
       expect(find.byType(KitFailureInline), findsNothing);
@@ -669,7 +679,7 @@ void main() {
       expect(find.text(sentence), findsOneWidget);
       expect(
           find.ancestor(
-              of: find.text(sentence), matching: find.byType(KitProcNote)),
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
           findsNothing,
           reason: 'only a wait is calm copy');
       expect(find.byType(SnackBar), findsOneWidget,
@@ -714,6 +724,13 @@ void main() {
       expect(_button('Retry and replace · 1:01'), findsOneWidget);
       expect(find.text('Please wait 61 seconds before retrying.'), findsOneWidget,
           reason: 'one sentence, the wait\'s — not the refusal\'s copy as well');
+      // Calm inside the panel too; §18's red slot is for a real refusal.
+      expect(
+          find.ancestor(
+              of: find.text('Please wait 61 seconds before retrying.'),
+              matching: find.byType(KitWaitNote)),
+          findsOneWidget);
+      expect(find.byType(KitFailureInline), findsNothing);
       expect(find.byType(KitConfirm), findsOneWidget,
           reason: '§18: a refusal never closes the panel');
     });
@@ -759,9 +776,12 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    // Calm everywhere (4.108.0, ADR-145): the row's one sentence slot draws a
+    // cooldown as the calm caption; the hard cap stays §14.2 (below).
     testWidgets(
         'a refusal holds Retry and says the server\'s sentence in the row\'s '
-        '§14.2 slot — and the same document on another surface waits too',
+        'slot as the calm caption — and the same document on another surface '
+        'waits too',
         (tester) async {
       const sentence = 'Please wait 240 seconds before retrying.';
       ApiService.instance.httpClientAdapter =
@@ -773,8 +793,10 @@ void main() {
       expect(_button('Retry · 4:00'), findsOneWidget);
       expect(
           find.ancestor(
-              of: find.text(sentence), matching: find.byType(KitFailureInline)),
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
           findsOneWidget);
+      expect(find.byType(KitFailureInline), findsNothing,
+          reason: 'a wait is not a failure');
 
       // For your review draws the same ProcessingRow for the same document:
       // a fresh mount reads the same clock.
@@ -882,6 +904,12 @@ void main() {
 
       expect(_button('Send now · 0:58'), findsNWidgets(2));
       expect(find.text(sentence), findsNWidgets(2));
+      // Calm on both screens, never §14.2 (letters.md, 4.108.0, ADR-145).
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
+          findsNWidgets(2));
+      expect(find.byType(KitFailureInline), findsNothing);
       await step(tester, const Duration(seconds: 58));
       expect(_button('Send now'), findsNWidgets(2));
       expect(find.text(sentence), findsNothing);
@@ -910,6 +938,12 @@ void main() {
       expect(support.error, isNull,
           reason: 'the wait owns the sentence; a copy would outlive it');
       expect(find.text(sentence), findsOneWidget);
+      // The dock's calm caption, not its red error line (support.md, 4.108.0).
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
+          findsOneWidget);
+      expect(find.byType(KitFailureInline), findsNothing);
       expect(find.bySemanticsLabel('Send · 0:09'), findsOneWidget);
       expect(tester.widget<KitComposerDock>(find.byType(KitComposerDock)).waitLeft,
           9);
@@ -947,6 +981,10 @@ void main() {
               of: find.text(sentence), matching: find.byType(KitFailureInline)),
           findsNothing,
           reason: 'a wait is not a failure');
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
+          findsOneWidget);
     });
 
     testWidgets('a job\'s Retry waits on the JOB\'s clock', (tester) async {
@@ -978,10 +1016,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_button('Retry · 3:20'), findsOneWidget);
+      // Calm, where it was §14.2 until 4.108.0 (sources.md §Trust & feedback).
       expect(
           find.ancestor(
-              of: find.text(sentence), matching: find.byType(KitFailureInline)),
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
           findsOneWidget);
+      expect(find.byType(KitFailureInline), findsNothing);
       expect(Cooldowns.instance.left(WaitKey.importJobRetry('j-1')), 200);
     });
   });
