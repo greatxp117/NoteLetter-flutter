@@ -744,7 +744,9 @@ class KitRowSlot extends StatelessWidget {
 /// The setting row's trailing link (`.set-link`): sans 13.5 at `--fg-muted`,
 /// underlined in `--link-decor`, with a 14px trailing chevron. It leads to the
 /// screen that owns the setting; a row whose control is a whole screen takes
-/// this rather than a button.
+/// this rather than a button. Held — waiting, or with nothing to follow — it
+/// is `--fg-subtle` underlined in `--border-strong`, with no hover and a plain
+/// cursor (`.set-link:disabled`).
 ///
 /// `icon: null` is the bare underlined link the reference uses where the target
 /// is not another screen — onboarding's "Skip setup" and its summary's
@@ -752,9 +754,11 @@ class KitRowSlot extends StatelessWidget {
 class KitSettingLink extends StatefulWidget {
   final String label;
 
-  /// Null is a link that cannot be followed right now — drawn the same, as
-  /// the reference's `.set-link` sets its colour and cursor over a disabled
-  /// button's.
+  /// Null is a link that cannot be followed right now — its own write in
+  /// flight, or the folder a breadcrumb is already on — and it is drawn HELD,
+  /// as a waiting one is: the reference's `.set-link:disabled` (web
+  /// `03c8f27`). Until then both clients drew a held link exactly as a live
+  /// one, and only a suffix, when there was one, said it waited.
   final VoidCallback? onTap;
   final IconData? icon;
 
@@ -776,10 +780,20 @@ class _KitSettingLinkState extends State<KitSettingLink> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final onTap = widget.wait > 0 ? null : widget.onTap;
-    final color = _hover ? t.accentText : t.fgMuted;
+    // Held: waiting out a cooldown, or nothing to follow. The reference's
+    // `.set-link:disabled` — the quiet text tier with a neutral underline, a
+    // plain cursor and no hover. Still underlined, because it is still the
+    // control that acts at zero. The chevron is `currentColor` there, so it
+    // dims with the label.
+    final held = widget.wait > 0 || widget.onTap == null;
+    final onTap = held ? null : widget.onTap;
+    final color = held
+        ? t.fgSubtle
+        : _hover
+            ? t.accentText
+            : t.fgMuted;
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: held ? SystemMouseCursors.basic : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
@@ -793,7 +807,7 @@ class _KitSettingLinkState extends State<KitSettingLink> {
                   fontSize: 13.5,
                   color: color,
                   decoration: TextDecoration.underline,
-                  decorationColor: t.linkDecor,
+                  decorationColor: held ? t.borderStrong : t.linkDecor,
                 )),
             if (widget.icon != null) ...[
               const SizedBox(width: 5),
