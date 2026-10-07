@@ -173,6 +173,27 @@ void main() {
       await tester.pump();
       expect(textOf().style?.decoration, TextDecoration.lineThrough);
     });
+
+    testWidgets('ingredients are sans 15/26, ruled BETWEEN items (F-77 9)',
+        (tester) async {
+      const two = Recipe(title: 'T', ingredients: [
+        RecipeGroup(items: ['flour', 'salt']),
+      ]);
+      await tester.pumpWidget(const MaterialApp(
+          home: Scaffold(
+              body: SingleChildScrollView(child: KitRecipeBody(recipe: two)))));
+      expect(tester.widget<Text>(find.text('flour')).style?.fontSize, 15);
+      BoxDecoration? rowOf(String s) => tester
+          .widget<Container>(find
+              .ancestor(of: find.text(s), matching: find.byType(Container))
+              .at(0))
+          .decoration as BoxDecoration?;
+      expect(rowOf('flour'), isNull,
+          reason: 'no rule above the first item, none under the last');
+      final rule = rowOf('salt')!.border as Border;
+      expect(rule.top.width, 1);
+      expect(rule.bottom, BorderSide.none);
+    });
   });
 
   group('§15.1 / §15.2 source viewers', () {

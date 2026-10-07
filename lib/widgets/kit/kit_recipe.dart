@@ -207,7 +207,6 @@ class KitFigure extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     final picture = ClipRRect(
       borderRadius: AppRadius.mdR,
       child: Image.network(
@@ -226,7 +225,9 @@ class KitFigure extends StatelessWidget {
             : GestureDetector(onTap: onOpen, child: picture),
         if (caption.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(caption, style: KitText.meta(context).copyWith(color: t.fgSubtle)),
+          // `.rc-fig figcaption`: sans 12 at --fg-muted (F-77 9) — it was
+          // §3's 14 at --fg-subtle, a meta line rather than a caption.
+          Text(caption, style: KitText.small(context)),
         ],
       ],
     );
@@ -263,6 +264,7 @@ class _Group extends StatelessWidget {
           _Ingredient(
             text: group.items[i],
             on: isChecked(i),
+            first: i == 0,
             onTap: () => onToggle(i),
           ),
       ],
@@ -270,13 +272,20 @@ class _Group extends StatelessWidget {
   }
 }
 
-/// One ingredient line: a tick, then the item, over a `--rule` separator.
+/// One ingredient line: a tick, then the item. The `--rule` runs BETWEEN
+/// items (`.rc-ings li + li { border-top }`), never under the last one — a
+/// rule under every item drew a closing line the reference has not (F-77 9).
 class _Ingredient extends StatelessWidget {
   final String text;
   final bool on;
+  final bool first;
   final VoidCallback onTap;
 
-  const _Ingredient({required this.text, required this.on, required this.onTap});
+  const _Ingredient(
+      {required this.text,
+      required this.on,
+      required this.first,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -285,9 +294,9 @@ class _Ingredient extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: t.rule)),
-        ),
+        decoration: first
+            ? null
+            : BoxDecoration(border: Border(top: BorderSide(color: t.rule))),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -309,7 +318,9 @@ class _Ingredient extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
+                // `.rc-ings li`: sans 15/26 — the body's 16 was a size up.
                 style: KitText.body(context).copyWith(
+                  fontSize: 15,
                   height: 26 / 15,
                   // Checked is struck AND dimmed: a cooking list read at arm's
                   // length across a kitchen needs more than one channel, the
