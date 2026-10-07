@@ -569,12 +569,20 @@ class _ReaderPageState extends State<ReaderPage> {
             ),
           ),
           for (final id in _sectionIds)
+            SliverLayoutBuilder(builder: (context, constraints) =>
             SliverToBoxAdapter(
               child: KitFrameBand(
                 width: KitFrameWidth.reading,
-                child: Padding(
-                  key: _sectionKeys[id],
-                  padding: const EdgeInsets.only(top: 22),
+                // §19's section: ruled off from the one above, and the last
+                // one tall enough that a jump to it reaches the rail (F-77 4,
+                // 5; web `.src-section`).
+                child: KitRailSection(
+                  sectionKey: _sectionKeys[id],
+                  first: id == _sectionIds.first,
+                  minHeight: id == _sectionIds.last
+                      ? KitRailSection.lastReach(
+                          constraints.viewportMainAxisExtent)
+                      : null,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -597,7 +605,7 @@ class _ReaderPageState extends State<ReaderPage> {
                   ),
                 ),
               ),
-            ),
+            )),
           const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.s20)),
         ],
       ),

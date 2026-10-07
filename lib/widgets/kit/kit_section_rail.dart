@@ -212,3 +212,59 @@ class _Jump extends StatelessWidget {
     );
   }
 }
+
+/// One section of a §19 stack (`.src-section`, web app-source.css): the
+/// sections read as ONE document, not as six pages run together, so every
+/// section after the first is closed off from the one above by a 1px `--rule`
+/// 40px below it (30 on a phone), and each opens 22px under that rule
+/// (`.src-panel`).
+///
+/// [minHeight] is the LAST section's reach (`.src-section:last-child`,
+/// `calc(100vh - var(--src-rail-h) - 72px)`): without it a jump to the last
+/// section bottoms the scroll out short of its head, and the rail — reporting
+/// honestly — marks the section above. Tapping History and being told you are
+/// in Original is the rail contradicting itself, and the scroll range is at
+/// fault, not the reading.
+///
+/// The host's section key is [sectionKey], and it marks the box that STARTS
+/// at the rule: the 40px above the rule belong to the gap, not the section, so
+/// a jump lands the rule under the rail, as `scroll-margin-top` does on the
+/// border box — and the rail's current section turns over at the rule.
+class KitRailSection extends StatelessWidget {
+  final bool first;
+  final double? minHeight;
+  final Key? sectionKey;
+  final Widget child;
+
+  const KitRailSection({
+    super.key,
+    required this.first,
+    required this.child,
+    this.sectionKey,
+    this.minHeight,
+  });
+
+  /// The last section's reach for a viewport [extent] (`100vh - rail - 72`).
+  static double lastReach(double extent) =>
+      (extent - KitSectionRail.height - 72).clamp(0, double.infinity);
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 768;
+    return Padding(
+      padding: EdgeInsets.only(top: first ? 0 : (compact ? 30 : 40)),
+      child: Container(
+        key: sectionKey,
+        padding: const EdgeInsets.only(top: 22),
+        constraints: BoxConstraints(minHeight: minHeight ?? 0),
+        decoration: first
+            ? null
+            : BoxDecoration(
+                border:
+                    Border(top: BorderSide(color: Tokens.of(context).rule)),
+              ),
+        child: child,
+      ),
+    );
+  }
+}
