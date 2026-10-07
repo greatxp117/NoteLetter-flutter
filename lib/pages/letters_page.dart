@@ -216,6 +216,10 @@ class _LettersPageState extends State<LettersPage> {
   }
 }
 
+/// The reference's body line box (theme.css `--lh-base: 24px`), which every
+/// line of the latest-letter card inherits on web.
+const double _lineBox = 24;
+
 /// The latest letter, its schedule and the actions on it (§5.3 hero card).
 class LatestLetterCard extends StatelessWidget {
   final Newsletter? latest;
@@ -267,9 +271,18 @@ class LatestLetterCard extends StatelessWidget {
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
 
+    // Web's card sets every line in the body's 24px line box (theme.css
+    // `--lh-base`, inherited — none of `.nl-status`, `.nl-no` or `.nl-meta`
+    // overrides it) and spaces the parts with `.nl-status`'s 13, the
+    // masthead's 12 gap, `.nl-lede`'s 9/13 and the grid's 18 on a phone. Drawn
+    // at Flutter's natural line heights with 8/12 gaps the card head read ~14%
+    // tighter than the reference (letters pair, 2026-10-07).
     return KitCard(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s6, vertical: AppSpacing.s6),
+      // `.next-letter` is `24px 26px`, and `padding: 20px` on a phone.
+      padding: compact
+          ? const EdgeInsets.all(20)
+          : const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s6, vertical: AppSpacing.s6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -291,21 +304,25 @@ class LatestLetterCard extends StatelessWidget {
             // a bug in the direction that matters.
             KitRowNote(activationHint),
           ],
-          const SizedBox(height: AppSpacing.s3),
+          // `.nl-schedule { margin-bottom: 13px }`.
+          const SizedBox(height: 13),
           if (n?.generatedAt != null) ...[
-            // `.nl-status`: mono 10 caps at 0.1em in `--accent-text`.
+            // `.nl-status`: mono 10 caps at 0.1em in `--accent-text`, on the
+            // 24px line box, `margin-bottom: 13px`.
             Text('Last sent · ${longDate(n!.generatedAt)}'.toUpperCase(),
                 style: KitText.capsLabel(context,
-                    fontSize: 10,
-                    letterSpacing: 0.1,
-                    color: Tokens.of(context).accentText)),
-            const SizedBox(height: AppSpacing.s2),
+                        fontSize: 10,
+                        letterSpacing: 0.1,
+                        color: Tokens.of(context).accentText)
+                    .copyWith(height: _lineBox / 10)),
+            const SizedBox(height: 13),
           ],
           // `.nl-masthead` is flex-wrap (gap 12): on a phone the subject drops
           // under the title whole rather than ellipsising beside it.
+          // Its `gap: 12px` is both axes: the wrapped subject sits 12 under.
           Wrap(
             spacing: AppSpacing.s3,
-            runSpacing: AppSpacing.s1,
+            runSpacing: AppSpacing.s3,
             crossAxisAlignment: WrapCrossAlignment.end,
             children: [
               const KitVersal('A Letter', fontSize: 25),
@@ -313,10 +330,12 @@ class LatestLetterCard extends StatelessWidget {
                 Text(n.subject!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: KitText.capsLabel(context, letterSpacing: 0)),
+                    style: KitText.capsLabel(context, letterSpacing: 0)
+                        .copyWith(height: _lineBox / 11)),
             ],
           ),
-          const SizedBox(height: AppSpacing.s2),
+          // `.nl-lede { margin: 9px 0 13px }`.
+          const SizedBox(height: 9),
           Lede(
             n != null
                 ? (n.lede.isNotEmpty
@@ -334,15 +353,16 @@ class LatestLetterCard extends StatelessWidget {
             height: 24,
             maxWidth: double.infinity,
           ),
+          const SizedBox(height: 13),
           if (passages > 0) ...[
-            const SizedBox(height: AppSpacing.s3),
             // `chunk_ids` names exactly the passages the body holds (4.39.0),
             // so this is counted, not estimated.
             // `.nl-meta`: sans 13 at --fg-muted, not §3's 14 at --fg-subtle.
             Text(
                 '$passages ${passages == 1 ? 'passage' : 'passages'} · '
                 '~${passages + 1} min read',
-                style: KitText.ui(context, color: Tokens.of(context).fgMuted)),
+                style: KitText.ui(context, color: Tokens.of(context).fgMuted)
+                    .copyWith(height: _lineBox / 13)),
           ],
           if (sendError != null) ...[
             const SizedBox(height: AppSpacing.s2),
@@ -351,7 +371,8 @@ class LatestLetterCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.s2),
             KitRowNote(sendMessage!),
           ],
-          const SizedBox(height: AppSpacing.s4),
+          // The grid's gap: 18 on a phone, 26 beside the actions above it.
+          SizedBox(height: compact ? 18 : AppSpacing.s4),
           // `.nl-actions` on a phone (web 9a84288): a row that WRAPS, each
           // button `flex: 1` with its label centred — the three share a line
           // when they fit and the last drops to its own, full width, when
@@ -432,7 +453,8 @@ class _ScheduleRow extends StatelessWidget {
             // on a phone (web 9a84288). A cap of two cut the sentence's
             // timezone to an ellipsis on a 320 card.
             style: KitText.capsLabel(context,
-                color: t.accentText, fontSize: 10, letterSpacing: 0.1),
+                    color: t.accentText, fontSize: 10, letterSpacing: 0.1)
+                .copyWith(height: _lineBox / 10),
           ),
         ),
         if (cfg != null) ...[

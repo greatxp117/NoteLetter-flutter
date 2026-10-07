@@ -75,14 +75,35 @@ class KitLetterPaper extends StatefulWidget {
   /// No stylesheet of ours: every colour, face and metric in a letter is inline
   /// (ADR-087 forbids a `<style>` block in the body for a second reason — the
   /// plain-text part is a naive tag strip that a `<style>` block survives). The
-  /// viewport meta and the two resets are what make a 640px mail sheet fit a
+  /// viewport meta and the resets are what make a 640px mail sheet fit a
   /// phone instead of scrolling sideways.
+  ///
+  /// `[data-nl-letterhead] > table { table-layout: fixed }` is web's own host
+  /// rule (`.letter-sheet`, app-kit.css): the letter's outer table is
+  /// `width="100%"` around a 640px paper that says `max-width: 100%`, which
+  /// AUTO table layout cannot honour, so the paper stayed 640 wide and this
+  /// host fitted it by scaling the whole page down — every face and margin at
+  /// ~0.63 on a phone, the title on one line where the reference wraps it at
+  /// its real 38px (letter-reader pair, 2026-10-07). Fixed layout gives the
+  /// cell the screen's width and the paper's own max-width then works: the
+  /// letter REFLOWS at its true sizes, as on web. Hosting, not rewriting — no
+  /// byte of the stored body changes.
+  ///
+  /// That rule alone was not enough HERE: re-shot with it, this WKWebView
+  /// still laid the paper out at 640 and fitted it by scaling (Chromium,
+  /// where the reference is photographed, reflows it at 402 with the same
+  /// document). WebKit does not let `max-width: 100%` bound a table whose
+  /// own width is set. So the paper — the one table inside the outer
+  /// table's cell — is held to that cell by the host, at most the 640 the
+  /// letter declares: the same box the reference's rule produces.
   @visibleForTesting
   static String documentFor(String body) => '''
 <!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;padding:0;background:${_cssHex(_Paper.ground)};-webkit-text-size-adjust:100%}
-img{max-width:100%;height:auto}table{max-width:100%}</style>
+img{max-width:100%;height:auto}table{max-width:100%}
+[data-nl-letterhead]>table{table-layout:fixed}
+[data-nl-letterhead]>table>tbody>tr>td>table{width:100%!important;max-width:640px!important}</style>
 </head><body>$body</body></html>''';
 
   @override

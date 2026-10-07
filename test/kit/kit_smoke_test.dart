@@ -1837,6 +1837,14 @@ void main() {
       // scrolling sideways, and the letter's own frozen ground behind it.
       expect(doc, contains('width=device-width'));
       expect(doc, contains('#FAFAF7'));
+      // …and web's one host rule (`.letter-sheet [data-nl-letterhead] >
+      // table`): without it the 640px paper cannot shrink, and the page was
+      // scaled to fit — every face at ~0.63 of the reference's on a phone.
+      final web = File('../NoteLetter-web/src/styles/app-kit.css')
+          .readAsStringSync();
+      expect(web, contains('.letter-sheet [data-nl-letterhead] > table { table-layout: fixed; }'),
+          reason: "the reference's host rule moved — look again");
+      expect(doc, contains('[data-nl-letterhead]>table{table-layout:fixed}'));
       // …and no font, colour or metric of ours: every one of those is inline
       // in the letter and must win.
       expect(doc, isNot(contains('Source Serif')));
