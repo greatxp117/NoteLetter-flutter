@@ -318,8 +318,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
       // `.rsvp-hint` — the one hint this client can keep: Hold, which the
       // stage honours on touch. The reference also names Space and the arrow
       // keys; nothing here binds them, so they are not said — a deliberate
-      // deviation, booked on QUEUE F-77 (8) (CLAUDE.md's word cap left no
-      // room in its §Composition deviations list).
+      // deviation, recorded in CLAUDE.md §Composition deviations (F-77 (8)).
       const SizedBox(height: 14),
       const Center(child: KitKeyHint('Hold', 'to pause & rest')),
       // `.rsvp-progress` — the track, then the readout.

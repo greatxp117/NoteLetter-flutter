@@ -34,19 +34,18 @@ lib/
 
 Pattern is `pages/` + `state/` + `services/` — **not** feature-first.
 
-**Route names follow the web reference, not the obvious ones:** `/` is the
-**Library** (the rail's *Home*); the rail's *Library* is `/sources`, with the
-volume list and the uploader.
+**Routes follow the web reference, not the obvious names:** `/` is the
+**Library** (the rail's *Home*); the rail's *Library* is `/sources` (volumes,
+uploader).
 
 The live theme is `theme/app_theme.dart` (`app.dart` only passes it on).
-**Never reintroduce `ColorScheme.fromSeed`** — a generated palette is
-self-consistent, so nothing looks broken while most widgets draw colours in no
-token file. Guard: `test/contract/theme_tokens_test.dart`.
+**Never reintroduce `ColorScheme.fromSeed`** — a generated palette looks
+consistent while most widgets draw colours from no token file. Guard:
+`test/contract/theme_tokens_test.dart`.
 
-**Every builder routes through `lib/services/api.dart`**, which all the
-notifiers call — that is what makes the app's live requests exactly what the
-harness asserts. A notifier building its own request is untested by
-construction.
+**Every request is built in `lib/services/api.dart`**, which every notifier
+calls — so live requests are exactly what the harness asserts. A notifier
+building its own is untested by construction.
 
 ## Build & run
 
@@ -58,14 +57,14 @@ tool/shots_batch.sh <list> && tool/web_frames.sh <screen>…
 ```
 
 Device run: `tool/device_test.sh ["<test name>"]` — always the script: zsh
-hands an unquoted define list to Flutter as one argument, and the app boots
-against prod's config and refuses.
+passes an unquoted define list as one argument, so the app boots on prod's
+config and refuses.
 
 ## Composition deviations
 
-The kit's reference metrics are web's numbers and this client's **starting**
-values; each deviation is recorded here (component-kit.md) and applied **once,
-inside the kit**, never per screen. Roles and proportions unchanged:
+Kit metrics are web's numbers and this client's **starting** values; each
+deviation is recorded here (component-kit.md) and applied **once, inside the
+kit**, never per screen. Roles and proportions hold:
 
 - §1.5 gutter 56 → 20 · §2.1 title 44 → 32
 - §2/§5.3 actions stack under the whole title BLOCK, standfirst included —
@@ -73,6 +72,8 @@ inside the kit**, never per screen. Roles and proportions unchanged:
 - §6.6/§6.8, §4.2's timestamp, §12's action and a setting row's control strip
   stack, and §4.1's count hides, at 768, not web's 680/640/480 — one breakpoint
 - §16's anchor also opens on **tap**: a coarse pointer has neither trigger
+- speed read's hint row says only *Hold to pause & rest*: no key is bound
+  here, so Space/arrow hints would lie (F-77 (8))
 
 ## Rules that are easy to break here
 
@@ -83,9 +84,9 @@ inside the kit**, never per screen. Roles and proportions unchanged:
 - **`fake_cloud_firestore` cannot resolve against this SDK**, so the transaction
   is not harness-provable: the *rule* is extracted as a pure function and
   asserted, the Firestore plumbing is not. The web reference is equally blind.
-- **Dart will not compare against null.** The web parser reaches the right answer
-  for a chapter-crossing citation range via a loose `null > n`; the direct port
-  crashed on the middle whole chapter. Any logic ported from `api.js` that leans
+- **Dart will not compare against null.** The web parser gets a chapter-crossing
+  citation range right via a loose `null > n`; the direct port crashed on its
+  middle chapter. Any logic ported from `api.js` that leans
   on JS coercion needs an explicit null branch.
 - **The reading-speed constant is 220 wpm**, normatively — this client shipped
   200 and silently disagreed with the reference on every document.
