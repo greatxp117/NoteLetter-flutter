@@ -86,6 +86,21 @@ void main() {
     }
   }
 
+  // 4.108.0 (ADR-144): the card SHOWS the stored count, and the unmeasured
+  // dash where none is stored — it printed the spine's stand-in, "2k" for
+  // book a (2 passages × 850), a figure nothing measured. Web 5228dbe.
+  testWidgets('the card shows the stored word count, or the dash — never the '
+      'spine\'s stand-in', (tester) async {
+    await _pumpAt(tester, 900, const KitShelfView(items: _books));
+    await tester.tap(find.byType(KitBookSpine).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(KitBookDetail), findsOneWidget);
+    final detail = find.byType(KitBookDetail);
+    expect(find.descendant(of: detail, matching: find.text('—')), findsOneWidget,
+        reason: 'book a stores no word_count');
+    expect(find.descendant(of: detail, matching: find.text('2k')), findsNothing);
+  });
+
   testWidgets('a spine is as wide as its words, and keeps its height',
       (tester) async {
     await _pumpAt(tester, 390, const KitShelfView(items: _books));

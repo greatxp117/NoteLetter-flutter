@@ -21,6 +21,7 @@ import 'reader/listen_panel.dart';
 import 'reader/manuscript_panel.dart';
 import 'reader/original_panel.dart';
 import 'reader/reader_ui.dart';
+import 'reader/reading_cost.dart';
 import 'reader/source_freshness.dart';
 import 'reader/speed_read_panel.dart';
 import 'reader/summary_panel.dart';
@@ -421,30 +422,9 @@ class _ReaderPageState extends State<ReaderPage> {
   List<double?> get _lineStarts =>
       _listenLines.map((l) => l.start).toList();
 
-  /// Does this document have REAL audio behind its timestamps, as opposed to a
-  /// synthesized narration? **Type OR field**, and both halves are
-  /// load-bearing (ADR-046 §Rationale, ADR-049): `source_audio_url` is set for
-  /// a podcast and an Instagram/TikTok video, while an uploaded recording and
-  /// an uploaded video carry null by design and mint their URL per request.
-  static bool _hasOwnAudio(Document doc) =>
-      (doc.sourceAudioUrl?.isNotEmpty ?? false) ||
-      doc.type == 'audio' ||
-      doc.type == 'video';
+  /// The one own-audio predicate (reader/reading_cost.dart; reader.md §Header).
+  static bool _hasOwnAudio(Document doc) => hasOwnAudio(doc);
 
-  /// `word_count`, falling back to counting chunk `text` when it is null —
-  /// the reference's rule, and the one the byline's reading time reads.
-  int get _words =>
-      _document?.wordCount ??
-      _chunks.fold<int>(
-        0,
-        (n, c) =>
-            n +
-            c.text
-                .trim()
-                .split(RegExp(r'\s+'))
-                .where((w) => w.isNotEmpty)
-                .length,
-      );
 
   /// component-kit §1.1 / reader.md §Composition: the reference renders the
   /// reader INSIDE the shell, so a phone keeps the shell's app bar (menu ·
@@ -887,16 +867,13 @@ class _ReaderPageState extends State<ReaderPage> {
     // same number. 220 wpm is the same constant the read-tracking dwell rule
     // uses; a client must not hold two opinions about reading speed.
     //
-    // The spec omits it "for transcript sources that show a real duration
-    // instead", and this client shows no duration for any source: nothing in
-    // the workspace writes `audio_seconds`, so the reference's Listen cell is
-    // a permanent em-dash. Suppressing the reading time on an audio source
-    // would leave the row saying NEITHER, which is the half of the rule that
-    // was never the point.
-    if (_words > 0) {
-      final mins = (_words / 220).ceil().clamp(1, 1 << 30);
-      parts.add('$mins min read');
-    }
+    // Omitted when the document has its own audio — its length is the Listen
+    // stat, and a reading time over the transcript of a recording is the
+    // wrong number (4.108.0, ADR-143) — and when no count is stored, which has
+    // no reading time rather than a recounted one (ADR-144). It fell back to
+    // counting chunk `text` until 4.108.0, as the reference did.
+    final readingTime = readingTimeLabel(doc);
+    if (readingTime != null) parts.add(readingTime);
 
     if (parts.isEmpty) return const SizedBox.shrink();
 
@@ -947,20 +924,21 @@ class _ReaderPageState extends State<ReaderPage> {
   /// `--ruled` modifier is a report treatment, and the kit said otherwise until
   /// 4.46.0 because it was transcribed from a dead web class (ADR-084).
   ///
-  /// LISTEN is the reference's third cell, and it is drawn as §8's
-  /// unmeasured dash ([KitStat] with a null value, ADR-109) — never a number
-  /// this client made up, and never dropped (QUEUE F-55 note 3, F-77 (1)). The
-  /// reference reads `audio_seconds`, which nothing in the workspace writes:
-  /// no backend field, no fixture, no data-model row, so it draws the dash on
-  /// every document too. When a writer lands, the data model names the field
-  /// and this cell reads it; until then the dash is the honest answer, and
-  /// leaving the slot out was a different composition, recorded nowhere.
+  /// LISTEN (4.108.0, ADR-143 — option A): drawn **only when the document has
+  /// its own audio** ([hasOwnAudio]), as `duration_seconds` in `m:ss`
+  /// (`h:mm:ss` from an hour), §8's unmeasured dash where that is null. A
+  /// document without its own audio draws NO Listen stat — a dash says "not
+  /// measured", and there is nothing to measure. Until 4.108.0 this was a
+  /// permanent dash on every document: the reference read `audio_seconds`,
+  /// which nothing writes, while `duration_seconds` sat undocumented.
+  ///
+  /// WORDS is the stored `word_count`, the dash where none is stored.
   Widget _statRow(Document doc, int readCount) {
     return KitStatCluster(
       stats: [
         KitStat('${_chunks.length}', 'Passages'),
-        KitStat('$_words', 'Words'),
-        const KitStat(null, 'Listen'),
+        KitStat(wordsValue(doc), 'Words'),
+        if (showsListen(doc)) KitStat(listenValue(doc), 'Listen'),
         KitStat(
           doc.createdAt != null ? _fmtDate(doc.createdAt!) : '—',
           'Added',

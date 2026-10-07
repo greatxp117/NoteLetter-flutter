@@ -77,7 +77,11 @@ void main() {
         dwellFor(wordsIn(tableText)));
   });
 
-  testWidgets('the manuscript header counts what the dwell clock counts',
+  // 4.108.0 (ADR-144): the header shows the document's STORED word_count —
+  // the indexer's, canonical — and the unmeasured dash where none is stored.
+  // It summed the passages' stored text (15 here) until then, which is a
+  // client deriving its own count; the dwell keeps counting stored text.
+  testWidgets('the manuscript header shows the stored word_count, never a sum',
       (tester) async {
     FirestoreService.instance = _QuietFirestore();
     addTearDown(FirestoreService.resetInstance);
@@ -92,6 +96,7 @@ void main() {
               'title': 'Quarterly Tax Summary',
               'type': 'pdf',
               'status': 'complete',
+              'word_count': 12,
             }),
             chunks: [
               Chunk.fromJson({
@@ -116,9 +121,10 @@ void main() {
     ));
     await tester.pump();
     // The panel bar's `.pf-label`, set in caps by the caller (F-43).
-    expect(find.text('2 PASSAGES · 15 WORDS'), findsOneWidget,
-        reason: '7 + 8 from the stored text; the html says 12 (tags as '
-            'breaks) or 9 (textContent)');
+    expect(find.text('2 PASSAGES · 12 WORDS'), findsOneWidget,
+        reason: 'the stored count; the passages\' stored text sums to 15, '
+            'which the header showed until 4.108.0');
+    expect(find.text('12 words'), findsOneWidget, reason: 'and the footer');
     // F-77 (7): the passage mark sits in the SHEET's padding, 26 left of the
     // passage (`.ms-mark { left: -26px }`), and takes nothing from the text
     // column — it was a 26pt slice of the measure.
@@ -136,6 +142,44 @@ void main() {
     for (final h in html) {
       expect(h.style['table']?.fontSize?.value, 15);
     }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 30));
+  });
+
+  testWidgets('no stored word_count is the unmeasured dash — never a recount',
+      (tester) async {
+    FirestoreService.instance = _QuietFirestore();
+    addTearDown(FirestoreService.resetInstance);
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light,
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: ManuscriptPanel(
+            docId: 'doc-1',
+            doc: Document.fromJson('doc-1', {
+              'user_id': 'u1',
+              'title': 'Quarterly Tax Summary',
+              'type': 'pdf',
+              'status': 'complete',
+            }),
+            chunks: [
+              Chunk.fromJson({
+                'chunk_id': 'c1',
+                'document_id': 'doc-1',
+                'chunk_index': 0,
+                'text': tableText,
+                'html': tableHtml,
+              }),
+            ],
+            onSaved: () async {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(find.text('1 PASSAGES · — WORDS'), findsOneWidget);
+    expect(find.text('— words'), findsOneWidget);
+    expect(find.textContaining('8 WORDS'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 30));
   });

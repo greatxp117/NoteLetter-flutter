@@ -72,6 +72,14 @@ class Document {
   /// timestamps. Null for every other type and every pre-2.7.0 doc.
   final String? sourceAudioUrl;
 
+  /// `duration_seconds` (data-model.md, documented 4.108.0, ADR-143; written
+  /// since 2.7.0): the length of the media the document was made from, as its
+  /// source reports it — a podcast's `itunes:duration`, `ffprobe` of an
+  /// uploaded recording or video, yt-dlp's for a short video or a YouTube
+  /// Whisper fallback. Null where nothing measured it. The reader's Listen
+  /// stat draws it, and only for a document with its own audio.
+  final num? durationSeconds;
+
   /// The TTS narration `fn_generate_audio` wrote (`audio_url`). This model did
   /// not read it until 2026-09-22, so a narration that already existed was
   /// never loaded: the Listen panel offered "Generate audio" again — a paid
@@ -210,6 +218,7 @@ class Document {
     this.tagIds = const [],
     this.thumbnailUrl,
     this.sourceAudioUrl,
+    this.durationSeconds,
     this.audioUrl,
     this.sourceImageUrl,
     this.author,
@@ -259,6 +268,7 @@ class Document {
       tagIds: tagIds,
       thumbnailUrl: thumbnailUrl,
       sourceAudioUrl: sourceAudioUrl,
+      durationSeconds: durationSeconds,
       audioUrl: audioUrl,
       sourceImageUrl: sourceImageUrl,
       author: author,
@@ -309,6 +319,7 @@ class Document {
       tagIds: tagIds,
       thumbnailUrl: thumbnailUrl,
       sourceAudioUrl: sourceAudioUrl,
+      durationSeconds: durationSeconds,
       audioUrl: audioUrl,
       sourceImageUrl: sourceImageUrl,
       author: author,
@@ -358,6 +369,7 @@ class Document {
       tagIds: List.unmodifiable(next),
       thumbnailUrl: thumbnailUrl,
       sourceAudioUrl: sourceAudioUrl,
+      durationSeconds: durationSeconds,
       audioUrl: audioUrl,
       sourceImageUrl: sourceImageUrl,
       author: author,
@@ -400,6 +412,7 @@ class Document {
       tagIds: (json['tag_ids'] as List?)?.cast<String>() ?? [],
       thumbnailUrl: json['thumbnail_url'] as String?,
       sourceAudioUrl: json['source_audio_url'] as String?,
+      durationSeconds: json['duration_seconds'] as num?,
       audioUrl: json['audio_url'] as String?,
       sourceImageUrl: json['source_image_url'] as String?,
       author: json['author'] as String?,

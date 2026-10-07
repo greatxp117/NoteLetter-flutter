@@ -531,8 +531,12 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   Widget build(BuildContext context) {
     final ui = ReaderUi(context);
     final visible = _visible;
-    final totalWords =
-        visible.fold<int>(0, (n, c) => n + _words(c));
+    // The toolbar and footer show the document's STORED count — the
+    // indexer's, canonical (4.108.0, ADR-144) — and the unmeasured dash where
+    // none is stored. Never a sum over the passages (web 5228dbe): that is a
+    // client deriving its own, by a rule that counts markers and separators.
+    final stored = widget.doc.wordCount;
+    final wordsLabel = stored == null ? '— words' : '${_grouped(stored)} words';
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ui.intro(
@@ -548,8 +552,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       Row(children: [
         Expanded(
           child: Text(
-              '${visible.length} passages · ${_grouped(totalWords)} words'
-                  .toUpperCase(),
+              '${visible.length} passages · $wordsLabel'.toUpperCase(),
               style: KitText.monoCaps(context)),
         ),
         const SizedBox(width: 12),
@@ -720,7 +723,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         child: Wrap(spacing: 16, runSpacing: 4, children: [
           Text('${visible.length} passages', style: _foot(context)),
           Text('·', style: _foot(context)),
-          Text('${_grouped(totalWords)} words', style: _foot(context)),
+          Text(wordsLabel, style: _foot(context)),
           _dirty
               ? Row(mainAxisSize: MainAxisSize.min, children: [
                   Container(

@@ -132,7 +132,9 @@ int _shelfHash(String s) {
   return h;
 }
 
-/// `sourceWords`: the stored count, else 850 a passage, else 6000.
+/// The spine's WIDTH (web `spineWords`), which is geometry and not a figure:
+/// the stored count, else 850 a passage, else 6000 — a book still needs a
+/// thickness where nothing counted it.
 int _bookWords(KitBook b) {
   if ((b.words ?? 0) > 0) return b.words!;
   return b.passages > 0 ? (b.passages * 850) : 6000;
@@ -145,8 +147,14 @@ double _spineWidth(int words) {
   return (16 + t * (64 - 16)).roundToDouble();
 }
 
-String _fmtWords(int words) =>
-    words >= 1000 ? '${(words / 1000).round()}k words' : '$words words';
+/// The word count a reader is SHOWN: the stored one (4.108.0, ADR-144), the
+/// unmeasured dash where none is stored. The card printed the spine's
+/// stand-in — "2k words" for a document nothing had counted (web 5228dbe).
+String _fmtWords(int? words) => words == null
+    ? '— words'
+    : words >= 1000
+        ? '${(words / 1000).round()}k words'
+        : '$words ${words == 1 ? 'word' : 'words'}';
 
 const _mon = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
@@ -508,7 +516,8 @@ class KitBookDetail extends StatelessWidget {
           spacing: 16,
           runSpacing: 12,
           children: [
-            stat(_fmtWords(_bookWords(book)).replaceAll(' words', ''), 'Words'),
+            stat(_fmtWords(book.words).replaceAll(RegExp(r' words?$'), ''),
+                'Words'),
             stat('${book.passages}', 'Passages'),
             stat(book.shelf ?? 'Unshelved', 'Shelf'),
             stat(_fmtDay(book.createdAt), 'Added'),
