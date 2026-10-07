@@ -93,12 +93,23 @@ FIELDS = ["status", "screen", "route", "spec", "web", "flutter", "folds",
           "device_test", "shots", "extra_gates", "notes"]
 LIST_FIELDS = {"spec", "web", "flutter", "folds", "shots", "extra_gates"}
 STATUS = re.compile(r"^(open|in-progress|done(\s+\d{4}-\d{2}-\d{2})?|blocked:\s*\S.*)$")
-HEAD = re.compile(r"^## (F-\d{2}) · (.+)$")
+HEAD = re.compile(r"^## (F-\d{2,}) · (.+)$")
 FIELD = re.compile(r"^- ([a-z_]+): ?(.*)$")
 NEW = re.compile(r"\s*\(new\)\s*$")
-ITEM_ID = re.compile(r"^F-\d{2}$")
+ITEM_ID = re.compile(r"^F-\d{2,}$")
 # The one line `add` writes beside FIELDS, and only when it places an item.
-PLACED = re.compile(r"^after (F-\d{2})$")
+PLACED = re.compile(r"^after (F-\d{2,})$")
+
+
+def num(item_id: str) -> int:
+    """`F-07` → 7. Ids are TWO OR MORE digits: `add` writes `F-{n:02d}`, which
+    pads to at least two, so the item after F-99 is F-100. Every reader here
+    matches `F-\\d{2,}` and compares ids as numbers — as strings "F-100" sorts
+    before "F-99". Until 2026-10-07 every reader matched exactly two digits, so
+    F-100 would have been written and then read as a continuation of the item
+    above it, its fields overwriting that item's. harness/screenshot_pair_check.py
+    (NoteLetter-contracts) has its own copy of `HEAD` and must match the same."""
+    return int(item_id[2:])
 
 
 # ── parse / render ───────────────────────────────────────────────────────────
@@ -235,7 +246,7 @@ def cmd_add(payload: dict) -> int:
         tgt = next((x for x in items if x["id"] == after), None)
         if tgt is None:
             sys.exit(f"queue: no item {after} to insert after")
-    n = max((int(x["id"][2:]) for x in items), default=-1) + 1
+    n = max((num(x["id"]) for x in items), default=-1) + 1
     block = [f"## F-{n:02d} · {payload['title']}", f"- status: {payload.get('status', 'open')}"]
     for f in FIELDS:
         if f == "status":
@@ -276,7 +287,7 @@ def cmd_lint() -> int:
     # ORDER: exactly what `add` can write. Appended items ascend; a placed one
     # says where it was put, and is below an older anchor.
     appended = [x["id"] for x in items if "placed" not in x]
-    if appended != sorted(appended):
+    if appended != sorted(appended, key=num):
         problems.append(f"items are out of order: {appended} — `add` appends; an item "
                         f"sits out of id order only with `placed: after F-NN`")
     at = {x["id"]: i for i, x in enumerate(items)}
@@ -290,7 +301,7 @@ def cmd_lint() -> int:
             problems.append(f"{it['id']}: placed after {m.group(1)}, which is not in the queue")
         elif at[m.group(1)] > i:
             problems.append(f"{it['id']}: placed after {m.group(1)} but sits above it")
-        elif m.group(1) >= it["id"]:
+        elif num(m.group(1)) >= num(it["id"]):
             problems.append(f"{it['id']}: placed after {m.group(1)}, which is not older "
                             f"— `add` only places a NEW item")
     web_shots = ROOT / "NoteLetter-web" / "screenshots"
