@@ -1,14 +1,21 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fixtures.dart';
 import 'token_match.dart';
 
 /// The comparator contract of `fixtures/normalization.md`, over this client's
-/// port (`token_match.dart`) — the same seven cases the reference pins in
+/// port (`token_match.dart`) — the cases the reference pins in
 /// `tests/contract/fixture-tokens.test.js` (QUEUE F-28).
 ///
-/// 1. `«seconds»` — a rate-limit countdown is `int(window - elapsed)`, so the
-///    number is a measurement of how long the capture took; the sentence
-///    around it is asserted verbatim.
+/// 1. `«seconds»` — a rate-limit countdown is `ceil(window - elapsed)`
+///    (`int()` until 4.107.0), so the number is a measurement of how long the
+///    capture took; the sentence around it is asserted verbatim.
+/// 3. `«retry_after_s»` (4.107.0, ADR-140) — the same measurement as a WHOLE
+///    value: `retry_after_s` on a cooldown envelope, an integer of at least
+///    one second, never a string of digits.
 /// 2. An EMBEDDED token — `…?«sig»`, a gcs path carrying `«uuid#1»`, this
 ///    countdown — never reached a predicate here: the dispatch tested
 ///    `startsWith('«')`, so such a value fell through to string equality
@@ -36,6 +43,72 @@ void main() {
     test('is a number, not any word', () {
       fails(() => match(
           'Please wait a few seconds before regenerating again.', expected));
+    });
+  });
+
+  group('«retry_after_s» — a cooldown’s wait is a whole value, and a number',
+      () {
+    test('accepts any whole second the clock produces', () {
+      for (final n in [1, 42, 300]) {
+        match(n, '«retry_after_s»');
+      }
+    });
+
+    test('refuses zero, a fraction and a string of digits', () {
+      fails(() => match(0, '«retry_after_s»'));
+      fails(() => match(-3, '«retry_after_s»'));
+      fails(() => match(4.5, '«retry_after_s»'));
+      fails(() => match('42', '«retry_after_s»'));
+      fails(() => match(null, '«retry_after_s»'));
+    });
+
+    test('is asserted inside the envelope like any key', () {
+      const expected = {
+        'error': 'Please wait «seconds» seconds before retrying.',
+        'error_code': 'RATE_LIMITED',
+        'request_id': '«request_id»',
+        'retry_after_s': '«retry_after_s»',
+      };
+      match({
+        'error': 'Please wait 43 seconds before retrying.',
+        'error_code': 'RATE_LIMITED',
+        'request_id': 'a1b2c3d4',
+        'retry_after_s': 43,
+      }, expected);
+      // The key set compares in full: an envelope that lost the number fails.
+      fails(() => match({
+            'error': 'Please wait 43 seconds before retrying.',
+            'error_code': 'RATE_LIMITED',
+            'request_id': 'a1b2c3d4',
+          }, expected));
+    });
+
+    test('every captured cooldown envelope satisfies it', () {
+      // The token is not only a unit here: every captured case carrying it
+      // must be one this predicate was written for (a key named
+      // `retry_after_s`, never a token embedded in a string).
+      final root = contractsRoot();
+      final manifest = jsonDecode(
+              File('$root/fixtures/manifest.json').readAsStringSync())
+          as Map<String, dynamic>;
+      var seen = 0;
+      for (final suite in (manifest['suites'] as List).cast<Map>()) {
+        if (suite['status'] != 'captured') continue;
+        final text =
+            File('$root/fixtures/${suite['path']}').readAsStringSync();
+        if (!text.contains('«retry_after_s»')) continue;
+        for (final c in ((jsonDecode(text) as Map)['cases'] as List).cast<Map>()) {
+          final body = (c['response'] as Map?)?['body'];
+          if (body is! Map || !body.containsKey('retry_after_s')) continue;
+          expect(body['retry_after_s'], '«retry_after_s»',
+              reason: '${c['id']}: a captured wait is tokenized whole');
+          seen++;
+        }
+      }
+      // 4.107.0 moved exactly five captured cooldown cases (CHANGELOG).
+      expect(seen, greaterThanOrEqualTo(5),
+          reason: 'read $seen cooldown case(s) — a gate that reads nothing '
+              'agrees with everything (4.34.7)');
     });
   });
 

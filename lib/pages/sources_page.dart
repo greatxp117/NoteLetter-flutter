@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/import_job.dart';
+import '../shared/cooldown.dart';
 import '../state/cloud_notifier.dart';
 import '../state/documents_notifier.dart';
 import '../state/org_notifier.dart';
@@ -406,9 +407,14 @@ class _ProviderCardState extends State<_ProviderCard> {
     final (msg, result) =
         await context.read<CloudNotifier>().syncNow(widget.providerId);
     if (!mounted) return;
+    // A cooldown that carried its number is the PROVIDER's wait (4.107.0,
+    // ADR-140): Sync now is held for it and the wait says its own sentence in
+    // this note's slot until it ends — a copy kept here would outlive it.
+    final waits = result == SyncNowResult.wait &&
+        Cooldowns.instance.waiting(WaitKey.cloudSync(widget.providerId));
     setState(() {
       _syncing = false;
-      _syncNote = result == SyncNowResult.queued ? null : msg;
+      _syncNote = result == SyncNowResult.queued || waits ? null : msg;
       _syncRefused = result == SyncNowResult.refused;
     });
     if (result == SyncNowResult.queued) {
@@ -416,8 +422,15 @@ class _ProviderCardState extends State<_ProviderCard> {
     }
   }
 
+  /// The provider's sync cooldown (4.107.0, ADR-140) holds Sync now and is
+  /// the card's note while it runs.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: WaitKey.cloudSync(widget.providerId),
+        builder: _card,
+      );
+
+  Widget _card(BuildContext context, CooldownWait wait) {
     final providerId = widget.providerId;
     final spec = widget.spec;
     final integration = widget.integration;
@@ -470,6 +483,7 @@ class _ProviderCardState extends State<_ProviderCard> {
               onPressed: () => cloud.openPicker(providerId)),
           KitButton.ghost(_syncing ? 'Syncing…' : 'Sync now',
               icon: Icons.sync,
+              wait: _syncing ? 0 : wait.left,
               onPressed: _syncing || noFolders ? null : _syncNow),
           // Auto-organization enable (1.2.0) — requests write scopes via OAuth;
           // returns to /sources with org=enabled on a full grant.
@@ -515,6 +529,10 @@ class _ProviderCardState extends State<_ProviderCard> {
       ],
       footnote: !connected || needsReconnect
           ? null
+          // The wait's sentence takes the slot a 429 has always used: the
+          // calm note, never §14.2 — a wait is the system working.
+          : wait.sentence != null
+              ? Text(wait.sentence!, style: KitText.meta(context))
           : _syncNote != null
               ? (_syncRefused
                   ? KitFailureInline(_syncNote!, dense: true)
@@ -928,6 +946,18 @@ class _JobRowState extends State<_JobRow> {
   bool _updating = false;
   String? _updateError;
 
+  /// Each control's own cooldown (4.107.0, ADR-140): held for the wait its
+  /// refusal carried, counting it down, with the server's sentence in the
+  /// control's §14.2 slot for exactly as long. Retry's is the JOB's; Update
+  /// from source's is keyed by the document it re-imports, and read only on a
+  /// row that draws that control — another of the document's job rows has no
+  /// slot for its sentence.
+  String get _retryKey => WaitKey.importJobRetry(widget.job.id);
+  String? get _updateKey =>
+      widget.job.canUpdateFromSource && widget.job.documentId != null
+          ? WaitKey.sourceRefresh(widget.job.documentId!)
+          : null;
+
   Future<void> _retry() async {
     setState(() {
       _busy = true;
@@ -937,7 +967,8 @@ class _JobRowState extends State<_JobRow> {
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _retryError = err;
+      // A cooldown with its number is the row's wait, not a copy of it.
+      _retryError = Cooldowns.instance.waiting(_retryKey) ? null : err;
     });
   }
 
@@ -960,17 +991,29 @@ class _JobRowState extends State<_JobRow> {
       lead: SupersessionConfirm.updateLead(widget.job.provider),
       confirmLabel: SupersessionConfirm.updateConfirmLabel,
       action: () => cloud.updateFromSource(docId),
+      waitKey: _updateKey,
     );
     if (!mounted) return;
     setState(() {
       _updating = false;
-      _updateError =
-          res.outcome == SupersessionOutcome.refused ? res.message : null;
+      _updateError = res.outcome == SupersessionOutcome.refused && !res.waits
+          ? res.message
+          : null;
     });
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: _retryKey,
+        builder: (context, retryWait) => KitWait(
+          waitKey: _updateKey,
+          builder: (context, updateWait) =>
+              _row(context, retryWait, updateWait),
+        ),
+      );
+
+  Widget _row(
+      BuildContext context, CooldownWait retryWait, CooldownWait updateWait) {
     final t = Tokens.of(context);
     final job = widget.job;
     final (label, tone) = _status(job, t);
@@ -1008,12 +1051,14 @@ class _JobRowState extends State<_JobRow> {
                     : job.isImportAgain
                         ? 'Import again'
                         : 'Retry',
+                wait: _busy ? 0 : retryWait.left,
                 onPressed: _busy ? null : _retry),
           // A kept refresh (skipped · document_complete | document_unchanged,
           // with its document): no Retry — it would mint a second document —
           // and the sentence names this control.
           if (job.canUpdateFromSource)
             KitButton.ghost(_updating ? 'Queuing…' : 'Update from source',
+                wait: _updating ? 0 : updateWait.left,
                 onPressed: _updating ? null : _update),
           if (tone != null) ...[
             const SizedBox(width: 4),
@@ -1022,7 +1067,10 @@ class _JobRowState extends State<_JobRow> {
         ],
       ),
     );
-    final errors = [?_retryError, ?_updateError];
+    final errors = [
+      ?(retryWait.sentence ?? _retryError),
+      ?(updateWait.sentence ?? _updateError),
+    ];
     if (errors.isEmpty) return row;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

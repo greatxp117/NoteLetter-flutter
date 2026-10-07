@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../shared/cooldown.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 
@@ -42,8 +43,13 @@ class _RegenerateControlState extends State<_RegenerateControl> {
   /// a failure.
   String? _failure;
 
+  /// The document's regenerate cooldown (4.107.0, ADR-140): the button is
+  /// held for the wait a refusal carried and counts it down, and the server's
+  /// sentence is the caption while it runs — then both leave together.
+  String get _waitKey => WaitKey.summaryRegen(widget.docId);
+
   Future<void> _regenerate() async {
-    if (_busy) return;
+    if (_busy || Cooldowns.instance.waiting(_waitKey)) return;
     setState(() {
       _busy = true;
       _note = null;
@@ -65,8 +71,12 @@ class _RegenerateControlState extends State<_RegenerateControl> {
       if (!mounted) return;
       setState(() {
         if (e.statusCode == 429) {
-          _note = cooldownSentence(
-              e, 'Just regenerated — give it a minute before trying again.');
+          // With a number the WAIT owns the caption and clears it at zero;
+          // without one the sentence stays as it always has (ADR-140).
+          if (e.retryAfterS == null) {
+            _note = cooldownSentence(
+                e, 'Just regenerated — give it a minute before trying again.');
+          }
         } else {
           _failure = 'The summary could not be regenerated — ${e.message}';
           // The reassurance goes in the caption, not after the sentence: the
@@ -87,7 +97,12 @@ class _RegenerateControlState extends State<_RegenerateControl> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: _waitKey,
+        builder: (context, wait) => _control(context, wait),
+      );
+
+  Widget _control(BuildContext context, CooldownWait wait) {
     return Padding(
       padding: const EdgeInsets.only(top: 18),
       child: Column(
@@ -100,6 +115,7 @@ class _RegenerateControlState extends State<_RegenerateControl> {
             children: [
               KitButton.secondary(
                 _busy ? 'Regenerating…' : 'Regenerate summary',
+                wait: _busy ? 0 : wait.left,
                 onPressed: _busy ? null : _regenerate,
               ),
               // 4.3.1: regenerate applies the CURRENT prompt, so a reader
@@ -119,7 +135,8 @@ class _RegenerateControlState extends State<_RegenerateControl> {
           // own voice — never a §14 failure, because the summary on screen is
           // still correct and nothing was blanked.
           Lede(
-            _note ??
+            wait.sentence ??
+                _note ??
                 'Rewrites the summary, key points and themes under your summary '
                     'style. The title and passages don’t change.',
             fontSize: 14,

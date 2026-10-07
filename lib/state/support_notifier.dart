@@ -110,8 +110,10 @@ class SupportNotifier extends ChangeNotifier {
       return true;
     } on ApiException catch (e) {
       // The endpoint's own copy, rendered as-is: a 429 cooldown is a sentence
-      // the backend writes, not an error this client invents.
-      _error = e.message;
+      // the backend writes, not an error this client invents. One carrying its
+      // number (4.107.0, ADR-140) is the send control's WAIT, which says the
+      // sentence for exactly as long as it runs — a copy here would outlive it.
+      _error = e.retryAfterS != null ? null : e.message;
       return false;
     } catch (_) {
       _error = 'Could not send that message.';

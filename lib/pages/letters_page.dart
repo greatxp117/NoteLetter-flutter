@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../models/newsletter.dart';
 import '../models/newsletter_settings.dart';
+import '../shared/cooldown.dart';
 import '../shared/dates.dart';
 import '../state/activation_message.dart';
 import '../state/newsletter_notifier.dart';
@@ -84,7 +85,10 @@ class _LettersPageState extends State<LettersPage> {
     final error = await notifier.requestNewsletter();
     if (!mounted) return;
     if (error != null) {
-      setState(() => _sendError = error);
+      // A cooldown with its number is the button's wait and says itself
+      // (4.107.0, ADR-140) — the same wait on Letter settings.
+      setState(() => _sendError =
+          Cooldowns.instance.waiting(WaitKey.letterSend()) ? null : error);
       return;
     }
     setState(() => _sendMessage =
@@ -245,12 +249,21 @@ class LatestLetterCard extends StatelessWidget {
     required this.onToggleSchedule,
   });
 
+  /// The 60s manual-send cooldown is the CALLER's (4.107.0, ADR-140): Send
+  /// now is held for the wait a refusal carried, and the server's sentence is
+  /// the send line while it runs — one clock with Letter settings.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: WaitKey.letterSend(),
+        builder: _card,
+      );
+
+  Widget _card(BuildContext context, CooldownWait wait) {
     final settings = context.watch<SettingsNotifier>();
     final cfg = settings.newsletter;
     final n = latest;
     final passages = n?.chunkIds.length ?? 0;
+    final sendError = wait.sentence ?? this.sendError;
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
 
@@ -333,7 +346,7 @@ class LatestLetterCard extends StatelessWidget {
           ],
           if (sendError != null) ...[
             const SizedBox(height: AppSpacing.s2),
-            KitFailureInline(sendError!),
+            KitFailureInline(sendError),
           ] else if (sendMessage != null) ...[
             const SizedBox(height: AppSpacing.s2),
             KitRowNote(sendMessage!),
@@ -351,6 +364,7 @@ class LatestLetterCard extends StatelessWidget {
               KitButton(sending ? 'Sending…' : 'Send now',
                   icon: Icons.arrow_forward,
                   center: compact,
+                  wait: sending ? 0 : wait.left,
                   onPressed: sending ? null : () => onSend()),
               if (onPreview != null)
                 KitButton('Preview',

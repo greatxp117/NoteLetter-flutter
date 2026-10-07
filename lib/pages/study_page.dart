@@ -21,6 +21,7 @@ import '../models/study.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
+import '../shared/cooldown.dart';
 import '../shared/dates.dart';
 import '../state/study_schedule.dart';
 import '../theme/app_spacing.dart';
@@ -94,10 +95,17 @@ class _StudyPageState extends State<StudyPage> {
       // that carried no sentence at all (C11).
       setState(() {
         if (e.statusCode == 429) {
-          _notes[p.id] = cooldownSentence(
-              e,
-              'Just a moment — a session for this program was '
-              'requested less than a minute ago.');
+          // With a number (4.107.0, ADR-140) the card's wait carries the
+          // sentence and clears it at zero, so the note is emptied rather than
+          // left to outlive it.
+          if (e.retryAfterS != null) {
+            _notes.remove(p.id);
+          } else {
+            _notes[p.id] = cooldownSentence(
+                e,
+                'Just a moment — a session for this program was '
+                'requested less than a minute ago.');
+          }
         } else {
           _errors[p.id] = e.message;
         }
@@ -241,11 +249,21 @@ class _ProgramCard extends StatelessWidget {
     required this.onNew,
   });
 
+  /// The program's own cooldown (4.107.0, ADR-140): Study now is held for the
+  /// wait a refusal carried and counts it down, and the server's sentence is
+  /// the note while it runs. Other programs' controls are untouched — the
+  /// cooldown is per program.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: WaitKey.studySession(program.id),
+        builder: _card,
+      );
+
+  Widget _card(BuildContext context, CooldownWait wait) {
     final p = program;
     final on = p.enabled;
     final low = runwayNotice(p);
+    final note = wait.sentence ?? this.note;
 
     return KitCard(
       padding: const EdgeInsets.all(AppSpacing.s4 + 2),
@@ -297,7 +315,7 @@ class _ProgramCard extends StatelessWidget {
             KitFailureInline(error!),
           ] else if (note != null) ...[
             const SizedBox(height: AppSpacing.s3),
-            KitRowNote(note!),
+            KitRowNote(note),
           ] else if (!on) ...[
             const SizedBox(height: AppSpacing.s3),
             // Said BEFORE the switch is touched (ADR-031's obligation).
@@ -310,6 +328,7 @@ class _ProgramCard extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               KitButton(busy == 'study' ? 'Requesting…' : 'Study now',
+                  wait: busy == 'study' ? 0 : wait.left,
                   onPressed: busy != null ? null : onStudy),
               KitButton('Settings',
                   icon: Icons.tune,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/cloud_folder.dart';
 import '../../services/firestore_service.dart';
+import '../../shared/cooldown.dart';
 import '../../state/org_notifier.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/tokens.dart';
@@ -254,6 +255,20 @@ class OrganizedFoldersPanel extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // The scan cooldown is the PROVIDER's (4.107.0, ADR-140), so its
+            // sentence is said once, over the provider's folders, for exactly
+            // as long as the wait every one of their rescans is held for —
+            // web's ScanWaitNotice. A toast would be gone long before the
+            // wait it explains.
+            KitWait(
+              waitKey: WaitKey.orgScan(provider),
+              builder: (context, wait) => wait.sentence == null
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: KitFailureInline(wait.sentence!),
+                    ),
+            ),
             for (final f in folders) _FolderRow(folder: f),
           ],
         );
@@ -304,8 +319,15 @@ class _FolderRowState extends State<_FolderRow> {
     final err =
         await org.scan(widget.folder.provider, folderId: widget.folder.id);
     if (!mounted) return;
-    // A 409 COOLDOWN comes back as user-facing copy — say it rather than
-    // leaving the button looking broken.
+    // A cooldown that carried its number is the provider's WAIT: every
+    // rescan of it is held and the sentence is said over the folders until
+    // it ends (ADR-140), so it is not also a toast.
+    if (err != null &&
+        Cooldowns.instance.waiting(WaitKey.orgScan(widget.folder.provider))) {
+      return;
+    }
+    // A 409 COOLDOWN with no number comes back as user-facing copy — say it
+    // rather than leaving the button looking broken.
     AppToast.show(context, err ?? 'Rescanning folder…',
         type: err != null ? ToastType.error : ToastType.info);
   }
@@ -408,8 +430,13 @@ class _FolderRowState extends State<_FolderRow> {
                       onPressed: () => setState(() => _editing = true),
                     ),
                     const Spacer(),
-                    KitButton.ghost('Rescan',
-                        icon: Icons.refresh, onPressed: _rescan),
+                    KitWait(
+                      waitKey: WaitKey.orgScan(f.provider),
+                      builder: (context, wait) => KitButton.ghost('Rescan',
+                          icon: Icons.refresh,
+                          wait: wait.left,
+                          onPressed: _rescan),
+                    ),
                   ],
                 ),
               ],

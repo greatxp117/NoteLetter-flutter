@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../shared/cooldown.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import 'supersession_confirm.dart';
@@ -99,6 +100,7 @@ class _SourceFreshnessState extends State<SourceFreshness> {
           return 'Update failed.';
         }
       },
+      waitKey: WaitKey.sourceRefresh(widget.docId),
     );
     if (!mounted) return;
     setState(() {
@@ -108,16 +110,28 @@ class _SourceFreshnessState extends State<SourceFreshness> {
           SourceFreshness._cache.remove(widget.docId);
           _queued = true;
         case SupersessionOutcome.refused:
-          _error = res.message;
+          // A cooldown with its number is the control's wait and says itself
+          // in this slot until it ends (4.107.0, ADR-140).
+          _error = res.waits ? null : res.message;
         case SupersessionOutcome.kept:
           break;
       }
     });
   }
 
+  /// The refresh cooldown (4.107.0, ADR-140): the control is held for the
+  /// wait a refusal carried, and its sentence is the banner's §14.2 line for
+  /// as long — the same wait as the Sources row's Update from source for this
+  /// document.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: WaitKey.sourceRefresh(widget.docId),
+        builder: _banner,
+      );
+
+  Widget _banner(BuildContext context, CooldownWait wait) {
     final f = _freshness;
+    final error = wait.sentence ?? _error;
     if (widget.doc.sourceIntegration == null || f == null) {
       return const SizedBox.shrink();
     }
@@ -152,16 +166,20 @@ class _SourceFreshnessState extends State<SourceFreshness> {
               ? Text(
                   'Update queued — this source is being re-imported from $provider. Its content will refresh when processing finishes.',
                   style: KitText.ui(context, color: ui.fg))
-              : _error != null
-                  ? KitFailureInline(_error!)
+              : error != null
+                  ? KitFailureInline(error)
                   : Text('A newer version of this file exists in $provider.',
                       style: KitText.ui(context, color: ui.fg)),
         ),
         if (!_queued) ...[
           const SizedBox(width: 8),
-          TextButton(
-            onPressed: _updating ? null : _update,
-            child: Text(_updating ? 'Queuing…' : 'Update from source'),
+          // The reference's `.set-link`, from the kit — a Material TextButton
+          // could not carry §6.1's wait, and was a control in no token file.
+          KitSettingLink(
+            _updating ? 'Queuing…' : 'Update from source',
+            icon: null,
+            wait: _updating ? 0 : wait.left,
+            onTap: _updating ? null : _update,
           ),
         ],
       ]),

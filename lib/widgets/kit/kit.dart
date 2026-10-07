@@ -40,3 +40,4 @@ export 'kit_shell.dart';
 export 'kit_source_link.dart';
 export 'kit_support_footer.dart';
 export 'kit_text.dart';
+export 'kit_wait.dart';

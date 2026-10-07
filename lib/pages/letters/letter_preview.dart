@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../models/newsletter.dart';
 import '../../services/error_text.dart';
+import '../../shared/cooldown.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
@@ -95,11 +96,19 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
     }
   }
 
+  /// Send now's cooldown is the CALLER's (4.107.0, ADR-140) — one clock with
+  /// the Letters card: held for the wait, the sentence in the send slot.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: WaitKey.letterSend(),
+        builder: _pane,
+      );
+
+  Widget _pane(BuildContext context, CooldownWait wait) {
     final t = Tokens.of(context);
     final n = widget.letter;
     final figures = n == null ? null : letterFigures(n);
+    final sendError = wait.sentence ?? widget.sendError;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -151,6 +160,7 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
                   widget.sending ? 'Sending…' : 'Send now',
                   // web `IcoSend`: a right arrow, never a paper plane.
                   icon: Icons.arrow_forward,
+                  wait: widget.sending ? 0 : wait.left,
                   onPressed: widget.onSend,
                 ),
               ],
@@ -161,9 +171,9 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
           const SizedBox(height: AppSpacing.s2),
           KitFailureInline(_copyError!),
         ],
-        if (widget.sendError != null) ...[
+        if (sendError != null) ...[
           const SizedBox(height: AppSpacing.s2),
-          KitFailureInline(widget.sendError!),
+          KitFailureInline(sendError),
         ] else if (widget.sendMessage != null) ...[
           const SizedBox(height: AppSpacing.s2),
           KitRowNote(widget.sendMessage!),

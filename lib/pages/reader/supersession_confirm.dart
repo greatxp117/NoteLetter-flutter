@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/chunk.dart';
 import '../../services/firestore_service.dart';
+import '../../shared/cooldown.dart';
 import '../../widgets/kit/kit.dart';
 
 /// How an operation that re-derives a document ended.
@@ -24,7 +25,14 @@ enum SupersessionOutcome {
 class SupersessionResult {
   final SupersessionOutcome outcome;
   final String? message;
-  const SupersessionResult(this.outcome, [this.message]);
+
+  /// A [SupersessionOutcome.refused] that was a cooldown carrying its number
+  /// (4.107.0, ADR-140): the wait registry then holds the sentence for exactly
+  /// as long as the wait runs, and the caller reads it from there — keeping
+  /// [message] in its own slot would outlive the wait.
+  final bool waits;
+
+  const SupersessionResult(this.outcome, [this.message, this.waits = false]);
 }
 
 /// `screens/reader.md` §Supersession confirm (2.35.0, ADR-034; a §18
@@ -100,6 +108,9 @@ class SupersessionConfirm {
 
   /// Run [action] — through the §18 confirm when it is owed, directly when
   /// it is not. [action] returns `null` on success or the sentence to show.
+  /// [waitKey] is the cooldown [action]'s request is scoped to (§6.1 Waiting,
+  /// ADR-140): inside the confirm a refusal that armed it holds the confirm
+  /// for the wait; without one it comes back with `waits: true`.
   /// Write before you move: nothing on the caller's screen changes until this
   /// resolves [SupersessionOutcome.done].
   static Future<SupersessionResult> run(
@@ -112,6 +123,7 @@ class SupersessionConfirm {
     required Future<String?> Function() action,
     Future<bool?> Function(String docId)? studyCheck,
     Future<bool?> Function(String docId)? editCheck,
+    String? waitKey,
   }) async {
     final (edited, inStudy) = await (
       (editCheck ?? (id) => anyEdited(id, chunks: chunks))(docId),
@@ -121,7 +133,8 @@ class SupersessionConfirm {
       final err = await action();
       return err == null
           ? const SupersessionResult(SupersessionOutcome.done)
-          : SupersessionResult(SupersessionOutcome.refused, err);
+          : SupersessionResult(SupersessionOutcome.refused, err,
+              Cooldowns.instance.waiting(waitKey));
     }
     if (!context.mounted) {
       return const SupersessionResult(SupersessionOutcome.kept);
@@ -147,6 +160,7 @@ class SupersessionConfirm {
       confirmLabel: confirmLabel,
       cancelLabel: 'Keep it as it is',
       onConfirm: action,
+      waitKey: waitKey,
     );
     return SupersessionResult(
         ok == true ? SupersessionOutcome.done : SupersessionOutcome.kept);

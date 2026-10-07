@@ -22,6 +22,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_text.dart';
+import 'kit_wait.dart';
 
 part 'kit_proc.dart';
 
@@ -77,6 +78,13 @@ class KitButton extends StatefulWidget {
   /// "the safe choice first and autofocused" had no widget to land on.
   final bool autofocus;
 
+  /// §6.1 **Waiting** (4.107.0, ADR-140): the whole seconds left on a
+  /// cooldown this control's request was refused with — read through
+  /// [KitWait]. Above zero the button is **disabled**, whatever [onPressed]
+  /// says, and its label carries ` · m:ss` in tabular figures. Zero (the
+  /// default) is a button that has never waited, drawn exactly as before.
+  final int wait;
+
   const KitButton(
     this.label, {
     super.key,
@@ -86,6 +94,7 @@ class KitButton extends StatefulWidget {
     this.iconTrailing = false,
     this.center = false,
     this.autofocus = false,
+    this.wait = 0,
   });
 
   const KitButton.primary(this.label,
@@ -93,16 +102,25 @@ class KitButton extends StatefulWidget {
       this.icon,
       this.onPressed,
       this.iconTrailing = false,
-      this.autofocus = false})
+      this.autofocus = false,
+      this.wait = 0})
       : variant = KitButtonVariant.primary,
         center = false;
   const KitButton.secondary(this.label,
-      {super.key, this.icon, this.onPressed, this.autofocus = false})
+      {super.key,
+      this.icon,
+      this.onPressed,
+      this.autofocus = false,
+      this.wait = 0})
       : variant = KitButtonVariant.secondary,
         iconTrailing = false,
         center = false;
   const KitButton.danger(this.label,
-      {super.key, this.icon, this.onPressed, this.autofocus = false})
+      {super.key,
+      this.icon,
+      this.onPressed,
+      this.autofocus = false,
+      this.wait = 0})
       : variant = KitButtonVariant.danger,
         iconTrailing = false,
         center = false;
@@ -110,9 +128,14 @@ class KitButton extends StatefulWidget {
       {super.key, this.icon, this.onPressed, this.autofocus = false})
       : variant = KitButtonVariant.dangerText,
         iconTrailing = false,
-        center = false;
+        center = false,
+        wait = 0;
   const KitButton.ghost(this.label,
-      {super.key, this.icon, this.onPressed, this.autofocus = false})
+      {super.key,
+      this.icon,
+      this.onPressed,
+      this.autofocus = false,
+      this.wait = 0})
       : variant = KitButtonVariant.ghost,
         iconTrailing = false,
         center = false;
@@ -134,7 +157,9 @@ class _KitButtonState extends State<KitButton> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final disabled = widget.onPressed == null;
+    final waiting = widget.wait > 0;
+    final disabled = widget.onPressed == null || waiting;
+    final onPressed = waiting ? null : widget.onPressed;
 
     late final Color bg;
     late final Color fg;
@@ -173,7 +198,7 @@ class _KitButtonState extends State<KitButton> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
-        onTap: widget.onPressed,
+        onTap: onPressed,
         child: Opacity(
           opacity: disabled ? 0.5 : 1,
           child: Container(
@@ -201,8 +226,9 @@ class _KitButtonState extends State<KitButton> {
                 // hundredth of a pixel too wide is a striped overflow banner
                 // rather than a slightly tight button.
                 Flexible(
-                  child: Text(
+                  child: kitWaitLabel(
                     widget.label,
+                    widget.wait,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -238,7 +264,7 @@ class _KitButtonState extends State<KitButton> {
       actions: <Type, Action<Intent>>{
         ActivateIntent: CallbackAction<ActivateIntent>(
           onInvoke: (_) {
-            widget.onPressed?.call();
+            onPressed?.call();
             return null;
           },
         ),

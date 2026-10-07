@@ -5,6 +5,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import '../../shared/cooldown.dart' show waitSuffix;
 import 'kit_failure.dart';
 
 /// §10 — the composer dock: a persistent input anchored to the bottom of a
@@ -46,6 +47,12 @@ class KitComposerDock extends StatelessWidget {
   final int minLines;
   final int maxLines;
 
+  /// §6.1 Waiting (4.107.0, ADR-140): seconds left on a cooldown the send was
+  /// refused with. Above zero the send control is disabled and, having no
+  /// label, carries ` · m:ss` in its accessible title — the server's sentence
+  /// goes in [error], the dock's existing slot. The text stays in the box.
+  final int waitLeft;
+
   const KitComposerDock({
     super.key,
     required this.controller,
@@ -57,6 +64,7 @@ class KitComposerDock extends StatelessWidget {
     this.maxLength,
     this.minLines = 1,
     this.maxLines = 5,
+    this.waitLeft = 0,
   });
 
   @override
@@ -168,7 +176,8 @@ class KitComposerDock extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: AppSpacing.s2),
-                          _SendControl(onSend: onSend, busy: busy),
+                          _SendControl(
+                              onSend: onSend, busy: busy, wait: waitLeft),
                         ],
                       ),
                     ),
@@ -188,17 +197,23 @@ class KitComposerDock extends StatelessWidget {
 class _SendControl extends StatelessWidget {
   final VoidCallback? onSend;
   final bool busy;
+  final int wait;
 
-  const _SendControl({this.onSend, this.busy = false});
+  const _SendControl({this.onSend, this.busy = false, this.wait = 0});
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final enabled = onSend != null && !busy;
-    return Semantics(
+    final waiting = wait > 0 && !busy;
+    final enabled = onSend != null && !busy && !waiting;
+    // An icon control has no label to carry the wait, so its accessible title
+    // does (`title="Send to support · 0:09"` on the reference) — and, while it
+    // waits, a tooltip says the same to a pointer.
+    final title = 'Send${waiting ? waitSuffix(wait) : ''}';
+    final control = Semantics(
       button: true,
       enabled: enabled,
-      label: 'Send',
+      label: title,
       child: MouseRegion(
         cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         child: GestureDetector(
@@ -232,5 +247,6 @@ class _SendControl extends StatelessWidget {
         ),
       ),
     );
+    return waiting ? Tooltip(message: title, child: control) : control;
   }
 }

@@ -25,6 +25,17 @@ import 'token_match.dart';
 /// for non-401 errors — asserting it on 401 would blame the client for a
 /// deliberate session-expiry mapping.
 
+// A cooldown's wait (4.107.0, ADR-140) is captured as the token
+// «retry_after_s», because it measures how long the capture took. Fed to the
+// client as that STRING it would be (rightly) refused by the parser, so the fed
+// body carries a concrete number in its place — and the assertion is that the
+// number arrives on ApiException.retryAfterS exactly (web api-request.test.js).
+const _fedRetryAfterS = 42;
+dynamic _feedable(dynamic body) {
+  if (body is! Map || body['retry_after_s'] != '«retry_after_s»') return body;
+  return {...body, 'retry_after_s': _fedRetryAfterS};
+}
+
 // ── Dio capture adapter ─────────────────────────────────────────────────────
 class _CaptureAdapter implements HttpClientAdapter {
   RequestOptions? lastOptions;
@@ -492,7 +503,7 @@ void main() {
             ..lastOptions = null
             ..lastBody = null
             ..status = status
-            ..responseBody = resp['body'];
+            ..responseBody = _feedable(resp['body']);
 
           // Body may be absent (DELETE); id/token then arrives via the query.
           final b = <String, dynamic>{
@@ -542,6 +553,15 @@ void main() {
               final body = resp['body'];
               if (status != 401 && body is Map && body['error_code'] != null) {
                 expect(err.errorCode, body['error_code']);
+              }
+              // A cooldown's wait reaches the structured error exactly, and
+              // no envelope without the key grows one (4.107.0, ADR-140).
+              if (status != 401) {
+                expect(err.retryAfterS,
+                    body is Map && body.containsKey('retry_after_s')
+                        ? _fedRetryAfterS
+                        : isNull,
+                    reason: 'retry_after_s → ApiException.retryAfterS');
               }
             }
           }

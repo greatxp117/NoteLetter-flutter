@@ -76,6 +76,7 @@ String _tokenSource(String token) {
   if (token == '«request_id»') return '[0-9a-f]{8}';
   if (token == '«epoch_ms»') return r'\d+';
   if (token == '«seconds»') return r'\d+';
+  if (token == '«retry_after_s»') return r'\d+';
   if (token == '«iso8601»') return r'\d{4}-\d{2}-\d{2}T[0-9:.+Z-]+';
   if (token.startsWith('«uuid#')) {
     return '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -140,6 +141,18 @@ void _matchToken(
     if (actual is! String || !RegExp(r'^\d+$').hasMatch(actual)) {
       _fail(path, token, actual);
     }
+  } else if (token == '«retry_after_s»') {
+    // A cooldown's wait as a number (4.107.0, ADR-140): the WHOLE value, a
+    // whole number of at least one second. A string of digits is not it —
+    // the envelope carries a number, and a client that parsed a string would
+    // accept a shape the backend never writes. A whole `43.0` is JSON's 43
+    // (the reference's `Number.isInteger`); `4.5` is not.
+    final ok = (actual is int && actual >= 1) ||
+        (actual is double &&
+            actual.isFinite &&
+            actual == actual.truncateToDouble() &&
+            actual >= 1);
+    if (!ok) _fail(path, token, actual);
   } else if (token == '«letter_id»') {
     if (actual is! String || !_reLetterId.hasMatch(actual)) {
       _fail(path, token, actual);

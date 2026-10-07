@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/support.dart';
+import '../shared/cooldown.dart';
 import '../state/support_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
@@ -69,6 +70,8 @@ class _SupportPageState extends State<SupportPage> {
   }
 
   Future<void> _send() async {
+    // Held for a cooldown's wait (4.107.0, ADR-140); the text stays.
+    if (Cooldowns.instance.waiting(WaitKey.supportSend())) return;
     final notifier = context.read<SupportNotifier>();
     final ok = await notifier.send(_controller.text, route: widget.fromRoute);
     // That a message was sent. NEVER the message — it is the reader writing to
@@ -170,14 +173,22 @@ class _SupportPageState extends State<SupportPage> {
         ),
         Align(
           alignment: Alignment.bottomCenter,
-          child: KitComposerDock(
-            controller: _controller,
-            placeholder: 'What happened?',
-            busy: support.sending,
-            error: support.error,
-            maxLength: 4000,
-            minLines: 2,
-            onSend: _controller.text.trim().isEmpty ? null : _send,
+          // The 10s send cooldown is the caller's (4.107.0, ADR-140): send is
+          // held for the wait a refusal carried, its title says the time
+          // left, and the server's sentence is the dock's error line while it
+          // runs. The draft is kept either way (write before you move).
+          child: KitWait(
+            waitKey: WaitKey.supportSend(),
+            builder: (context, wait) => KitComposerDock(
+              controller: _controller,
+              placeholder: 'What happened?',
+              busy: support.sending,
+              error: wait.sentence ?? support.error,
+              maxLength: 4000,
+              minLines: 2,
+              waitLeft: wait.left,
+              onSend: _controller.text.trim().isEmpty ? null : _send,
+            ),
           ),
         ),
       ],

@@ -83,4 +83,33 @@ void main() {
         reason: 'these install a canned transport on the shared singleton and '
             'never remove it: ${offenders.join(", ")}');
   });
+
+  /// The same rule for the cooldown registry (4.107.0, ADR-140).
+  ///
+  /// `Cooldowns.instance` is process-wide BY DESIGN — a wait outlives the
+  /// widget that drew it, which is the point — so a suite that arms a wait or
+  /// moves its clock leaves both for the next test in the file: a control
+  /// that should be live reads as waiting, and a clock left on a fixed instant
+  /// stops every wait from ever ending.
+  test('a test that moves the cooldown clock also resets the registry', () {
+    final files = Directory('test')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'));
+    final seam = RegExp(r'Cooldowns\.instance\.clock\s*=');
+    final offenders = <String>[];
+    var checked = 0;
+    for (final f in files) {
+      final src = f.readAsStringSync();
+      if (!seam.hasMatch(src)) continue;
+      checked++;
+      if (!src.contains('resetForTest')) offenders.add(f.path);
+    }
+    expect(checked, greaterThan(0),
+        reason: 'no file moves the cooldown clock — the suite moved or the '
+            'seam was renamed, and both read like a clean result');
+    expect(offenders, isEmpty,
+        reason: 'these move the registry\'s clock and never put it back: '
+            '${offenders.join(", ")}');
+  });
 }

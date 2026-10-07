@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/cooldown.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
 import 'kit_failure.dart';
 import 'kit_text.dart';
+import 'kit_wait.dart';
 
 /// §18 — the **Confirmation**: a panel that stops a destructive action and asks
 /// for it again (4.56.0, ADR-092).
@@ -55,6 +57,14 @@ class KitConfirm extends StatefulWidget {
   /// this widget closes only when the call has actually succeeded (§18 rule 1).
   final Future<String?> Function() onConfirm;
 
+  /// The [WaitKey] of the cooldown [onConfirm]'s request is scoped to, when it
+  /// has one (§6.1 Waiting, 4.107.0, ADR-140). A refusal that armed it holds
+  /// the confirming control for the wait with ` · m:ss` on its label, and the
+  /// server's sentence is the panel's failure slot until the wait ends — the
+  /// panel stays open, as it does on any refusal. Null for an action no
+  /// cooldown governs.
+  final String? waitKey;
+
   const KitConfirm({
     super.key,
     required this.title,
@@ -64,6 +74,7 @@ class KitConfirm extends StatefulWidget {
     required this.cancelLabel,
     this.danger = true,
     required this.onConfirm,
+    this.waitKey,
   });
 
   /// Show it. Resolves **true** only when the action succeeded — a dismissal
@@ -78,6 +89,7 @@ class KitConfirm extends StatefulWidget {
     required String cancelLabel,
     bool danger = true,
     required Future<String?> Function() onConfirm,
+    String? waitKey,
   }) {
     return showDialog<bool>(
       context: context,
@@ -96,6 +108,7 @@ class KitConfirm extends StatefulWidget {
         cancelLabel: cancelLabel,
         danger: danger,
         onConfirm: onConfirm,
+        waitKey: waitKey,
       ),
     );
   }
@@ -121,16 +134,25 @@ class _KitConfirmState extends State<KitConfirm> {
       return;
     }
     // §18 rules 1–2: the refusal keeps the panel open and answers inside it.
-    // Closing here would tell the reader it worked.
+    // Closing here would tell the reader it worked. A cooldown that carried
+    // its number is the confirm's WAIT, and the wait says its own sentence for
+    // exactly as long as it runs — a copy held here would outlive it.
     setState(() {
       _busy = false;
-      _error = message;
+      _error = Cooldowns.instance.waiting(widget.waitKey) ? null : message;
     });
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: widget.waitKey,
+        builder: (context, wait) => _panel(context, wait),
+      );
+
+  Widget _panel(BuildContext context, CooldownWait wait) {
     final t = Tokens.of(context);
+    final error = wait.sentence ?? _error;
+    final held = _busy ? 0 : wait.left;
     return PopScope(
       // Nothing dismisses it while the call is in flight — not the system back
       // gesture either.
@@ -152,9 +174,9 @@ class _KitConfirmState extends State<KitConfirm> {
                 widget.bodyWidget!
               else if (widget.body != null)
                 Text(widget.body!, style: KitText.meta(context)),
-              if (_error != null) ...[
+              if (error != null) ...[
                 const SizedBox(height: 12),
-                KitFailureInline(_error!),
+                KitFailureInline(error),
               ],
             ],
           ),
@@ -169,10 +191,10 @@ class _KitConfirmState extends State<KitConfirm> {
           ),
           if (widget.danger)
             KitButton.danger(_busy ? 'Working…' : widget.confirmLabel,
-                onPressed: _busy ? null : _run)
+                wait: held, onPressed: _busy ? null : _run)
           else
             KitButton.primary(_busy ? 'Working…' : widget.confirmLabel,
-                onPressed: _busy ? null : _run),
+                wait: held, onPressed: _busy ? null : _run),
         ],
       ),
     );

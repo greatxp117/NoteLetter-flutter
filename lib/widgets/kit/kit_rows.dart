@@ -12,6 +12,7 @@ import 'kit_controls.dart';
 import 'kit_shell.dart' show KitGlyph, KitQuill;
 import 'kit_source_link.dart';
 import 'kit_text.dart';
+import 'kit_wait.dart';
 
 part 'kit_shelf.dart';
 
@@ -750,11 +751,20 @@ class KitRowSlot extends StatelessWidget {
 /// "Add more" both leave, but neither goes onward.
 class KitSettingLink extends StatefulWidget {
   final String label;
+
+  /// Null is a link that cannot be followed right now — drawn the same, as
+  /// the reference's `.set-link` sets its colour and cursor over a disabled
+  /// button's.
   final VoidCallback? onTap;
   final IconData? icon;
 
+  /// §6.1 Waiting (4.107.0, ADR-140): seconds left on a cooldown this link's
+  /// request was refused with. Above zero it cannot be followed and its label
+  /// carries ` · m:ss`; zero is the link as it always was.
+  final int wait;
+
   const KitSettingLink(this.label,
-      {super.key, this.onTap, this.icon = Icons.chevron_right});
+      {super.key, this.onTap, this.icon = Icons.chevron_right, this.wait = 0});
 
   @override
   State<KitSettingLink> createState() => _KitSettingLinkState();
@@ -766,17 +776,18 @@ class _KitSettingLinkState extends State<KitSettingLink> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final onTap = widget.wait > 0 ? null : widget.onTap;
     final color = _hover ? t.accentText : t.fgMuted;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: onTap,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(widget.label,
+            kitWaitLabel(widget.label, widget.wait,
                 style: TextStyle(
                   fontFamily: AppTheme.fontSans,
                   fontSize: 13.5,

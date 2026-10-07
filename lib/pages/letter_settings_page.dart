@@ -7,6 +7,7 @@ import '../models/newsletter.dart';
 import '../models/newsletter_settings.dart';
 import '../models/scripture_newsletter_settings.dart';
 import '../models/tag.dart';
+import '../shared/cooldown.dart';
 import '../state/activation_message.dart';
 import '../state/newsletter_notifier.dart';
 import '../state/schedule.dart';
@@ -128,7 +129,10 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     final error = await context.read<NewsletterNotifier>().requestNewsletter();
     if (!mounted) return;
     setState(() {
-      _sendError = error;
+      // A cooldown with its number is Send now's wait and says itself, on
+      // this screen and on Letters alike (4.107.0, ADR-140).
+      _sendError =
+          Cooldowns.instance.waiting(WaitKey.letterSend()) ? null : error;
       _sendMessage = error == null
           ? 'On its way — it appears on the Letters screen in a few minutes, '
                 'and its row shows what happened to the email.'

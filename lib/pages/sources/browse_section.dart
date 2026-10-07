@@ -8,6 +8,7 @@ import '../../models/document.dart';
 import '../../models/tag.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../shared/cooldown.dart';
 import '../../shared/local_flags.dart';
 import '../../state/activity_notifier.dart';
 import '../../state/documents_notifier.dart';
@@ -536,14 +537,20 @@ class _ProcessingRowState extends State<ProcessingRow> {
           : activity.retryDocument(doc.id),
       studyCheck: widget.studyCheck,
       editCheck: widget.editCheck,
+      // A forced retry is a retry: one cooldown for both controls (ADR-085),
+      // inside the confirm and on the row (4.107.0, ADR-140).
+      waitKey: WaitKey.documentRetry(doc.id),
     );
     if (!mounted) return;
     // On 200 **no optimistic state is needed**: the document flips to `queued`
     // under the existing subscription and the row returns to its normal
-    // progress treatment.
+    // progress treatment. A cooldown with its number is the row's WAIT, not a
+    // held copy of it: the row says the sentence for as long as it runs.
     setState(() {
       _busy = false;
-      _error = res.outcome == SupersessionOutcome.refused ? res.message : null;
+      _error = res.outcome == SupersessionOutcome.refused && !res.waits
+          ? res.message
+          : null;
     });
   }
 
@@ -555,12 +562,22 @@ class _ProcessingRowState extends State<ProcessingRow> {
       'This source will be read again as text, and any passages it has are '
       'replaced with a fresh extraction.';
 
+  /// The document's retry cooldown (4.107.0, ADR-140) holds BOTH primaries —
+  /// a forced retry is a retry — on this row wherever it is drawn (the
+  /// Sources tray and For your review wait on one clock), and is the row's
+  /// §14.2 sentence while it runs.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => KitWait(
+        waitKey: WaitKey.documentRetry(widget.doc.id),
+        builder: _row,
+      );
+
+  Widget _row(BuildContext context, CooldownWait wait) {
     final doc = widget.doc;
     final failed = doc.status == DocumentStatus.error ||
         doc.status == DocumentStatus.skipped;
     final stalled = doc.isStalled();
+    final refusal = wait.sentence ?? _error;
     // A stalled run takes the attention branch — Retry, Remove and the source
     // live there — but not the failed EDGE: it is not an error.
     final attention = failed || stalled;
@@ -599,15 +616,16 @@ class _ProcessingRowState extends State<ProcessingRow> {
       foot: attention
           ? KitProcAttention(
               detail: stalled ? stalledMsg : (doc.errorMessage ?? defaultMsg),
-              failure: _error == null
+              failure: refusal == null
                   ? null
-                  : KitFailureInline(_error!, dense: true),
+                  : KitFailureInline(refusal, dense: true),
               actions: [
                 // One primary, never two: an `error` row and a `skipped` row
                 // are the same pattern with a different decision in it.
                 if (primary != null)
                   KitButton.primary(primary.$1,
                       icon: primary.$2 ? Icons.notes : Icons.refresh,
+                      wait: _busy ? 0 : wait.left,
                       onPressed:
                           _busy ? null : () => _runPrimary(primary.$2)),
                 KitButton.ghost('Remove',

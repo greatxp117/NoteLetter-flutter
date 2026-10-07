@@ -29,8 +29,21 @@ class ApiException implements Exception {
   /// whether there are any. That is what [cooldownSentence] asks.
   final bool serverSentence;
 
+  /// A cooldown's wait as a NUMBER (4.107.0, ADR-140): `retry_after_s` on our
+  /// envelope — the whole seconds until the same request would be accepted.
+  /// Present on the nine cooldown refusals and on nothing else, so it is what
+  /// tells "wait" from "stop": the cap refusals are the same 429
+  /// `RATE_LIMITED` with no key. Anything that is not a positive integer
+  /// inside our envelope — absent, a string, zero, a body that is not the
+  /// envelope — is null. It is never parsed out of the sentence: four of the
+  /// nine sentences carry no figure at all. Mirrors web `ApiError.retryAfterS`.
+  final int? retryAfterS;
+
   const ApiException(this.statusCode, this.message,
-      {this.errorCode, this.requestId, this.serverSentence = false});
+      {this.errorCode,
+      this.requestId,
+      this.serverSentence = false,
+      this.retryAfterS});
 
   @override
   String toString() => 'ApiException($statusCode, $errorCode): $message';
@@ -55,6 +68,19 @@ String cooldownSentence(ApiException e, String fallback) {
   if (!e.serverSentence) return fallback;
   final sentence = e.message.trim();
   return sentence.isEmpty ? fallback : sentence;
+}
+
+/// `retry_after_s` from an envelope, or null (4.107.0, ADR-140) — web
+/// `retryAfterSeconds`. A whole number of at least one second counts, and
+/// nothing else does. JSON has no int/float distinction, so a whole `43.0` is
+/// the reference's 43 (`Number.isInteger`); `4.5` is not a wait.
+int? retryAfterSeconds(Object? body) {
+  final s = body is Map ? body['retry_after_s'] : null;
+  if (s is int) return s > 0 ? s : null;
+  if (s is double && s.isFinite && s == s.truncateToDouble() && s >= 1) {
+    return s.toInt();
+  }
+  return null;
 }
 
 class UnauthorizedException extends ApiException {
@@ -365,7 +391,10 @@ class ApiService {
         requestId: requestId,
         // Only the first arm above quoted the envelope; every other one is a
         // constant of ours (C11).
-        serverSentence: serverSentence != null);
+        serverSentence: serverSentence != null,
+        // From the envelope only (ADR-140). `body` is `{}` for anything that
+        // was not a JSON object, so a proxy's HTML 429 carries no wait.
+        retryAfterS: retryAfterSeconds(body));
   }
 }
 

@@ -1,3 +1,4 @@
+import '../shared/cooldown.dart';
 import 'api_service.dart';
 
 /// Canonical request-builder layer — the Flutter mirror of the web reference
@@ -64,9 +65,11 @@ class Api {
   Future<Map<String, dynamic>> deleteStudyProgram(String programId) =>
       _http.delete('/fn_study_programs?programId=$programId');
 
-  /// 429 is a COOLDOWN, not an error — render it as copy.
+  /// 429 is a COOLDOWN, not an error — render it as copy. Its wait is the
+  /// PROGRAM's (4.107.0, ADR-140): the refusal arms that program's Study now.
   Future<Map<String, dynamic>> requestStudySession(String programId) =>
-      _http.post('/fn_request_study_session', data: {'programId': programId});
+      withCooldown(WaitKey.studySession(programId),
+          () => _http.post('/fn_request_study_session', data: {'programId': programId}));
 
   /// `item.due_at` (epoch ms) in the response is the schedule's answer —
   /// RENDER it, never compute it. `alreadyGraded` and `itemRetired` (INV-18)
@@ -207,9 +210,14 @@ class Api {
   /// re-classed from its own OCR text instead of being thrown away. Same
   /// ownership check, attempt cap and cooldown — a force is a retry and spends
   /// the same budget. `force: false` on a skipped document still 409s.
+  ///
+  /// One wait for both (4.107.0, ADR-140): a forced retry is a retry, so its
+  /// cooldown holds Retry and Index it anyway alike.
   Future<Map<String, dynamic>> retryDocument(String docId, {bool force = false}) =>
-      _http.post('/fn_retry_document',
-          data: {'docId': docId, if (force) 'force': true});
+      withCooldown(
+          WaitKey.documentRetry(docId),
+          () => _http.post('/fn_retry_document',
+              data: {'docId': docId, if (force) 'force': true}));
 
   /// Signed GET URL for the original uploaded file (Reader → Original panel).
   /// Response: `{ signed_url, mime_type, doc_type, display_html }`.
@@ -387,8 +395,11 @@ class Api {
           Map<String, dynamic> partial) =>
       _http.put('/fn_newsletter_settings', data: partial);
 
-  Future<Map<String, dynamic>> requestNewsletter() =>
-      _http.post('/fn_request_newsletter', data: const {});
+  /// The 60s cooldown is the CALLER's (4.107.0, ADR-140): Send now on Letters
+  /// and on Letter settings wait on one clock.
+  Future<Map<String, dynamic>> requestNewsletter() => withCooldown(
+      WaitKey.letterSend(),
+      () => _http.post('/fn_request_newsletter', data: const {}));
 
   // ── Plans (4.79.0, ADR-113, INV-28) ───────────────────────────────────────
 
@@ -415,7 +426,10 @@ class Api {
   /// shelves never move. 429 is the 60s per-document cooldown — calm copy, not
   /// an error state.
   Future<Map<String, dynamic>> regenerateSummary(String documentId) =>
-      _http.post('/fn_regenerate_summary', data: {'documentId': documentId});
+      withCooldown(
+          WaitKey.summaryRegen(documentId),
+          () => _http.post('/fn_regenerate_summary',
+              data: {'documentId': documentId}));
 
   // ── Notification channels (2.5.0, ADR-014) + push devices (2.6.0, ADR-015) ──
 
@@ -528,11 +542,16 @@ class Api {
     return _http.post('/fn_import_from_cloud', data: body);
   }
 
-  Future<Map<String, dynamic>> retryImportJob(String jobId) =>
-      _http.post('/fn_retry_import_job', data: {'job_id': jobId});
+  Future<Map<String, dynamic>> retryImportJob(String jobId) => withCooldown(
+      WaitKey.importJobRetry(jobId),
+      () => _http.post('/fn_retry_import_job', data: {'job_id': jobId}));
 
+  /// The cooldown is the PROVIDER's (4.107.0, ADR-140).
   Future<Map<String, dynamic>> requestCloudSync(String provider) =>
-      _http.post('/fn_request_cloud_sync', data: {'provider': provider});
+      withCooldown(
+          WaitKey.cloudSync(provider),
+          () => _http.post('/fn_request_cloud_sync',
+              data: {'provider': provider}));
 
   /// Validated partial auto-sync update (1.4.0) — only provided keys are sent.
   ///
@@ -581,8 +600,13 @@ class Api {
   Future<Map<String, dynamic>> checkSourceFreshness(String docId) =>
       _http.get('/fn_check_source_freshness', queryParameters: {'docId': docId});
 
+  /// Keyed by the document it was pressed on (4.107.0, ADR-140); the server
+  /// measures the linked job's stamp, and a Retry on that job is its own key.
   Future<Map<String, dynamic>> updateFromSource(String documentId) =>
-      _http.post('/fn_update_from_source', data: {'document_id': documentId});
+      withCooldown(
+          WaitKey.sourceRefresh(documentId),
+          () => _http.post('/fn_update_from_source',
+              data: {'document_id': documentId}));
 
   // ── Organization (INV-13) ─────────────────────────────────────────────────
 
@@ -602,7 +626,10 @@ class Api {
       {String? folderId}) {
     final body = <String, dynamic>{'provider': provider};
     if (folderId != null) body['folder_id'] = folderId;
-    return _http.post('/fn_scan_organization', data: body);
+    // The 409 COOLDOWN is the PROVIDER's, whichever folder was asked for
+    // (4.107.0, ADR-140): a folder's rescan and Rescan all wait on one clock.
+    return withCooldown(WaitKey.orgScan(provider),
+        () => _http.post('/fn_scan_organization', data: body));
   }
 
   Future<Map<String, dynamic>> resolveOrganizationSuggestions(
@@ -659,13 +686,15 @@ class Api {
     String? clientVersion,
     String platform = 'flutter',
   }) =>
-      _http.post('/fn_send_support_message', data: {
-        'body': body,
-        'platform': platform,
-        if (route != null && route.isNotEmpty) 'route': route,
-        if (clientVersion != null && clientVersion.isNotEmpty)
-          'clientVersion': clientVersion,
-      });
+      withCooldown(
+          WaitKey.supportSend(),
+          () => _http.post('/fn_send_support_message', data: {
+                'body': body,
+                'platform': platform,
+                if (route != null && route.isNotEmpty) 'route': route,
+                if (clientVersion != null && clientVersion.isNotEmpty)
+                  'clientVersion': clientVersion,
+              }));
 
   /// The user has seen the thread. **The key set is closed at zero keys** — the
   /// body is `{}` and adding anything to it is a `400`.
