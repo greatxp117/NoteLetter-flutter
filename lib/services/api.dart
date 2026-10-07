@@ -418,6 +418,16 @@ class Api {
   Future<Map<String, dynamic>> updateSummarySettings(String? summaryPrompt) =>
       _http.put('/fn_summary_settings', data: {'summaryPrompt': summaryPrompt});
 
+  /// Reset to default — `{summaryPrompt: null}` deletes the stored style and
+  /// the default takes its place. **DESTRUCTIVE** (ruled 2026-10-07,
+  /// settings.md 4.108.0): it discards a hand-written style nothing stores
+  /// anywhere else, so every caller confirms first (§18) —
+  /// `summary-style-reset` in harness/confirm_required.json names this
+  /// method, and /conformance 5ab refuses a call site with no confirm. Web
+  /// `resetSummaryPrompt()`.
+  Future<Map<String, dynamic>> resetSummaryPrompt() =>
+      _http.put('/fn_summary_settings', data: {'summaryPrompt': null});
+
   /// Re-run `summary`/`key_points`/`themes` for one complete document under the
   /// current prompt. **The response body is the client's update path**: the
   /// reader doc is a one-shot fetch with no subscription to deliver the new

@@ -100,6 +100,52 @@ class _SummariesSectionState extends State<SummariesSection> {
     }
   }
 
+  /// Reset to default is DESTRUCTIVE (ruled 2026-10-07, settings.md 4.108.0):
+  /// it discards a hand-written style nothing can recover, so it is a danger
+  /// button that confirms first (§18). The panel stays open until the reset
+  /// lands and says a refusal inside itself; the edits clear only once it has
+  /// landed (write before you move). Web 58c5d03.
+  Future<void> _confirmReset() async {
+    setState(() => _error = null);
+    await KitConfirm.show(
+      context,
+      title: 'Discard your custom style?',
+      bodyWidget: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+              'Your summary style, as written, is deleted and the default '
+              'takes its place for sources you add from now on. Nothing else '
+              'keeps a copy of it.',
+              style: KitText.meta(context)),
+          const SizedBox(height: 8),
+          Text('Summaries already written keep their text.',
+              style: KitText.meta(context)),
+        ],
+      ),
+      confirmLabel: 'Reset to default',
+      cancelLabel: 'Keep my style',
+      onConfirm: () async {
+        try {
+          await Api.instance.resetSummaryPrompt();
+        } on ApiException catch (e) {
+          return e.message;
+        } catch (_) {
+          return 'The style could not be reset.';
+        }
+        if (mounted) {
+          setState(() {
+            _draftText = null;
+            _draftChoices = null;
+            _error = null;
+          });
+        }
+        return null;
+      },
+    );
+  }
+
   void _clearEdits() {
     setState(() {
       _draftText = null;
@@ -252,9 +298,12 @@ class _SummariesSectionState extends State<SummariesSection> {
             if (textDirty)
               KitButton.ghost('Cancel', onPressed: _busy ? null : _clearEdits),
             // Reset sends null — there is no "empty prompt" state to offer.
+            // Destructive (settings.md 4.108.0): a danger button behind §18,
+            // offered only while a custom style is stored — with none there is
+            // nothing to discard and no confirm is owed.
             if (custom)
-              KitButton.ghost('Reset to default',
-                  onPressed: _busy ? null : () => _put(null)),
+              KitButton.danger('Reset to default',
+                  onPressed: _busy ? null : _confirmReset),
             KitSettingLink('Use simple controls', onTap: () {
               // Adopt matching positions when the text is (or reverts to) a
               // composed shape; otherwise start from the stored positions or
