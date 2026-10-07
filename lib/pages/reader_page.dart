@@ -489,18 +489,20 @@ class _ReaderPageState extends State<ReaderPage> {
                       // a title and its own subtitle.
                       rule: false,
                       actions: [
+                        // web `IcoChat` — the speech bubble Support draws.
                         KitButton.ghost(
                           'Ask about this',
-                          icon: Icons.forum_outlined,
+                          icon: Icons.chat_bubble_outline,
                           onPressed: () => context.go('/ask'),
                         ),
                         // 4.103.0 (ADR-136): the analysis runs in the
                         // background and its plan waits in For your review,
                         // where the sheet opens over it.
                         if (canReorg)
+                          // web `IcoText`, as Treat as recipe draws it.
                           KitButton.ghost(
                             _reorganizing ? 'Asking…' : 'Reorganize',
-                            icon: Icons.account_tree_outlined,
+                            icon: Icons.title,
                             onPressed: _reorganizing
                                 ? null
                                 : () => _requestReorganize(doc),
@@ -773,7 +775,9 @@ class _ReaderPageState extends State<ReaderPage> {
   /// that disappears with no error (the `KIND_ORDER` shape).
   List<KitSectionRailItem> _railItems(Document doc) => [
     const KitSectionRailItem('summary', 'Summary', Icons.auto_awesome_outlined),
-    const KitSectionRailItem('manuscript', 'Manuscript', Icons.notes_outlined),
+    // The reference's IcoSparkle / IcoText / IcoGauge / IcoHeadset / IcoFile /
+    // IcoClock, in the glyphs this client draws them with elsewhere.
+    const KitSectionRailItem('manuscript', 'Manuscript', Icons.title),
     const KitSectionRailItem('speedread', 'Speed read', Icons.speed_outlined),
     const KitSectionRailItem('listen', 'Listen', Icons.headset_outlined),
     KitSectionRailItem(
@@ -782,7 +786,7 @@ class _ReaderPageState extends State<ReaderPage> {
       Icons.insert_drive_file_outlined,
       count: doc.type.toUpperCase(),
     ),
-    const KitSectionRailItem('history', 'History', Icons.history),
+    const KitSectionRailItem('history', 'History', Icons.schedule),
   ];
 
   Widget _section(String id) {
@@ -926,16 +930,20 @@ class _ReaderPageState extends State<ReaderPage> {
   /// `--ruled` modifier is a report treatment, and the kit said otherwise until
   /// 4.46.0 because it was transcribed from a dead web class (ADR-084).
   ///
-  /// There is no LISTEN cell. The reference has one and it renders an em-dash
-  /// on every document in the library, because `audio_seconds` is read by
-  /// `ReaderView.jsx` and written by nothing in the workspace — no backend
-  /// field, no fixture, no data-model row. §8 is explicit that a stat needs a
-  /// real backing signal before it gets a slot.
+  /// LISTEN is the reference's third cell, and it is drawn as §8's
+  /// unmeasured dash ([KitStat] with a null value, ADR-109) — never a number
+  /// this client made up, and never dropped (QUEUE F-55 note 3, F-77 (1)). The
+  /// reference reads `audio_seconds`, which nothing in the workspace writes:
+  /// no backend field, no fixture, no data-model row, so it draws the dash on
+  /// every document too. When a writer lands, the data model names the field
+  /// and this cell reads it; until then the dash is the honest answer, and
+  /// leaving the slot out was a different composition, recorded nowhere.
   Widget _statRow(Document doc, int readCount) {
     return KitStatCluster(
       stats: [
         KitStat('${_chunks.length}', 'Passages'),
         KitStat('$_words', 'Words'),
+        const KitStat(null, 'Listen'),
         KitStat(
           doc.createdAt != null ? _fmtDate(doc.createdAt!) : '—',
           'Added',
