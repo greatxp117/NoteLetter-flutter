@@ -2,6 +2,7 @@
 
 folded-through: 4.52.1
 pin-holds-at: 4.4.0
+retired-shots: shelf-backfill-review   # 4.102.0 (ADR-136): the in-sheet review is a stored task now; its pair is web's review-backfill on /review
 
 Driver: `/flutter-next` (one item per run, top to bottom). Refresh: `/parity flutter`.
 Lint: `python3 tool/queue.py lint`. Format and rules: the header of `tool/queue.py`.

@@ -24,8 +24,22 @@ emu_assert_ours >/dev/null
 udid="$(emu_sim_udid)"
 xcrun simctl boot "$udid" 2>/dev/null || true
 
-holds="$(grep -vE '^\s*(#|$)' "$list" | tr '\n' ';')"
-screens="$(grep -vE '^\s*(#|$)' "$list" | cut -d'|' -f1)"
+# A RETIRED hold (QUEUE.md `retired-shots:`) names a state the app can no
+# longer reach; it is never shot, so it is dropped here and said, not run into
+# a hold that fails — or, worse, photographs another surface under its name.
+retired="$(sed -n 's/^retired-shots:[[:space:]]*//p' "$REPO/QUEUE.md" \
+  | sed 's/[[:space:]]*#.*$//' | tr ';' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+  | grep -v '^$' || true)"
+body="$(grep -vE '^\s*(#|$)' "$list")"
+for r in $retired; do
+  if printf '%s\n' "$body" | cut -d'|' -f1 | grep -qxF "$r"; then
+    echo "RETIRED $r :: QUEUE.md retired-shots — not shot"
+    body="$(printf '%s\n' "$body" | awk -F'|' -v r="$r" '$1 != r')"
+  fi
+done
+[ -n "$body" ] || { echo "tool: nothing left to shoot"; exit 0; }
+holds="$(printf '%s\n' "$body" | tr '\n' ';')"
+screens="$(printf '%s\n' "$body" | cut -d'|' -f1)"
 
 cd "$REPO"
 mkdir -p screenshots

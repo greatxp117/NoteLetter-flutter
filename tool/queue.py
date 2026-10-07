@@ -30,6 +30,7 @@ FORMAT
     # Flutter work queue
     folded-through: 4.52.1
     pin-holds-at: 4.4.0
+    retired-shots: shelf-backfill-review   # why, after the hash
 
     ## F-02 · Notifications — recompose
     - status: open                       open | in-progress | blocked: <reason> | done [date]
@@ -43,6 +44,16 @@ FORMAT
     - shots: notifications
     - extra_gates: none
     - notes: free text; may continue on following lines indented two spaces
+
+`retired-shots:` (optional, `;`-separated) names holds whose STATE no longer
+exists — the screen was redesigned away under a done item that still lists it
+in `shots:`. A done item is never edited, so the retirement is said here, once:
+a retired hold is never shot (`tool/shots_batch.sh` skips it, and the hold in
+`integration_test/hold_screen_test.dart` fails rather than photograph another
+surface under its name), it has no frame on disk, and `screenshot_pair_check`
+reads the header and judges no pair for it. Without this line the check called
+`shelf-backfill-review` STALE-PAIR forever after 4.102.0, and the only way to
+silence it was to rewrite a finished item's history.
 
 Lists split on `;`. A path tagged `(new)` need not exist yet. `spec:` paths are
 relative to NoteLetter-contracts/, `web:` to NoteLetter-web/, `flutter:` to this
@@ -232,7 +243,24 @@ def cmd_lint() -> int:
     if len(set(ids)) != len(ids):
         problems.append("duplicate item ids")
     web_shots = ROOT / "NoteLetter-web" / "screenshots"
+    retired = set(as_list(header.get("retired-shots", "")))
+    for shot in sorted(retired):
+        # Retired means gone: a frame left on disk is evidence of a state the
+        # app cannot reach, and the pair check would judge it as if it could.
+        for f in sorted((REPO / "screenshots").glob(f"{shot}.*.png")):
+            problems.append(f"header: `{shot}` is retired but "
+                            f"screenshots/{f.name} is still on disk — delete it")
+        if not any(shot in as_list(it.get("shots", "")) for it in items):
+            problems.append(f"header: `{shot}` is retired but no item lists it "
+                            f"in `shots:` — a retirement nothing needs is noise")
     for it in items:
+        # Only a DONE item may keep a retired hold (its history); an open one
+        # would be asking for a frame of a state that does not exist.
+        if status_kind(it) != "done":
+            for shot in as_list(it.get("shots", "")):
+                if shot in retired:
+                    problems.append(f"{it['id']}: shots names `{shot}`, which is "
+                                    f"retired — a state the app cannot reach")
         for f in FIELDS:
             if f not in it:
                 problems.append(f"{it['id']}: missing field `{f}`")
@@ -252,6 +280,8 @@ def cmd_lint() -> int:
                 if not (base / path).exists():
                     problems.append(f"{it['id']}: {f} path does not exist: {path}")
         for shot in as_list(it.get("shots", "")):
+            if shot in retired:
+                continue
             for theme in ("light", "dark"):
                 if not (web_shots / f"{shot}.web.{theme}.png").exists():
                     warns.append(f"{it['id']}: no web reference frame "
