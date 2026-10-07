@@ -190,6 +190,67 @@ void main() {
     }
   });
 
+  // Search on a phone (4.108.0, ADR-146; search.md §Phone): the kind chips
+  // are ONE row that scrolls sideways under the pinned header, the Segmented
+  // controls on their own line beneath — not §6.6's column of wrapping chips.
+  group('§6.6 Search — the kind chips are one scrolling row on a phone', () {
+    const kinds = ['All sources', 'Books & PDFs', 'My notes', 'Web',
+        'YouTube', 'Instagram', 'TikTok', 'Audio', 'Video'];
+    for (final w in _phones) {
+      testWidgets('at $w: one row, scrolling; the modes beneath it',
+          (tester) async {
+        await pumpPhone(
+          tester,
+          w,
+          KitControlBar(
+            scrollChips: true,
+            filters: [
+              for (final k in kinds)
+                KitFilterChip(k, selected: k == 'All sources', onPressed: () {}),
+            ],
+            trailing: [
+              KitSegmented(
+                segments: const [KitSegment('Passages'), KitSegment('Cohesive')],
+                selected: 0,
+                onChanged: (_) {},
+              ),
+            ],
+          ),
+        );
+        final rows = {
+          for (final k in kinds)
+            if (find.text(k).evaluate().isNotEmpty) top(tester, k),
+        };
+        expect(rows.length, 1, reason: 'one row at $w, never a wrapped column');
+        final scroller = find.ancestor(
+            of: find.text('All sources'),
+            matching: find.byWidgetPredicate((x) =>
+                x is SingleChildScrollView &&
+                x.scrollDirection == Axis.horizontal));
+        expect(scroller, findsOneWidget,
+            reason: 'a declared horizontal scroller (§1.4)');
+        expect(top(tester, 'Passages'), greaterThan(top(tester, 'All sources')),
+            reason: 'the Segmented controls keep a line of their own beneath');
+        // A real gesture moves it (only a gesture proves scrollability).
+        final before = tester.getTopLeft(find.text('All sources')).dx;
+        await tester.drag(scroller, const Offset(-200, 0));
+        await tester.pump();
+        expect(tester.getTopLeft(find.text('All sources')).dx, lessThan(before));
+      });
+    }
+    testWidgets('every other bar still wraps its chips', (tester) async {
+      await pumpPhone(
+        tester,
+        320,
+        KitControlBar(filters: [
+          for (final k in kinds)
+            KitFilterChip(k, selected: k == 'All sources', onPressed: () {}),
+        ]),
+      );
+      expect({for (final k in kinds) top(tester, k)}.length, greaterThan(1));
+    });
+  });
+
   group('Letters — the latest-letter card at phone width (.next-letter)', () {
     final settings = _Settings(const NewsletterSettings(
       enabled: true,

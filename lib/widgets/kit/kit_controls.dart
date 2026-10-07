@@ -905,10 +905,18 @@ class KitControlBar extends StatelessWidget {
   /// Sort / view controls. They neither wrap nor shrink.
   final List<Widget> trailing;
 
+  /// Search's phone bar (4.108.0, ADR-146; screens/search.md §Phone,
+  /// component-kit §1.4 and §6.6): once the bar has stacked, the chips are
+  /// ONE row that scrolls sideways instead of a column of wrapping chips, so
+  /// the pinned header and bar leave the results their room. A declared
+  /// horizontal scroller (§1.4). Every other bar still wraps.
+  final bool scrollChips;
+
   const KitControlBar({
     super.key,
     this.filters = const [],
     this.trailing = const [],
+    this.scrollChips = false,
   });
 
   /// The bar's own width below which it stacks even on a wide window — the
@@ -931,11 +939,23 @@ class KitControlBar extends StatelessWidget {
   Widget _build(BuildContext context, {required bool compact}) {
     final t = Tokens.of(context);
 
-    final chips = Wrap(
-      spacing: AppSpacing.s2,
-      runSpacing: AppSpacing.s2,
-      children: filters,
-    );
+    final Widget chips = compact && scrollChips
+        ? SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < filters.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.s2),
+                  filters[i],
+                ],
+              ],
+            ),
+          )
+        : Wrap(
+            spacing: AppSpacing.s2,
+            runSpacing: AppSpacing.s2,
+            children: filters,
+          );
     // §6.6: the trailing slot neither wraps nor shrinks — at the width the
     // reference bar is drawn at. Below the compact breakpoint the bar has
     // already stacked, and the slot wraps BETWEEN its items rather than

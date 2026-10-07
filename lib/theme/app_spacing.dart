@@ -43,6 +43,12 @@ class AppSpacing {
   static const double frameGutterCompact = 20;
   static const double compactWidth = 768;
 
+  /// Search's two panes stack below this VIEWPORT width (4.108.0, ADR-146;
+  /// screens/search.md §Composition) — the same number in every client's
+  /// breakpoint table, never derived from the pane minimums. It was the
+  /// search body's width against [compactWidth] here, and ~1208px on web.
+  static const double searchStackBelow = 1024;
+
   /// `--measure` 68ch. Flutter has no `ch` unit; at the reading face's average
   /// advance this is the em-based equivalent used by the reading surfaces.
   static const double measure = 660;

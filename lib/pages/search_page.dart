@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -320,6 +321,7 @@ class _SearchPageState extends State<SearchPage> {
                   if (_submitted.isNotEmpty && citation != null) ...[
                     const SizedBox(height: AppSpacing.s4),
                     KitControlBar(
+                      scrollChips: true,
                       filters: [
                         const KitFilterChip('Scripture', selected: true),
                         KitFilterChip(
@@ -342,6 +344,9 @@ class _SearchPageState extends State<SearchPage> {
                   if (_submitted.isNotEmpty && citation == null) ...[
                     const SizedBox(height: AppSpacing.s4),
                     KitControlBar(
+                      // One row that scrolls sideways on a phone, under the
+                      // pinned header (search.md §Phone, 4.108.0, ADR-146).
+                      scrollChips: true,
                       filters: [
                         // **No count.** A count over one page of results is a
                         // statement about that page, not about the library —
@@ -535,11 +540,14 @@ class _SearchPageState extends State<SearchPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Below the compact width the panes stack — the reading pane goes under
-        // the list, it is not dropped. The reference's stylesheet hides it at
-        // that width; the screen spec says stack, and a phone reader needs the
-        // surrounding context more than a desktop one, not less.
-        if (constraints.maxWidth < AppSpacing.compactWidth) {
+        // Below 1024px of VIEWPORT the panes stack (4.108.0, ADR-146) — the
+        // reading pane goes under the list, it is not dropped: a phone reader
+        // needs the surrounding context more than a desktop one, not less.
+        // This read the body's own width against 768 until then.
+        final paneWidth = searchPaneWidth(
+            viewport: MediaQuery.sizeOf(context).width,
+            body: constraints.maxWidth);
+        if (paneWidth == null) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -549,8 +557,6 @@ class _SearchPageState extends State<SearchPage> {
             ],
           );
         }
-        // `minmax(380px, 1fr)` list + `minmax(420px, 560px)` pane, 28px gutter.
-        final paneWidth = (constraints.maxWidth * 0.42).clamp(420.0, 560.0);
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -588,6 +594,24 @@ class _SearchPageState extends State<SearchPage> {
     }
     return null;
   }
+}
+
+/// Search's split (screens/search.md §Composition; 4.108.0, ADR-146): null
+/// below 1024px of [viewport] — the panes stack — else the reading pane's
+/// width in a [body] that wide, the list taking the rest after the 28px
+/// gutter.
+///
+/// The reference metrics are `minmax(380px, 1fr)` list + `minmax(420px,
+/// 560px)` pane, and from 1024 those floors (828) do not fit beside the rail,
+/// so they yield as the reference's do (web ade2891): the pane is 560 while
+/// the list keeps 380, then whatever leaves the list 380, and once that would
+/// make the pane narrower than the list the two share the row. 988 of body:
+/// 400 + 560, the reference's grid; 652: 312 + 312. It was `0.42 × body`
+/// clamped to 420–560 here, which gave the list 540 at 988 and 204 at 652, and
+/// the stack was the body's own width against 768.
+double? searchPaneWidth({required double viewport, required double body}) {
+  if (viewport < AppSpacing.searchStackBelow) return null;
+  return math.min(560.0, math.max(body - 408, (body - 28) / 2));
 }
 
 // ── The filter vocabulary ────────────────────────────────────────────────────
