@@ -463,7 +463,12 @@ class _ReaderPageState extends State<ReaderPage> {
     // scrolls away with the content it names.
     return SafeArea(
       bottom: false,
-      child: CustomScrollView(
+      // The viewport's height, measured once around the scroll view, for the
+      // last section's reach (F-77 4). Not a SliverLayoutBuilder per section:
+      // a sliver builder runs only at layout, and a section beyond the cache
+      // extent is never laid out — so its key had no context and a jump to
+      // it did nothing (the device run's Manuscript tap, 2026-10-07).
+      child: LayoutBuilder(builder: (context, viewport) => CustomScrollView(
         key: _viewportKey,
         controller: _scroll,
         slivers: [
@@ -569,7 +574,6 @@ class _ReaderPageState extends State<ReaderPage> {
             ),
           ),
           for (final id in _sectionIds)
-            SliverLayoutBuilder(builder: (context, constraints) =>
             SliverToBoxAdapter(
               child: KitFrameBand(
                 width: KitFrameWidth.reading,
@@ -580,8 +584,7 @@ class _ReaderPageState extends State<ReaderPage> {
                   sectionKey: _sectionKeys[id],
                   first: id == _sectionIds.first,
                   minHeight: id == _sectionIds.last
-                      ? KitRailSection.lastReach(
-                          constraints.viewportMainAxisExtent)
+                      ? KitRailSection.lastReach(viewport.maxHeight)
                       : null,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -605,10 +608,10 @@ class _ReaderPageState extends State<ReaderPage> {
                   ),
                 ),
               ),
-            )),
+            ),
           const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.s20)),
         ],
-      ),
+      )),
     );
   }
 

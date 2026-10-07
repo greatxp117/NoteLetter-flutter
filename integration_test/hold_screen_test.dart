@@ -378,6 +378,27 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(find.byType(panel), findsOneWidget,
           reason: 'the $label section did not mount');
       return;
+    // §6.1 Waiting (4.107.0, ADR-140) — the reference's `summary-wait`: a
+    // real 429 carrying `retry_after_s`, from Regenerate summary. The refusal
+    // is the SERVER's: stamp the seed document's `last_summary_regen_at`
+    // ahead of its clock first (the wait is capped at the 60s window, so it
+    // holds for the whole batch), as web theme-shots stamps it; this hold only
+    // presses, and waits for the countdown on the control.
+    case 'summary-wait':
+      final regen = find.textContaining('Regenerate summary');
+      expect(regen, findsOneWidget, reason: 'no Regenerate summary control');
+      await Scrollable.ensureVisible(tester.element(regen),
+          alignment: 0.45, duration: Duration.zero);
+      await settle();
+      await tester.tap(regen);
+      final waiting = find.textContaining('Regenerate summary · ');
+      for (var i = 0; i < 75 && waiting.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(waiting, findsOneWidget,
+          reason: 'the control is not waiting — was last_summary_regen_at '
+              'stamped ahead? This frame would be the idle panel');
+      return;
     // reader.md §Recipe body — the §5.4 body swap. Same route, same header,
     // same Manuscript panel: only the BODY differs, which is the whole claim
     // the pattern makes, so the frame has to be the manuscript of a distilled
