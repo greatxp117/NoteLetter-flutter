@@ -244,13 +244,17 @@ class OrgNotifier extends ChangeNotifier {
     }
   }
 
-  /// A scan of [provider] is in flight — Rescan all's or one folder's. Every
-  /// rescan of the provider is held for it and Rescan all reads "Scanning…",
-  /// as the reference's one `rescanning` flag holds every rescan control in
-  /// its panel (OrganizationPanel.jsx). Write before you move: nothing else
+  /// A scan is in flight — any provider's Rescan all or any folder's. EVERY
+  /// rescan control in the panel is held for it and every Rescan all reads
+  /// "Scanning…", as the reference's one `rescanning` flag holds every rescan
+  /// control in its panel (OrganizationPanel.jsx), whichever provider asked.
+  /// This was per provider until 2026-10-07: the spec names no scope for the
+  /// busy state (sources.md speaks only of the provider's cooldown clock), so
+  /// it resolves to the reference — one request outstanding at a time, as the
+  /// reference's one notice slot assumes. Write before you move: nothing else
   /// changes until the answer arrives.
   final Set<String> _scanning = {};
-  bool isScanning(String provider) => _scanning.contains(provider);
+  bool get scanInFlight => _scanning.isNotEmpty;
 
   /// Whether [scan]'s last refusal for [provider] was its cooldown — said in
   /// the calm slot over the folders, so the caller says nothing more.

@@ -169,8 +169,8 @@ void main() {
     expect(_linkOf(tester, 'Scanning…').onTap, isNull,
         reason: 'held while its own request is in flight');
     expect(tester.widget<KitButton>(_folderRescan('Rescan')).onPressed, isNull,
-        reason: 'one scan at a time per provider, as the reference\'s one '
-            '`rescanning` flag holds every rescan control');
+        reason: 'one scan at a time, as the reference\'s one `rescanning` '
+            'flag holds every rescan control');
     expect(find.textContaining('0:'), findsNothing,
         reason: 'write before you move: never a countdown while in flight');
 
@@ -252,6 +252,95 @@ void main() {
     expect(find.byType(KitFailureInline), findsNothing,
         reason: 'the next ask clears the last answer before it is sent');
     await tester.pumpAndSettle();
+  });
+
+  // Item 11 (2026-10-07): a FOLDER's refusal is said where Rescan all's is —
+  // the reference's one `notice` slot — not as an error toast that is gone
+  // before the reader looks. And a folder rescan that started says nothing,
+  // as the reference's does (it toasted "Rescanning folder…").
+  testWidgets(
+      'a folder\'s refusal is §14.2 in the same slot under the header — not a '
+      'toast — and a folder rescan that started says nothing', (tester) async {
+    FirestoreService.instance = _Folders(const [_papers]);
+    const sentence = 'This folder is no longer organized.';
+    var refuse = true;
+    final api = _Server((_) => refuse
+        ? (409, _envelope(sentence, 'NOT_ORGANIZED'))
+        : (202, {'queued': true}));
+    ApiService.instance.httpClientAdapter = api;
+    await tester.pumpWidget(_panel());
+    await tester.pumpAndSettle();
+
+    await tester.tap(_folderRescan('Rescan'));
+    await tester.pumpAndSettle();
+    expect(api.sent.single.data, {'provider': 'notion', 'folder_id': 'f1'});
+    expect(
+        find.descendant(
+            of: find.byType(KitFailureInline), matching: find.text(sentence)),
+        findsOneWidget,
+        reason: 'the server\'s sentence, verbatim, in the §14.2 slot');
+    expect(find.byType(SnackBar), findsNothing, reason: 'never a toast');
+    expect(
+        tester.getTopLeft(find.byType(KitFailureInline)).dy,
+        lessThan(tester.getTopLeft(find.text('/Papers')).dy),
+        reason: 'the panel\'s slot under the header, where Rescan all says its');
+
+    refuse = false;
+    await tester.tap(_folderRescan('Rescan'));
+    await tester.pump();
+    expect(find.byType(KitFailureInline), findsNothing,
+        reason: 'the next ask clears the last answer before it is sent');
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing,
+        reason: 'a rescan that started says nothing — progress arrives on the '
+            'folders, as on the reference');
+  });
+
+  // Item 12 (2026-10-07): the spec names no scope for the busy state, so it
+  // resolves to the reference: one `rescanning` flag for the whole panel.
+  testWidgets(
+      'one scan in flight holds EVERY provider\'s rescans, not only its own',
+      (tester) async {
+    FirestoreService.instance = _Folders(const [
+      _papers,
+      CloudFolder(
+          id: 'g1',
+          provider: 'google_drive',
+          providerPath: '/Notes',
+          name: 'Notes',
+          organized: true),
+    ]);
+    final api = _Server((_) => (202, {'queued': true}))..held = Completer();
+    ApiService.instance.httpClientAdapter = api;
+    await tester.pumpWidget(ChangeNotifierProvider<OrgNotifier>(
+      create: (_) => OrgNotifier(),
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: const Scaffold(
+          body: SingleChildScrollView(
+              child: Column(children: [
+            OrganizedFoldersPanel(provider: 'notion'),
+            OrganizedFoldersPanel(provider: 'google_drive'),
+          ])),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(_link('Rescan all'), findsNWidgets(2));
+
+    await tester.tap(_link('Rescan all').first);
+    await tester.pump();
+    expect(_link('Rescan all'), findsNothing);
+    expect(_link('Scanning…'), findsNWidgets(2),
+        reason: 'the reference\'s one flag reads Scanning… on every Rescan all');
+    for (final b in tester.widgetList<KitButton>(_folderRescan('Rescan'))) {
+      expect(b.onPressed, isNull, reason: 'and holds every folder\'s rescan');
+    }
+
+    api.release();
+    await tester.pumpAndSettle();
+    expect(_link('Rescan all'), findsNWidgets(2));
+    expect(api.sent, hasLength(1));
   });
 
   testWidgets('an unread folder list still leaves the provider rescannable',

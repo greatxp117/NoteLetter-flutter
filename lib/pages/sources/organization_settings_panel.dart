@@ -239,20 +239,25 @@ class OrganizedFoldersPanel extends StatefulWidget {
 }
 
 class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
-  /// Rescan all's refusal when it is NOT the cooldown — §14.2 under the header,
-  /// carrying the server's sentence, the reference's `notice` slot. A toast
+  /// A rescan's refusal when it is NOT the cooldown — Rescan all's or one
+  /// folder's — §14.2 under the header, carrying the server's sentence: the
+  /// reference's one `notice` slot, which both of its rescans write. A toast
   /// would be gone before the reader looked; this stays until the next ask.
+  /// (A folder's refusal was an error toast until 2026-10-07.)
   String? _failure;
 
-  Future<void> _rescanAll() async {
+  /// Rescan all ([folderId] null) or one folder: one path, so both say a
+  /// refusal in the same slot and a cooldown in the same calm one.
+  Future<void> _rescan({String? folderId}) async {
     final org = context.read<OrgNotifier>();
     setState(() => _failure = null);
-    final err = await org.scan(widget.provider);
+    final err = await org.scan(widget.provider, folderId: folderId);
     if (!mounted) return;
     // A cooldown is the provider's WAIT, said as calm copy over the folders
     // for as long as it runs (below). Anything else is a failure, said here.
     // A rescan that started says nothing: progress arrives on the folders
-    // themselves, as on the reference.
+    // themselves, as on the reference (the folder's "Rescanning folder…"
+    // info toast went with its error toast).
     if (err != null && !org.scanIsWaiting(widget.provider)) {
       setState(() => _failure = err);
     }
@@ -261,7 +266,7 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
   @override
   Widget build(BuildContext context) {
     final provider = widget.provider;
-    final scanning = context.watch<OrgNotifier?>()?.isScanning(provider) ?? false;
+    final scanning = context.watch<OrgNotifier?>()?.scanInFlight ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -278,7 +283,7 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
               scanning ? 'Scanning…' : 'Rescan all',
               icon: null,
               wait: scanning ? 0 : wait.left,
-              onTap: scanning ? null : _rescanAll,
+              onTap: scanning ? null : () => _rescan(),
             ),
           ),
         ),
@@ -311,7 +316,10 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
                 : KitWaitNote(said, padding: const EdgeInsets.only(top: 6));
           },
         ),
-        _FolderList(provider: provider, scanning: scanning),
+        _FolderList(
+            provider: provider,
+            scanning: scanning,
+            onRescan: (folderId) => _rescan(folderId: folderId)),
       ],
     );
   }
@@ -320,7 +328,9 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
 class _FolderList extends StatelessWidget {
   final String provider;
   final bool scanning;
-  const _FolderList({required this.provider, required this.scanning});
+  final void Function(String folderId) onRescan;
+  const _FolderList(
+      {required this.provider, required this.scanning, required this.onRescan});
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +359,11 @@ class _FolderList extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final f in folders) _FolderRow(folder: f, scanning: scanning),
+            for (final f in folders)
+              _FolderRow(
+                  folder: f,
+                  scanning: scanning,
+                  onRescan: () => onRescan(f.id)),
           ],
         );
       },
@@ -363,7 +377,12 @@ class _FolderRow extends StatefulWidget {
   /// A scan of this provider is in flight (Rescan all's or a folder's): the
   /// row's rescan is held for it, as every rescan control is on the reference.
   final bool scanning;
-  const _FolderRow({required this.folder, this.scanning = false});
+
+  /// The panel's rescan of this folder — its refusal is said in the panel's
+  /// §14.2 slot under the header, never on the row or in a toast.
+  final VoidCallback onRescan;
+  const _FolderRow(
+      {required this.folder, this.scanning = false, required this.onRescan});
 
   @override
   State<_FolderRow> createState() => _FolderRowState();
@@ -396,20 +415,6 @@ class _FolderRowState extends State<_FolderRow> {
       if (err == null) _editing = false;
     });
     if (err != null) AppToast.show(context, err, type: ToastType.error);
-  }
-
-  Future<void> _rescan() async {
-    final org = context.read<OrgNotifier>();
-    final err =
-        await org.scan(widget.folder.provider, folderId: widget.folder.id);
-    if (!mounted) return;
-    // A cooldown is the provider's WAIT: with its number every rescan of it
-    // is held and the sentence is said over the folders until it ends
-    // (ADR-140); without one the sentence stands in the same calm slot. Either
-    // way it is not also a toast, and never an error one.
-    if (err != null && org.scanIsWaiting(widget.folder.provider)) return;
-    AppToast.show(context, err ?? 'Rescanning folder…',
-        type: err != null ? ToastType.error : ToastType.info);
   }
 
   @override
@@ -515,7 +520,7 @@ class _FolderRowState extends State<_FolderRow> {
                       builder: (context, wait) => KitButton.ghost('Rescan',
                           icon: Icons.refresh,
                           wait: wait.left,
-                          onPressed: widget.scanning ? null : _rescan),
+                          onPressed: widget.scanning ? null : widget.onRescan),
                     ),
                   ],
                 ),

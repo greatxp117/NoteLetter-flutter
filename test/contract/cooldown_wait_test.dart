@@ -682,8 +682,13 @@ void main() {
               of: find.text(sentence), matching: find.byType(KitWaitNote)),
           findsNothing,
           reason: 'only a wait is calm copy');
-      expect(find.byType(SnackBar), findsOneWidget,
-          reason: "this client says a rescan's refusal as an error toast");
+      // §14.2 in the panel's slot, as Rescan all says its own (item 11,
+      // 2026-10-07) — it was an error toast.
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitFailureInline)),
+          findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
       await tester.pumpAndSettle(const Duration(seconds: 5));
     });
   });
