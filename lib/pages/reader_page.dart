@@ -91,6 +91,31 @@ const List<String> _sectionIds = [
   'history',
 ];
 
+/// The rail's jumps, in `_sectionIds` order — the two vocabularies are the
+/// same list, read once, because a section the rail never names is a section
+/// that disappears with no error (the `KIND_ORDER` shape).
+///
+/// Original's count is the document's KIND word (`kitKindLabel`), never its
+/// raw `type`: an image set's jump read "IMAGE_SET" beside a header plate
+/// that says NOTE (web 938a2f4). Top-level so that word is testable without a
+/// reader's Firestore.
+@visibleForTesting
+List<KitSectionRailItem> readerRailItems(Document doc) => [
+  const KitSectionRailItem('summary', 'Summary', Icons.auto_awesome_outlined),
+  // The reference's IcoSparkle / IcoText / IcoGauge / IcoHeadset / IcoFile /
+  // IcoClock, in the glyphs this client draws them with elsewhere.
+  const KitSectionRailItem('manuscript', 'Manuscript', Icons.title),
+  const KitSectionRailItem('speedread', 'Speed read', Icons.speed_outlined),
+  const KitSectionRailItem('listen', 'Listen', Icons.headset_outlined),
+  KitSectionRailItem(
+    'original',
+    'Original',
+    Icons.insert_drive_file_outlined,
+    count: kitKindLabel(doc.type),
+  ),
+  const KitSectionRailItem('history', 'History', Icons.schedule),
+];
+
 /// One Listen line: what is spoken, and when it starts (null → the panel falls
 /// back to word-count-proportional timing).
 class _ListenLine {
@@ -556,7 +581,7 @@ class _ReaderPageState extends State<ReaderPage> {
           SliverPersistentHeader(
             pinned: true,
             delegate: KitSectionRailHeader(
-              items: _railItems(doc),
+              items: readerRailItems(doc),
               current: _current,
               // The reader's own ground: it sits outside `AppLayout`, on the
               // support shell's `--surface`, and a rail painting `--bg` here
@@ -780,25 +805,6 @@ class _ReaderPageState extends State<ReaderPage> {
     }
     return 'Unshelved';
   }
-
-  /// The rail's jumps, in `_sectionIds` order — the two vocabularies are the
-  /// same list, read once, because a section the rail never names is a section
-  /// that disappears with no error (the `KIND_ORDER` shape).
-  List<KitSectionRailItem> _railItems(Document doc) => [
-    const KitSectionRailItem('summary', 'Summary', Icons.auto_awesome_outlined),
-    // The reference's IcoSparkle / IcoText / IcoGauge / IcoHeadset / IcoFile /
-    // IcoClock, in the glyphs this client draws them with elsewhere.
-    const KitSectionRailItem('manuscript', 'Manuscript', Icons.title),
-    const KitSectionRailItem('speedread', 'Speed read', Icons.speed_outlined),
-    const KitSectionRailItem('listen', 'Listen', Icons.headset_outlined),
-    KitSectionRailItem(
-      'original',
-      'Original',
-      Icons.insert_drive_file_outlined,
-      count: doc.type.toUpperCase(),
-    ),
-    const KitSectionRailItem('history', 'History', Icons.schedule),
-  ];
 
   Widget _section(String id) {
     switch (id) {

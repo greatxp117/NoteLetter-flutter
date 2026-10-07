@@ -1841,6 +1841,18 @@ String kitSourceShape({String? type, String? gcsPath, String? sourceUrl}) {
 /// A document `type` → the plate kind ([KitFileBadge]).
 String kitDocKind(String type) => kKindByType[type] ?? 'note';
 
+/// The badge word for a backend `type` — its KIND's, never the type itself
+/// (web `kindLabel`, `shared/FileBadge.jsx`). The reader's Original jump and
+/// its section eyebrow printed `type.toUpperCase()`, so an image set read
+/// "IMAGE_SET" (an enum, with its underscore) beside a header plate that says
+/// NOTE, and a slide deck read "PPTX" where every other surface calls it a
+/// note. One word per document, whichever surface names it (§6.4.1).
+///
+/// A statement about the file's BYTES ("A DOCX can't be displayed here") is
+/// not a name for the document and keeps the format, as on web.
+String kitKindLabel(String type) =>
+    KitFileBadge.labels[kitDocKind(type)] ?? 'DOC';
+
 /// Every backend `type` a kind renders — the `sourceTypes` a chip should send.
 ///
 /// Empty for a kind no type maps to (a pending kind), which correctly sends no

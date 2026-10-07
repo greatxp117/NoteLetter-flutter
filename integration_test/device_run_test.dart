@@ -540,7 +540,7 @@ void main() {
     router.go('/reader/seed-doc-pdf-complete');
     await pumpFor(tester, total: const Duration(seconds: 3));
 
-    // The labels exactly as `_railItems` spells them — 'Speed read', not
+    // The labels exactly as `readerRailItems` spells them — 'Speed read', not
     // 'SpeedRead'. A list written from memory fails on the label rather than on
     // the section, which is a red test about nothing.
     for (final label in const [

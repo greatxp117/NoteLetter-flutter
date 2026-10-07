@@ -109,7 +109,9 @@ class _OriginalPanelState extends State<OriginalPanel> {
   Widget build(BuildContext context) {
     final ui = ReaderUi(context);
     final doc = widget.doc;
-    final kind = doc.type.toUpperCase();
+    // The kind's badge word, never the raw `type`: an image set is a NOTE here
+    // as it is on the header plate, not "IMAGE_SET" (§6.4.1, web 938a2f4).
+    final kind = kitKindLabel(doc.type);
 
     // Article-from-screenshot (2.8.0, ADR-017): the document has TWO sources —
     // the captured screenshot (a durable URL, no call) and the article it
@@ -212,6 +214,9 @@ class _OriginalPanelState extends State<OriginalPanel> {
       title: doc.title.isEmpty ? 'Original file' : doc.title,
       url: _url!,
       stage: kitStageFor(type: doc.type, mimeType: doc.mimeType),
+      // The one place the raw format stays: "A DOCX can't be displayed here"
+      // is a statement about the file's BYTES, not a name for the document
+      // (web SourceFile.jsx keeps `type.toUpperCase()` for the same reason).
       typeLabel: doc.type.toUpperCase(),
       onDownload: _launch,
       onOpen: _launch,
