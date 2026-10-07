@@ -60,6 +60,22 @@ relative to NoteLetter-contracts/, `web:` to NoteLetter-web/, `flutter:` to this
 repo. The script never reorders items and never edits a `done` one — a new
 obligation on a finished screen is a new item, so the history of what was done
 against which spec stays readable.
+
+ORDER
+-----
+The file's order is the WORK order: `next` hands out the top open item. `add`
+appends, so ids ascend down the file — except an item `add` placed with
+`"after": "F-NN"` (/feature queues an obligation beside its screen, /parity by
+dependency). That item carries one more line, written by `add` and by nothing
+else:
+
+    - placed: after F-12
+
+and `lint` holds the file to exactly what `add` can write: the items with no
+`placed:` ascend; a placed item sits below its anchor and is newer than it.
+Until 2026-10-07 `add` placed without saying so and `lint` demanded ascending
+ids, so every `after` the skills asked for wrote a queue its own lint rejected
+— and a block moved by hand would have looked the same as one placed.
 """
 from __future__ import annotations
 
@@ -80,6 +96,9 @@ STATUS = re.compile(r"^(open|in-progress|done(\s+\d{4}-\d{2}-\d{2})?|blocked:\s*
 HEAD = re.compile(r"^## (F-\d{2}) · (.+)$")
 FIELD = re.compile(r"^- ([a-z_]+): ?(.*)$")
 NEW = re.compile(r"\s*\(new\)\s*$")
+ITEM_ID = re.compile(r"^F-\d{2}$")
+# The one line `add` writes beside FIELDS, and only when it places an item.
+PLACED = re.compile(r"^after (F-\d{2})$")
 
 
 # ── parse / render ───────────────────────────────────────────────────────────
@@ -200,12 +219,22 @@ def cmd_add(payload: dict) -> int:
     """Append one item. Payload: {"title", "after"?: "F-NN", <fields>}; list
     fields may be lists. The id is the next free F-NN. `after` inserts behind
     that item instead of at the end, so /feature can queue a small obligation
-    beside the screen it belongs to rather than after the pin bump."""
+    beside the screen it belongs to rather than after the pin bump — and the
+    item says so (`placed: after F-NN`), which is what lets `lint` tell a
+    placement from a block moved by hand (ORDER, above)."""
     text = QUEUE.read_text(encoding="utf-8")
     _, items = parse(text)
     missing = [f for f in FIELDS if f not in payload and f != "status"]
     if "title" not in payload or missing:
         sys.exit(f"queue: add needs title + {', '.join(FIELDS)} (missing: {missing})")
+    after = payload.get("after")
+    if after is not None and not ITEM_ID.match(str(after)):
+        sys.exit(f"queue: `after` must be an item id like F-07, not {after!r}")
+    tgt = None
+    if after:
+        tgt = next((x for x in items if x["id"] == after), None)
+        if tgt is None:
+            sys.exit(f"queue: no item {after} to insert after")
     n = max((int(x["id"][2:]) for x in items), default=-1) + 1
     block = [f"## F-{n:02d} · {payload['title']}", f"- status: {payload.get('status', 'open')}"]
     for f in FIELDS:
@@ -216,12 +245,16 @@ def cmd_add(payload: dict) -> int:
             v = "; ".join(v) if v else "none"
         block.append(f"- {f}: {v}")
     lines = text.rstrip("\n").splitlines()
-    after = payload.get("after")
-    if after:
-        tgt = next((x for x in items if x["id"] == after), None)
-        if tgt is None:
-            sys.exit(f"queue: no item {after} to insert after")
-        lines[tgt["_end"]:tgt["_end"]] = [""] + block
+    if tgt is not None:
+        block.append(f"- placed: after {after}")
+        # Behind the anchor's last line, not at the next item's heading: the
+        # blank lines that close the anchor's block stay where they are, so the
+        # new block is separated from the item below it. (Inserting at `_end`
+        # put both blanks above the new block and none below it.)
+        at = tgt["_end"]
+        while at > tgt["_start"] and not lines[at - 1].strip():
+            at -= 1
+        lines[at:at] = [""] + block
     else:
         lines += [""] + block
     QUEUE.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -238,10 +271,28 @@ def cmd_lint() -> int:
         if not re.match(r"^\d+\.\d+\.\d+$", header.get(key, "")):
             problems.append(f"header: `{key}:` missing or not a version")
     ids = [x["id"] for x in items]
-    if ids != sorted(ids):
-        problems.append(f"items are out of order: {ids}")
     if len(set(ids)) != len(ids):
         problems.append("duplicate item ids")
+    # ORDER: exactly what `add` can write. Appended items ascend; a placed one
+    # says where it was put, and is below an older anchor.
+    appended = [x["id"] for x in items if "placed" not in x]
+    if appended != sorted(appended):
+        problems.append(f"items are out of order: {appended} — `add` appends; an item "
+                        f"sits out of id order only with `placed: after F-NN`")
+    at = {x["id"]: i for i, x in enumerate(items)}
+    for i, it in enumerate(items):
+        if "placed" not in it:
+            continue
+        m = PLACED.match(it["placed"])
+        if not m:
+            problems.append(f"{it['id']}: `placed: {it['placed']}` is not `after F-NN`")
+        elif m.group(1) not in at:
+            problems.append(f"{it['id']}: placed after {m.group(1)}, which is not in the queue")
+        elif at[m.group(1)] > i:
+            problems.append(f"{it['id']}: placed after {m.group(1)} but sits above it")
+        elif m.group(1) >= it["id"]:
+            problems.append(f"{it['id']}: placed after {m.group(1)}, which is not older "
+                            f"— `add` only places a NEW item")
     web_shots = ROOT / "NoteLetter-web" / "screenshots"
     retired = set(as_list(header.get("retired-shots", "")))
     for shot in sorted(retired):
