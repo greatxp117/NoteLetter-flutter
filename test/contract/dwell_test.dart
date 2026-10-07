@@ -9,6 +9,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_app/models/chunk.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/pages/reader/dwell.dart';
@@ -118,6 +119,23 @@ void main() {
     expect(find.text('2 PASSAGES · 15 WORDS'), findsOneWidget,
         reason: '7 + 8 from the stored text; the html says 12 (tags as '
             'breaks) or 9 (textContent)');
+    // F-77 (7): the passage mark sits in the SHEET's padding, 26 left of the
+    // passage (`.ms-mark { left: -26px }`), and takes nothing from the text
+    // column — it was a 26pt slice of the measure.
+    final marks = find.byWidgetPredicate(
+        (w) => w is Positioned && w.left == -26 && w.width == 4);
+    expect(marks, findsNWidgets(2));
+    expect(
+        find.byWidgetPredicate((w) =>
+            w is Padding && w.padding == const EdgeInsets.only(left: 26)),
+        findsNothing);
+    // `.ms-body table { font-size: 15px }`: a table is data under the page's
+    // 19, and it inherited the 19.
+    final html = tester.widgetList<Html>(find.byType(Html));
+    expect(html, isNotEmpty);
+    for (final h in html) {
+      expect(h.style['table']?.fontSize?.value, 15);
+    }
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 30));
   });

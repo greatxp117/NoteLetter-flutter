@@ -688,20 +688,24 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             // extent, the one measurement the mark exists to report.
             child: _editing
                 ? body
+                // The gutter is the SHEET's padding (`.ms-mark { left:
+                // -26px }`), not a slice of the text column: the mark sits
+                // outside the passage, and the passage keeps the measure. Where
+                // the padding collapses on a phone the mark tucks in to -14,
+                // or it would sit outside the card (F-77 7).
                 : Stack(
+                    clipBehavior: Clip.none,
                     children: [
                       Positioned(
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
+                        left: MediaQuery.sizeOf(context).width <= 680
+                            ? -14
+                            : -26,
+                        top: 4,
+                        bottom: 4,
                         width: 4,
                         child: PassageMark(counted: counted, ui: ui),
                       ),
-                      // The gutter — the mark sits OUTSIDE the text column.
-                      Padding(
-                        padding: const EdgeInsets.only(left: 26),
-                        child: body,
-                      ),
+                      body,
                     ],
                   ),
           ),
@@ -1004,7 +1008,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     return Html(
       data: html,
       extensions: AppTheme.htmlExtensions,
-      style: AppTheme.htmlStyles(
+      style: _tableAt15(AppTheme.htmlStyles(
         ui.tokens,
         body: Style(
           margin: Margins.zero,
@@ -1013,7 +1017,14 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           lineHeight: LineHeight.number(1.68),
           color: ui.fg,
         ),
-      ),
+      )),
     );
   }
+
+  /// `.ms-body table { font-size: 15px }` — a table is read as data, a size
+  /// under the page's 19, which it inherited (F-77 7).
+  static Map<String, Style> _tableAt15(Map<String, Style> styles) => {
+        ...styles,
+        'table': (styles['table'] ?? Style()).merge(Style(fontSize: FontSize(15))),
+      };
 }
