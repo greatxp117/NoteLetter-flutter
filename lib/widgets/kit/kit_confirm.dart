@@ -59,8 +59,9 @@ class KitConfirm extends StatefulWidget {
   /// The [WaitKey] of the cooldown [onConfirm]'s request is scoped to, when it
   /// has one (§6.1 Waiting, 4.107.0, ADR-140). A refusal that armed it holds
   /// the confirming control for the wait with ` · m:ss` on its label, and the
-  /// server's sentence is the panel's failure slot until the wait ends — the
-  /// panel stays open, as it does on any refusal. Null for an action no
+  /// server's sentence is the panel's calm caption until the wait ends (§6.1,
+  /// 4.108.0 — never its red failure slot) — the panel stays open, as it does
+  /// on any refusal. Null for an action no
   /// cooldown governs.
   final String? waitKey;
 

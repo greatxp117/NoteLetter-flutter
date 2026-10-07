@@ -120,9 +120,9 @@ class _SourceFreshnessState extends State<SourceFreshness> {
   }
 
   /// The refresh cooldown (4.107.0, ADR-140): the control is held for the
-  /// wait a refusal carried, and its sentence is the banner's §14.2 line for
-  /// as long — the same wait as the Sources row's Update from source for this
-  /// document.
+  /// wait a refusal carried, and its sentence is the banner's calm caption for
+  /// as long (§6.1, 4.108.0) — the same wait as the Sources row's Update from
+  /// source for this document.
   @override
   Widget build(BuildContext context) => KitWait(
         waitKey: WaitKey.sourceRefresh(widget.docId),

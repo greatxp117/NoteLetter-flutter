@@ -812,6 +812,50 @@ void main() {
       expect(find.text(sentence), findsOneWidget);
     });
 
+    // One cooldown, one clock — app-wide (4.108.0, ADR-145; review.md,
+    // sources.md): the Library tray's row and For your review's row (the
+    // dismissible one) for the SAME document, on screen together, hold the
+    // same countdown at the same second. Web's pair is one-clock.test.js.
+    testWidgets('the tray row and the review row are one clock, at the same '
+        'second', (tester) async {
+      const sentence = 'Please wait 240 seconds before retrying.';
+      ApiService.instance.httpClientAdapter =
+          _Canned((_) => (429, _envelope(sentence, 'RATE_LIMITED', 240)));
+      final d = doc('doc-9', 'error');
+      await tester.pumpWidget(ChangeNotifierProvider(
+        create: (_) => ActivityNotifier(),
+        child: _app(Column(children: [
+          ProcessingRow(
+              doc: d,
+              editCheck: (_) async => false,
+              studyCheck: (_) async => false),
+          ProcessingRow(
+              doc: d,
+              dismissible: true,
+              editCheck: (_) async => false,
+              studyCheck: (_) async => false),
+        ])),
+      ));
+      await tester.pumpAndSettle();
+      expect(_button('Retry'), findsNWidgets(2));
+
+      await tester.tap(_button('Retry').last); // pressed on review
+      await tester.pumpAndSettle();
+      expect(_button('Retry · 4:00'), findsNWidgets(2),
+          reason: 'both rows hold, at the same second');
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitWaitNote)),
+          findsNWidgets(2));
+
+      await step(tester, const Duration(seconds: 90));
+      expect(_button('Retry · 2:30'), findsNWidgets(2));
+      await step(tester, const Duration(seconds: 150));
+      await tester.pumpAndSettle();
+      expect(_button('Retry'), findsNWidgets(2));
+      expect(find.text(sentence), findsNothing);
+    });
+
     testWidgets('a forced retry is a retry: Index it anyway waits on it too',
         (tester) async {
       ApiService.instance.httpClientAdapter = _Canned((_) => (

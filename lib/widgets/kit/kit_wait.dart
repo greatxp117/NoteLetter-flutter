@@ -13,9 +13,9 @@ import 'kit_failure.dart';
 /// **Required parts** — the control is disabled for exactly that many
 /// seconds, counted from when the refusal arrived; its idle label is followed
 /// by the remaining time as ` · m:ss` (an icon control carries it in its
-/// accessible title); the server's sentence renders verbatim in the slot that
-/// site already uses for that refusal while the wait runs, and leaves with
-/// it. At zero the control has its own label back.
+/// accessible title); the server's sentence renders verbatim as the calm
+/// caption ([KitWaitNote], 4.108.0 — never §14.2) while the wait runs, and
+/// leaves with it. At zero the control has its own label back.
 ///
 /// This is the one way a screen learns that a control is waiting — web's
 /// `useCooldown`. It reads the app-wide [Cooldowns] registry, so the wait
