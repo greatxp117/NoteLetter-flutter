@@ -441,14 +441,13 @@ void main() {
     // is not laid out until the reader scrolls toward it. This skipped the tap
     // silently when it found no jump (2026-10-07); a reader DRAGS to the rail,
     // and so does this.
-    // dragUntilVisible, not scrollUntilVisible: the latter ends in
-    // `Scrollable.ensureVisible`, which over a PINNED header scrolled deep into
-    // the document — past every passage, so every mark was already full
-    // before the drags below (the rerun's "no fill rose", 2026-10-07).
+    // `_dragUntilFound`, never flutter_test's scrollUntilVisible or
+    // dragUntilVisible: BOTH end in `Scrollable.ensureVisible`, which over a
+    // PINNED header scrolled deep into the document — past every passage, so
+    // every mark was already full before the drags below ("no fill rose",
+    // twice on 2026-10-07).
     final manuscript = find.text('Manuscript').hitTestable();
-    await tester.dragUntilVisible(
-        manuscript, _readerScrollable, const Offset(0, -200),
-        maxIteration: 20);
+    await _dragUntilFound(tester, manuscript);
     await pumpFor(tester, total: const Duration(milliseconds: 750));
     await tester.tap(manuscript.first);
     await pumpFor(tester, total: const Duration(seconds: 2));
@@ -610,11 +609,10 @@ void main() {
     // phone the opening is taller than the screen and its cache, so the rail
     // is laid out only once the reader scrolls toward it (2026-10-07). A real
     // drag brings it in — the header still on screen, so Summary is current.
-    // dragUntilVisible: scrollUntilVisible's closing ensureVisible over the
-    // pinned rail jumped to the end of the document (History, 2026-10-07).
-    await tester.dragUntilVisible(find.byType(KitSectionRail).hitTestable(),
-        _readerScrollable, const Offset(0, -200),
-        maxIteration: 20);
+    // `_dragUntilFound`: flutter_test's scrollUntilVisible and
+    // dragUntilVisible both close with an ensureVisible, which over the pinned
+    // rail jumped to the end of the document (History, twice on 2026-10-07).
+    await _dragUntilFound(tester, find.byType(KitSectionRail).hitTestable());
     await pumpFor(tester, total: const Duration(milliseconds: 750));
     expect(find.byType(KitSectionRail), findsOneWidget,
         reason: 'the reader draws no §19 rail');
@@ -2353,3 +2351,22 @@ final Finder _readerScrollable = find
     .descendant(
         of: find.byType(CustomScrollView), matching: find.byType(Scrollable))
     .first;
+
+/// Drags the reader by [step] until [finder] finds something — a reader's
+/// drag, and NOTHING after it.
+///
+/// flutter_test's `dragUntilVisible` is this loop plus a closing
+/// `Scrollable.ensureVisible(element(finder))` (controller.dart), the same
+/// closing call `scrollUntilVisible` makes. Over a widget inside a PINNED
+/// `SliverPersistentHeader` that reveal scrolled to the end of the document,
+/// so the rail reported History and every passage mark was already full
+/// before the test's own drags began. Both reruns on 2026-10-07 failed on it.
+Future<void> _dragUntilFound(WidgetTester tester, Finder finder,
+    {Offset step = const Offset(0, -200), int maxDrags = 20}) async {
+  for (var i = 0; i < maxDrags && finder.evaluate().isEmpty; i++) {
+    await tester.drag(_readerScrollable, step, warnIfMissed: false);
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  expect(finder, findsWidgets,
+      reason: 'not reached after $maxDrags drags of ${step.dy}');
+}
