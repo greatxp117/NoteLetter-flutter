@@ -7,6 +7,7 @@
 // tap targets and the text past its fold is reachable no other way.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_app/widgets/kit/kit.dart';
 
 import 'package:flutter_app/pages/reader/speed_read_panel.dart';
 import 'package:flutter_app/theme/app_theme.dart';
@@ -54,6 +55,18 @@ Future<Offset> _onScreen(WidgetTester tester, ScrollController page) async {
 }
 
 void main() {
+  // `.rsvp-hint` (F-77 8): the hint row under the stage says the one gesture
+  // this client honours, and no key it does not bind.
+  testWidgets('the hint row says Hold, and no key nothing binds',
+      (tester) async {
+    await _pump(tester);
+    expect(find.descendant(
+            of: find.byType(KitKeyHint), matching: find.text('Hold')),
+        findsOneWidget);
+    expect(find.text('to pause & rest'), findsOneWidget);
+    expect(find.text('Space'), findsNothing);
+  });
+
   testWidgets('the box scrolls by hand first, and the page stays put',
       (tester) async {
     final page = await _pump(tester);

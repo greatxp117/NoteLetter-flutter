@@ -301,6 +301,43 @@ class _KitButtonState extends State<KitButton> {
   }
 }
 
+/// A key hint (`.rsvp-hint`): the key as a `kbd` chip — mono 10 at
+/// `--fg-muted` on `--surface-sunken`, a 1px `--border` at `--r-xs`, 3/5
+/// padding — then what it does, sans 12 at `--fg-subtle`.
+///
+/// Only for a gesture or key the client actually honours: a hint for a key
+/// nothing binds is a control that lies.
+class KitKeyHint extends StatelessWidget {
+  final String keyLabel;
+  final String text;
+
+  const KitKeyHint(this.keyLabel, this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          decoration: BoxDecoration(
+            color: t.surfaceSunken,
+            border: Border.all(color: t.border),
+            borderRadius: AppRadius.xsR,
+          ),
+          child: Text(keyLabel,
+              style: AppTheme.mono(fontSize: 10, height: 1, color: t.fgMuted)),
+        ),
+        const SizedBox(width: 4),
+        Text(text,
+            style: TextStyle(
+                fontFamily: AppTheme.fontSans, fontSize: 12, color: t.fgSubtle)),
+      ],
+    );
+  }
+}
+
 /// §6.2 — tag pill variants.
 enum KitTagVariant { shelf, source, accent, ghost }
 
