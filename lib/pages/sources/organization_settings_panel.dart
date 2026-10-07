@@ -224,9 +224,101 @@ class _Flag extends StatelessWidget {
 
 /// Organized folders for one provider, from the `cloud_folders` subscription
 /// (INV-02): path, charter preview/edit, README status chip, doc count, rescan.
-class OrganizedFoldersPanel extends StatelessWidget {
+///
+/// Its §3 header carries **Rescan all** (`fn_scan_organization` with no folder),
+/// as the reference's carries it beside Choose folders
+/// (OrganizationPanel.jsx `RescanAll`). The header renders whatever the list
+/// below it says — empty, or unread — because the provider can be rescanned
+/// either way, as on the reference.
+class OrganizedFoldersPanel extends StatefulWidget {
   final String provider;
   const OrganizedFoldersPanel({super.key, required this.provider});
+
+  @override
+  State<OrganizedFoldersPanel> createState() => _OrganizedFoldersPanelState();
+}
+
+class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
+  /// Rescan all's refusal when it is NOT the cooldown — §14.2 under the header,
+  /// carrying the server's sentence, the reference's `notice` slot. A toast
+  /// would be gone before the reader looked; this stays until the next ask.
+  String? _failure;
+
+  Future<void> _rescanAll() async {
+    final org = context.read<OrgNotifier>();
+    setState(() => _failure = null);
+    final err = await org.scan(widget.provider);
+    if (!mounted) return;
+    // A cooldown is the provider's WAIT, said as calm copy over the folders
+    // for as long as it runs (below). Anything else is a failure, said here.
+    // A rescan that started says nothing: progress arrives on the folders
+    // themselves, as on the reference.
+    if (err != null && !org.scanIsWaiting(widget.provider)) {
+      setState(() => _failure = err);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = widget.provider;
+    final scanning = context.watch<OrgNotifier?>()?.isScanning(provider) ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          'Organized folders',
+          first: true,
+          // The reference's `.set-link`: the label carries ` · m:ss` while the
+          // provider's cooldown runs, and it is held (KitSettingLink's dimmed
+          // look) while waiting or while any scan of this provider is in
+          // flight — Rescan all's or one folder's.
+          tools: KitWait(
+            waitKey: WaitKey.orgScan(provider),
+            builder: (context, wait) => KitSettingLink(
+              scanning ? 'Scanning…' : 'Rescan all',
+              icon: null,
+              wait: scanning ? 0 : wait.left,
+              onTap: scanning ? null : _rescanAll,
+            ),
+          ),
+        ),
+        if (_failure != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: KitFailureInline(_failure!),
+          ),
+        // The scan cooldown is the PROVIDER's (4.107.0, ADR-140), so its
+        // sentence is said once, under the header, for exactly
+        // as long as the wait every one of their rescans is held for —
+        // web's ScanWaitNotice. A toast would be gone long before the
+        // wait it explains.
+        //
+        // A cooldown is a WAIT, not a failure, so it is calm copy
+        // (`.proc-note`) and never §14.2's `--critical-text` — the
+        // treatment Summary's Regenerate and Study give theirs. Nothing
+        // broke and there is nothing to correct (web 23d21a8; 7b0e5fd drew
+        // it red). One with no number (a pre-4.107.0 backend) is still a
+        // wait, and is said in the same slot.
+        KitWait(
+          waitKey: WaitKey.orgScan(provider),
+          builder: (context, wait) {
+            final said = wait.sentence ??
+                context.watch<OrgNotifier?>()?.scanWaitNote(provider);
+            return said == null
+                ? const SizedBox.shrink()
+                : KitProcNote(said, padding: const EdgeInsets.only(top: 6));
+          },
+        ),
+        _FolderList(provider: provider, scanning: scanning),
+      ],
+    );
+  }
+}
+
+class _FolderList extends StatelessWidget {
+  final String provider;
+  final bool scanning;
+  const _FolderList({required this.provider, required this.scanning});
 
   @override
   Widget build(BuildContext context) {
@@ -255,29 +347,7 @@ class OrganizedFoldersPanel extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // The scan cooldown is the PROVIDER's (4.107.0, ADR-140), so its
-            // sentence is said once, over the provider's folders, for exactly
-            // as long as the wait every one of their rescans is held for —
-            // web's ScanWaitNotice. A toast would be gone long before the
-            // wait it explains.
-            //
-            // A cooldown is a WAIT, not a failure, so it is calm copy
-            // (`.proc-note`) and never §14.2's `--critical-text` — the
-            // treatment Summary's Regenerate and Study give theirs. Nothing
-            // broke and there is nothing to correct (web 23d21a8; 7b0e5fd drew
-            // it red). One with no number (a pre-4.107.0 backend) is still a
-            // wait, and is said in the same slot.
-            KitWait(
-              waitKey: WaitKey.orgScan(provider),
-              builder: (context, wait) {
-                final said = wait.sentence ??
-                    context.watch<OrgNotifier?>()?.scanWaitNote(provider);
-                return said == null
-                    ? const SizedBox.shrink()
-                    : KitProcNote(said, padding: const EdgeInsets.only(top: 6));
-              },
-            ),
-            for (final f in folders) _FolderRow(folder: f),
+            for (final f in folders) _FolderRow(folder: f, scanning: scanning),
           ],
         );
       },
@@ -287,7 +357,11 @@ class OrganizedFoldersPanel extends StatelessWidget {
 
 class _FolderRow extends StatefulWidget {
   final CloudFolder folder;
-  const _FolderRow({required this.folder});
+
+  /// A scan of this provider is in flight (Rescan all's or a folder's): the
+  /// row's rescan is held for it, as every rescan control is on the reference.
+  final bool scanning;
+  const _FolderRow({required this.folder, this.scanning = false});
 
   @override
   State<_FolderRow> createState() => _FolderRowState();
@@ -439,7 +513,7 @@ class _FolderRowState extends State<_FolderRow> {
                       builder: (context, wait) => KitButton.ghost('Rescan',
                           icon: Icons.refresh,
                           wait: wait.left,
-                          onPressed: _rescan),
+                          onPressed: widget.scanning ? null : _rescan),
                     ),
                   ],
                 ),

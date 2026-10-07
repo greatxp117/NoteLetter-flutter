@@ -224,7 +224,9 @@ class OrgNotifier extends ChangeNotifier {
   /// (screens/reader.md, screens/study.md; web 23d21a8). Any other refusal is
   /// returned for the caller to say as one.
   Future<String?> scan(String provider, {String? folderId}) async {
-    if (_scanWaitNote.remove(provider) != null) notifyListeners();
+    _scanning.add(provider);
+    _scanWaitNote.remove(provider);
+    notifyListeners();
     try {
       await Api.instance.scanOrganization(provider, folderId: folderId);
       return null;
@@ -232,15 +234,23 @@ class OrgNotifier extends ChangeNotifier {
       if (e.errorCode != 'COOLDOWN') return e.message;
       final said =
           cooldownSentence(e, 'Scanned recently — try again in a few minutes.');
-      if (e.retryAfterS == null) {
-        _scanWaitNote[provider] = said;
-        notifyListeners();
-      }
+      if (e.retryAfterS == null) _scanWaitNote[provider] = said;
       return said;
     } catch (_) {
       return 'Could not start a rescan.';
+    } finally {
+      _scanning.remove(provider);
+      notifyListeners();
     }
   }
+
+  /// A scan of [provider] is in flight — Rescan all's or one folder's. Every
+  /// rescan of the provider is held for it and Rescan all reads "Scanning…",
+  /// as the reference's one `rescanning` flag holds every rescan control in
+  /// its panel (OrganizationPanel.jsx). Write before you move: nothing else
+  /// changes until the answer arrives.
+  final Set<String> _scanning = {};
+  bool isScanning(String provider) => _scanning.contains(provider);
 
   /// Whether [scan]'s last refusal for [provider] was its cooldown — said in
   /// the calm slot over the folders, so the caller says nothing more.
