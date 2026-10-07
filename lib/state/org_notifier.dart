@@ -7,6 +7,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../shared/cooldown.dart';
 import '../services/error_text.dart';
 
 /// Drives the auto-organization surface (INV-13): the pending suggestion queue
@@ -203,24 +204,49 @@ class OrgNotifier extends ChangeNotifier {
     }
   }
 
+  /// The sentence of a scan cooldown that carried NO number (a pre-4.107.0
+  /// backend), per provider. It is still a WAIT, so it is said in the same calm
+  /// slot over the provider's folders as one with a number — web's `waitNote`
+  /// (23d21a8). With a number, the provider's `WaitKey.orgScan` carries the
+  /// sentence instead and clears it at zero.
+  final Map<String, String> _scanWaitNote = {};
+  String? scanWaitNote(String provider) => _scanWaitNote[provider];
+
   /// Manual rescan. 409 COOLDOWN copy (5-minute window) is user-facing.
   ///
   /// A cooldown arrives here as a `409`, not a `429`, and its sentence names
   /// the exact remaining wait — so it is rendered verbatim, and our own
   /// 5-minute phrasing stands in only for a refusal that carried no sentence
   /// at all (C11; the reference does the same in `OrganizationPanel`).
+  ///
+  /// A cooldown is a wait, not a failure: it is calm copy, never §14.2's
+  /// `--critical-text`, as Summary's Regenerate and Study say theirs
+  /// (screens/reader.md, screens/study.md; web 23d21a8). Any other refusal is
+  /// returned for the caller to say as one.
   Future<String?> scan(String provider, {String? folderId}) async {
+    if (_scanWaitNote.remove(provider) != null) notifyListeners();
     try {
       await Api.instance.scanOrganization(provider, folderId: folderId);
       return null;
     } on ApiException catch (e) {
-      return e.errorCode == 'COOLDOWN'
-          ? cooldownSentence(e, 'Scanned recently — try again in a few minutes.')
-          : e.message;
+      if (e.errorCode != 'COOLDOWN') return e.message;
+      final said =
+          cooldownSentence(e, 'Scanned recently — try again in a few minutes.');
+      if (e.retryAfterS == null) {
+        _scanWaitNote[provider] = said;
+        notifyListeners();
+      }
+      return said;
     } catch (_) {
       return 'Could not start a rescan.';
     }
   }
+
+  /// Whether [scan]'s last refusal for [provider] was its cooldown — said in
+  /// the calm slot over the folders, so the caller says nothing more.
+  bool scanIsWaiting(String provider) =>
+      _scanWaitNote.containsKey(provider) ||
+      Cooldowns.instance.waiting(WaitKey.orgScan(provider));
 
   /// Exactly one of charterText / regenerate.
   Future<String?> updateFolderCharter(String folderId,

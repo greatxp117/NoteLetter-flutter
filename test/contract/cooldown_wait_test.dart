@@ -591,10 +591,90 @@ void main() {
           reason: 'the cooldown is the PROVIDER\'s, whichever folder asked');
       expect(find.text(sentence), findsOneWidget,
           reason: 'said once, over the folders — not per row, not a toast');
+      // A wait, said as calm copy (`.proc-note`) — not §14.2, as Summary and
+      // Study say theirs (web 23d21a8). 7b0e5fd drew it red.
       expect(
           find.ancestor(
-              of: find.text(sentence), matching: find.byType(KitFailureInline)),
+              of: find.text(sentence), matching: find.byType(KitProcNote)),
           findsOneWidget);
+      expect(find.byType(KitFailureInline), findsNothing);
+    });
+
+    testWidgets(
+        'a 409 COOLDOWN with NO number is still a wait: the same calm slot, '
+        'no toast, and it leaves on the next rescan', (tester) async {
+      FirestoreService.instance = _FoldersStub(const [
+        CloudFolder(
+            id: 'f1',
+            provider: 'notion',
+            providerPath: '/Papers',
+            name: 'Papers',
+            organized: true),
+      ]);
+      const sentence = 'Scan requested too recently — try again in a few minutes';
+      var cooldown = true;
+      ApiService.instance.httpClientAdapter = _Canned((_) => cooldown
+          ? (409, _envelope(sentence, 'COOLDOWN'))
+          : (200, {'status': 'queued'}));
+      await tester.pumpWidget(ChangeNotifierProvider<OrgNotifier>(
+        create: (_) => OrgNotifier(),
+        child: _app(const OrganizedFoldersPanel(provider: 'notion')),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(_button('Rescan'));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitProcNote)),
+          findsOneWidget,
+          reason: 'a wait with no number is said in the same calm slot');
+      expect(find.byType(KitFailureInline), findsNothing);
+      expect(find.text(sentence), findsOneWidget,
+          reason: 'said once — not also a toast');
+      expect(find.byType(SnackBar), findsNothing,
+          reason: 'not an error toast: nothing broke');
+      expect(_button('Rescan'), findsOneWidget,
+          reason: 'no number, so no countdown — the control is not held');
+
+      cooldown = false;
+      await tester.tap(_button('Rescan'));
+      await tester.pump();
+      expect(find.text(sentence), findsNothing,
+          reason: 'the sentence leaves when the reader asks again');
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+    });
+
+    testWidgets('a refusal that is NOT the cooldown is still a failure',
+        (tester) async {
+      FirestoreService.instance = _FoldersStub(const [
+        CloudFolder(
+            id: 'f1',
+            provider: 'notion',
+            providerPath: '/Papers',
+            name: 'Papers',
+            organized: true),
+      ]);
+      const sentence = 'Organization is not enabled for this provider.';
+      ApiService.instance.httpClientAdapter =
+          _Canned((_) => (400, _envelope(sentence, 'VALIDATION_ERROR')));
+      await tester.pumpWidget(ChangeNotifierProvider<OrgNotifier>(
+        create: (_) => OrgNotifier(),
+        child: _app(const OrganizedFoldersPanel(provider: 'notion')),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(_button('Rescan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(sentence), findsOneWidget);
+      expect(
+          find.ancestor(
+              of: find.text(sentence), matching: find.byType(KitProcNote)),
+          findsNothing,
+          reason: 'only a wait is calm copy');
+      expect(find.byType(SnackBar), findsOneWidget,
+          reason: "this client says a rescan's refusal as an error toast");
+      await tester.pumpAndSettle(const Duration(seconds: 5));
     });
   });
 

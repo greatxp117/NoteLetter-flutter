@@ -260,14 +260,22 @@ class OrganizedFoldersPanel extends StatelessWidget {
             // as long as the wait every one of their rescans is held for —
             // web's ScanWaitNotice. A toast would be gone long before the
             // wait it explains.
+            //
+            // A cooldown is a WAIT, not a failure, so it is calm copy
+            // (`.proc-note`) and never §14.2's `--critical-text` — the
+            // treatment Summary's Regenerate and Study give theirs. Nothing
+            // broke and there is nothing to correct (web 23d21a8; 7b0e5fd drew
+            // it red). One with no number (a pre-4.107.0 backend) is still a
+            // wait, and is said in the same slot.
             KitWait(
               waitKey: WaitKey.orgScan(provider),
-              builder: (context, wait) => wait.sentence == null
-                  ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: KitFailureInline(wait.sentence!),
-                    ),
+              builder: (context, wait) {
+                final said = wait.sentence ??
+                    context.watch<OrgNotifier?>()?.scanWaitNote(provider);
+                return said == null
+                    ? const SizedBox.shrink()
+                    : KitProcNote(said, padding: const EdgeInsets.only(top: 6));
+              },
             ),
             for (final f in folders) _FolderRow(folder: f),
           ],
@@ -319,15 +327,11 @@ class _FolderRowState extends State<_FolderRow> {
     final err =
         await org.scan(widget.folder.provider, folderId: widget.folder.id);
     if (!mounted) return;
-    // A cooldown that carried its number is the provider's WAIT: every
-    // rescan of it is held and the sentence is said over the folders until
-    // it ends (ADR-140), so it is not also a toast.
-    if (err != null &&
-        Cooldowns.instance.waiting(WaitKey.orgScan(widget.folder.provider))) {
-      return;
-    }
-    // A 409 COOLDOWN with no number comes back as user-facing copy — say it
-    // rather than leaving the button looking broken.
+    // A cooldown is the provider's WAIT: with its number every rescan of it
+    // is held and the sentence is said over the folders until it ends
+    // (ADR-140); without one the sentence stands in the same calm slot. Either
+    // way it is not also a toast, and never an error one.
+    if (err != null && org.scanIsWaiting(widget.folder.provider)) return;
     AppToast.show(context, err ?? 'Rescanning folder…',
         type: err != null ? ToastType.error : ToastType.info);
   }
