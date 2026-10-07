@@ -385,11 +385,20 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // holds for the whole batch), as web theme-shots stamps it; this hold only
     // presses, and waits for the countdown on the control.
     case 'summary-wait':
-      final regen = find.textContaining('Regenerate summary');
-      expect(regen, findsOneWidget, reason: 'no Regenerate summary control');
-      await Scrollable.ensureVisible(tester.element(regen),
+      // Offstage on open: on a phone the chapter opening fills the screen,
+      // and a default finder skips what is not painted, so the first shot of
+      // this hold found no control at all (2026-10-07). Find it mounted,
+      // bring it on, then press the on-screen one. Summary is a plain sliver,
+      // not the pinned rail, so this reveal lands where it says.
+      final mounted =
+          find.textContaining('Regenerate summary', skipOffstage: false);
+      expect(mounted, findsOneWidget, reason: 'no Regenerate summary control');
+      await Scrollable.ensureVisible(tester.element(mounted),
           alignment: 0.45, duration: Duration.zero);
       await settle();
+      final regen = find.textContaining('Regenerate summary');
+      expect(regen, findsOneWidget,
+          reason: 'Regenerate summary was not brought on screen');
       await tester.tap(regen);
       final waiting = find.textContaining('Regenerate summary · ');
       for (var i = 0; i < 75 && waiting.evaluate().isEmpty; i++) {
