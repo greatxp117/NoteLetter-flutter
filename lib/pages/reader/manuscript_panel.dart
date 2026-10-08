@@ -536,7 +536,13 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     // none is stored. Never a sum over the passages (web 5228dbe): that is a
     // client deriving its own, by a rule that counts markers and separators.
     final stored = widget.doc.wordCount;
-    final wordsLabel = stored == null ? '— words' : '${_grouped(stored)} words';
+    // Counted as the reference's `counted()` does: "1 passage", "1 word".
+    // Both read the raw plural until 4.109.1 ("1 PASSAGES").
+    final wordsLabel = stored == null
+        ? '— words'
+        : '${_grouped(stored)} ${stored == 1 ? 'word' : 'words'}';
+    final passagesLabel =
+        '${visible.length} ${visible.length == 1 ? 'passage' : 'passages'}';
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ui.intro(
@@ -552,7 +558,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       Row(children: [
         Expanded(
           child: Text(
-              '${visible.length} passages · $wordsLabel'.toUpperCase(),
+              '$passagesLabel · $wordsLabel'.toUpperCase(),
               style: KitText.monoCaps(context)),
         ),
         const SizedBox(width: 12),
@@ -721,7 +727,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       Padding(
         padding: const EdgeInsets.only(top: 16),
         child: Wrap(spacing: 16, runSpacing: 4, children: [
-          Text('${visible.length} passages', style: _foot(context)),
+          Text(passagesLabel, style: _foot(context)),
           Text('·', style: _foot(context)),
           Text(wordsLabel, style: _foot(context)),
           _dirty

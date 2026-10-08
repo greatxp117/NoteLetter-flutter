@@ -77,6 +77,48 @@ void main() {
         dwellFor(wordsIn(tableText)));
   });
 
+  // 4.109.1: one passage of one word reads as the reference's `counted()`
+  // writes it — "1 passage", "1 word" — not the raw plural ("1 PASSAGES").
+  testWidgets('the manuscript header counts one passage and one word singly',
+      (tester) async {
+    FirestoreService.instance = _QuietFirestore();
+    addTearDown(FirestoreService.resetInstance);
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light,
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: ManuscriptPanel(
+            docId: 'doc-1',
+            doc: Document.fromJson('doc-1', {
+              'user_id': 'u1',
+              'title': 'One word',
+              'type': 'plain',
+              'status': 'complete',
+              'word_count': 1,
+            }),
+            chunks: [
+              Chunk.fromJson({
+                'chunk_id': 'c1',
+                'document_id': 'doc-1',
+                'chunk_index': 0,
+                'text': 'Hello.',
+                'html': '<p>Hello.</p>',
+              }),
+            ],
+            onSaved: () async {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(find.text('1 PASSAGE · 1 WORD'), findsOneWidget);
+    expect(find.text('1 passage'), findsOneWidget, reason: 'and the footer');
+    expect(find.text('1 word'), findsOneWidget);
+    // The dwell's timers, as the tests below dispose them.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 30));
+  });
+
   // 4.108.0 (ADR-144): the header shows the document's STORED word_count —
   // the indexer's, canonical — and the unmeasured dash where none is stored.
   // It summed the passages' stored text (15 here) until then, which is a
@@ -177,7 +219,8 @@ void main() {
       ),
     ));
     await tester.pump();
-    expect(find.text('1 PASSAGES · — WORDS'), findsOneWidget);
+    // One passage is singular (4.109.1); this pinned the raw "1 PASSAGES".
+    expect(find.text('1 PASSAGE · — WORDS'), findsOneWidget);
     expect(find.text('— words'), findsOneWidget);
     expect(find.textContaining('8 WORDS'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());

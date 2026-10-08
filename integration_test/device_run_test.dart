@@ -350,7 +350,7 @@ void main() {
   ) async {
     // A document that is LONG and UNCOUNTED, written by tool/seed_long_doc.py.
     // Neither property is incidental:
-    //  - the canonical seed's complete documents are 9-54 words, shorter than
+    //  - the canonical seed's complete documents are 6-47 words, shorter than
     //    the viewport, so nothing scrolls and every fill pins at 1.0 from the
     //    first frame;
     //  - a COUNTED passage renders full regardless of scroll (by design), so a
