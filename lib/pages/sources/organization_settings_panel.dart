@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/cloud_folder.dart';
 import '../../services/firestore_service.dart';
 import '../../shared/cooldown.dart';
+import '../../state/cloud_notifier.dart';
 import '../../state/org_notifier.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/tokens.dart';
@@ -10,213 +11,34 @@ import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import '../../services/error_text.dart';
 
-const _providerName = {
-  'google_drive': 'Google Drive',
-  'onedrive': 'OneDrive',
-  'dropbox': 'Dropbox',
-  'notion': 'Notion',
-};
-
-/// Auto-organization settings + organized folders (`screens/sources.md`
-/// §Organized-folders panel, `api/organization.md`), recomposed against the kit
-/// (ADR-041).
+/// Organized folders on Sources (`screens/sources.md` §Organized-folders
+/// panel): one [OrganizedFoldersPanel] per provider whose organizing grant is
+/// write-ready — the reference's `OrganizationPanel` gate
+/// (`organization.enabled && write_access`, read off the integration).
 ///
-/// Global confidence threshold + default reorganize mode, per-provider worker
-/// flags, and per-folder charter editing (`fn_update_folder_charter`) + rescan
-/// (`fn_scan_organization`). Rendered only when a provider has organization
-/// enabled — a settings block for a feature nobody turned on is furniture.
-class OrganizationSettingsPanel extends StatefulWidget {
-  const OrganizationSettingsPanel({super.key});
+/// The SETTINGS this panel drew until 2026-10-09 — the confidence threshold,
+/// the default reorganize mode and each provider's three switches — live in
+/// Settings → Sources now (`SourcesSection`, ruled that day); each provider's
+/// *Import from* header links there. What stays here is what is about the
+/// folders themselves: roots, charters, READMEs and rescans.
+class OrganizedFoldersSection extends StatelessWidget {
+  const OrganizedFoldersSection({super.key});
 
-  @override
-  State<OrganizationSettingsPanel> createState() =>
-      _OrganizationSettingsPanelState();
-}
-
-class _OrganizationSettingsPanelState extends State<OrganizationSettingsPanel> {
-  double? _dragThreshold; // live slider value while dragging
-
-  /// §14.2 — a save's refusal, verbatim, in the panel it came from (a 400
-  /// validation or, since 4.93.0 / ADR-127, `UNKNOWN_KEYS`). It was a toast.
-  String? _saveError;
+  static const _order = ['google_drive', 'onedrive', 'dropbox', 'notion'];
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    final org = context.watch<OrgNotifier>();
-    final settings = org.settings;
-    // §14 BEFORE the vanish (C4, ORDER). `settings.providers` is empty on the
-    // defaults, so a failed read took this panel off the screen entirely —
-    // the reader lost the controls and the reason in one step, and nothing
-    // said either had happened.
-    if (org.settingsError != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SectionHeader('Organization'),
-          KitFailureBlock(
-            sentence: 'Your organization settings could not be read.',
-            detail: org.settingsError!,
-            onRetry: () => context.read<OrgNotifier>().loadSettings(),
-          ),
-        ],
-      );
-    }
-
-    // Not yet read is not "on the defaults". Drawing the controls here would
-    // show a threshold and a mode this reader has never chosen, and the first
-    // nudge would save them.
-    if (!org.settingsLoaded) return const SizedBox.shrink();
-
-    final enabledProviders = settings.providers.entries
-        .where((e) => e.value.enabled)
-        .map((e) => e.key)
-        .toList();
-    if (enabledProviders.isEmpty) return const SizedBox.shrink();
-
-    final threshold = _dragThreshold ?? settings.confidenceThreshold;
-
-    Future<void> save(Map<String, dynamic> partial) async {
-      setState(() => _saveError = null);
-      final err = await org.updateSettings(partial);
-      if (mounted) setState(() => _saveError = err);
-    }
-
+    final cloud = context.watch<CloudNotifier?>();
+    if (cloud == null) return const SizedBox.shrink();
+    final ready = [
+      for (final p in _order)
+        if (cloud.integrationFor(p)?.orgWriteReady ?? false) p,
+    ];
+    if (ready.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Organization'),
-        if (_saveError != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: KitFailureInline(_saveError!),
-          ),
-        KitCard(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Auto-apply confidence',
-                        style: KitText.body(context)),
-                  ),
-                  Text('${(threshold * 100).round()}%',
-                      style: KitText.monoFigure(context)),
-                ],
-              ),
-              Slider(
-                value: threshold.clamp(0.5, 0.95),
-                min: 0.5,
-                max: 0.95,
-                divisions: 9,
-                activeColor: t.accent,
-                inactiveColor: t.border,
-                // The slider writes only when the drag ENDS — a call per frame
-                // would be one write per pixel.
-                onChanged: (v) => setState(() => _dragThreshold = v),
-                onChangeEnd: (v) {
-                  setState(() => _dragThreshold = null);
-                  save({
-                    'confidence_threshold': double.parse(v.toStringAsFixed(2))
-                  });
-                },
-              ),
-              Text(
-                'Files at or above this confidence are filed automatically; '
-                'below it, they become suggestions you approve.',
-                style: KitText.meta(context),
-              ),
-
-              const SizedBox(height: 18),
-              const Eyebrow('Default reorganize mode'),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: KitSegmented(
-                  segments: const [KitSegment('Split'), KitSegment('Copy')],
-                  selected: settings.defaultReorgMode == 'copy' ? 1 : 0,
-                  onChanged: (i) => save(
-                      {'default_reorg_mode': i == 1 ? 'copy' : 'split'}),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        for (final p in enabledProviders) ...[
-          const SizedBox(height: 12),
-          KitCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Eyebrow(_providerName[p] ?? p),
-                const SizedBox(height: 6),
-                _Flag(
-                  label: 'Write folder READMEs',
-                  value: settings.configFor(p).readmesEnabled,
-                  onChanged: (v) => save({
-                    'providers': {
-                      p: {'readmes_enabled': v}
-                    }
-                  }),
-                ),
-                _Flag(
-                  label: 'Flag out-of-place files',
-                  value: settings.configFor(p).outOfPlaceEnabled,
-                  onChanged: (v) => save({
-                    'providers': {
-                      p: {'out_of_place_enabled': v}
-                    }
-                  }),
-                ),
-                _Flag(
-                  label: 'Auto-place new files',
-                  value: settings.configFor(p).autoPlacementEnabled,
-                  onChanged: (v) => save({
-                    'providers': {
-                      p: {'auto_placement_enabled': v}
-                    }
-                  }),
-                ),
-                const SizedBox(height: 6),
-                OrganizedFoldersPanel(provider: p),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// One worker flag. **Write before you move**: the switch renders the stored
-/// value and the call is awaited, so a rejected write shows as a toast and the
-/// control never lies about state it does not have (ADR-022).
-class _Flag extends StatelessWidget {
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _Flag({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    return Row(
-      children: [
-        Expanded(child: Text(label, style: KitText.body(context))),
-        Switch(
-          value: value,
-          activeThumbColor: t.accent,
-          onChanged: onChanged,
-        ),
+        for (final p in ready) OrganizedFoldersPanel(provider: p),
       ],
     );
   }

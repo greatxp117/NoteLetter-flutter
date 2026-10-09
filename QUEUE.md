@@ -1667,3 +1667,29 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/vocab_check.py
 - notes: `cloudFileTypes` (public now, web `CLOUD_TYPE_KEYS`) gains `epub`, so the sync settings offer a fourth *Import these types* pill and a fourth review-rule row; `cloudTypeLabel('epub')` is EPUB; `ImportJob.typeKey` maps `application/epub+zip`. `test/contract/cloud_type_keys_test.dart` reads the contract's `include_types` set and sources.md's label line both ways, as web's test does. The default stays pdf + docx (ADR-157), so no existing panel changes until the reader ticks the pill. No Flutter pair to re-shoot: the `sync-folders` hold is shot for looking only, with no committed pair; web's `sync-folders` frames are web's to re-shoot.
+
+## F-93 · Settings → Sources: the organization settings' one home, and the door to it from Sources (ruled 2026-10-09)
+- status: done 2026-10-09
+- screen: settings
+- route: /settings/sources
+- spec: spec/screens/settings.md §Sources section; spec/screens/sources.md §Organized-folders panel
+- web: src/pages/SettingsView.jsx; src/pages/sources/CloudImportPanel.jsx; src/shell/useRoute.js; tests/contract/settings-sources.test.js
+- flutter: lib/pages/settings/sources_section.dart; lib/pages/sources/organization_settings_panel.dart; lib/pages/sources_page.dart; lib/router.dart
+- folds: TODO "RULED 2026-10-09: a Sources section in Settings, reachable from the Sources page as well" (the flutter lane's BLOCKED/XAVIER on where the Organization controls live)
+- device_test: none
+- shots: settings; sources
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: The threshold (web's words now: "Confidence threshold"), the default reorganize mode (Split · Copy) and each write-ready provider's three switches moved OFF Sources (`OrganizationSettingsPanel`, gone) into Settings' section, renamed Organization → Sources (`SourcesSection`, file `settings/sources_section.dart`). The switches write `{enabled: true, flag: v}` and draw `flag && enabled`, as the reference does; the segmented control and switches draw the STORED value (write before you move). Sources keeps `OrganizedFoldersSection`: one `OrganizedFoldersPanel` per provider whose integration is write-ready — the reference's gate, no longer the settings read's. Every connected provider's Import-from header gains **Organization settings** → `/settings/sources` (`SettingsPage(focusSources: true)`, which `Scrollable.ensureVisible`s the section once it is drawn). `screenNames` gains `/settings/sources` → `settings-sources`. The C4 unread-settings and UNKNOWN_KEYS tests moved with the controls (they mount `SourcesSection`); the focus scroll is mutation-checked.
+
+## F-94 · The landing names EPUBs (ruled 2026-10-09)
+- status: done 2026-10-09
+- screen: landing
+- route: /
+- spec: spec/decisions/ADR-152-an-epub-is-a-book-read-in-spine-order.md
+- web: src/pages/LandingActual.jsx
+- flutter: lib/site/landing_page.dart
+- folds: TODO "RULED 2026-10-09: yes, name EPUB (every landing)"
+- device_test: none
+- shots: landing-actual
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: `_ticker` and the "Read" group gain EPUBs after PDFs, verbatim from web's TICKER and WAYS; `test/contract/landing_test.dart` now reads both lists out of LandingActual.jsx, so a format one landing names and the other does not is red. The `landing-actual` pair is re-shot with web's in the same sitting.

@@ -15,12 +15,14 @@ import 'package:flutter_app/models/organization_settings.dart';
 import 'package:flutter_app/models/organization_suggestion.dart';
 import 'package:flutter_app/models/study.dart';
 import 'package:flutter_app/pages/reader/reorganize_sheet.dart';
+import 'package:flutter_app/pages/settings/sources_section.dart';
 import 'package:flutter_app/pages/sources/cloud_sync_copy.dart';
 import 'package:flutter_app/pages/sources/sync_settings_panel.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/firestore_service.dart';
 import 'package:flutter_app/shared/upload_types.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
+import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
@@ -616,19 +618,32 @@ void main() {
 
   group('organization (4.92.0, ADR-126)', () {
     testWidgets(
-        'a settings refusal (4.93.0 UNKNOWN_KEYS) is inline in the panel, '
+        'a settings refusal (4.93.0 UNKNOWN_KEYS) is inline in the section, '
         'not a toast', (tester) async {
       ApiService.instance.httpClientAdapter = _Recorder((_) => (400, {
             'error': 'Unknown keys: foo. Accepted: confidence_threshold, '
                 'default_reorg_mode, providers.',
             'error_code': 'UNKNOWN_KEYS',
           }));
-      await pumpSources(
-          tester,
-          SourcesStubService(
-              orgSettings: const OrganizationSettings(providers: {
-            'dropbox': OrgProviderConfig(enabled: true),
-          })));
+      // The settings live in Settings → Sources since 2026-10-09; this was
+      // the Sources panel's test until they moved.
+      FirestoreService.instance = SourcesStubService(
+          orgSettings: const OrganizationSettings(providers: {
+        'dropbox': OrgProviderConfig(enabled: true),
+      }));
+      addTearDown(FirestoreService.resetInstance);
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CloudNotifier>(create: (_) => _DropboxConnected()),
+          ChangeNotifierProvider<OrgNotifier>(create: (_) => QuietOrg()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const Scaffold(
+              body: KitPage(
+                  width: KitFrameWidth.reading, child: SourcesSection())),
+        ),
+      ));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Copy'));
       await tester.tap(find.text('Copy'));
@@ -857,4 +872,12 @@ void main() {
           reason: 'the refused native spreadsheet is offered no checkbox');
     });
   });
+}
+
+/// One connected provider, read — so Settings → Sources is drawn at all.
+class _DropboxConnected extends QuietCloud {
+  @override
+  CloudIntegration? integrationFor(String provider) => provider == 'dropbox'
+      ? const CloudIntegration(provider: 'dropbox', tokenValid: true)
+      : null;
 }

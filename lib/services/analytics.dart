@@ -102,6 +102,9 @@ const Map<String, String> screenNames = <String, String>{
   '/sources': 'sources',
   '/settings': 'settings',
   '/settings/notifications': 'notification-settings',
+  // Settings opened at its Sources section (ruled 2026-10-09) — the
+  // reference's `settings-sources` route token.
+  '/settings/sources': 'settings-sources',
   '/letters': 'letter',
   '/letters/settings': 'letter-settings',
   '/shelves': 'shelves',

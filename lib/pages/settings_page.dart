@@ -15,7 +15,7 @@ import '../state/auth_notifier.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
-import 'settings/organization_section.dart';
+import 'settings/sources_section.dart';
 import 'settings/summaries_section.dart';
 
 /// Settings (`spec/screens/settings.md` §Composition, ADR-041).
@@ -29,7 +29,11 @@ import 'settings/summaries_section.dart';
 /// reference has it (F-05 moved it rather than copying it). This screen keeps
 /// one row through to it, so the way in from Settings survives the move.
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  /// Open at the Sources section — the `/settings/sources` route the Sources
+  /// page links to (ruled 2026-10-09; web `settings-sources`).
+  final bool focusSources;
+
+  const SettingsPage({super.key, this.focusSources = false});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -211,10 +215,11 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          // ── Organization (1.2.0; settings.md §Organization card) ──────
-          // Between Notifications and Account, as the reference orders it, and
-          // only while a provider is connected.
-          const OrganizationSection(),
+          // ── Sources (settings.md §Sources section, ruled 2026-10-09) ──────
+          // The auto-organization settings' one home. Between Notifications
+          // and Account, as the reference orders it, and only while a
+          // provider is connected.
+          SourcesSection(focus: widget.focusSources),
 
           // ── Account ───────────────────────────────────────────────────
           const SectionHeader('Account'),

@@ -323,7 +323,7 @@ class _SourcesPageState extends State<SourcesPage> {
               ),
               _ImportHistory(
                   jobs: cloud.historyJobs, windowFull: cloud.jobs.length >= 50),
-              const OrganizationSettingsPanel(),
+              const OrganizedFoldersSection(),
               const _OrganizationSection(),
 
               // ── In your library ────────────────────────────────────────
@@ -582,6 +582,15 @@ class _ImportFromProviderState extends State<_ImportFromProvider> {
                         : () => browsing
                             ? cloud.closePicker()
                             : cloud.openPicker(widget.providerId),
+                  ),
+                  // The door to Settings → Sources (ruled 2026-10-09): where
+                  // organizing is turned on and tuned. Drawn for every
+                  // connected provider, organized or not — Settings is also
+                  // where it is turned ON (web CloudImportPanel).
+                  KitSettingLink(
+                    'Organization settings',
+                    icon: null,
+                    onTap: () => context.go('/settings/sources'),
                   ),
                 ],
               ),

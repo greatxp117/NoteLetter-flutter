@@ -2,9 +2,15 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:provider/provider.dart';
+
+import 'package:flutter_app/models/cloud_integration.dart';
 import 'package:flutter_app/models/organization_settings.dart';
+import 'package:flutter_app/pages/settings/sources_section.dart';
 import 'package:flutter_app/services/firestore_service.dart';
+import 'package:flutter_app/state/cloud_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
+import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
 import 'sources_harness.dart';
@@ -105,21 +111,40 @@ void main() {
 
   // ── the SCREENS, over the same failure ────────────────────────────────────
 
-  testWidgets('the org panel says so instead of vanishing', (tester) async {
-    await pumpSources(tester, SourcesStubService(orgSettingsFail: true));
+  // The settings live in Settings → Sources since 2026-10-09 (they were on
+  // Sources, in the panel this test was written against), so that is where an
+  // unread read must be said.
+  Future<void> pumpSettingsSources(WidgetTester tester) async {
+    FirestoreService.instance = SourcesStubService(orgSettingsFail: true);
+    addTearDown(FirestoreService.resetInstance);
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<CloudNotifier>(create: (_) => _OneConnected()),
+        ChangeNotifierProvider<OrgNotifier>(create: (_) => QuietOrg()),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: const Scaffold(
+            body: KitPage(width: KitFrameWidth.reading, child: SourcesSection())),
+      ),
+    ));
+    await tester.pump(); // the post-frame reads
     await tester.pump();
+  }
 
-    // `settings.providers` is empty on the defaults, so the panel's own
-    // `enabledProviders.isEmpty` check took it off the screen entirely: the
-    // reader lost the controls AND the reason in one step.
+  testWidgets('Settings → Sources says so instead of drawing the defaults',
+      (tester) async {
+    await pumpSettingsSources(tester);
+
+    // The defaults drawn as though stored are a threshold and a mode this
+    // reader never chose — and the first nudge would save them.
     expect(find.byType(KitFailureBlock), findsWidgets);
     expect(find.textContaining('Sign out and back in'), findsOneWidget);
   });
 
   testWidgets('and draws no controls at all until a read succeeded',
       (tester) async {
-    await pumpSources(tester, SourcesStubService(orgSettingsFail: true));
-    await tester.pump();
+    await pumpSettingsSources(tester);
 
     // The threshold slider is the control whose nudge did the damage.
     expect(find.byType(Slider), findsNothing,
@@ -140,4 +165,12 @@ void main() {
     expect(find.text('Connect'), findsNothing,
         reason: 'the cards were withheld, not drawn wrong');
   });
+}
+
+/// One connected provider, read — so the section is drawn at all.
+class _OneConnected extends QuietCloud {
+  @override
+  CloudIntegration? integrationFor(String provider) => provider == 'dropbox'
+      ? const CloudIntegration(provider: 'dropbox', tokenValid: true)
+      : null;
 }

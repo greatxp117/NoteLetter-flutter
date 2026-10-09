@@ -4,7 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/models/cloud_integration.dart';
-import 'package:flutter_app/pages/settings/organization_section.dart';
+import 'package:flutter_app/models/organization_settings.dart';
+import 'package:flutter_app/pages/settings/sources_section.dart';
 import 'package:flutter_app/pages/sources/sync_settings_panel.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
@@ -23,6 +24,33 @@ import 'sources_harness.dart';
 /// a §3 header per provider ("Import from {provider}", web `CloudImportPanel`,
 /// `ed461b3`). Organizing is enabled from Settings (`screens/settings.md`
 /// §Organization card), which is where the reference keeps that door.
+
+/// Settings that were READ, and a write that records what it was asked for
+/// and stores nothing — so a control that moved on the tap would show it.
+class _LoadedOrg extends OrgNotifier {
+  final writes = <Map<String, dynamic>>[];
+
+  @override
+  bool get settingsLoaded => true;
+
+  @override
+  OrganizationSettings get settings => OrganizationSettings.fromJson({
+        'confidence_threshold': 0.75,
+        'default_reorg_mode': 'split',
+        'providers': {
+          'google_drive': {'enabled': true}
+        },
+      });
+
+  @override
+  Future<String?> updateSettings(Map<String, dynamic> partial) async {
+    writes.add(partial);
+    return null;
+  }
+
+  @override
+  Future<void> loadSettings() async {}
+}
 
 class _ConnectedCloud extends QuietCloud {
   _ConnectedCloud(this.integration);
@@ -114,7 +142,7 @@ void main() {
   });
 
   group('Import from {provider}', () {
-    testWidgets('a connected provider gets its header and three links',
+    testWidgets('a connected provider gets its header and four links',
         (tester) async {
       await pumpSources(tester, SourcesStubService(),
           cloud: _ConnectedCloud(const CloudIntegration(
@@ -122,7 +150,15 @@ void main() {
       expect(find.text('IMPORT FROM GOOGLE DRIVE'), findsOneWidget);
       expect(find.textContaining(RegExp('IMPORT FROM (ONEDRIVE|NOTION|DROPBOX)')),
           findsNothing, reason: 'only a connected provider has a block');
-      for (final l in ['Sync now', 'Sync settings', 'Browse files…']) {
+      for (final l in [
+        'Sync now',
+        'Sync settings',
+        'Browse files…',
+        // The door to Settings → Sources (ruled 2026-10-09), drawn for a
+        // provider whose organizing is NOT on — Settings is where it is
+        // turned on, so this is the way in.
+        'Organization settings',
+      ]) {
         expect(_link(l), findsOneWidget, reason: l);
       }
     });
@@ -178,7 +214,7 @@ void main() {
     });
   });
 
-  group('Settings → Organization', () {
+  group('Settings → Sources (ruled 2026-10-09; the Organization card)', () {
     setUpAll(_loadRealFonts);
 
     Future<void> mount(WidgetTester tester, CloudNotifier cloud) async {
@@ -192,7 +228,7 @@ void main() {
           // Settings' own frame, so a row is as wide as it is on the page.
           home: const Scaffold(
               body: KitPage(
-                  width: KitFrameWidth.reading, child: OrganizationSection())),
+                  width: KitFrameWidth.reading, child: SourcesSection())),
         ),
       ));
       await tester.pump();
@@ -200,7 +236,7 @@ void main() {
 
     testWidgets('nothing while no provider is connected', (tester) async {
       await mount(tester, QuietCloud());
-      expect(find.text('ORGANIZATION'), findsNothing);
+      expect(find.text('SOURCES'), findsNothing);
       expect(find.byType(KitSettingRow), findsNothing);
     });
 
@@ -210,7 +246,7 @@ void main() {
           tester,
           _ConnectedCloud(const CloudIntegration(
               provider: 'dropbox', tokenValid: true)));
-      expect(find.text('ORGANIZATION'), findsOneWidget);
+      expect(find.text('SOURCES'), findsOneWidget);
       expect(find.text('Dropbox'), findsOneWidget);
       expect(find.textContaining('Organizing needs permission'), findsOneWidget);
       expect(_link('Enable organizing'), findsOneWidget);
@@ -242,6 +278,84 @@ void main() {
       expect(tester.takeException(), isNull,
           reason: 'a RenderFlex overflow is the row drawn past its edge');
       expect(_link('Choose organized folders in Sources'), findsOneWidget);
+    });
+
+    testWidgets('settings read: the threshold, the mode and the switches are here',
+        (tester) async {
+      final org = _LoadedOrg();
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CloudNotifier>.value(
+              value: _ConnectedCloud(const CloudIntegration(
+                  provider: 'google_drive',
+                  tokenValid: true,
+                  orgEnabled: true,
+                  orgWriteAccess: true))),
+          ChangeNotifierProvider<OrgNotifier>.value(value: org),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const Scaffold(
+              body: KitPage(
+                  width: KitFrameWidth.reading, child: SourcesSection())),
+        ),
+      ));
+      await tester.pump();
+      expect(find.text('Confidence threshold'), findsOneWidget);
+      expect(find.text('Default reorganize mode'), findsOneWidget);
+      for (final l in ['Folder READMEs', 'Out-of-place detection', 'Place new uploads']) {
+        expect(find.text(l), findsOneWidget, reason: l);
+      }
+
+      // Write before you move: Copy is asked for, Split stays drawn until the
+      // notifier stores the answer.
+      await tester.ensureVisible(find.text('Copy'));
+      await tester.tap(find.text('Copy'));
+      await tester.pump();
+      expect(org.writes, [
+        {'default_reorg_mode': 'copy'}
+      ]);
+      expect(tester.widget<KitSegmented>(find.byType(KitSegmented)).selected, 0);
+
+      // A switch writes the provider ON with its flag, as the reference does.
+      final readmes = find.byType(Switch).first;
+      await tester.ensureVisible(readmes);
+      await tester.tap(readmes);
+      await tester.pump();
+      expect(org.writes.last, {
+        'providers': {
+          'google_drive': {'enabled': true, 'readmes_enabled': true}
+        }
+      });
+    });
+
+    testWidgets('opened as /settings/sources, the section is scrolled into view',
+        (tester) async {
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CloudNotifier>.value(
+              value: _ConnectedCloud(const CloudIntegration(
+                  provider: 'dropbox', tokenValid: true))),
+          ChangeNotifierProvider<OrgNotifier>(create: (_) => QuietOrg()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            // Settings is one scroll column (KitPage), built whole — so the
+            // section is drawn 3000px down, off screen, as on a long page.
+            body: SingleChildScrollView(
+              child: Column(children: const [
+                SizedBox(height: 3000),
+                SourcesSection(focus: true),
+              ]),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      final top = tester.getTopLeft(find.text('SOURCES')).dy;
+      expect(top, inInclusiveRange(0, 600),
+          reason: 'the header is on screen, not 3000px below it');
     });
 
     testWidgets('write-ready: the row points at Sources', (tester) async {

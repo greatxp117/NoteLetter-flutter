@@ -137,10 +137,12 @@ const _navLinks = <(String, int)>[
   ('The letter', 5),
 ];
 
-/// What goes in. EPUBs are absent on purpose (a hard 400 since 4.10.0).
+/// What goes in — web `LandingActual.jsx` TICKER. EPUBs since 2026-10-09:
+/// a read format since 4.115.0 (ADR-152), and Xavier ruled the landing names it.
 const _ticker = [
   'Articles',
   'PDFs',
+  'EPUBs',
   'Podcasts',
   'Voice memos',
   'YouTube',
@@ -2049,7 +2051,7 @@ class _Connect extends StatelessWidget {
     (
       'Read',
       'The page you have open, a folder you hand over, a decade of highlights.',
-      ['Articles', 'PDFs', 'Documents', 'Slide decks', 'Highlights'],
+      ['Articles', 'PDFs', 'EPUBs', 'Documents', 'Slide decks', 'Highlights'],
     ),
     (
       'Heard',

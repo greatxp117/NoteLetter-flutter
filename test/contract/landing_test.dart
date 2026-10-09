@@ -50,6 +50,35 @@ void main() {
     });
   });
 
+  group('what goes in', () {
+    // The ticker and the "Read" group are the reference's words, read from its
+    // source. EPUBs joined both on 2026-10-09 (a read format since 4.115.0,
+    // ADR-152); a list copied by hand is how one landing advertises a format
+    // the other does not.
+    List<String> quoted(String body) =>
+        RegExp(r"'([^']*)'").allMatches(body).map((m) => m.group(1)!).toList();
+
+    test('the ticker is LandingActual.jsx\'s, verbatim, EPUBs included', () {
+      final jsx =
+          File('../NoteLetter-web/src/pages/LandingActual.jsx').readAsStringSync();
+      final dart = File('lib/site/landing_page.dart').readAsStringSync();
+      final web = quoted(RegExp(r'const TICKER = \[([\s\S]*?)\];').firstMatch(jsx)!.group(1)!);
+      final mine = quoted(RegExp(r'const _ticker = \[([\s\S]*?)\];').firstMatch(dart)!.group(1)!);
+      expect(mine, web);
+      expect(mine, contains('EPUBs'));
+    });
+
+    test('the Read group is the reference\'s, EPUBs included', () {
+      final jsx =
+          File('../NoteLetter-web/src/pages/LandingActual.jsx').readAsStringSync();
+      final dart = File('lib/site/landing_page.dart').readAsStringSync();
+      final web = quoted(RegExp(r"\['Read',[^\n]*\n\s*\[([^\]]*)\]\]").firstMatch(jsx)!.group(1)!);
+      final mine = quoted(RegExp(r"'Read',\s*\n[^\n]*\n\s*\[([^\]]*)\]").firstMatch(dart)!.group(1)!);
+      expect(mine, web);
+      expect(mine, contains('EPUBs'));
+    });
+  });
+
   group('Fig. 1', () {
     // The strings are the reference's, read from its source — a curve copied
     // by hand is a second drawing that drifts from the first.

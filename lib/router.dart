@@ -219,6 +219,13 @@ List<RouteBase> appRoutes() {
               builder: (context, state) => const NotificationSettingsPage(),
             ),
             GoRoute(
+              // Settings opened at its Sources section (ruled 2026-10-09;
+              // settings.md §Sources section) — the Sources page's door.
+              path: '/settings/sources',
+              builder: (context, state) =>
+                  const SettingsPage(focusSources: true),
+            ),
+            GoRoute(
               // 2.3.0 (ADR-012): the OAuth callback lands here with an explicit
               // result in the query string.
               path: '/sources',
