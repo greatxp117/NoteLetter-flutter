@@ -194,7 +194,7 @@ class _SearchPageState extends State<SearchPage> {
     final search = context.read<SearchNotifier>();
     await search.search(
       _submitted,
-      sourceTypes: _filter == 'all' ? null : kitTypesForKind(_filter),
+      sourceTypes: _filter == 'all' ? null : searchSourceTypes(_filter),
       limit: 20,
     );
     if (!mounted) return;
@@ -218,7 +218,7 @@ class _SearchPageState extends State<SearchPage> {
     }
     return search.synthesize(
       _submitted,
-      sourceTypes: _filter == 'all' ? null : kitTypesForKind(_filter),
+      sourceTypes: _filter == 'all' ? null : searchSourceTypes(_filter),
       breadth: _breadth,
     );
   }
@@ -623,6 +623,23 @@ double? searchPaneWidth({required double viewport, required double body}) {
 // and `video` were absent, so both buckets were reachable from "All sources"
 // and nowhere else. An absent chip is not a DISABLED chip; it is a bucket that
 // looks like it does not exist.
+/// A FOLD: one chip carrying a second kind's types (ADR-152). "Books & PDFs"
+/// is the `pdf` chip and it also sends `epub` — declared here as data, because
+/// `doc_kind_check.py` reads this map rather than assuming a fold the request
+/// never performed (until 4.115.0 the gate held `{"epub"}` for this surface
+/// while the chip sent `kitTypesForKind('pdf')` alone). Web `SEARCH_FOLDS`.
+const _searchFolds = <String, List<String>>{
+  'pdf': ['epub'],
+};
+
+/// The `sourceTypes` a Search chip sends: its own kind's types plus every
+/// folded kind's (web `sourceTypesFor`).
+List<String> searchSourceTypes(String chip) => [
+      ...kitTypesForKind(chip),
+      for (final k in _searchFolds[chip] ?? const <String>[])
+        ...kitTypesForKind(k),
+    ];
+
 const _filters = <String, String>{
   'all': 'All sources',
   'pdf': 'Books & PDFs',

@@ -1773,8 +1773,8 @@ class KitControlLabel extends StatelessWidget {
 const Map<String, String> kKindByType = <String, String>{
   'pdf': 'pdf',
 
-  // `epub` is a PENDING kind (§6.4.1 rule 3): rendered, never advertised, and
-  // no document can carry it until EPUB ingestion exists.
+  // `epub` is a live kind (ADR-152): an uploaded book, read in spine order.
+  // Search carries it inside the "Books & PDFs" chip (`_searchFolds`).
   'epub': 'epub',
 
   // The default bucket, named explicitly rather than left to the fallthrough —
@@ -1818,8 +1818,7 @@ const Map<String, String> kKindByType = <String, String>{
 /// `image_set` — many objects, no single `gcs_path` — in the `link` branch,
 /// which draws **Open the link** over a null.
 ///
-/// `epub` is deliberately absent, as in the reference: it is a pending KIND
-/// with no writable `type`, so shaping it would be a branch with no subject.
+/// `epub` is a `file` (ADR-152): one uploaded book, one stored object.
 const Map<String, String> kShapeByType = <String, String>{
   // `file` — one stored object, signable by `fn_get_raw_document_url`. Written
   // by `fn_create_upload_session` BEFORE a byte is uploaded, so the shape
@@ -1827,6 +1826,7 @@ const Map<String, String> kShapeByType = <String, String>{
   'pdf': 'file',
   'docx': 'file',
   'pptx': 'file',
+  'epub': 'file',
   'image': 'file',
   'plain': 'file',
   'audio': 'file',

@@ -1589,3 +1589,16 @@ a new obligation on a finished screen is a new item.
 - shots: sources; settings
 - extra_gates: python3 ../NoteLetter-contracts/harness/confirm_check.py
 - notes: KitConnectCard loses actions/notice/footnote: iconbox → title → subtitle → status pill, nothing else. The card is the affordance (web ConnectCard): Connect when not connected ("Connecting…" while in flight, a refused connect §14.2 under the card), the §18 Disconnect confirm when connected; the pill says the reference's Connect / Connected (an expired sign-in is still Connected — its banner is under its header). Per connected provider, _ImportFromProvider (web CloudImportPanel): a §3 header — provider glyph + "Import from {provider}", trailing links Sync now (· m:ss on the provider's clock) · Sync settings · Browse files… — that wraps the links under the eyebrow on a phone; then the no-folders sentence, the sync answer (calm kickoff / KitWaitNote / §14.2), the sync settings (SyncSettingsPanel embedded: opened by the link, its own heading the reference's AUTO-SYNC + last sync), the reconnect banner with Reconnect, and the picker. "Enable auto-organization" left the card for Settings → Organization (settings.md §Organization card, web OrganizationSection): one row per connected provider, Enable organizing, or "Choose organized folders in Sources" once the integration's `organization` is write-ready (CloudIntegration now reads that block). The threshold and the three capability toggles stay on Sources' OrganizationSettingsPanel here (web draws them on Settings) — a placement difference not reopened. Mutation-checked: the no-folders note dropped → red; the panel mounted with its own header → red.
+
+## F-87 · The 4.115.0 tandem — an EPUB is a book: the Book class, a live kind shaped `file`, and "Books & PDFs" sends it
+- status: done 2026-10-09
+- screen: none
+- route: none
+- spec: spec/decisions/ADR-152-an-epub-is-a-book-read-in-spine-order.md; spec/api/uploads.md; spec/component-kit.md §6.4.1 §6.4.2; spec/screens/search.md
+- web: src/uploadTypes.js; src/shared/FileBadge.jsx; src/pages/SearchView.jsx
+- flutter: lib/shared/upload_types.dart; lib/widgets/kit/kit_controls.dart; lib/pages/search_page.dart; test/contract/epub_kind_test.dart (new)
+- folds: 4.115.0 (ADR-152)
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/upload_set_check.py; python3 ../NoteLetter-contracts/harness/doc_kind_check.py
+- notes: upload_types: the epub class (application/epub+zip, .epub, the extension fallback) and the drop zone's help names EPUB. kit_controls: epub is a live kind and kShapeByType epub → file (it was a pending kind with no shape). search_page: `_searchFolds` {'pdf': ['epub']} feeds searchSourceTypes for both the passages and the cohesive request — until 4.115.0 doc_kind_check held this fold itself while the request sent pdf alone. Held in the working tree from 04:48Z at backend-2's request (both gates read the trees live) and committed after its 09:24Z VERSION signal. No frame: the seed holds no book.

@@ -67,6 +67,7 @@ List<String> get uploadAllowedExtensions => [
       'pdf',
       'docx',
       'pptx',
+      'epub',
       ...imageExts,
       ...textExts,
       ...audioExts,
@@ -75,8 +76,12 @@ List<String> get uploadAllowedExtensions => [
 
 /// Human copy for the drop zone — kept beside the list so they cannot drift.
 const String uploadAcceptHelp =
-    'PDF, Word, PowerPoint, Markdown, plain text, images, audio recordings, '
-    'or video';
+    'PDF, EPUB, Word, PowerPoint, Markdown, plain text, images, audio '
+    'recordings, or video';
+
+/// ADR-152: an EPUB is read — the class it had been refused under since
+/// 4.10.0 is now a real one, `epub`, in the `books/` folder.
+const String _epubMime = 'application/epub+zip';
 
 /// The cap is **per type** (4.13.0, ADR-049). A client that checks a flat
 /// 100 MB refuses a legal video locally, showing the user a limit the server
@@ -143,6 +148,7 @@ String? uploadRejection({
     (mime == 'application/pdf', ['pdf'], 'pdf'),
     (mime.contains('word'), ['docx'], 'docx'),
     (mime.contains('presentation'), ['pptx'], 'pptx'),
+    (mime == _epubMime, ['epub'], 'epub'),
     (mime.startsWith('image/'), imageExts, 'image'),
     (
       mime.startsWith('audio/'),
@@ -171,6 +177,7 @@ String? uploadRejection({
     (['pdf'], 'pdf'),
     (['docx'], 'docx'),
     (['pptx'], 'pptx'),
+    (['epub'], 'epub'),
     (imageExts, 'image'),
     (textExts, 'plain'),
     (audioExts, 'audio'),
