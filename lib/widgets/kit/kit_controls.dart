@@ -2124,12 +2124,22 @@ class KitSwatch extends StatelessWidget {
   /// re-picked before the request it is waiting on answers.
   final VoidCallback? onTap;
 
+  /// A swatch that SAYS a colour rather than offering one
+  /// (`.ss-swatch-current`, `screens/library.md` §Shelf color, ruled
+  /// 2026-10-08): a shelf's stored colour that is not one of the ten. Not a
+  /// control — no button role, no pointer, never dimmed as a held control is,
+  /// and [tooltip] names it on hover.
+  final bool readOnly;
+  final String? tooltip;
+
   const KitSwatch({
     super.key,
     required this.color,
     required this.label,
     this.selected = false,
     this.onTap,
+    this.readOnly = false,
+    this.tooltip,
   });
 
   static const double _size = 24;
@@ -2137,18 +2147,19 @@ class KitSwatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return Semantics(
+    final swatch = Semantics(
       label: label,
       selected: selected,
-      button: true,
+      button: !readOnly,
+      image: readOnly,
       child: MouseRegion(
         cursor: onTap == null
             ? SystemMouseCursors.basic
             : SystemMouseCursors.click,
         child: GestureDetector(
-          onTap: onTap,
+          onTap: readOnly ? null : onTap,
           child: Opacity(
-            opacity: onTap == null ? 0.5 : 1,
+            opacity: onTap == null && !readOnly ? 0.5 : 1,
             child: Container(
               width: _size + 4,
               height: _size + 4,
@@ -2175,6 +2186,8 @@ class KitSwatch extends StatelessWidget {
         ),
       ),
     );
+    final tip = tooltip;
+    return tip == null ? swatch : Tooltip(message: tip, child: swatch);
   }
 }
 

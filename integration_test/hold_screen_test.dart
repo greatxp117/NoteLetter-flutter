@@ -562,12 +562,14 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           reason: 'the §15 sheet did not open — this frame would be the tray');
       return;
     // library.md §Shelf color — the ten swatches live inside the shelf's
-    // settings disclosure, which no route reaches. The shelf the seed gives
-    // this state is `seed-tag-recipes`.
+    // settings disclosure, which no route reaches. The shelf the reference
+    // frames is Stories (`/shelves/seed-tag-stories`), the seed's auto-created
+    // shelf, whose legacy hex draws the eleventh, read-only swatch (ruled
+    // 2026-10-08); a shelf holding one of the ten draws ten.
     case 'color-picker':
       await tester.tap(find.widgetWithText(KitButton, 'Settings'));
       await settle();
-      expect(find.byType(KitSwatch), findsNWidgets(10),
+      expect(find.byType(KitSwatch), findsAtLeastNWidgets(10),
           reason: 'the picker did not open — this frame would be the shelf');
       return;
     // sources.md §Folder contents (4.59.0, ADR-096) — the import picker with

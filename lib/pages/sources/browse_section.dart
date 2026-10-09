@@ -829,7 +829,9 @@ class _NothingYet extends StatelessWidget {
 }
 
 /// A filter that matched nothing. Serif italic, centred — the reference's
-/// `.browse-none`, which is a note inside a list, not an empty state.
+/// `.browse-none`, which is a note inside a list, not an empty state. Its words
+/// are the reference's and `sources.md` §States quotes them: "type", where this
+/// client said "kind" until 2026-10-08 (web `b70f5ea`).
 class _NoneOfThatKind extends StatelessWidget {
   const _NoneOfThatKind();
 
@@ -838,7 +840,7 @@ class _NoneOfThatKind extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
       child: Center(
-        child: Text('No sources of that kind yet.',
+        child: Text('No sources of that type yet.',
             style: KitText.lede(context, fontSize: 15, height: 22)),
       ),
     );

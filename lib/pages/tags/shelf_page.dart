@@ -540,6 +540,7 @@ class _ShelfPageState extends State<ShelfPage> {
               ShelfSwatches(
                 selected: shelf.color,
                 enabled: !_savingColor,
+                showCurrent: true,
                 onPick: (token) => _pickColour(shelf, token),
               ),
               if (_colorError != null) ...[

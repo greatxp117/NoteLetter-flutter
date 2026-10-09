@@ -1563,3 +1563,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/upload_set_check.py
 - notes: 4.111.0: Api.generateAudio's doc comment drops duration_seconds (nothing read it; the Listen stat reads the document's stored field). 4.112.0: skipReasonCopy (was _skipReason) is web's SKIP_REASONS copy for copy — every row had been this client's paraphrase, and `assessment` fell to the generic line; skip_reason_copy_test reads schedule.js itself. 4.114.0: detectUrlType maps youtube.com /playlist with a non-empty `list` to youtube_playlist before the video row (the 3 shared url-detection cases were red); lib/shared/playlist.dart ports web playlist.js (playlistAdded from `enqueued`/`failed`/`notStarted`, never docIds.length, never `warnings`; pendingBadgeKind). FileUploader is this client's one link-add surface (Sources and onboarding's step 2): its in-flight row is web QuickAdd's tile, so it plates a link by its detected kind (a playlist as YT), reads "YouTube playlist — uploading" while pending and the count sentence when done; a single link keeps "Queued for processing". No frame: the seed holds no pending link, and the playlist expansion has never run live.
+
+## F-85 · The 2026-10-08 web tandems — the eleventh, read-only "current" swatch; Sources' filter note says "type"
+- status: in-progress
+- screen: shelf-color-picker
+- route: /shelves/seed-tag-stories
+- spec: spec/screens/library.md §Shelf color; spec/screens/sources.md §States
+- web: src/pages/ShelvesView.jsx; src/shared/shelfColor.js; src/styles/app-shelves.css; src/pages/SourcesBrowse.jsx; tests/contract/ui-rulings-2026-10-08.test.js
+- flutter: lib/widgets/kit/kit_controls.dart; lib/pages/tags/shelf_parts.dart; lib/pages/tags/shelf_page.dart; lib/pages/sources/browse_section.dart; integration_test/hold_screen_test.dart; test/kit/shelf_current_swatch_test.dart (new)
+- folds: TODO "RULED 2026-10-08: an eleventh, read-only 'current' swatch" (web b70f5ea, spec 4a38fe7); TODO "No sources of that kind yet." → "type" (web b70f5ea)
+- device_test: none
+- shots: shelf-color-picker
+- extra_gates: python3 ../NoteLetter-contracts/harness/token_contrast_check.py --target flutter
+- notes: KitSwatch gains readOnly + tooltip (no button role, no pointer, never dimmed as a held control is). ShelfSwatches(showCurrent:) draws a stored colour outside the ten after them, selected, in what every other surface paints (AppColors.shelfColor, else --fg-subtle) — only on the shelf's settings (shelf_page), never in the create form. The `color-picker` hold now frames Stories (seed-tag-stories, #059669) as the reference does, and asserts at least ten swatches. _NoneOfThatKind says the reference's "No sources of that type yet.", held to SourcesBrowse.jsx's own line by the test. Mutation-checked: no eleventh → 4 red; the eleventh dimmed like a held control → 2 red.
