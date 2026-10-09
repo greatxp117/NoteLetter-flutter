@@ -88,6 +88,10 @@ class _OrganizationSectionState extends State<OrganizationSection> {
               KitSettingRow(
                 icon: cloudProviders[p]!.icon,
                 title: cloudProviders[p]!.name,
+                // The link drops under the copy on a phone: "Choose organized
+                // folders in Sources" beside the icon is wider than a phone
+                // row (it overflowed by 7.5 at 390 in the 2026-10-09 frames).
+                wideControl: true,
                 description: i.orgWriteReady
                     ? null
                     : (!i.orgEnabled && i.orgScopeLevel == 'read'

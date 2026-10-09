@@ -1615,3 +1615,16 @@ a new obligation on a finished screen is a new item.
 - shots: letter-settings
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: Web below its studio breakpoint makes `.letter-studio` a flex column: `.letter-config` and `.letter-preview-pane` each `overflow: auto`, shrinking to share the height, with `.letter-config`'s 1px --rule between — so the letter is on the first screen. Flutter below 1024 had the letter after the whole form. Now a Column of two Expanded KitPages (each with its own ScrollController — two scroll views cannot share the primary one) parted by a 1px --rule. Web's split follows the panes' content heights (flex-shrink by basis); here it is even, which the web frame (form ~53%, letter ~47%) is within a few points of. No widget test mounts this page (it needs most of the app's notifiers); the gate is the phone frame against letter-settings.web.phone.
+
+## F-89 · Suggest shelves (4.116.0 tandem) — the Library sheet beside New shelf, and onboarding's shelves step
+- status: open
+- screen: onboarding
+- route: /settings
+- spec: spec/decisions/ADR-153-suggested-shelves-are-new-shelves.md; spec/api/tags.md; spec/screens/library.md §Suggesting shelves; spec/screens/onboarding.md
+- web: src/shared/SuggestShelves.jsx; src/pages/onboarding/OnboardingWizard.jsx; src/pages/onboarding/steps.jsx; tests/contract/suggest-shelves.test.js
+- flutter: lib/services/api.dart; lib/pages/onboarding/wizard.dart; lib/pages/onboarding/steps.dart
+- folds: 4.116.0 (ADR-153); TODO "RULED 2026-10-08: BUILD the surface" (Suggest shelves on every client)
+- device_test: none
+- shots: onboarding
+- extra_gates: python3 ../NoteLetter-contracts/harness/endpoint_reach_check.py
+- notes: Booked by the 2026-10-09 frame sitting: web's onboarding now reads "Step 1 of 6" and "Four steps and it's yours." with a "Choose your shelves" step; Flutter reads "Step 1 of 5" / "Three steps". The sheet: what you read about → `fn_suggest_tags {purposeText}` only (closed key) → the proposals, with the answer's `existing` titles said, never re-proposed → keep the ones you tick → `fn_approve_tags` with `{title, description, color}` and the ANSWERED colour token (always one of the ten since 4.116.0). Fewer than eight or none is a normal 200; a model failure is 502 PROVIDER_API_ERROR through §14. Flutter's approveTags/suggestTags builders exist and have no caller. Not built in this lane (coordinator: owed, after the frames).

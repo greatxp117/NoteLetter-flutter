@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -36,6 +37,30 @@ Finder _inCard(Finder f) =>
     find.descendant(of: find.byType(KitConnectCard), matching: f);
 
 Finder _link(String label) => find.widgetWithText(KitSettingLink, label);
+
+/// The bundled faces, so a width is a real width: the test font draws every
+/// glyph as a full em box and measures a 35-character link at ~470 where a
+/// phone draws it at ~245 (the same loader as kit_golden_test.dart).
+Future<void> _loadRealFonts() async {
+  const faces = {
+    'Geist': ['Geist-Regular.ttf', 'Geist-Medium.ttf', 'Geist-SemiBold.ttf'],
+    'Geist Mono': ['GeistMono-Regular.ttf', 'GeistMono-Medium.ttf'],
+    'Source Serif 4': [
+      'SourceSerif4-Variable.ttf',
+      'SourceSerif4-Italic-Variable.ttf',
+    ],
+  };
+  for (final e in faces.entries) {
+    final loader = FontLoader(e.key);
+    for (final f in e.value) {
+      loader.addFont(rootBundle.load('assets/fonts/$f'));
+    }
+    await loader.load();
+  }
+  final icons = FontLoader('MaterialIcons')
+    ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+  await icons.load();
+}
 
 /// The pill by its label — it draws the label in mono caps.
 Finder _pill(String label, {bool? positive}) => find.byWidgetPredicate((w) =>
@@ -154,6 +179,8 @@ void main() {
   });
 
   group('Settings → Organization', () {
+    setUpAll(_loadRealFonts);
+
     Future<void> mount(WidgetTester tester, CloudNotifier cloud) async {
       await tester.pumpWidget(MultiProvider(
         providers: [
@@ -162,8 +189,10 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          // Settings' own frame, so a row is as wide as it is on the page.
           home: const Scaffold(
-              body: SingleChildScrollView(child: OrganizationSection())),
+              body: KitPage(
+                  width: KitFrameWidth.reading, child: OrganizationSection())),
         ),
       ));
       await tester.pump();
@@ -196,6 +225,23 @@ void main() {
               orgScopeLevel: 'read')));
       expect(find.textContaining('Write access wasn’t granted'), findsOneWidget);
       expect(_link('Enable organizing'), findsOneWidget);
+    });
+
+    testWidgets('on a phone the longest link fits: no overflow at 390',
+        (tester) async {
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await mount(
+          tester,
+          _ConnectedCloud(const CloudIntegration(
+              provider: 'google_drive',
+              tokenValid: true,
+              orgEnabled: true,
+              orgWriteAccess: true)));
+      expect(tester.takeException(), isNull,
+          reason: 'a RenderFlex overflow is the row drawn past its edge');
+      expect(_link('Choose organized folders in Sources'), findsOneWidget);
     });
 
     testWidgets('write-ready: the row points at Sources', (tester) async {
