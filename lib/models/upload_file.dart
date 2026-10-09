@@ -13,6 +13,14 @@ class UploadFile {
   List<String>? docIds;
   String? errorMessage;
 
+  /// A link's detected type (INV-07) — `youtube_playlist` included, which is
+  /// no document's type. Null for a file.
+  final String? linkType;
+
+  /// What the answer said, when it said more than "queued": a playlist's
+  /// "Added N videos from this playlist." (4.114.0, ADR-151). Null otherwise.
+  String? note;
+
   UploadFile({
     required this.id,
     required this.name,
@@ -25,6 +33,8 @@ class UploadFile {
     this.docId,
     this.docIds,
     this.errorMessage,
+    this.linkType,
+    this.note,
   });
 
   String get sizeLabel {
@@ -42,6 +52,7 @@ class UploadFile {
     String? docId,
     List<String>? docIds,
     String? errorMessage,
+    String? note,
   }) {
     return UploadFile(
       id: id,
@@ -55,6 +66,8 @@ class UploadFile {
       docId: docId ?? this.docId,
       docIds: docIds ?? this.docIds,
       errorMessage: errorMessage ?? this.errorMessage,
+      linkType: linkType,
+      note: note ?? this.note,
     );
   }
 }

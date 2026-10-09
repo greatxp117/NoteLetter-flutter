@@ -225,7 +225,9 @@ class Api {
       _http.post('/fn_get_raw_document_url', data: {'docId': docId});
 
   /// TTS MP3 for the whole document (Reader → Listen panel). Response:
-  /// `{ audio_url, duration_seconds, cached }`. 413 = too long, 422 = no text.
+  /// `{ audio_url, cached }` — no duration (4.111.0): the Listen stat reads
+  /// the document's stored `duration_seconds` (ADR-143), never this answer.
+  /// 413 = too long, 422 = no text.
   Future<Map<String, dynamic>> generateAudio(String docId) =>
       _http.post('/fn_generate_audio', data: {'docId': docId});
 

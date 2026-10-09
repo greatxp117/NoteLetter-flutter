@@ -8,6 +8,7 @@ import '../state/upload_notifier.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
+import '../shared/playlist.dart';
 import '../shared/upload_types.dart';
 import 'kit/kit.dart';
 
@@ -345,9 +346,14 @@ class _InFlightRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final playlist = file.linkType == playlistType;
     final (label, failed) = switch (file.status) {
-      UploadStatus.completed => ('Queued for processing', false),
-      UploadStatus.uploading => ('Uploading', false),
+      // A playlist's `docIds` answer is said with its measured count
+      // (4.114.0, ADR-151 — api/ingest.md §A playlist link); a single link
+      // keeps the row's own line, because its document row is the statement.
+      UploadStatus.completed => (file.note ?? 'Queued for processing', false),
+      UploadStatus.uploading =>
+        (playlist ? '$playlistLabel — uploading' : 'Uploading', false),
       UploadStatus.error => (file.errorMessage ?? 'Upload failed', true),
       _ => ('Waiting', false),
     };
@@ -355,7 +361,12 @@ class _InFlightRow extends StatelessWidget {
     return Column(
       children: [
         KitSourceRow(
-          leading: const KitFileBadge('note'),
+          // A link draws the kind its detected type makes — a playlist as
+          // YouTube, not NOTE (web QuickAdd `pendingBadgeKind`). A file keeps
+          // NOTE: its kind is the server's to decide.
+          leading: KitFileBadge(file.linkType == null
+              ? 'note'
+              : pendingBadgeKind(file.linkType!)),
           title: file.name.isEmpty ? 'Untitled' : file.name,
           subtitle: file.sizeLabel.isEmpty
               ? label

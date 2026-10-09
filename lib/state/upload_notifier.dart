@@ -4,6 +4,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/analytics.dart';
+import '../shared/playlist.dart';
 
 class UploadNotifier extends ChangeNotifier {
   final List<UploadFile> _files = [];
@@ -128,6 +129,7 @@ class UploadNotifier extends ChangeNotifier {
       name: displayName,
       size: 0,
       mimeType: 'text/html',
+      linkType: type,
     );
     _files.add(file);
     notifyListeners();
@@ -198,12 +200,15 @@ class UploadNotifier extends ChangeNotifier {
       final result = await Api.instance.ingestUrl(url, type);
 
       // Response has either a single `docId` or a playlist `docIds` (INV-07).
+      // A playlist's answer is ONE success, said with the measured count
+      // (4.114.0, ADR-151); a single link keeps the row's own line.
       final docIds = (result['docIds'] as List?)?.cast<String>();
       _patch(file.id,
           status: UploadStatus.completed,
           progress: 1.0,
           docId: result['docId'] as String?,
-          docIds: docIds);
+          docIds: docIds,
+          note: playlistAdded(result));
       Analytics.track('capture_completed', {'surface': 'url'});
     } on UnauthorizedException {
       await AuthService.instance.signOut();
@@ -225,6 +230,7 @@ class UploadNotifier extends ChangeNotifier {
     String? docId,
     List<String>? docIds,
     String? errorMessage,
+    String? note,
   }) {
     final index = _files.indexWhere((f) => f.id == id);
     if (index == -1) return;
@@ -236,6 +242,7 @@ class UploadNotifier extends ChangeNotifier {
     if (docId != null) f.docId = docId;
     if (docIds != null) f.docIds = docIds;
     if (errorMessage != null) f.errorMessage = errorMessage;
+    if (note != null) f.note = note;
     notifyListeners();
   }
 
@@ -278,6 +285,14 @@ String? detectUrlType(String? input) {
   final uri = Uri.tryParse(url);
   if (uri == null || uri.host.isEmpty) return null;
   final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
+  // 4.114.0 (ADR-151): a playlist page is a playlist — checked BEFORE the
+  // video row. Only `/playlist` with a non-empty `list`: a `watch?v=…&list=…`
+  // link is the one video the reader opened, and stays `youtube`.
+  if (host == 'youtube.com' &&
+      uri.path == '/playlist' &&
+      (uri.queryParameters['list'] ?? '').isNotEmpty) {
+    return playlistType;
+  }
   if (host == 'youtube.com' || host == 'youtu.be') return 'youtube';
   if (host == 'instagram.com') return 'instagram';
   if (host == 'tiktok.com' || host == 'vm.tiktok.com') return 'tiktok';

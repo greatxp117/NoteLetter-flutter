@@ -119,13 +119,6 @@ class _SyllabusPlanEditorState extends State<SyllabusPlanEditor> {
     return (units: units, assessments: assessments, leftOut: leftOut);
   }
 
-  static String _skipReason(String? reason) => switch (reason) {
-        'non_teaching' => 'not a teaching week',
-        'exam_unit_unmatched' => 'its topics could not be matched',
-        'exam_no_units' => 'it named no topics',
-        'over_cap' => 'beyond the limit for one syllabus',
-        _ => 'left out of the plan',
-      };
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +258,7 @@ class _SyllabusPlanEditorState extends State<SyllabusPlanEditor> {
           for (final s in _skipped)
             Text(
                 '${s['label'] ?? ''}${s['on'] != null ? ' · ${s['on']}' : ''} — '
-                '${_skipReason(s['reason'] as String?)}',
+                '${skipReasonCopy(s['reason'] as String?)}',
                 style: fine),
         ],
         if (pending.leftOut.isNotEmpty) ...[
@@ -287,3 +280,25 @@ class _SyllabusPlanEditorState extends State<SyllabusPlanEditor> {
     );
   }
 }
+
+/// What the syllabus parse understood and deliberately did NOT use, in words
+/// (2.37.0, ADR-037) — web `skipReasonCopy` (`pages/study/schedule.js`), copy
+/// for copy. The `reason` vocabulary is OPEN: an unknown value still renders
+/// its label and date, with the generic "left out".
+///
+/// Until 4.112.0 every row here was this client's own paraphrase ("not a
+/// teaching week" where `screens/study.md` quotes "a week that teaches
+/// nothing"), and `assessment` (ADR-149) fell to the generic line.
+String skipReasonCopy(String? reason) => switch (reason) {
+      'non_teaching' => 'a week that teaches nothing',
+      'exam_unit_unmatched' =>
+        'this exam named a topic that isn’t in the plan',
+      'exam_no_units' => 'none of the topics this exam covers matched the plan',
+      'over_cap' => 'the plan was already full — add it by hand if you need it',
+      // 4.112.0 (ADR-149): a unit whose topic names a sitting is dropped from
+      // the units; the assessment itself is kept, which is where the reader
+      // finds it.
+      'assessment' => 'an exam or quiz, not a week of material — it is with '
+          'the assessments when the syllabus dates it',
+      _ => 'left out',
+    };

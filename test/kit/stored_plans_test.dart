@@ -62,7 +62,7 @@ void main() {
       final sent = await mount(tester);
       expect(find.text('2026-01-05'), findsOneWidget, reason: 'startsOn read in camelCase');
       expect(find.text('A paper I hand in'), findsOneWidget);
-      expect(find.textContaining('Thanksgiving · 2026-01-15 — not a teaching week'),
+      expect(find.textContaining('Thanksgiving · 2026-01-15 — a week that teaches nothing'),
           findsOneWidget);
       await tester.enterText(find.byType(TextField).at(1), '  ');
       await tester.pump();
