@@ -261,7 +261,8 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     final accountEmail = AuthService.instance.currentUser?.email ?? '';
 
     final sending = context.watch<NewsletterNotifier>().isSending;
-    final preview = LetterPreviewPane(
+    LetterPreviewPane pane({double inset = 0}) => LetterPreviewPane(
+      inset: inset,
       letter: _letter,
       loaded: _letterLoaded,
       error: _letterError,
@@ -279,22 +280,31 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
       controller: _formScroll,
       child: _form(context, settings, shelves, email, accountEmail),
     );
-    final letter = KitPage(
-      width: KitFrameWidth.reading,
-      controller: _previewScroll,
-      child: preview,
-    );
-
     // `.letter-studio`: the form beside the letter above 1024.
     if (MediaQuery.sizeOf(context).width > 1024) {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(width: 440, child: form),
-          Expanded(child: letter),
+          Expanded(
+            child: KitPage(
+              width: KitFrameWidth.reading,
+              controller: _previewScroll,
+              child: pane(),
+            ),
+          ),
         ],
       );
     }
+    // `.letter-preview-pane` has no gutter: the letter's own padding is its
+    // margin, and the rows around it sit at `0 6px`.
+    final letter = KitScrollView(
+      controller: _previewScroll,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.s8),
+        child: pane(inset: 6),
+      ),
+    );
     // Below it the studio is a COLUMN of two panes that each scroll on their
     // own — the form over the letter, both on the first screen, parted by
     // `.letter-config`'s rule (ruled 2026-10-08: "the letter-settings

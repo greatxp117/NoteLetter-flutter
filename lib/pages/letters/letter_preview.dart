@@ -49,6 +49,13 @@ class LetterPreviewPane extends StatefulWidget {
   /// The clipboard write — a seam for the tests.
   final Future<void> Function(Newsletter) copy;
 
+  /// The side inset of everything AROUND the letter — the failure line, "No
+  /// letter has been built yet." and `.letter-actions` (`padding: 0 6px`) —
+  /// for a pane that has no gutter of its own. On a phone the pane is web's
+  /// `.letter-preview-pane`: the letter's own `34px 20px` padding is its
+  /// margin, so a frame gutter around it doubled the inset to 40.
+  final double inset;
+
   const LetterPreviewPane({
     super.key,
     required this.letter,
@@ -59,6 +66,7 @@ class LetterPreviewPane extends StatefulWidget {
     this.sendMessage,
     this.sendError,
     this.copy = copyLetter,
+    this.inset = 0,
   });
 
   @override
@@ -111,20 +119,26 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
     // The cooldown is the calm caption, any other refusal §14.2 (letters.md,
     // 4.108.0, ADR-145 — calm everywhere).
     final sendSlot = kitRefusalSlot(wait, widget.sendError);
+    Widget around(Widget child) => widget.inset == 0
+        ? child
+        : Padding(
+            padding: EdgeInsets.symmetric(horizontal: widget.inset),
+            child: child,
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.error != null) ...[
-          KitFailureInline(
+          around(KitFailureInline(
             "Today's letter could not be read — ${widget.error}",
-          ),
+          )),
           const SizedBox(height: 10),
         ],
         if (n != null)
           LetterHost(n)
         else if (widget.loaded && widget.error == null)
           // `.letter-none`: a sentence, never a letter-shaped placeholder.
-          const Padding(
+          around(const Padding(
             padding: EdgeInsets.symmetric(vertical: AppSpacing.s6),
             child: Lede(
               'No letter has been built yet.',
@@ -132,10 +146,10 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
               height: 24,
               maxWidth: 640,
             ),
-          ),
+          )),
         const SizedBox(height: 14),
         // `.letter-actions`: the figures, then Copy and Send now.
-        Wrap(
+        around(Wrap(
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: AppSpacing.s3,
@@ -168,17 +182,17 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
               ],
             ),
           ],
-        ),
+        )),
         if (_copyError != null) ...[
           const SizedBox(height: AppSpacing.s2),
-          KitFailureInline(_copyError!),
+          around(KitFailureInline(_copyError!)),
         ],
         if (sendSlot != null) ...[
           const SizedBox(height: AppSpacing.s2),
-          sendSlot,
+          around(sendSlot),
         ] else if (widget.sendMessage != null) ...[
           const SizedBox(height: AppSpacing.s2),
-          KitRowNote(widget.sendMessage!),
+          around(KitRowNote(widget.sendMessage!)),
         ],
       ],
     );
