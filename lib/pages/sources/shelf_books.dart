@@ -8,7 +8,7 @@ import '../../widgets/kit/kit.dart';
 /// Library's ledges). Its shelf is the FIRST of [shelves], in shelf order,
 /// that the document is on — the reference's `shelves.find(...)`, so the band
 /// and the label agree with the row's subtitle.
-KitBook bookOf(Document d, List<Tag> shelves) {
+KitBook bookOf(Document d, List<Tag> shelves, {required bool dark}) {
   Tag? shelf;
   for (final s in shelves) {
     if (d.tagIds.contains(s.id)) {
@@ -25,7 +25,7 @@ KitBook bookOf(Document d, List<Tag> shelves) {
     createdAt: d.createdAt,
     viewCount: d.viewCount,
     shelf: shelf?.title,
-    shelfColor: AppColors.shelfColor(shelf?.color),
+    shelfColor: AppColors.shelfColor(shelf?.color, dark: dark),
     sourceUrl: d.sourceUrl,
   );
 }

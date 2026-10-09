@@ -54,11 +54,15 @@ class ShelfSwatches extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final current = selected;
+    final dark = Tokens.of(context).isDark;
     return Wrap(
       spacing: 4,
       runSpacing: 4,
       children: [
-        for (final entry in AppColors.shelfColors.entries)
+        // A swatch paints what the name paints in this theme (ADR-154): the
+        // keys are the stored names, the colour is the theme's.
+        for (final entry
+            in (dark ? AppColors.shelfColorsDark : AppColors.shelfColors).entries)
           KitSwatch(
             color: entry.value,
             label: AppColors.shelfColorLabels[entry.key] ?? entry.key,
@@ -67,7 +71,8 @@ class ShelfSwatches extends StatelessWidget {
           ),
         if (showCurrent && !AppColors.shelfColors.containsKey(current))
           KitSwatch(
-            color: AppColors.shelfColor(current) ?? Tokens.of(context).fgSubtle,
+            color: AppColors.shelfColor(current, dark: dark) ??
+                Tokens.of(context).fgSubtle,
             label: 'Current colour, not one of the ten',
             tooltip: 'Current colour',
             selected: true,

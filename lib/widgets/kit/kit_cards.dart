@@ -587,7 +587,7 @@ class KitShelfCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final spineColor = AppColors.shelfColor(colorToken) ?? t.fgSubtle;
+    final spineColor = AppColors.shelfColor(colorToken, dark: t.isDark) ?? t.fgSubtle;
     final n = volumes.clamp(1, 9);
 
     return KitCard(

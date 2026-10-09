@@ -109,7 +109,7 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
   }
 
   Widget _chip(BuildContext context, Tokens t, KitShelfChip c) {
-    final colour = AppColors.shelfColor(c.shelf.color); // pair-ok: a shelf's stored colour is a fixed data token
+    final colour = AppColors.shelfColor(c.shelf.color, dark: t.isDark); // pair-ok: a shelf's stored colour is a fixed data token
     final direct = !c.inherited;
     return Container(
       height: 20,
@@ -428,7 +428,7 @@ class _KitShelfSelectState extends State<KitShelfSelect>
                       if (chosen != null)
                         _Dot(
                             size: 8,
-                            color: AppColors.shelfColor(chosen.color) ?? t.fgSubtle, // pair-ok: a shelf's stored colour is a fixed data token
+                            color: AppColors.shelfColor(chosen.color, dark: t.isDark) ?? t.fgSubtle, // pair-ok: a shelf's stored colour is a fixed data token
                             hairline: t.border)
                       else
                         _NoneDot(ring: t.borderStrong),
@@ -775,7 +775,7 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
       children: [
         _Dot(
             size: 8,
-            color: AppColors.shelfColor(r.shelf.color) ?? t.fgSubtle, // pair-ok: a shelf's stored colour is a fixed data token
+            color: AppColors.shelfColor(r.shelf.color, dark: t.isDark) ?? t.fgSubtle, // pair-ok: a shelf's stored colour is a fixed data token
             hairline: t.border),
         const SizedBox(width: 9),
         Expanded(

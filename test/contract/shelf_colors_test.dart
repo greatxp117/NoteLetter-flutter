@@ -9,6 +9,9 @@
 /// renderer never listed, with no error anywhere.
 library;
 
+import 'dart:io';
+import 'dart:ui' show Color;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_app/theme/app_colors.dart';
 
@@ -41,22 +44,51 @@ void main() {
 
   test('every offered token resolves to a colour', () {
     for (final name in specOrder.keys) {
-      expect(AppColors.shelfColor(name), isNotNull, reason: name);
+      expect(AppColors.shelfColor(name, dark: false), isNotNull, reason: name);
+      expect(AppColors.shelfColor(name, dark: true), isNotNull, reason: name);
+    }
+  });
+
+  // 4.117.0 (ADR-154): a name paints per theme. The dark ten are read from the
+  // spec's table (`design-tokens.md`, the `--shelf-{name}` rows), not from a
+  // copy here, so a value the spec moves turns this red.
+  test('in dark, each name paints the spec\'s dark value', () {
+    final md = File('../NoteLetter-contracts/spec/design-tokens.md');
+    expect(md.existsSync(), isTrue, reason: 'design-tokens.md moved');
+    final rows = <String, Color>{};
+    for (final m in RegExp(r'^\| `--shelf-([a-z]+-\d+)` \|[^|]*\|([^|]*)\|',
+            multiLine: true)
+        .allMatches(md.readAsStringSync())) {
+      final hex = RegExp(r'#([0-9A-Fa-f]{6})').allMatches(m.group(2)!).last;
+      rows[m.group(1)!] = Color(int.parse('FF${hex.group(1)}', radix: 16));
+    }
+    expect(rows.keys.toList(), specOrder.keys.toList(),
+        reason: 'the table names the ten, in order');
+    expect(AppColors.shelfColorsDark.keys.toList(), specOrder.keys.toList());
+    for (final name in specOrder.keys) {
+      expect(AppColors.shelfColor(name, dark: true), rows[name], reason: name);
+      expect(AppColors.shelfColor(name, dark: false), AppColors.shelfColors[name],
+          reason: '$name: light is unchanged');
     }
   });
 
   test('a legacy hex renders as-is — never fail on a stored colour', () {
     // Every auto-created tag holds `#6B7280` and there is no backfill, so this
     // is not a legacy path, it is most of production.
-    expect(AppColors.shelfColor('#6B7280'), isNotNull);
-    expect(AppColors.shelfColor('6B7280'), isNotNull);
+    expect(AppColors.shelfColor('#6B7280', dark: false), isNotNull);
+    expect(AppColors.shelfColor('6B7280', dark: false), isNotNull);
+    expect(AppColors.shelfColor('#6B7280', dark: true),
+        AppColors.shelfColor('#6B7280', dark: false),
+        reason: 'a hex paints the same in both themes');
   });
 
   test('an unrecognised value falls back, rather than throwing', () {
     // Null is the caller's cue to use its own muted colour (§6.2) — what must
     // not happen is an exception on a value the backend is free to store.
-    expect(AppColors.shelfColor('var(--sage-500)'), isNull);
-    expect(AppColors.shelfColor('chartreuse'), isNull);
-    expect(AppColors.shelfColor(null), isNull);
+    for (final dark in [false, true]) {
+      expect(AppColors.shelfColor('var(--sage-500)', dark: dark), isNull);
+      expect(AppColors.shelfColor('chartreuse', dark: dark), isNull);
+      expect(AppColors.shelfColor(null, dark: dark), isNull);
+    }
   });
 }

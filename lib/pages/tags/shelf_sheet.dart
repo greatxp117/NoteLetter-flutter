@@ -305,7 +305,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
   late final _name = TextEditingController(
       text: widget.initialName.trim().characters.take(shelfTitleMax).toString());
   final _desc = TextEditingController();
-  String _color = AppColors.shelfColors.keys.first;
+  String _color = AppColors.shelfColorLabels.keys.first; // the first NAME of the ten
   bool _backfill = true;
   bool _busy = false;
   String? _error;

@@ -280,7 +280,7 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
                     width: 9,
                     height: 9,
                     decoration: BoxDecoration(
-                      color: AppColors.shelfColor(part.color) ??
+                      color: AppColors.shelfColor(part.color, dark: Tokens.of(context).isDark) ??
                           Tokens.of(context).fgSubtle,
                       shape: BoxShape.circle,
                       border: Border.all(

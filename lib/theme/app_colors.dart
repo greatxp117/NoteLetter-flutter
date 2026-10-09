@@ -258,6 +258,24 @@ class AppColors {
     'ink-500': _ink500,
   };
 
+  // 4.117.0 (ADR-154): the same ten names, resolved for the dark theme —
+  // web's `--shelf-{name}` in its dark blocks. The stored value never changes;
+  // what a name PAINTS does. Each is ≥3.76:1 on the dark surface and ≥3.10 on
+  // the raised one (the light ten are ≥3.15 on white). `token_contrast_check`
+  // SHELF reads this map beside [shelfColors].
+  static const shelfColorsDark = <String, Color>{
+    'sage-500': _sage300,
+    'sage-700': Color(0xFF779158),
+    'brick-400': _brick300,
+    'brick-500': Color(0xFFCF7871),
+    'brick-700': Color(0xFFCB584E),
+    'plum-500': Color(0xFFC9A6C6),
+    'plum-600': Color(0xFFA279A4),
+    'ink-300': Color(0xFFB5BAC6),
+    'ink-400': Color(0xFF939BAD),
+    'ink-500': Color(0xFF737C98),
+  };
+
   /// The reader-facing NAME of each of the ten (`screens/library.md` §Shelf
   /// color). The token name is the wire value and the label is what a person
   /// is offered — a swatch announced as `plum-600` names a variable, not a
@@ -280,10 +298,14 @@ class AppColors {
 
   /// Resolve a `/tags.color` value. Returns null for anything unrecognised so
   /// the caller can fall back to its own muted colour — never an error.
-  static Color? shelfColor(String? value) {
+  ///
+  /// [dark] is required, not defaulted: a site that forgot it would paint the
+  /// light ten on a dark surface and nothing would say so (ADR-154). A legacy
+  /// hex paints the same in both themes.
+  static Color? shelfColor(String? value, {required bool dark}) {
     if (value == null) return null;
     final v = value.trim();
-    final token = shelfColors[v];
+    final token = (dark ? shelfColorsDark : shelfColors)[v];
     if (token != null) return token;
     // Legacy hex, permanently valid.
     var h = v.replaceFirst('#', '');

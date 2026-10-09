@@ -291,7 +291,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
         if (recentView == 'shelf')
           // The shelf F-65 built, bare: this section's header is its head.
           KitShelfView(
-            items: [for (final d in recent) bookOf(d, shelves)],
+            items: [for (final d in recent) bookOf(d, shelves, dark: Tokens.of(context).isDark)],
             sort: 'recent',
             grouped: false,
             bare: true,
@@ -350,11 +350,11 @@ class _LibraryHomeState extends State<_LibraryHome> {
                         label: s.title,
                         books: [
                           for (final d in complete)
-                            if (d.tagIds.contains(s.id)) bookOf(d, shelves),
+                            if (d.tagIds.contains(s.id)) bookOf(d, shelves, dark: Tokens.of(context).isDark),
                         ],
                         openId: _shelfOpenId,
                         onOpen: (id) => setState(() => _shelfOpenId = id),
-                        dot: AppColors.shelfColor(s.color) ?? // pair-ok: a shelf's stored colour is a fixed data token
+                        dot: AppColors.shelfColor(s.color, dark: Tokens.of(context).isDark) ?? // pair-ok: a shelf's stored colour is a fixed data token
                             Tokens.of(context).fgSubtle,
                       ),
                     ),

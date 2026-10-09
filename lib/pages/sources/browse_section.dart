@@ -219,7 +219,7 @@ class _BrowseSectionState extends State<BrowseSection> {
             // by kind under the shelf's own labels), as the reference's does.
             else if (view == 'shelf')
               KitShelfView(
-                items: [for (final d in filtered) bookOf(d, tags.tags)],
+                items: [for (final d in filtered) bookOf(d, tags.tags, dark: Tokens.of(context).isDark)],
                 sort: _sort,
               )
             else if (_sort == 'type')
@@ -242,7 +242,7 @@ class _BrowseSectionState extends State<BrowseSection> {
       return KitSourceCardGrid(cards: [
         for (final d in list)
           KitSourceCard(
-            book: bookOf(d, shelves),
+            book: bookOf(d, shelves, dark: Tokens.of(context).isDark),
             kindLabel: _kindName[kitDocKind(d.type)] ?? kitDocKind(d.type),
             date: _rowDate(d.createdAt),
           ),

@@ -73,7 +73,7 @@ void main() {
       expect(current.label, 'Current colour, not one of the ten');
       expect(current.tooltip, 'Current colour');
       final last = find.byType(KitSwatch).at(10);
-      expect(_fill(tester, last), AppColors.shelfColor(_legacyHex),
+      expect(_fill(tester, last), AppColors.shelfColor(_legacyHex, dark: false),
           reason: 'exactly what every other surface paints');
       expect(_opacity(tester, last), 1.0, reason: 'read-only is not held');
     });
@@ -109,6 +109,23 @@ void main() {
       expect(_fill(tester, find.byType(KitSwatch).at(10)),
           Tokens.of(ctx).fgSubtle);
     });
+
+    // One test per theme: a second mount in the same test animates between
+    // the two themes, and a single pump reads the old one.
+    for (final (name, theme, map) in [
+      ('light', AppTheme.light, AppColors.shelfColors),
+      ('dark', AppTheme.dark, AppColors.shelfColorsDark),
+    ]) {
+      testWidgets('in $name the ten paint the $name ten (ADR-154)',
+          (tester) async {
+        await _mount(tester, 'plum-600', theme: theme);
+        final keys = map.keys.toList();
+        for (var i = 0; i < 10; i++) {
+          expect(_fill(tester, find.byType(KitSwatch).at(i)), map[keys[i]],
+              reason: '$name ${keys[i]}');
+        }
+      });
+    }
 
     testWidgets('the create form has none: a new shelf has no current colour',
         (tester) async {

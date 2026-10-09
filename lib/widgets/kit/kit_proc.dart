@@ -313,7 +313,7 @@ class KitReviewRow extends StatelessWidget {
               width: 12,
               height: 12,
               decoration: BoxDecoration(
-                color: AppColors.shelfColor(shelfColor) ?? t.fgSubtle, // pair-ok: a shelf's stored colour is a fixed data token
+                color: AppColors.shelfColor(shelfColor, dark: t.isDark) ?? t.fgSubtle, // pair-ok: a shelf's stored colour is a fixed data token
                 shape: BoxShape.circle,
                 border: Border.all(color: t.borderStrong),
               ),

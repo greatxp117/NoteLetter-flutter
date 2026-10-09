@@ -309,7 +309,7 @@ class KitSourceToggle extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: AppColors.shelfColor(colorToken) ?? t.fgSubtle,
+              color: AppColors.shelfColor(colorToken, dark: t.isDark) ?? t.fgSubtle,
               shape: BoxShape.circle,
               border: Border.all(color: t.border, width: 0.5),
             ),

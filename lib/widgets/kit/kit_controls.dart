@@ -401,7 +401,7 @@ class KitTag extends StatelessWidget {
         borderColor = t.borderStrong;
     }
 
-    final dot = AppColors.shelfColor(colorToken);
+    final dot = AppColors.shelfColor(colorToken, dark: t.isDark);
 
     final pill = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -2211,7 +2211,7 @@ class KitShelfPlate extends StatelessWidget {
       width: 30,
       height: 36,
       decoration: BoxDecoration(
-        color: AppColors.shelfColor(colorToken) ?? t.fgSubtle,
+        color: AppColors.shelfColor(colorToken, dark: t.isDark) ?? t.fgSubtle,
         borderRadius: AppRadius.xsR,
         border: Border.all(color: t.border),
         boxShadow: AppShadows.s1,
