@@ -25,3 +25,7 @@ never have seen it.
 
 Then **look at all four**, composition first (`/design-fidelity`). The gate proves the pair
 exists and is current; only a person looking proves it matches.
+
+**Commit a pair when every difference is noted** (Xavier, 2026-10-09): a recorded composition
+deviation (`CLAUDE.md`) or an open `QUEUE.md` item that lists the shot. Name each pair MATCH or
+the item that books its gap in the commit message; a gap booked nowhere holds the pair back.
