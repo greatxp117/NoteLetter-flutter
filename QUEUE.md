@@ -1602,3 +1602,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/upload_set_check.py; python3 ../NoteLetter-contracts/harness/doc_kind_check.py
 - notes: upload_types: the epub class (application/epub+zip, .epub, the extension fallback) and the drop zone's help names EPUB. kit_controls: epub is a live kind and kShapeByType epub → file (it was a pending kind with no shape). search_page: `_searchFolds` {'pdf': ['epub']} feeds searchSourceTypes for both the passages and the cohesive request — until 4.115.0 doc_kind_check held this fold itself while the request sent pdf alone. Held in the working tree from 04:48Z at backend-2's request (both gates read the trees live) and committed after its 09:24Z VERSION signal. No frame: the seed holds no book.
+
+## F-88 · Letter settings on a phone — the form over the letter, two panes that scroll on their own (ruled 2026-10-08)
+- status: in-progress
+- screen: letter-settings
+- route: /letters/settings
+- spec: spec/screens/letters.md §The letter-settings preview
+- web: src/pages/LetterSettings.jsx; src/styles/app-responsive.css
+- flutter: lib/pages/letter_settings_page.dart
+- folds: TODO "RULED 2026-10-08 … the letter-settings preview sits where web puts it on a phone (Flutter moves)"; F-80 (5)
+- device_test: none
+- shots: letter-settings
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: Web below its studio breakpoint makes `.letter-studio` a flex column: `.letter-config` and `.letter-preview-pane` each `overflow: auto`, shrinking to share the height, with `.letter-config`'s 1px --rule between — so the letter is on the first screen. Flutter below 1024 had the letter after the whole form. Now a Column of two Expanded KitPages (each with its own ScrollController — two scroll views cannot share the primary one) parted by a 1px --rule. Web's split follows the panes' content heights (flex-shrink by basis); here it is even, which the web frame (form ~53%, letter ~47%) is within a few points of. No widget test mounts this page (it needs most of the app's notifiers); the gate is the phone frame against letter-settings.web.phone.

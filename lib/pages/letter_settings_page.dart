@@ -15,6 +15,7 @@ import '../state/scripture_letter_notifier.dart';
 import '../state/settings_notifier.dart';
 import '../state/tags_notifier.dart';
 import '../theme/app_spacing.dart';
+import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 import 'letters/letter_preview.dart';
 import 'letters/readings_letter.dart';
@@ -60,6 +61,11 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
   int _itemsPerLetter = 3;
   int _excludeRecentDays = 7;
   bool _populated = false;
+
+  /// The two panes scroll on their own (below 1024, web `.letter-studio` as a
+  /// column) — two scroll views cannot share the primary controller.
+  final _formScroll = ScrollController();
+  final _previewScroll = ScrollController();
 
   /// Draw from — held as shelf TITLES, which is what `topicFilters` stores
   /// (web LetterSettings). A title no current shelf carries is dropped on the
@@ -174,6 +180,8 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     _purposeCtrl.dispose();
     _rlTimeCtrl.dispose();
     _rlEmailCtrl.dispose();
+    _formScroll.dispose();
+    _previewScroll.dispose();
     super.dispose();
   }
 
@@ -266,36 +274,40 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
       sendError: _sendError,
     );
 
-    // `.letter-studio`: the form beside the letter above 1024, the letter
-    // under the form below it (letters.md §The letter-settings preview).
+    final form = KitPage(
+      width: KitFrameWidth.reading,
+      controller: _formScroll,
+      child: _form(context, settings, shelves, email, accountEmail),
+    );
+    final letter = KitPage(
+      width: KitFrameWidth.reading,
+      controller: _previewScroll,
+      child: preview,
+    );
+
+    // `.letter-studio`: the form beside the letter above 1024.
     if (MediaQuery.sizeOf(context).width > 1024) {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 440,
-            child: KitPage(
-              width: KitFrameWidth.reading,
-              child: _form(context, settings, shelves, email, accountEmail),
-            ),
-          ),
-          Expanded(
-            child: KitPage(width: KitFrameWidth.reading, child: preview),
-          ),
+          SizedBox(width: 440, child: form),
+          Expanded(child: letter),
         ],
       );
     }
-    return KitPage(
-      width: KitFrameWidth.reading,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _form(context, settings, shelves, email, accountEmail),
-          const SizedBox(height: AppSpacing.s6),
-          preview,
-          const SizedBox(height: AppSpacing.s8),
-        ],
-      ),
+    // Below it the studio is a COLUMN of two panes that each scroll on their
+    // own — the form over the letter, both on the first screen, parted by
+    // `.letter-config`'s rule (ruled 2026-10-08: "the letter-settings
+    // preview sits where web puts it on a phone"). Until then the letter
+    // followed the whole form, so a reader tuning the letter on a phone had
+    // to scroll past every setting to see the letter they were tuning.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: form),
+        Container(height: 1, color: Tokens.of(context).rule),
+        Expanded(child: letter),
+      ],
     );
   }
 
