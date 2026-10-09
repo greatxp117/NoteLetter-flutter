@@ -1019,11 +1019,15 @@ void main() {
       await pumpSources(tester, SourcesStubService(),
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true, folderIds: ['f1'])));
-      await tester.ensureVisible(_button('Sync now'));
-      await tester.tap(_button('Sync now'));
+      // A link in the provider's "Import from" header since the connect card
+      // became fixed (ruled 2026-10-08), not a button inside the card.
+      final link = find.widgetWithText(KitSettingLink, 'Sync now');
+      await tester.ensureVisible(link);
+      await tester.tap(link);
       await tester.pumpAndSettle();
 
-      expect(_button('Sync now · 4:40'), findsOneWidget);
+      expect(find.widgetWithText(KitSettingLink, 'Sync now · 4:40'),
+          findsOneWidget);
       expect(find.text(sentence), findsOneWidget);
       expect(
           find.ancestor(

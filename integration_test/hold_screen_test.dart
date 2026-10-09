@@ -805,17 +805,16 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       await settle();
       return;
     // sources.md §Sync control — the sync-folder chooser (F-67), which no
-    // route reaches: the Drive sync panel opened, then its folder picker.
-    // Needs the shim under NL_DEV_FAKES=1 for the Drive tree. The web
-    // reference has no frame of this state, so it is shot for LOOKING and
-    // never checked in (screenshot_pair_check would find no web frame).
+    // route reaches: the Drive sync panel opened from its "Import from" header
+    // (the connect card is fixed since 2026-10-08), then its folder picker.
+    // Needs the shim under NL_DEV_FAKES=1 for the Drive tree.
     case 'sync-folders':
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 200));
-        if (find.textContaining(RegExp(r'^sync ·', caseSensitive: false)).evaluate().isNotEmpty) break;
+        if (find.text('Sync settings').evaluate().isNotEmpty) break;
       }
-      await tester.ensureVisible(find.textContaining(RegExp(r'^sync ·', caseSensitive: false)).first);
-      await tester.tap(find.textContaining(RegExp(r'^sync ·', caseSensitive: false)).first);
+      await tester.ensureVisible(find.text('Sync settings').first);
+      await tester.tap(find.text('Sync settings').first);
       await settle();
       final choose = find.textContaining(RegExp(r'^(Choose|Change) folders…$'));
       await tester.ensureVisible(choose.first);

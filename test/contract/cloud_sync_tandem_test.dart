@@ -166,8 +166,11 @@ void main() {
       final cloud = _ConnectedCloud(const CloudIntegration(
           provider: 'google_drive', tokenValid: true, folderIds: ['f1']));
       await pumpSources(tester, SourcesStubService(), cloud: cloud);
-      await tester.ensureVisible(find.text('Disconnect'));
-      await tester.tap(find.text('Disconnect'));
+      // The connected card IS the disconnect (web `ConnectCard`): the card is
+      // fixed since 2026-10-08, with no Disconnect button inside it.
+      final card = find.widgetWithText(KitConnectCard, 'Google Drive');
+      await tester.ensureVisible(card);
+      await tester.tap(card);
       await tester.pumpAndSettle();
       expect(find.textContaining('asks Google Drive to revoke'), findsOneWidget);
       expect(find.textContaining('files already downloaded finish'),

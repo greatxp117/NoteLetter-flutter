@@ -56,6 +56,16 @@ class CloudIntegration {
   final String status;
   final String? statusReason;
 
+  /// The 1.2.0 `organization` block (`api/cloud-storage.md`, ADR-005):
+  /// organizing runs only on a write-ready grant — `enabled` AND
+  /// `write_access`. `scope_level: "read"` with `enabled: false` is a write
+  /// grant the provider did not give (4.89.0, ADR-123 §3), which Settings
+  /// says in its own words.
+  final bool orgEnabled;
+  final bool orgWriteAccess;
+  final String? orgScopeLevel;
+  bool get orgWriteReady => orgEnabled && orgWriteAccess;
+
   const CloudIntegration({
     required this.provider,
     required this.tokenValid,
@@ -72,11 +82,16 @@ class CloudIntegration {
     this.lastManualSyncAt,
     this.status = 'connected',
     this.statusReason,
+    this.orgEnabled = false,
+    this.orgWriteAccess = false,
+    this.orgScopeLevel,
   });
 
   factory CloudIntegration.fromJson(Map<String, dynamic> json) {
     final syncConfig = (json['sync_config'] as Map?)?.cast<String, dynamic>() ??
         const {};
+    final org =
+        (json['organization'] as Map?)?.cast<String, dynamic>() ?? const {};
     return CloudIntegration(
       provider: json['provider'] as String? ?? '',
       tokenValid: json['token_valid'] as bool? ?? false,
@@ -103,6 +118,9 @@ class CloudIntegration {
       // Missing status = connected (pre-1.3.0 docs).
       status: json['status'] as String? ?? 'connected',
       statusReason: json['status_reason'] as String?,
+      orgEnabled: org['enabled'] == true,
+      orgWriteAccess: org['write_access'] == true,
+      orgScopeLevel: org['scope_level'] as String?,
     );
   }
 

@@ -22,8 +22,20 @@ import 'sync_folder_picker.dart';
 class SyncSettingsPanel extends StatefulWidget {
   final String providerId;
   final CloudIntegration integration;
-  const SyncSettingsPanel(
-      {super.key, required this.providerId, required this.integration});
+
+  /// Opened by its provider's "Sync settings" link under the §3 "Import from
+  /// {provider}" header (web `CloudImportPanel`, ruled 2026-10-08 with the
+  /// fixed connect card): the link is the disclosure, so the panel opens
+  /// expanded and its own heading is the reference's first group label —
+  /// AUTO-SYNC beside the last sync — not a second, tappable one.
+  final bool embedded;
+
+  const SyncSettingsPanel({
+    super.key,
+    required this.providerId,
+    required this.integration,
+    this.embedded = false,
+  });
 
   @override
   State<SyncSettingsPanel> createState() => _SyncSettingsPanelState();
@@ -59,7 +71,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   final _patternsController = TextEditingController();
   final _patternsFocus = FocusNode();
   bool _saving = false;
-  bool _open = false;
+  late bool _open = widget.embedded;
 
   /// §14.2 — the last refusal, inline in the panel (spec: "400s show the
   /// validation message inline"). A toast is gone before the reader has found
@@ -192,6 +204,20 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.embedded)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                const Expanded(child: Eyebrow('Auto-sync')),
+                Flexible(
+                  child: Text(i.lastSyncLabel,
+                      textAlign: TextAlign.right,
+                      style: KitText.meta(context)),
+                ),
+              ],
+            )
+          else
           GestureDetector(
             onTap: () => setState(() => _open = !_open),
             child: MouseRegion(

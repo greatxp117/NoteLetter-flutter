@@ -73,6 +73,13 @@ class _KitCardState extends State<KitCard> {
 ///
 /// The whole card is the affordance — a connect card with a trailing button is
 /// a row wearing a card's border.
+///
+/// **Fixed means fixed** (ruled 2026-10-08, "one connect-card pattern"): this
+/// client's card used to carry the provider's sync actions, a reconnect notice
+/// and a footnote for the sync-now sentence under its pill, while the
+/// reference kept the card to its four parts and hung those under a §3 header
+/// per provider ("Import from {provider}", web `CloudImportPanel`). The slots
+/// are gone, so a call site cannot put a fifth part back.
 class KitConnectCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -83,22 +90,11 @@ class KitConnectCard extends StatelessWidget {
   /// Rendered as the card's [KitStatusPill].
   final String status;
   final bool connected;
+
+  /// The card's one action: connect when it is not connected, the §18
+  /// disconnect confirm when it is (web `ConnectCard`). Null holds it while
+  /// its own request is in flight.
   final VoidCallback? onTap;
-
-  /// Actions that only exist once a provider is connected (browse, sync,
-  /// disconnect). They sit under the pill, inside the card.
-  final List<Widget> actions;
-
-  /// A warning rendered between the subtitle and the pill — the
-  /// `reconnect_required` banner (`screens/sources.md` §Trust & feedback).
-  final Widget? notice;
-
-  /// A line under the actions that says why one of them is unavailable, or
-  /// what the last one answered — the sync-now 400/429 sentence
-  /// (`screens/sources.md` §Sync control: "Disabled with the 400
-  /// explanation"). Visible text, never a tooltip: a tooltip reaches neither a
-  /// finger nor a screen reader.
-  final Widget? footnote;
 
   const KitConnectCard({
     super.key,
@@ -108,9 +104,6 @@ class KitConnectCard extends StatelessWidget {
     required this.status,
     this.connected = false,
     this.onTap,
-    this.actions = const [],
-    this.notice,
-    this.footnote,
   });
 
   @override
@@ -164,24 +157,8 @@ class KitConnectCard extends StatelessWidget {
               color: t.fgMuted,
             ),
           ),
-          if (notice != null) ...[
-            const SizedBox(height: 10),
-            notice!,
-          ],
           const SizedBox(height: 10),
           KitStatusPill(status, positive: connected),
-          if (actions.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: AppSpacing.s2,
-              runSpacing: AppSpacing.s2,
-              children: actions,
-            ),
-          ],
-          if (footnote != null) ...[
-            const SizedBox(height: 8),
-            footnote!,
-          ],
         ],
       ),
     );

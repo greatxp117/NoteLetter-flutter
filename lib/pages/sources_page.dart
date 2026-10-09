@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/import_job.dart';
+import '../shared/cloud_providers.dart';
 import '../shared/cooldown.dart';
 import '../state/cloud_notifier.dart';
 import '../state/documents_notifier.dart';
@@ -25,32 +26,7 @@ import 'sources/sources_info_sheet.dart';
 import 'sources/sync_settings_panel.dart';
 import 'reader/supersession_confirm.dart';
 
-/// Canonical provider ids (1.2.0) with display names for not-yet-connected
-/// providers (the integration list only carries connected ones). The ids are
-/// exactly the backend provider strings — earlier web builds passed `gdrive`
-/// and got a 400.
-const _providers = <String, ({String name, String sub, IconData icon})>{
-  'google_drive': (
-    name: 'Google Drive',
-    sub: 'Docs, PDFs, slides',
-    icon: Icons.add_to_drive_outlined
-  ),
-  'onedrive': (
-    name: 'OneDrive',
-    sub: 'Files & folders',
-    icon: Icons.cloud_outlined
-  ),
-  'notion': (
-    name: 'Notion',
-    sub: 'Pages & databases',
-    icon: Icons.article_outlined
-  ),
-  'dropbox': (
-    name: 'Dropbox',
-    sub: 'Files & folders',
-    icon: Icons.inventory_2_outlined
-  ),
-};
+const _providers = cloudProviders;
 
 /// **Sources** — the rail's *Library* (`screens/sources.md`). Browse-and-manage
 /// over ingestion sources, plus the add flows.
@@ -313,23 +289,18 @@ class _SourcesPageState extends State<SourcesPage> {
                   cloud.lastDisconnect!.$2,
                 )),
 
-              if (cloud.browseProvider != null) ...[
-                const SizedBox(height: 14),
-                const _PickerPanel(),
-              ],
-
-              // Sync settings hang BELOW the grid, one per connected provider:
-              // a form inside a card that is a quarter of the width is a form
-              // nobody can use, and the grid is four across by contract.
+              // One block per connected provider, under its own §3 header
+              // ("Import from {provider}", web `CloudImportPanel`): Sync now,
+              // Sync settings and Browse files…, the sync sentence, the
+              // reconnect banner and the picker. They hung inside the connect
+              // card until the 2026-10-08 ruling made the card fixed — a form
+              // inside a quarter-width card is a form nobody can use.
               for (final e in _providers.entries)
-                if (cloud.integrationFor(e.key) != null &&
-                    !(cloud.integrationFor(e.key)!.needsReconnect))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: SyncSettingsPanel(
-                      providerId: e.key,
-                      integration: cloud.integrationFor(e.key)!,
-                    ),
+                if (cloud.integrationFor(e.key) != null)
+                  _ImportFromProvider(
+                    providerId: e.key,
+                    spec: e.value,
+                    integration: cloud.integrationFor(e.key)!,
                   ),
 
               // What the last triage batch did that the rows cannot say.
@@ -370,6 +341,12 @@ class _SourcesPageState extends State<SourcesPage> {
 
 // ── Connect card ─────────────────────────────────────────────────────────────
 
+/// One cell of the connect grid: the fixed §5.1 card (web `ConnectCard`) and,
+/// under it, a connect that failed (§14.2, web `.connect-fail`).
+///
+/// The card is the affordance: connect when not connected, and the §18
+/// disconnect confirm when connected. Everything a connected provider can DO
+/// lives under its "Import from" header ([_ImportFromProvider]).
 class _ProviderCard extends StatefulWidget {
   final String providerId;
   final ({String name, String sub, IconData icon}) spec;
@@ -386,17 +363,131 @@ class _ProviderCard extends StatefulWidget {
 }
 
 class _ProviderCardState extends State<_ProviderCard> {
-  /// Sync now in flight, and the sentence it came back with — a 429 cooldown
-  /// (a wait, drawn as a note) or a refusal (§14.2) — inline on the card, as
-  /// §Sync control requires, never a toast that is gone before it is read.
+  bool _connecting = false;
+
+  /// The connect's refusal, said under the card that was pressed — not a
+  /// toast that is gone before it is read.
+  String? _connectFail;
+
+  Future<void> _connect() async {
+    setState(() {
+      _connecting = true;
+      _connectFail = null;
+    });
+    final err = await context.read<CloudNotifier>().connect(widget.providerId);
+    if (!mounted) return;
+    setState(() {
+      _connecting = false;
+      _connectFail = err;
+    });
+  }
+
+  Future<void> _disconnect() async {
+    final spec = widget.spec;
+    final cloud = context.read<CloudNotifier>();
+    cloud.clearDisconnectNote();
+    final revoke = disconnectRevokeCopy(widget.providerId, spec.name);
+    // §18 Confirmation (4.56.0, ADR-092). 4.90.0 (ADR-124 §7): only imports
+    // that have not reached the pipeline stop — a file already downloaded
+    // finishes. 4.89.0 (ADR-123 §5): the grant is ASKED to be revoked where
+    // the provider lets an app do that, and where it does not the confirm says
+    // where the reader removes it. What the provider answered is said AFTER,
+    // under the grid (`lastDisconnect`), never as a toast.
+    await KitConfirm.show(
+      context,
+      title: 'Disconnect ${spec.name}?',
+      body: '${disconnectConsequences(spec.name)}'
+          '${revoke != null ? '\n\n$revoke' : ''}'
+          '\n\nEverything already in your library stays — '
+          'documents, passages and letters are unaffected, and the '
+          'files in ${spec.name} itself are never touched. '
+          'Reconnecting starts a fresh pick of folders.',
+      confirmLabel: 'Disconnect',
+      cancelLabel: 'Stay connected',
+      onConfirm: () => cloud.disconnect(widget.providerId),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = widget.spec;
+    final integration = widget.integration;
+    final connected = integration != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        KitConnectCard(
+          icon: spec.icon,
+          title: spec.name,
+          // §5.1: the account when connected, the invitation when not.
+          subtitle: !connected
+              ? spec.sub
+              : (integration.providerEmail ?? integration.lastSyncLabel),
+          // The reference's three words. A connection whose sign-in expired
+          // is still connected — its reconnect banner is under its "Import
+          // from" header, where Reconnect is.
+          status: _connecting
+              ? 'Connecting…'
+              : connected
+                  ? 'Connected'
+                  : 'Connect',
+          connected: connected,
+          onTap: _connecting ? null : (connected ? _disconnect : _connect),
+        ),
+        if (_connectFail != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: KitFailureInline(_connectFail!, dense: true),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Import from {provider} ───────────────────────────────────────────────────
+
+/// A connected provider's block (web `CloudImportPanel`, per provider): a §3
+/// header — the provider's glyph and "Import from {provider}", with **Sync
+/// now · Sync settings · Browse files…** as its trailing links — then, in
+/// order, why Sync now cannot run, what it answered, the sync settings, the
+/// reconnect banner, and the import picker.
+///
+/// The sync-now sentence is said HERE, under the header (web `ed461b3`), not
+/// in a footnote inside the connect card: the card is fixed (ruled
+/// 2026-10-08).
+class _ImportFromProvider extends StatefulWidget {
+  final String providerId;
+  final ({String name, String sub, IconData icon}) spec;
+  final CloudIntegration integration;
+
+  const _ImportFromProvider({
+    required this.providerId,
+    required this.spec,
+    required this.integration,
+  });
+
+  @override
+  State<_ImportFromProvider> createState() => _ImportFromProviderState();
+}
+
+class _ImportFromProviderState extends State<_ImportFromProvider> {
+  /// Sync now in flight, and the sentence it came back with: a refusal is
+  /// §14.2, a kickoff is calm copy, and a cooldown that carried its number is
+  /// the PROVIDER's wait (4.107.0, ADR-140), said by the wait itself.
   bool _syncing = false;
   String? _syncNote;
   bool _syncRefused = false;
 
+  bool _settingsOpen = false;
+
+  bool _reconnecting = false;
+  String? _reconnectFail;
+
   /// The server's own 400 sentence for a provider with no sync folders
-  /// (`fn_request_cloud_sync`). The button is disabled on the same condition,
-  /// and the reason is VISIBLE — a disabled control with no reason reads as
-  /// broken, and a tooltip reaches neither a finger nor a screen reader.
+  /// (`fn_request_cloud_sync`). Sync now is held on the same condition, and
+  /// the reason is VISIBLE — a held control with no reason reads as broken,
+  /// and a tooltip reaches neither a finger nor a screen reader.
   static const _noFolders = 'Nothing to sync — choose sync folders first.';
 
   Future<void> _syncNow() async {
@@ -407,140 +498,140 @@ class _ProviderCardState extends State<_ProviderCard> {
     final (msg, result) =
         await context.read<CloudNotifier>().syncNow(widget.providerId);
     if (!mounted) return;
-    // A cooldown that carried its number is the PROVIDER's wait (4.107.0,
-    // ADR-140): Sync now is held for it and the wait says its own sentence in
-    // this note's slot until it ends — a copy kept here would outlive it.
     final waits = result == SyncNowResult.wait &&
         Cooldowns.instance.waiting(WaitKey.cloudSync(widget.providerId));
     setState(() {
       _syncing = false;
-      _syncNote = result == SyncNowResult.queued || waits ? null : msg;
+      _syncNote = waits ? null : msg;
       _syncRefused = result == SyncNowResult.refused;
     });
-    if (result == SyncNowResult.queued) {
-      AppToast.show(context, msg, type: ToastType.success);
-    }
   }
 
-  /// The provider's sync cooldown (4.107.0, ADR-140) holds Sync now and is
-  /// the card's note while it runs.
+  Future<void> _reconnect() async {
+    setState(() {
+      _reconnecting = true;
+      _reconnectFail = null;
+    });
+    final err = await context.read<CloudNotifier>().connect(widget.providerId);
+    if (!mounted) return;
+    setState(() {
+      _reconnecting = false;
+      _reconnectFail = err;
+    });
+  }
+
   @override
   Widget build(BuildContext context) => KitWait(
         waitKey: WaitKey.cloudSync(widget.providerId),
-        builder: _card,
+        builder: _block,
       );
 
-  Widget _card(BuildContext context, CooldownWait wait) {
-    final providerId = widget.providerId;
-    final spec = widget.spec;
-    final integration = widget.integration;
-    final cloud = context.read<CloudNotifier>();
-    final connected = integration != null;
-    final needsReconnect = integration?.needsReconnect ?? false;
-    final noFolders = connected && integration.folderIds.isEmpty;
+  Widget _block(BuildContext context, CooldownWait wait) {
+    final t = Tokens.of(context);
+    final cloud = context.watch<CloudNotifier>();
+    final i = widget.integration;
+    final needsReconnect = i.needsReconnect;
+    final noFolders = i.folderIds.isEmpty;
+    final browsing = cloud.browseProvider == widget.providerId;
 
-    Future<void> run(Future<String?> Function() action, {String? okMsg}) async {
-      final err = await action();
-      if (!context.mounted) return;
-      if (err != null) {
-        AppToast.show(context, err, type: ToastType.error);
-      } else if (okMsg != null) {
-        AppToast.show(context, okMsg, type: ToastType.success);
-      }
-    }
-
-    return KitConnectCard(
-      icon: spec.icon,
-      title: spec.name,
-      subtitle: !connected
-          ? spec.sub
-          : (integration.providerEmail ?? integration.lastSyncLabel),
-      status: needsReconnect
-          ? 'Reconnect'
-          : connected
-              ? 'Connected'
-              : 'Not connected',
-      connected: connected && !needsReconnect,
-      onTap: connected ? null : () => run(() => cloud.connect(providerId)),
-      // Reconnect banner (1.3.0) — its own copy from `status_reason`, and
-      // browsing stays unavailable while flagged.
-      notice: needsReconnect
-          ? _Banner(
-              icon: Icons.link_off,
-              text: integration!.statusReason ??
-                  'This connection expired — reconnect to keep importing.',
-              action: KitButton.ghost('Reconnect',
-                  onPressed: () => run(() => cloud.connect(providerId))),
-            )
-          : null,
-      actions: [
-        if (!connected)
-          KitButton.primary('Connect',
-              onPressed: () => run(() => cloud.connect(providerId)))
-        else if (!needsReconnect) ...[
-          KitButton.ghost('Browse files…',
-              icon: Icons.folder_open,
-              onPressed: () => cloud.openPicker(providerId)),
-          KitButton.ghost(_syncing ? 'Syncing…' : 'Sync now',
-              icon: Icons.sync,
-              wait: _syncing ? 0 : wait.left,
-              onPressed: _syncing || noFolders ? null : _syncNow),
-          // Auto-organization enable (1.2.0) — requests write scopes via OAuth;
-          // returns to /sources with org=enabled on a full grant.
-          Builder(builder: (context) {
-            final org = context.watch<OrgNotifier>();
-            if (org.settings.configFor(providerId).enabled) {
-              return const KitStatusPill('Auto-organization on', positive: true);
-            }
-            return KitButton.ghost('Enable auto-organization',
-                icon: Icons.auto_awesome_outlined,
-                onPressed: () => run(() => org.enableOrganization(providerId)));
-          }),
-          // §18 Confirmation (4.56.0, ADR-092). `screens/settings.md` has
-          // required this since 1.2.0 and named the copy it owes; it ran on the
-          // first tap. `disconnect` already returns null-or-the-sentence, which
-          // is §18's contract with the panel.
-          //
-          // 4.90.0 (ADR-124 §7): only imports that have not reached the
-          // pipeline stop — a file already downloaded finishes. 4.89.0
-          // (ADR-123 §5): the grant is ASKED to be revoked where the provider
-          // lets an app do that, and where it does not the confirm says where
-          // the reader removes it. What the provider answered is said AFTER,
-          // under the grid (`lastDisconnect`), never as a toast: "did not
-          // confirm" is a thing to act on, and a toast is gone first.
-          KitButton.ghost('Disconnect', onPressed: () async {
-            cloud.clearDisconnectNote();
-            final revoke = disconnectRevokeCopy(providerId, spec.name);
-            await KitConfirm.show(
-              context,
-              title: 'Disconnect ${spec.name}?',
-              body: '${disconnectConsequences(spec.name)}'
-                  '${revoke != null ? '\n\n$revoke' : ''}'
-                  '\n\nEverything already in your library stays — '
-                  'documents, passages and letters are unaffected, and the '
-                  'files in ${spec.name} itself are never touched. '
-                  'Reconnecting starts a fresh pick of folders.',
-              confirmLabel: 'Disconnect',
-              cancelLabel: 'Stay connected',
-              onConfirm: () => cloud.disconnect(providerId),
-            );
-          }),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // `.lib-section-h` at `margin-top: 18`: the eyebrow left, the links
+        // right — and on a phone the links take the next line rather than
+        // squeezing the eyebrow into a column.
+        Padding(
+          padding: const EdgeInsets.only(top: 18, bottom: 6),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(widget.spec.icon, size: 14, color: t.fgMuted),
+                  const SizedBox(width: 7),
+                  Eyebrow('Import from ${widget.spec.name}'),
+                ],
+              ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  KitSettingLink(
+                    _syncing ? 'Syncing…' : 'Sync now',
+                    icon: null,
+                    wait: _syncing ? 0 : wait.left,
+                    onTap: needsReconnect || _syncing || noFolders
+                        ? null
+                        : _syncNow,
+                  ),
+                  KitSettingLink(
+                    _settingsOpen ? 'Close settings' : 'Sync settings',
+                    icon: null,
+                    onTap: () =>
+                        setState(() => _settingsOpen = !_settingsOpen),
+                  ),
+                  KitSettingLink(
+                    browsing ? 'Close' : 'Browse files…',
+                    icon: null,
+                    onTap: needsReconnect
+                        ? null
+                        : () => browsing
+                            ? cloud.closePicker()
+                            : cloud.openPicker(widget.providerId),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (noFolders && !needsReconnect)
+          const KitProcNote(_noFolders, padding: EdgeInsets.only(top: 4)),
+        // A wait is calm copy; a refusal is §14.2; a kickoff says what it
+        // started (§6.1, 4.108.0, ADR-145).
+        if (wait.sentence != null)
+          KitWaitNote(wait.sentence!,
+              padding: const EdgeInsets.only(top: 4))
+        else if (_syncNote != null)
+          _syncRefused
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: KitFailureInline(_syncNote!, dense: true),
+                )
+              : KitProcNote(_syncNote!,
+                  padding: const EdgeInsets.only(top: 4)),
+        if (_settingsOpen)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: SyncSettingsPanel(
+              providerId: widget.providerId,
+              integration: i,
+              embedded: true,
+            ),
+          ),
+        if (needsReconnect) ...[
+          const SizedBox(height: 8),
+          _Banner(
+            icon: Icons.link_off,
+            text: '${widget.spec.name} needs to be reconnected — its sign-in '
+                'has expired.${i.statusReason != null ? '\n${i.statusReason}' : ''}',
+            action: KitSettingLink(
+              _reconnecting ? 'Reconnecting…' : 'Reconnect',
+              icon: null,
+              onTap: _reconnecting ? null : _reconnect,
+            ),
+          ),
+          if (_reconnectFail != null)
+            KitFailureInline(_reconnectFail!, dense: true),
+        ],
+        if (browsing && !needsReconnect) ...[
+          const SizedBox(height: 10),
+          const _PickerPanel(),
         ],
       ],
-      footnote: !connected || needsReconnect
-          ? null
-          // The wait's sentence takes the slot a 429 has always used: the
-          // calm caption, never §14.2 — a wait is the system working
-          // (§6.1, 4.108.0, ADR-145).
-          : wait.sentence != null
-              ? KitWaitNote(wait.sentence!)
-          : _syncNote != null
-              ? (_syncRefused
-                  ? KitFailureInline(_syncNote!, dense: true)
-                  : Text(_syncNote!, style: KitText.meta(context)))
-              : noFolders
-                  ? Text(_noFolders, style: KitText.meta(context))
-                  : null,
     );
   }
 }

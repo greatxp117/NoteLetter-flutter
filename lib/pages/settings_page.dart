@@ -15,6 +15,7 @@ import '../state/auth_notifier.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
+import 'settings/organization_section.dart';
 import 'settings/summaries_section.dart';
 
 /// Settings (`spec/screens/settings.md` §Composition, ADR-041).
@@ -209,6 +210,11 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
+
+          // ── Organization (1.2.0; settings.md §Organization card) ──────
+          // Between Notifications and Account, as the reference orders it, and
+          // only while a provider is connected.
+          const OrganizationSection(),
 
           // ── Account ───────────────────────────────────────────────────
           const SectionHeader('Account'),
