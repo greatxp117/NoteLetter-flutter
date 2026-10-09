@@ -478,6 +478,16 @@ void main() {
           }
           continue;
         }
+        // A case whose request names a `kind` and no method pins what the
+        // SERVER builds — `tags:suggest-prompt` (4.116.0, ADR-153) asserts
+        // the shape of fn_suggest_tags' model prompt — not a request a client
+        // sends. Driving it sends an empty body to a builder and fails for
+        // being right. A category, counted like a fixture with no request.
+        if (req['kind'] != null && method == null) {
+          skipped['a backend prompt case, not a client request'] =
+              (skipped['a backend prompt case, not a client request'] ?? 0) + 1;
+          continue;
+        }
         if (method == 'OPTIONS' || method == 'GET') {
           skipped['a read or a preflight, not a builder call'] =
               (skipped['a read or a preflight, not a builder call'] ?? 0) + 1;
