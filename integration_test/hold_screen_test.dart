@@ -25,6 +25,7 @@ import 'package:dio/io.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
@@ -250,7 +251,14 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     case 'ask-thread':
     case 'ask-rail':
       final field = find.byType(TextField).last;
-      await tester.enterText(field, 'What have I been reading about pasta?');
+      // The reference's own questions (theme-shots.mjs): `ask-thread` asks
+      // about pasta COOKING, `ask-rail` about pasta — two pairs that compared
+      // two different conversations until 2026-10-09.
+      await tester.enterText(
+          field,
+          holdState == 'ask-thread'
+              ? 'What have I been reading about pasta cooking?'
+              : 'What have I been reading about pasta?');
       await settle();
       // The send CONTROL: §10's field takes `TextInputAction.newline`, so a
       // submit action inserts a line and sends nothing.
@@ -329,6 +337,15 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(find.text('Which of these recipes can use steak?'), findsOneWidget,
           reason: 'the question left the screen — the frame would show the '
               'defect ADR-097 closed rather than the state it requires');
+      // A refused turn hands the focus back to the composer, and on a device
+      // that raises the KEYBOARD: half the screen, and the transcript — the
+      // question, the server's sentence, Try again — squeezed out of the
+      // frame. Every assertion above passed while the photograph showed an
+      // empty scoped screen (F-78 (6), 2026-10-05 and 2026-10-09). The
+      // reference's frame has no keyboard, so neither does this one.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+      await settle();
       return;
     // reader.md §Panels — the manuscript is a BODY SWAP under the reader's one
     // header, not a route, so no URL reaches it and the frame has to select the
