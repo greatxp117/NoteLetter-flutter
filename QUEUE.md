@@ -1654,3 +1654,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/token_contrast_check.py
 - notes: `shelfColorsDark` beside `shelfColors`, the ten values of design-tokens.md's `--shelf-{name}` dark column (sage-500 → _sage300, brick-400 → _brick300, the rest literal). `shelfColor(value, dark:)` takes `dark` as REQUIRED — a defaulted flag would let a forgotten site paint the light ten on a dark surface with nothing red — and every painting site passes `Tokens.of(context).isDark` / `t.isDark` (twelve sites; `bookOf` gains `dark:` for its four callers). The picker's ten swatches paint the theme's map; a legacy hex paints the same in both themes. The kit cloth in kit_shelf.dart is a fixed raw step (pair-ok) and stays. shelf_sheet's default colour reads the first NAME from `shelfColorLabels`, since a bare `shelfColors` is now one half of a pair (5l PAIR-HALF). The contract test reads the dark ten from design-tokens.md's table, not a copy; the swatch test mounts each theme in its own test (a second mount in one test animates between themes and one pump reads the old one) and was red with the dark map unread. controls.dark.png re-baselined: 43px, the Theology tag's sage dot only. Done by the coordinator on 2026-10-09 because the Flutter lane had ended and the token gate was refusing every web and extension commit on this arm alone. No frame re-shot: web's dark frames predate its own ADR-154 half.
+
+## F-92 · A folder sync may take books (4.120.0 tandem) — EPUB is a sync type pill, a rule row and a folder-contents count
+- status: done 2026-10-09
+- screen: sources
+- route: /sources
+- spec: spec/decisions/ADR-157-a-folder-sync-may-take-books.md; spec/api/cloud-storage.md; spec/screens/sources.md
+- web: src/pages/sources/CloudFilePicker.jsx; tests/contract/cloud-type-keys.test.js
+- flutter: lib/pages/sources/sync_settings_panel.dart; lib/pages/sources/folder_contents.dart; lib/models/import_job.dart
+- folds: 4.120.0 (ADR-157)
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/vocab_check.py
+- notes: `cloudFileTypes` (public now, web `CLOUD_TYPE_KEYS`) gains `epub`, so the sync settings offer a fourth *Import these types* pill and a fourth review-rule row; `cloudTypeLabel('epub')` is EPUB; `ImportJob.typeKey` maps `application/epub+zip`. `test/contract/cloud_type_keys_test.dart` reads the contract's `include_types` set and sources.md's label line both ways, as web's test does. The default stays pdf + docx (ADR-157), so no existing panel changes until the reader ticks the pill. No Flutter pair to re-shoot: the `sync-folders` hold is shot for looking only, with no committed pair; web's `sync-folders` frames are web's to re-shoot.

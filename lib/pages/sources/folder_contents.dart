@@ -48,6 +48,7 @@ const _typeLabel = {
   'pdf': 'PDF',
   'docx': 'Word',
   'pptx': 'PowerPoint',
+  'epub': 'EPUB', // 4.120.0 (ADR-157)
   'notion': 'Notion page',
 };
 

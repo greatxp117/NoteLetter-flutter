@@ -136,6 +136,7 @@ class ImportJob {
         'docx',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation':
         'pptx',
+    'application/epub+zip': 'epub',
     'application/x-notion-page': 'notion',
   };
 

@@ -19,6 +19,11 @@ import 'sync_folder_picker.dart';
 /// optimistic copy. **Write before you move**: a toggle that sets local state
 /// before awaiting its call hides the failure completely, and the control only
 /// reverts on reload (ADR-022).
+/// The file types a file store's sync can take — `include_types` ⊆ the
+/// contract's set (`api/cloud-storage.md`), less `notion`. `epub` since
+/// 4.120.0 (ADR-157): a folder sync may take books. Web: `CLOUD_TYPE_KEYS`.
+const cloudFileTypes = ['pdf', 'docx', 'pptx', 'epub'];
+
 class SyncSettingsPanel extends StatefulWidget {
   final String providerId;
   final CloudIntegration integration;
@@ -50,7 +55,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   /// three file types on Notion — controls that could never match a file.
   /// **`pptx` was missing from 1.4.0 to 4.45.0**: a type absent from this list
   /// is simply a control the reader never sees, and nothing fails.
-  static const _fileTypes = ['pdf', 'docx', 'pptx'];
+  static const _fileTypes = cloudFileTypes;
   List<String> get _types =>
       widget.providerId == 'notion' ? const ['notion'] : _fileTypes;
 
