@@ -831,6 +831,37 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           alignment: 0.02);
       await settle();
       return;
+    // sources.md §Organized folders — Rescan all held on the PROVIDER's clock
+    // (4.107.0 / 4.108.0, ADR-140 / ADR-145; Flutter adad438), the reference's
+    // `org-scan-wait`. The refusal is the server's: stamp the Drive
+    // integration's `organization.last_manual_scan_at` to now first, as web
+    // theme-shots does, and remove it after. This hold only presses Rescan
+    // all and waits for the 409's countdown on the link.
+    case 'org-scan-wait':
+      final rescan = find.textContaining(RegExp(r'^Rescan all'));
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (rescan.evaluate().isNotEmpty) break;
+      }
+      expect(rescan, findsWidgets,
+          reason: 'no Organized folders header — is organization enabled on '
+              'the seed Drive integration?');
+      await tester.ensureVisible(rescan.first);
+      await settle();
+      await tester.tap(rescan.first);
+      final held = find.textContaining(RegExp(r'^Rescan all · \d:\d\d$'));
+      for (var i = 0; i < 50; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (held.evaluate().isNotEmpty) break;
+      }
+      expect(held, findsOneWidget,
+          reason: 'Rescan all is not held — stamp '
+              'organization.last_manual_scan_at first, or the frame is the '
+              'panel at rest under this name');
+      await Scrollable.ensureVisible(tester.element(held.first),
+          alignment: 0.15, duration: Duration.zero);
+      await settle();
+      return;
     // sources.md §Sync control — the sync-folder chooser (F-67), which no
     // route reaches: the Drive sync panel opened from its "Import from" header
     // (the connect card is fixed since 2026-10-08), then its folder picker.
