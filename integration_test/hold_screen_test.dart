@@ -156,6 +156,16 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
     await tester.pump(const Duration(milliseconds: 200));
   }
   await reachState(tester, h.state);
+  // A state that focuses a field (the shelf picker's search, the create
+  // sheet, a typed query) raises the SOFTWARE keyboard on a simulator with no
+  // hardware keyboard attached — half the frame, and nothing the reference
+  // frame has. Hidden, not unfocused: the caret stays where the reference's
+  // is. (A fresh simulator has no hardware keyboard; the 2026-10-09 sitting's
+  // reader-shelves frame was half keyboard.)
+  await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  for (var i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
 
   Future<void> hold(String label, ThemeMode mode) async {
     // `ThemeNotifier` starts an async read of the stored preference in its

@@ -1565,7 +1565,7 @@ a new obligation on a finished screen is a new item.
 - notes: 4.111.0: Api.generateAudio's doc comment drops duration_seconds (nothing read it; the Listen stat reads the document's stored field). 4.112.0: skipReasonCopy (was _skipReason) is web's SKIP_REASONS copy for copy — every row had been this client's paraphrase, and `assessment` fell to the generic line; skip_reason_copy_test reads schedule.js itself. 4.114.0: detectUrlType maps youtube.com /playlist with a non-empty `list` to youtube_playlist before the video row (the 3 shared url-detection cases were red); lib/shared/playlist.dart ports web playlist.js (playlistAdded from `enqueued`/`failed`/`notStarted`, never docIds.length, never `warnings`; pendingBadgeKind). FileUploader is this client's one link-add surface (Sources and onboarding's step 2): its in-flight row is web QuickAdd's tile, so it plates a link by its detected kind (a playlist as YT), reads "YouTube playlist — uploading" while pending and the count sentence when done; a single link keeps "Queued for processing". No frame: the seed holds no pending link, and the playlist expansion has never run live.
 
 ## F-85 · The 2026-10-08 web tandems — the eleventh, read-only "current" swatch; Sources' filter note says "type"
-- status: in-progress
+- status: done 2026-10-09
 - screen: shelf-color-picker
 - route: /shelves/seed-tag-stories
 - spec: spec/screens/library.md §Shelf color; spec/screens/sources.md §States
@@ -1625,6 +1625,19 @@ a new obligation on a finished screen is a new item.
 - flutter: lib/services/api.dart; lib/pages/onboarding/wizard.dart; lib/pages/onboarding/steps.dart
 - folds: 4.116.0 (ADR-153); TODO "RULED 2026-10-08: BUILD the surface" (Suggest shelves on every client)
 - device_test: none
-- shots: onboarding
+- shots: onboarding; shelves
 - extra_gates: python3 ../NoteLetter-contracts/harness/endpoint_reach_check.py
 - notes: Booked by the 2026-10-09 frame sitting: web's onboarding now reads "Step 1 of 6" and "Four steps and it's yours." with a "Choose your shelves" step; Flutter reads "Step 1 of 5" / "Three steps". The sheet: what you read about → `fn_suggest_tags {purposeText}` only (closed key) → the proposals, with the answer's `existing` titles said, never re-proposed → keep the ones you tick → `fn_approve_tags` with `{title, description, color}` and the ANSWERED colour token (always one of the ten since 4.116.0). Fewer than eight or none is a normal 200; a model failure is 502 PROVIDER_API_ERROR through §14. Flutter's approveTags/suggestTags builders exist and have no caller. Not built in this lane (coordinator: owed, after the frames).
+
+## F-90 · What the 2026-10-09 frame sitting found — the notification level control, Study's glyph, two holds that frame another state
+- status: open
+- screen: notifications
+- route: /settings/notifications
+- spec: spec/screens/notifications.md §Composition; spec/screens/study.md §Composition; spec/screens/letters.md §Composition; spec/screens/settings.md §Plan row
+- web: src/pages/NotificationSettings.jsx; src/pages/StudyView.jsx; scripts/theme-shots.mjs
+- flutter: lib/pages/notification_settings_page.dart; lib/pages/study_page.dart; integration_test/hold_screen_test.dart
+- folds: none — found by the 2026-10-09 re-shoot (burn-down report, flutter)
+- device_test: none
+- shots: notifications; study; scripture-day; settings-plan
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: (1) Notifications on a phone: each channel's level control (Errors · Warnings · Successes · Info) spans the whole card in one row; web indents it under the channel's text (beside the icon column) where it wraps into a 2×2 block. (2) Study's empty state: the plate's glyph is a cards icon; web draws its study glyph (IcoStudy, a document). (3) scripture-day: the reference frame is now Friday of week 18 (Oct 2) with the partial-failure notice ("One reading could not be searched just now…"); the hold opens the seed's Thursday of week 23 at rest — align the two holds before the pair can be judged (pair NOT committed in the sitting). (4) settings-plan: the reference frames the plan AT its cap (13 of 13, the limit notice and Ask about upgrading); the hold frames the plain row, and the dev shim's pinned plan clock says "resets 1 October" — align the hold (pair NOT committed). Tooling found on the way, fixed in hold_screen_test.dart (bdf30a6 and the 2026-10-09 keyboard commit): a fresh simulator raises the software keyboard over every state that focuses a field; ask-turn-failed's refused turn returns focus to the composer (F-78 (6)'s mystery); the Library's setup checklist hides once an Ask hold has set the asked flag earlier in the same app install — shoot library first after `simctl uninstall`.
