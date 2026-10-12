@@ -1249,13 +1249,13 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     return (text, frag.outerHtml);
   }
 
-  /// The plain-text form's first paragraph, when it carries no marker.
+  /// The plain-text form, when it carries no marker. The reference renders
+  /// it as ONE paragraph (`<p>${text}</p>`, white space collapsed), so the
+  /// whole of it is the paragraph the cap opens.
   static (String?, String) _plainLead(String text) {
-    final t = text.trim();
-    final cut = t.indexOf(RegExp(r'\n\s*\n'));
-    final lead = cut < 0 ? t : t.substring(0, cut);
-    if (lead.isEmpty || lead.contains('[')) return (null, text);
-    return (lead, cut < 0 ? '' : t.substring(cut).trim());
+    final t = KitMarkedText.collapse(text).trim();
+    if (t.isEmpty || t.contains('[')) return (null, text);
+    return (t, '');
   }
 
   /// `.ms-body table { font-size: 15px }` — a table is read as data, a size

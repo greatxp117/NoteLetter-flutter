@@ -285,7 +285,8 @@ class _KitSuggestionState extends State<KitSuggestion> {
           ),
           child: Row(
             children: [
-              Icon(widget.icon, size: 18, color: t.seal),
+              // `.empty-state-row` draws its glyph at 15 (`<r.icon size={15}/>`).
+              KitGlyph(widget.icon, size: 15, color: t.seal),
               const SizedBox(width: AppSpacing.s3),
               Expanded(
                 child: Text(

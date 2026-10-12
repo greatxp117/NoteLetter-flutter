@@ -88,6 +88,10 @@ class AppColors {
   static const chromeActive = Color(0x14FFFFFF); // active fill rgba(255,255,255,.08)
   static const chromeBorder = Color(0x1AFFFFFF); // rules on plum rgba(255,255,255,.10)
   static const chromeAccentBar = _brick400; // active left bar --brick-400
+  // `.ask-msg .avatar.you { background: var(--sage-700) }` — the reader's own
+  // disc on Ask, a raw step pinned in BOTH themes as the reference pins it,
+  // carrying --chrome-fg like the chrome does (F-78 (3)). Never a page fg.
+  static const askAvatarYou = _sage700;
 
   // ── Scrim — identical in both themes (4.53.0) ────────────────────────────
   // The backdrop behind an overlay: `.ask-rail-backdrop` is

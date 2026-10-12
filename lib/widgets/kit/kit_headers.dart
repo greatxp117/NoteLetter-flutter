@@ -454,6 +454,10 @@ class ScreenHeader extends StatelessWidget {
 
   /// letters.md's 30/1.1/600 is the default; ask and search state their own.
   final double titleSize;
+
+  /// The title's size below the compact width, where a screen states one
+  /// (`.ask-title` 26 at ≤680). Null keeps [titleSize].
+  final double? titleSizeCompact;
   final double standfirstSize;
 
   /// The head block is **closed by a `--rule`** (letters.md §Composition) —
@@ -468,6 +472,7 @@ class ScreenHeader extends StatelessWidget {
     this.standfirst,
     this.action,
     this.titleSize = 30,
+    this.titleSizeCompact,
     this.standfirstSize = 15,
     this.rule = true,
   });
@@ -475,13 +480,14 @@ class ScreenHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final size = compact ? (titleSizeCompact ?? titleSize) : titleSize;
     final titleWidget = Text(
       title,
       style: AppTheme.serif(
-        fontSize: titleSize,
+        fontSize: size,
         height: 1.1,
         fontWeight: FontWeight.w600,
-        letterSpacing: -0.02 * titleSize,
+        letterSpacing: -0.02 * size,
         color: Tokens.of(context).fg,
       ).copyWith(shadows: AppShadows.letterpress),
     );

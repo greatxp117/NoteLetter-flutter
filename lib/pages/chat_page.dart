@@ -9,6 +9,7 @@ import '../state/tags_notifier.dart';
 import '../state/chat_notifier.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_colors.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 
@@ -56,7 +57,13 @@ const _prompts = <String>[
 class _ChatPageState extends State<ChatPage> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
-  bool _railOpen = false;
+  /// §9's phone form is drawn over EVERYTHING — the app bar and the support
+  /// footer included — as the reference's `position: fixed` rail and its
+  /// backdrop are; inside the page body they stayed undimmed (F-78 (4)).
+  final _railPortal = OverlayPortalController();
+
+  void _setRail(bool open) =>
+      open ? _railPortal.show() : _railPortal.hide();
 
   @override
   void initState() {
@@ -177,11 +184,15 @@ class _ChatPageState extends State<ChatPage> {
                         'back to a passage.'
                     : 'Only passages on this shelf are searched — every result '
                         'traces back to one.',
-                action: KitButton.ghost(
-                  'History',
+                // `.pact.ask-history-btn` — the bare quiet link (sans 12, a
+                // 13 glyph, no padding), not a padded ghost button (F-78 (2)).
+                action: KitPassageAction(
                   icon: Icons.history,
-                  onPressed: () => setState(() => _railOpen = true),
+                  label: 'History',
+                  onTap: () => _setRail(true),
                 ),
+                // `.ask-title` is 26 on a phone (app-responsive.css ≤680).
+                titleSizeCompact: 26,
               ),
             ),
             Expanded(child: _thread(context, ask)),
@@ -204,19 +215,28 @@ class _ChatPageState extends State<ChatPage> {
                 _controller.text.trim().isEmpty || ask.sending ? null : _send,
           ),
         ),
-        // §9's phone form: a backdrop that closes on press, then the rail.
-        if (_railOpen) ...[
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () => setState(() => _railOpen = false),
-              child: ColoredBox(color: t.scrim),
-            ),
+        // §9's phone form: a backdrop that closes on press, then the rail —
+        // on the ROOT overlay, over the shell's bar and footer.
+        OverlayPortal.targetsRootOverlay(
+          controller: _railPortal,
+          overlayChildBuilder: (context) => Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => _setRail(false),
+                  child: ColoredBox(color: t.scrim),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SafeArea(
+                    right: false,
+                    child: _rail(context, context.watch<ChatNotifier>())),
+              ),
+            ],
           ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _rail(context, ask),
-          ),
-        ],
+          child: const SizedBox.shrink(),
+        ),
       ],
     );
   }
@@ -226,7 +246,7 @@ class _ChatPageState extends State<ChatPage> {
     return KitInspectorRail(
       title: 'Conversations',
       width: width * 0.86 > 320 ? 320 : width * 0.86,
-      onClose: () => setState(() => _railOpen = false),
+      onClose: () => _setRail(false),
       newLabel: 'New conversation',
       newActive: ask.activeId == null,
       // "New conversation" LEAVES the scope and the open thread — one
@@ -234,7 +254,7 @@ class _ChatPageState extends State<ChatPage> {
       // control that stayed scoped would offer the whole library while asking
       // a shelf.
       onNew: () {
-        setState(() => _railOpen = false);
+        _setRail(false);
         context.go('/ask');
       },
       notice: ask.railError != null
@@ -270,7 +290,7 @@ class _ChatPageState extends State<ChatPage> {
         // `/ask/thread/{id}`, so a reload and every return from the Reader
         // land back in this transcript instead of on an empty screen.
         onTap: () {
-          setState(() => _railOpen = false);
+          _setRail(false);
           // Only when it is a DIFFERENT conversation. `go` to the address the
           // screen is already at rebuilds the page — a new State, a new rail,
           // a new entry — and anything the reader had open in it (a rename
@@ -366,8 +386,10 @@ class _ChatPageState extends State<ChatPage> {
     if (ask.messages.isEmpty && ask.sentQuestion == null) {
       return KitPage(
         width: KitFrameWidth.reading,
+        // `.ask-empty { padding-top: 20px }` on a phone, top-aligned: this
+        // was s8 on top of the empty state's own s8, ~48 lower (F-78 (2)).
         child: Padding(
-          padding: const EdgeInsets.only(top: AppSpacing.s8),
+          padding: const EdgeInsets.only(top: AppSpacing.s5),
           child: KitEmptyState(
             flush: true,
             // `.ask-empty-mark` and `.avatar.library` are the quill: the
@@ -387,7 +409,8 @@ class _ChatPageState extends State<ChatPage> {
             suggestions: [
               for (final p in scope == null ? _prompts : const <String>[])
                 KitSuggestion(
-                  icon: Icons.auto_awesome,
+                  // `IcoSparkle` — stroked rays, not Material's filled twinkle.
+                  icon: KitSparkle.icon,
                   label: p,
                   onTap: () {
                     _controller.text = p;
@@ -404,6 +427,8 @@ class _ChatPageState extends State<ChatPage> {
     return KitPage(
       width: KitFrameWidth.reading,
       controller: _scroll,
+      // A short transcript sits against the composer, as a chat does.
+      anchorBottom: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -480,7 +505,9 @@ class _AskMessageRow extends StatelessWidget {
           height: 36,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: mine ? t.toneSage : t.chrome,
+            // `.avatar.you` pins raw --sage-700 in both themes; the flipping
+            // --tone-sage lightened it in dark (F-78 (3)).
+            color: mine ? AppColors.askAvatarYou : t.chrome,
             shape: BoxShape.circle,
           ),
           child: mine

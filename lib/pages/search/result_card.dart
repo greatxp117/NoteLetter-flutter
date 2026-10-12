@@ -53,9 +53,10 @@ class _SearchResultCardState extends State<SearchResultCard> {
     final text = r.chunk.text;
     final excerpt = text.length > 220 ? '${text.substring(0, 220)}…' : text;
 
-    final borderColor = widget.selected
-        ? t.accentChipBorder
-        : (_hover ? t.borderStrong : t.border);
+    // `.sresult:hover` is the card's one state rule — `.sresult.open` has
+    // none, so the open card is drawn as every other (F-78 (5)); the reading
+    // pane beside it is what says which one is open.
+    final borderColor = _hover ? t.borderStrong : t.border;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -72,7 +73,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
             color: t.surface,
             borderRadius: AppRadius.mdR,
             border: Border.all(color: borderColor),
-            boxShadow: _hover || widget.selected ? AppShadows.s2 : null,
+            boxShadow: _hover ? AppShadows.s2 : null,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

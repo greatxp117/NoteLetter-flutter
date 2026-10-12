@@ -137,16 +137,41 @@ class KitPage extends StatelessWidget {
   final Widget child;
   final ScrollController? controller;
 
+  /// Content shorter than the viewport rests at its BOTTOM, as a chat's does
+  /// (Ask's `.ask-thread { margin: auto auto 0 }`): one turn sits against the
+  /// composer, not under the header with the screen empty below it (F-90
+  /// (5)). Longer content scrolls exactly as it would without this.
+  final bool anchorBottom;
+
   const KitPage({
     super.key,
     this.width = KitFrameWidth.listing,
     required this.child,
     this.controller,
+    this.anchorBottom = false,
   });
 
   @override
-  Widget build(BuildContext context) => KitScrollView(
+  Widget build(BuildContext context) {
+    if (!anchorBottom) {
+      return KitScrollView(
         controller: controller,
         child: KitFrame(width: width, child: child),
       );
+    }
+    return LayoutBuilder(
+      builder: (context, c) => KitScrollView(
+        controller: controller,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              minHeight: c.hasBoundedHeight ? c.maxHeight : 0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [KitFrame(width: width, child: child)],
+          ),
+        ),
+      ),
+    );
+  }
 }

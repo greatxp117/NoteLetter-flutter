@@ -156,14 +156,23 @@ class KitMarkedText extends StatelessWidget {
     this.overflow,
   });
 
+  /// White space as the reference's renders it: every web host of
+  /// `MarkedText` is a normal-flow element (`.sresult-passage`, `.cite-
+  /// excerpt`, `.sc-p-t`, the manuscript's `<p>`), so a run of spaces and
+  /// newlines in `chunk.text` collapses to one space and the ends trim. A
+  /// `\n` drawn as a line break broke Search snippets and Ask excerpts
+  /// mid-sentence (F-78 (1)).
+  static String collapse(String s) => s.replaceAll(RegExp(r'\s+'), ' ');
+
   @override
   Widget build(BuildContext context) {
     final host = style.fontSize ?? 16;
+    final pieces = splitMarkers(collapse(text).trim());
     return Text.rich(
       TextSpan(
         style: style,
         children: [
-          for (final p in splitMarkers(text))
+          for (final p in pieces)
             p.isMark
                 ? KitMarkerInline.span(context, p, hostFontSize: host)
                 : TextSpan(text: p.text),

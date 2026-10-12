@@ -288,8 +288,65 @@ class _QuillPainter extends CustomPainter {
   bool shouldRepaint(_QuillPainter old) => old.color != color;
 }
 
-/// An [IconData] as a kit widget draws it: [KitQuill.icon] is the quill, any
-/// other is a Material [Icon].
+/// The reference's `IcoSparkle` — eight short strokes radiating from an
+/// empty centre (icons.jsx), at its 1.75 stroke on a 24 grid. Material has no
+/// such glyph: its `auto_awesome` is a FILLED twinkle, which is the prompt
+/// glyph Ask drew in this client's frames and in no one else's (F-78 (2)).
+class KitSparkle extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const KitSparkle({super.key, required this.size, required this.color});
+
+  /// A sentinel for kit widgets that take an [IconData], as [KitQuill.icon].
+  static const IconData icon = IconData(0xF8FE, fontFamily: 'NoteLetterSparkle');
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _SparklePainter(color)),
+      );
+}
+
+class _SparklePainter extends CustomPainter {
+  final Color color;
+  const _SparklePainter(this.color);
+
+  /// `M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1
+  /// M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1`.
+  static const _strokes = [
+    (12.0, 3.0, 12.0, 6.0),
+    (12.0, 18.0, 12.0, 21.0),
+    (3.0, 12.0, 6.0, 12.0),
+    (18.0, 12.0, 21.0, 12.0),
+    (5.6, 5.6, 7.7, 7.7),
+    (16.3, 16.3, 18.4, 18.4),
+    (5.6, 18.4, 7.7, 16.3),
+    (16.3, 7.7, 18.4, 5.6),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.75
+      ..strokeCap = StrokeCap.round;
+    for (final (x1, y1, x2, y2) in _strokes) {
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), paint);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_SparklePainter old) => old.color != color;
+}
+
+/// An [IconData] as a kit widget draws it: [KitQuill.icon] is the quill,
+/// [KitSparkle.icon] the reference's sparkle, any other a Material [Icon].
 class KitGlyph extends StatelessWidget {
   final IconData icon;
   final double size;
@@ -300,7 +357,9 @@ class KitGlyph extends StatelessWidget {
   @override
   Widget build(BuildContext context) => icon == KitQuill.icon
       ? KitQuill(size: size, color: color)
-      : Icon(icon, size: size, color: color);
+      : icon == KitSparkle.icon
+          ? KitSparkle(size: size, color: color)
+          : Icon(icon, size: size, color: color);
 }
 
 /// The phone app bar's trailing control (`.mh-btn`): 36 square, `--r-sm`, the

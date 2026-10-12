@@ -912,11 +912,19 @@ class KitControlBar extends StatelessWidget {
   /// horizontal scroller (§1.4). Every other bar still wraps.
   final bool scrollChips;
 
+  /// The measured count line (search's `.search-result-count`). It **stays
+  /// trailing**: last in the trailing row while the bar is one line, and on a
+  /// line of its own at the trailing edge once the bar has stacked — the
+  /// reference's `margin-left: auto` in a wrapping row. Drawn as a plain
+  /// trailing item it wrapped to the LEADING edge (F-78 (5)).
+  final Widget? count;
+
   const KitControlBar({
     super.key,
     this.filters = const [],
     this.trailing = const [],
     this.scrollChips = false,
+    this.count,
   });
 
   /// The bar's own width below which it stacks even on a wide window — the
@@ -963,6 +971,7 @@ class KitControlBar extends StatelessWidget {
     // striped bar and clips whatever is last, which on search was the measured
     // count sitting beside two segmented controls. Each control stays whole —
     // what wraps is the boundary between them, never a track (§6.8).
+    final wideTail = [...trailing, ?count];
     final tail = compact
         ? Wrap(
             spacing: 10,
@@ -973,9 +982,9 @@ class KitControlBar extends StatelessWidget {
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (var i = 0; i < trailing.length; i++) ...[
+              for (var i = 0; i < wideTail.length; i++) ...[
                 if (i > 0) const SizedBox(width: 10),
-                trailing[i],
+                wideTail[i],
               ],
             ],
           );
@@ -997,12 +1006,16 @@ class KitControlBar extends StatelessWidget {
                   const SizedBox(height: AppSpacing.s3),
                   Align(alignment: Alignment.centerLeft, child: tail),
                 ],
+                if (count != null) ...[
+                  const SizedBox(height: AppSpacing.s2),
+                  Align(alignment: Alignment.centerRight, child: count),
+                ],
               ],
             )
           : Row(
               children: [
                 Expanded(child: chips),
-                if (trailing.isNotEmpty) ...[
+                if (wideTail.isNotEmpty) ...[
                   const SizedBox(width: AppSpacing.s4),
                   tail,
                 ],

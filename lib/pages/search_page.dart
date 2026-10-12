@@ -332,13 +332,11 @@ class _SearchPageState extends State<SearchPage> {
                           },
                         ),
                       ],
-                      trailing: [
-                        _CitationCount(
-                          loading: search.scriptureLoading,
-                          failed: search.scriptureError != null,
-                          reference: search.scripture?.reference,
-                        ),
-                      ],
+                      count: _CitationCount(
+                        loading: search.scriptureLoading,
+                        failed: search.scriptureError != null,
+                        reference: search.scripture?.reference,
+                      ),
                     ),
                   ],
                   if (_submitted.isNotEmpty && citation == null) ...[
@@ -383,16 +381,17 @@ class _SearchPageState extends State<SearchPage> {
                                 .indexWhere((b) => b.$1 == _breadth),
                             onChanged: (i) => _setBreadth(_breadths[i].$1),
                           ),
-                        _ResultCount(
-                          loading: search.isLoading,
-                          count: shown.length,
-                          cohesive: _cohesive,
-                          reading: _readingFor(search),
-                          cohesiveLoading: search.cohesiveLoading,
-                          cohesiveFailed: search.cohesiveError != null,
-                          breadth: _breadth,
-                        ),
                       ],
+                      // The count line stays trailing (search.md §Composition).
+                      count: _ResultCount(
+                        loading: search.isLoading,
+                        count: shown.length,
+                        cohesive: _cohesive,
+                        reading: _readingFor(search),
+                        cohesiveLoading: search.cohesiveLoading,
+                        cohesiveFailed: search.cohesiveError != null,
+                        breadth: _breadth,
+                      ),
                     ),
                   ],
                 ],
