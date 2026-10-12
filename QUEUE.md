@@ -1489,7 +1489,7 @@ a new obligation on a finished screen is a new item.
   2026-10-12: built — (1) `KitMarkedText` collapses white space as every web host of `MarkedText` does (a normal-flow element), and the manuscript's plain text is one paragraph as web's `<p>${text}</p>` is; (2) History is the bare `.pact` link (`KitPassageAction`), the title 26 below the compact width (`ScreenHeader.titleSizeCompact`), the empty state 20 under the rule where it was s8 on s8, the prompts draw `KitSparkle` (the reference's stroked IcoSparkle, painted; Material has none) at the row's 15; (3) the reader's avatar pins raw --sage-700 in both themes (`AppColors.askAvatarYou`); (4) the rail and its backdrop draw on the ROOT overlay, over the app bar and the support footer; (5) the open result card has no rule of its own (`.sresult.open` has none) and the count line is `KitControlBar.count` — last in the row, or its own line at the trailing edge once the bar stacks. NOT done, a spec-vs-web disagreement for Xavier: Ask's empty send is held at 0.45 here (Support's `.sup-send:disabled`); web's Ask `.send` has no disabled rule at all, and component-kit §6.1 says a held control dims at --held-opacity 0.5. (6) the two holds still differ by construction (web injects a shelf key on /ask; this client's hold is /ask/shelf/no-such-shelf) — web's hold is the web lane's. Pairs owed.
 
 ## F-79 · Sources, the folder picker and Activity — the drop zone, a disabled Add link, the import counter row, the timeline spine
-- status: open
+- status: in-progress
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md §Composition; spec/screens/activity.md §Composition; spec/component-kit.md §4.2 §6.4
@@ -1710,3 +1710,55 @@ a new obligation on a finished screen is a new item.
 - shots: landing-actual
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: `_ticker` and the "Read" group gain EPUBs after PDFs, verbatim from web's TICKER and WAYS; `test/contract/landing_test.dart` now reads both lists out of LandingActual.jsx, so a format one landing names and the other does not is red. The `landing-actual` pair is re-shot with web's in the same sitting.
+
+## F-96 · Sources — the empty library says the passages arrive as each source is read (web e924677)
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md
+- web: src/pages/SourcesBrowse.jsx
+- flutter: lib/pages/sources/browse_section.dart
+- folds: none — web e924677, contracts 66dea71 (UI-only, 2026-10-12)
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: The §7 standfirst under the control bar of an empty library said the passages "start arriving within a minute", which nothing measured and a long video breaks. It reads web's sentence: *Add a file or connect a service, and the passages arrive as each source is read — a long video or recording takes longest.* (sources.md §Composition). browse_section.dart ~814. The seed is not an empty library, so no pair shows it: a widget test is the proof. Booked by the coordinator from the web lane's close (signals 19:38Z).
+
+## F-97 · Playlist — a cut playlist says where it was cut (5.2.0, ADR-160)
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/decisions/ADR-160-a-playlist-says-where-it-was-cut.md; spec/api/ingest.md
+- web: src/shared/playlist.js
+- flutter: lib/shared/playlist.dart; test/contract/playlist_link_test.dart
+- folds: 5.2.0 (ADR-160)
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Every playlist answer from fn_ingest_url gains `capped` (bool, measured) and `cap` (100); `warnings` now carries only our sentences. When `capped`, `playlistAdded` appends LAST "The playlist has more than {cap} videos; only the first {cap} were read." with the answer's `cap`, never a constant. Tested from fixture `ingest:youtube-playlist-capped` (POST {url,type}, replays like `ingest:youtube-playlist`), as web's playlist.js is. Booked from the backend's 19:27Z VERSION line.
+
+## F-98 · Frames — re-look at the pairs whose web reference moved (ask, reader, reader-shelves, shelf-picker-search)
+- status: open
+- screen: none
+- route: none
+- spec: spec/clients/flutter.md
+- web: scripts/theme-shots.mjs
+- flutter: integration_test/hold_screen_test.dart
+- folds: none — web 985bb87 re-shot them (2026-10-12)
+- device_test: none
+- shots: ask; reader; reader-shelves; shelf-picker-search
+- extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
+- notes: screenshot_pair_check reports STALE-WEB-FRAME on all four: Ask's §7 rows span 512, not 440 (web's §7 fold, 18e19c3), and the reader draws a Priority row under Shelves (web 9477c9c). Copy web's frames (`tool/web_frames.sh`) once the screens they frame are done, look again, and commit each pair MATCH or booked — the reader's Priority row is booked on the blocked Priority item below.
+
+## F-99 · Reader — the Priority row (web 9477c9c)
+- status: blocked: XAVIER: placement not ruled (web put it in the reader; Flutter has it on library rows)
+- screen: reader
+- route: /reader/{id}
+- spec: spec/screens/reader.md
+- web: src/pages/ReaderView.jsx
+- flutter: lib/pages/reader_page.dart; lib/pages/sources/browse_section.dart
+- folds: none — web 9477c9c, contracts 66dea71 (UI-only, 2026-10-12)
+- device_test: none
+- shots: reader
+- extra_gates: none
+- notes: reader.md §Source priority: under the Shelves row a §6.8 Segmented control Default · Low · Normal · High, the stored number in mono, one quiet line; Default sends `sourcePriority: null`; the lit segment is read off `source_priority_set_at`, never the number (ADR-155); write before move. This client sets priority from the library rows' overflow (browse_section.dart ~704) and sources.md now says a finished source's settings live in the reader. Do not move the priority control until Xavier rules where it lives (coordinator, 2026-10-12).
