@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
@@ -25,6 +26,44 @@ part 'kit_library_head.dart';
 /// `.sources-h1` and `.sources-sub` are dead CSS that no web component
 /// renders. Corrected at contract 4.5.1; a stylesheet records what was once
 /// true, only the components say what renders now.
+/// `.ob-rule` — a 38px `--ink-300` dash, 5, a 12px accent tick; both 2 high
+/// and rounded.
+class _OnboardingRule extends StatelessWidget {
+  const _OnboardingRule();
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 38,
+            height: 2,
+            decoration: const BoxDecoration(
+              color: AppColors.obRuleDash,
+              borderRadius: BorderRadius.all(Radius.circular(2)),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Container(
+            width: 12,
+            height: 2,
+            decoration: BoxDecoration(
+              color: Tokens.of(context).accent,
+              borderRadius: const BorderRadius.all(Radius.circular(2)),
+            ),
+          ),
+        ],
+      );
+}
+
+double _obTitle(BuildContext context) {
+  final w = MediaQuery.sizeOf(context).width;
+  return w <= 460 ? 27 : (w < AppSpacing.compactWidth ? 31 : 40);
+}
+
+double _obStand(BuildContext context) =>
+    MediaQuery.sizeOf(context).width <= 460 ? 17 : 19;
+
 class ChapterOpening extends StatelessWidget {
   /// Opens the folio row — a [KitFileBadge] or a seal.
   final Widget? mark;
@@ -53,6 +92,13 @@ class ChapterOpening extends StatelessWidget {
   /// reads as a caption on whatever comes next.
   final String? footnote;
 
+  /// Onboarding's own head (`.ob-folio` · `.ob-title` · `.ob-stand` ·
+  /// `.ob-rule`), which is not §2.1's: the title 40/1.06 at -0.02em (31 below
+  /// the compact width, 27 at ≤460), the standfirst 19/1.5 (17 at ≤460), and
+  /// in place of the two-bar chapter rule a 38px --ink-300 dash with a 12px
+  /// accent tick, 24 under the standfirst and 30 above the step (F-80 (4)).
+  final bool onboarding;
+
   const ChapterOpening({
     super.key,
     this.mark,
@@ -63,6 +109,7 @@ class ChapterOpening extends StatelessWidget {
     this.actions = const [],
     this.rule = true,
     this.footnote,
+    this.onboarding = false,
   });
 
   @override
@@ -115,22 +162,38 @@ class ChapterOpening extends StatelessWidget {
           ),
           const SizedBox(height: 14),
         ],
-        AccentTitle(
-          title,
-          style: AppTheme.serif(
-            // The reference is 44px; a 44px display line does not fit a phone,
-            // so narrow viewports take 32. Recorded in CLAUDE.md §Composition
-            // deviations — the proportions and roles are unchanged.
-            fontSize: compact ? 32 : 44,
-            height: 1.03,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.024 * (compact ? 32 : 44),
-            color: t.fg,
-          ).copyWith(shadows: AppShadows.letterpress),
-        ),
+        if (onboarding)
+          AccentTitle(
+            title,
+            style: AppTheme.serif(
+              fontSize: _obTitle(context),
+              height: 1.06,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.02 * _obTitle(context),
+              color: t.fg,
+            ).copyWith(shadows: AppShadows.letterpress),
+          )
+        else
+          AccentTitle(
+            title,
+            style: AppTheme.serif(
+              // The reference is 44px; a 44px display line does not fit a
+              // phone, so narrow viewports take 32. Recorded in CLAUDE.md
+              // §Composition deviations — the proportions and roles hold.
+              fontSize: compact ? 32 : 44,
+              height: 1.03,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.024 * (compact ? 32 : 44),
+              color: t.fg,
+            ).copyWith(shadows: AppShadows.letterpress),
+          ),
         if (standfirst != null) ...[
           const SizedBox(height: 14),
-          Lede(standfirst!, fontSize: 18, height: 28),
+          if (onboarding)
+            Lede(standfirst!,
+                fontSize: _obStand(context), height: _obStand(context) * 1.5)
+          else
+            Lede(standfirst!, fontSize: 18, height: 28),
         ],
       ],
     );
@@ -162,7 +225,10 @@ class ChapterOpening extends StatelessWidget {
                 title: titleBlock,
                 actions: KitActionFlow(children: actions),
               ),
-            if (rule) ...[
+            if (rule && onboarding) ...[
+              const SizedBox(height: 24),
+              const _OnboardingRule(),
+            ] else if (rule) ...[
               const SizedBox(height: 22),
               const ChapterRule(),
             ],

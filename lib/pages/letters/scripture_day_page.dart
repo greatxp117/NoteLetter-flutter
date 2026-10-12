@@ -292,33 +292,69 @@ class _LiveBanner extends StatelessWidget {
                 style: KitText.capsLabel(context,
                     color: marked ? t.accentChipFg : t.fgSubtle)),
           ),
-          Expanded(child: Text(_sentence(), style: KitText.body(context))),
+          // `.sc-live p` — sans 13/20 at --fg-muted, its figures in `<b>`
+          // (--fg, 600): the numbers are what the sentence is about (F-80 (1)).
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: _sentence(context)),
+              style: KitText.ui(context, color: t.fgMuted, height: 20),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  String _sentence() {
-    if (loading) return 'Searching your library for this day’s readings…';
+  /// The sentence, its measured figures bold as the reference's `<b>`s are.
+  List<InlineSpan> _sentence(BuildContext context) {
+    final b = KitText.ui(context,
+        color: Tokens.of(context).fg, weight: FontWeight.w600, height: 20);
+    InlineSpan n(Object? v) => TextSpan(text: '$v', style: b);
+    String noun(int v) => v == 1 ? 'passage' : 'passages';
+    if (loading) {
+      return const [TextSpan(text: 'Searching your library for this day’s readings…')];
+    }
     if (failed) {
-      return 'Your library could not be searched just now. The letter counted '
-          '$sentTotal passages for this day when it was sent.';
+      return [
+        const TextSpan(
+            text: 'Your library could not be searched just now. The letter '
+                'counted '),
+        n(sentTotal),
+        TextSpan(text: ' ${noun(sentTotal)} for this day when it was sent.'),
+      ];
     }
     if (partial) {
       final subject = unanswered == 1 ? 'One reading' : '$unanswered readings';
       final verb = busy
           ? (unanswered == 1 ? 'has not answered yet' : 'have not answered yet')
           : 'could not be searched just now';
-      return '$subject $verb, so this count is incomplete: the readings that '
-          'did answer give $liveTotal. Your letter counted $sentTotal for the '
-          'whole day when it was sent.';
+      return [
+        TextSpan(
+            text: '$subject $verb, so this count is incomplete: the readings '
+                'that did answer give '),
+        n(liveTotal),
+        const TextSpan(text: '. Your letter counted '),
+        n(sentTotal),
+        const TextSpan(text: ' for the whole day when it was sent.'),
+      ];
     }
     if (drift) {
-      return 'Your letter counted $sentTotal passages for this day when it was '
-          'sent. Your library now answers with $liveTotal.';
+      return [
+        const TextSpan(text: 'Your letter counted '),
+        n(sentTotal),
+        TextSpan(
+            text: ' ${noun(sentTotal)} for this day when it was sent. Your '
+                'library now answers with '),
+        n(liveTotal),
+        const TextSpan(text: '.'),
+      ];
     }
-    return '$liveTotal passages — the same number your letter counted when it '
-        'was sent.';
+    return [
+      n(liveTotal),
+      TextSpan(
+          text: ' ${noun(liveTotal ?? 0)} — the same number your letter '
+              'counted when it was sent.'),
+    ];
   }
 }
 
@@ -354,18 +390,18 @@ class _ReadingSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(r.label.toUpperCase(), style: KitText.capsLabel(context)),
-              const SizedBox(width: AppSpacing.s3),
-              Expanded(child: Text(r.ref, style: KitText.h3(context))),
-              const SizedBox(width: AppSpacing.s3),
-              // A row that has not answered has no count. `0 passages` would
-              // be a measurement of a request that never completed.
-              Text(_count().toUpperCase(), style: KitText.capsLabel(context)),
-            ],
+          // `.sc-day-h`: the label (`.lect-lbl` mono 9.5 / 0.12em), the
+          // reference (`.sc-day-ref` serif 21/600, -0.015em — not h3's 28)
+          // and the count (`.sc-day-ct` mono 10.5 / 0.1em at --fg-subtle),
+          // gap 12 with the count pushed trailing; on a phone the row wraps
+          // at gap 8 and the count FOLLOWS the reference (`margin-left: 0`).
+          // F-80 (1).
+          _DayHead(
+            label: r.label.toUpperCase(),
+            reference: r.ref,
+            // A row that has not answered has no count. `0 passages` would
+            // be a measurement of a request that never completed.
+            count: _count().toUpperCase(),
           ),
           if (!r.parsed)
             Padding(
@@ -491,6 +527,49 @@ class _DayPassage extends StatelessWidget {
                   .copyWith(fontStyle: FontStyle.normal)),
         ],
       ),
+    );
+  }
+}
+
+
+class _DayHead extends StatelessWidget {
+  final String label;
+  final String reference;
+  final String count;
+
+  const _DayHead(
+      {required this.label, required this.reference, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final lbl = Text(label,
+        style: KitText.monoCaps(context, letterSpacing: 0.12)
+            .copyWith(fontSize: 9.5, letterSpacing: 0.12 * 9.5));
+    final ref = Text(reference,
+        style: KitText.title(context,
+            fontSize: 21, weight: FontWeight.w600, tracking: -0.015));
+    final ct = Text(count,
+        style: KitText.monoCaps(context, color: t.fgSubtle)
+            .copyWith(fontSize: 10.5, letterSpacing: 0.1 * 10.5));
+    if (MediaQuery.sizeOf(context).width < AppSpacing.compactWidth) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.end,
+        children: [lbl, ref, ct],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        lbl,
+        const SizedBox(width: 12),
+        Expanded(child: ref),
+        const SizedBox(width: 12),
+        ct,
+      ],
     );
   }
 }

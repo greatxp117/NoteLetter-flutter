@@ -92,6 +92,9 @@ class AppColors {
   // disc on Ask, a raw step pinned in BOTH themes as the reference pins it,
   // carrying --chrome-fg like the chrome does (F-78 (3)). Never a page fg.
   static const askAvatarYou = _sage700;
+  // `.ob-rule .dash { background: var(--ink-300) }` — onboarding's head rule,
+  // a raw step pinned in both themes as the reference pins it (F-80 (4)).
+  static const obRuleDash = _ink300;
 
   // ── Scrim — identical in both themes (4.53.0) ────────────────────────────
   // The backdrop behind an overlay: `.ask-rail-backdrop` is

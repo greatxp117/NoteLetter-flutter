@@ -354,9 +354,11 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionHeader('Add a channel'),
+        // Ruled above, as the reference draws it: `.cfg-group:first-of-type`
+        // never matches here — the section header is the first `div` of its
+        // section — so web's Type group keeps its top rule (F-80 (2)).
         KitFieldGroup(
           label: 'Type',
-          first: true,
           child: KitSegmented(
             expand: true,
             segments: [for (final ty in _types) KitSegment(_typeLabel[ty]!)],

@@ -108,7 +108,8 @@ String _bannerText(WidgetTester tester) {
   // it rather than matching a sentence this file wrote.
   final texts = tester
       .widgetList<Text>(find.byType(Text))
-      .map((w) => w.data ?? '')
+      // A rich line (the banner's bold figures, F-80) reads as its plain text.
+      .map((w) => w.data ?? w.textSpan?.toPlainText() ?? '')
       .where((s) => s.contains('passages') || s.contains('count') ||
           s.contains('could not be searched') || s.contains('answered'));
   return texts.join(' ');
@@ -199,6 +200,23 @@ void main() {
       expect(_offer, findsOneWidget);
       expect(find.text('0 PASSAGES'), findsOneWidget);
       expect(_bannerText(tester), contains('now answers with 2'));
+      // F-80 (1): the figures are the reference's `<b>` — --fg at 600 — and
+      // the reading's reference is `.sc-day-ref` serif 21/600, not h3's 28.
+      final banner = tester
+          .widgetList<Text>(find.byType(Text))
+          .firstWhere((w) =>
+              (w.textSpan?.toPlainText() ?? '').contains('now answers with'));
+      final figures = <String>[];
+      banner.textSpan!.visitChildren((span) {
+        if (span is TextSpan && span.style?.fontWeight == FontWeight.w600) {
+          figures.add(span.text ?? '');
+        }
+        return true;
+      });
+      expect(figures, ['3', '2']);
+      final ref = tester.widgetList<Text>(find.byType(Text)).firstWhere(
+          (w) => (w.style?.fontSize ?? 0) == 21);
+      expect(ref.style?.fontWeight, FontWeight.w600);
     });
 
     testWidgets('every reading failing keeps its own sentence',

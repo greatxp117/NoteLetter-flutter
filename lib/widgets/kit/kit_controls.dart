@@ -901,6 +901,78 @@ class _RenderActionFlow extends RenderBox
       defaultHitTestChildren(result, position: position);
 }
 
+/// The theme control as the reference draws it (`shell/AppShell.jsx`
+/// `ThemeToggle`, `.theme-toggle`): three GLYPHS — sun, monitor, moon — with
+/// their names as titles, no text; a `--surface-sunken` pill track, 3 inside,
+/// 1 between, each button a 30×26 pill with its glyph at 15 in --fg-muted, the
+/// chosen one `--surface` + `--shadow-1` at --fg. Settings drew a labelled
+/// segmented control here (F-80 (3)).
+class KitThemeToggle extends StatelessWidget {
+  /// 0 light · 1 system · 2 dark.
+  final int selected;
+  final ValueChanged<int> onChanged;
+
+  const KitThemeToggle(
+      {super.key, required this.selected, required this.onChanged});
+
+  static const _items = [
+    (Icons.wb_sunny_outlined, 'Light'),
+    (Icons.desktop_windows_outlined, 'System'),
+    (Icons.dark_mode_outlined, 'Dark'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      label: 'Theme',
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: t.surfaceSunken,
+          borderRadius: AppRadius.pillR(32),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < _items.length; i++) ...[
+              if (i > 0) const SizedBox(width: 1),
+              Tooltip(
+                message: _items[i].$2,
+                child: Semantics(
+                  button: true,
+                  selected: i == selected,
+                  label: _items[i].$2,
+                  excludeSemantics: true,
+                  child: GestureDetector(
+                    onTap: () => onChanged(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 120),
+                      width: 30,
+                      height: 26,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: i == selected
+                            ? t.surface
+                            : const Color(0x00000000),
+                        borderRadius: AppRadius.pillR(26),
+                        boxShadow: i == selected ? AppShadows.s1 : null,
+                      ),
+                      child: Icon(_items[i].$1,
+                          size: 15, color: i == selected ? t.fg : t.fgMuted),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// A checkbox as the reference draws one: the platform's own 13px box,
 /// tinted by `accent-color: var(--accent)` — a 1px `--border-strong` square at
 /// 2px radius on `--surface`, filled `--accent` with an `--accent-fg` tick

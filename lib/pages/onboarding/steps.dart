@@ -74,6 +74,8 @@ class WelcomeStep extends StatelessWidget {
           const KitMark(KitQuill.icon, size: 72),
           const SizedBox(height: AppSpacing.s6),
           const ChapterOpening(
+            // Onboarding's own head, not §2.1's (F-80 (4)).
+            onboarding: true,
             folio: 'Setting up',
             folioAside: 'a few minutes',
             title: 'Welcome to *your library.*',
@@ -117,6 +119,8 @@ class SourcesStep extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const ChapterOpening(
+            // Onboarding's own head, not §2.1's (F-80 (4)).
+            onboarding: true,
           folio: '№ 01 · of 03',
           title: 'Bring in your reading.',
           standfirst: 'Drop a file or paste a link. The more you bring, the '
@@ -202,6 +206,8 @@ class LibrarianStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const ChapterOpening(
+            // Onboarding's own head, not §2.1's (F-80 (4)).
+            onboarding: true,
             folio: '№ 02 · of 03',
             title: 'Teach your *librarian.*',
             standfirst: 'Write a short mission — what you’re reading toward, '
@@ -309,6 +315,8 @@ class LetterStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const ChapterOpening(
+            // Onboarding's own head, not §2.1's (F-80 (4)).
+            onboarding: true,
             folio: '№ 03 · of 03',
             title: 'Tune your *letter.*',
             standfirst: 'A letter is from someone, to someone. Set when yours '
@@ -434,6 +442,8 @@ class DoneStep extends StatelessWidget {
         const KitMark.seal(KitQuill.icon),
         const SizedBox(height: AppSpacing.s6),
         ChapterOpening(
+            // Onboarding's own head, not §2.1's (F-80 (4)).
+            onboarding: true,
           folio: saving
               ? 'Saving…'
               : error != null

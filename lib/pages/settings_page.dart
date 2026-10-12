@@ -101,12 +101,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     'stays warm either way.',
                 wideControl: true,
                 trailing: [
-                  KitSegmented(
-                    segments: const [
-                      KitSegment('Light', icon: Icons.wb_sunny_outlined),
-                      KitSegment('System', icon: Icons.desktop_windows_outlined),
-                      KitSegment('Dark', icon: Icons.dark_mode_outlined),
-                    ],
+                  // The reference's ThemeToggle: three glyphs, named by their
+                  // titles, no text (F-80 (3)).
+                  KitThemeToggle(
                     selected: switch (themeN.themeMode) {
                       ThemeMode.light => 0,
                       ThemeMode.system => 1,
