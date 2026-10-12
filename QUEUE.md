@@ -1824,6 +1824,7 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: Web's import-activity and history rows read `{ProviderLogo 12} {provider name} · {path}` under the file name, the status apart; this client's `_JobRow` reads `{status} · {path} · {reason}`. No pair frames an import row (the folder-contents frame is cropped to the picker on web), so the difference is read from the source, not a frame: frame it (a hold that scrolls to Import activity) before changing it.
+  2026-10-12, read further: the difference is the whole row, not its sub-line. Web's import-activity and history row is a `.proc-row` card (FileBadge · the file name over `{mark} {provider} · {path}` · the controls and a status pill on the right; the job's error under it as `.proc-error`, a skip's reason as a `.proc-note`, each control's wait and refusal in its own slot); this client's `_JobRow` is a §4.1 source row with the status folded into its subtitle. Frame it first (a hold that scrolls to Import activity — the seed's `old-notes.pdf` job is waiting), then recompose on `KitProcCard`.
 
 ## F-103 · A held send or confirm — how it looks is not ruled (spec 0.5, web full on Ask and the picker, faded on Support)
 - status: blocked: XAVIER: the held look of a send/confirm control is not ruled — component-kit §6.1 says 0.5 opacity; web draws Ask's send and the picker's Import N items at full strength while held (no :disabled rule), and Support's send faded; this client fades every held control (0.45)
