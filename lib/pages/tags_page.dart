@@ -79,13 +79,18 @@ class _ShelvesPageState extends State<ShelvesPage> {
                 standfirst:
                     'Group your volumes by subject, project, or year — each '
                     'shelf can feed your letter on its own. '
-                    '${complete.length} volumes, shelved.',
+                    // `counted(totalVols, 'volume')` — one volume is singular
+                    // (F-81 (4)).
+                    '${plural(complete.length, 'volume', 'volumes')}, shelved.',
               ),
               if (error != null) ...[
                 KitFailureInline(
                     'Your shelves could not be read — $error'),
                 const SizedBox(height: 20),
               ],
+              // `.shelf-grid { margin-top: 26px }` — the grid does not follow
+              // the chapter opening directly (F-81 (1)).
+              const SizedBox(height: 26),
               KitCardGrid(
                 columns: 3,
                 // `.shelf-grid` gap 20 — the shelves grid's own metric; the

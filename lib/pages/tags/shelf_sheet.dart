@@ -146,7 +146,8 @@ Future<void> showShelfSheet(
       : _fillHeading(backfillFor.title));
   return KitOverlaySheet.show(
     context,
-    icon: Icons.layers_outlined,
+    // `IcoStack`, the reference's shelf glyph (F-81 (6)).
+    icon: KitStackGlyph.icon,
     title: heading.value.title,
     subtitle: heading.value.subtitle,
     width: 480,

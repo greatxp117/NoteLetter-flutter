@@ -406,9 +406,66 @@ class _UploadPainter extends CustomPainter {
   bool shouldRepaint(_UploadPainter old) => old.color != color;
 }
 
+/// The reference's `IcoStack` — three stacked layers (a diamond and two
+/// chevrons under it), stroked at 1.75 on a 24 grid: the shelf glyph. Material's
+/// `layers` is two (F-81 (6)).
+class KitStackGlyph extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const KitStackGlyph({super.key, required this.size, required this.color});
+
+  /// A sentinel for kit widgets that take an [IconData], as [KitQuill.icon].
+  static const IconData icon = IconData(0xF8FC, fontFamily: 'NoteLetterStack');
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _StackPainter(color)),
+      );
+}
+
+class _StackPainter extends CustomPainter {
+  final Color color;
+  const _StackPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.75
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    // M2 6l10-4 10 4-10 4z  M2 12l10 4 10-4  M2 18l10 4 10-4
+    canvas.drawPath(
+        Path()
+          ..moveTo(2, 6)
+          ..lineTo(12, 2)
+          ..lineTo(22, 6)
+          ..lineTo(12, 10)
+          ..close()
+          ..moveTo(2, 12)
+          ..lineTo(12, 16)
+          ..lineTo(22, 12)
+          ..moveTo(2, 18)
+          ..lineTo(12, 22)
+          ..lineTo(22, 18),
+        paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_StackPainter old) => old.color != color;
+}
+
 /// An [IconData] as a kit widget draws it: [KitQuill.icon] is the quill,
 /// [KitSparkle.icon] the reference's sparkle, [KitUploadGlyph.icon] its
-/// upload tray, any other a Material [Icon].
+/// upload tray, [KitStackGlyph.icon] its shelf stack, any other a Material
+/// [Icon].
 class KitGlyph extends StatelessWidget {
   final IconData icon;
   final double size;
@@ -423,7 +480,9 @@ class KitGlyph extends StatelessWidget {
           ? KitSparkle(size: size, color: color)
           : icon == KitUploadGlyph.icon
               ? KitUploadGlyph(size: size, color: color)
-              : Icon(icon, size: size, color: color);
+              : icon == KitStackGlyph.icon
+                  ? KitStackGlyph(size: size, color: color)
+                  : Icon(icon, size: size, color: color);
 }
 
 /// The phone app bar's trailing control (`.mh-btn`): 36 square, `--r-sm`, the

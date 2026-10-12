@@ -634,7 +634,8 @@ class KitShelfCard extends StatelessWidget {
                   if (i > 0) const SizedBox(width: 3),
                   Container(
                     width: 7,
-                    height: 44 * (0.62 + ((i * 23) % 38) / 100),
+                    // A percent of `.shelf-spines`' 56 (F-81 (2): it was 44).
+                    height: 56 * (0.62 + ((i * 23) % 38) / 100),
                     decoration: BoxDecoration(
                       color: spineColor.withValues(
                           alpha: 0.32 + ((i * 7) % 5) * 0.14),
@@ -695,8 +696,10 @@ class KitShelfCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 9),
                 if (volumeTitles.isEmpty)
+                  // `.scv-empty` — SANS italic 12 at --fg-subtle (F-81 (3)).
                   Text('Empty shelf',
-                      style: AppTheme.serif(
+                      style: TextStyle(
+                        fontFamily: AppTheme.fontSans,
                         fontSize: 12,
                         height: 16 / 12,
                         fontStyle: FontStyle.italic,

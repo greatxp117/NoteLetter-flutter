@@ -2296,25 +2296,31 @@ class KitSwatch extends StatelessWidget {
           onTap: readOnly ? null : onTap,
           child: Opacity(
             opacity: onTap == null && !readOnly ? 0.5 : 1,
+            // `.ss-swatch` is border-box: ONE 24 circle whatever its state —
+            // the fill under a 2px border that is transparent at rest and
+            // --fg when chosen, the --border hairline inset just inside it,
+            // --shadow-1 outside. The ring drew OUTSIDE the circle here, so the
+            // chosen swatch was 28 among 24s (F-81 (5)).
             child: Container(
-              width: _size + 4,
-              height: _size + 4,
-              alignment: Alignment.center,
+              width: _size,
+              height: _size,
               decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: AppShadows.s1,
+              ),
+              foregroundDecoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: selected ? t.fg : const Color(0x00000000),
                   width: 2,
                 ),
               ),
-              child: Container(
-                width: _size,
-                height: _size,
+              padding: const EdgeInsets.all(2),
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: color,
                   shape: BoxShape.circle,
                   border: Border.all(color: t.border),
-                  boxShadow: AppShadows.s1,
                 ),
               ),
             ),

@@ -8,6 +8,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
+import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 
 /// §15.1 and §15.2 — the two viewers for a document's own bytes, and the
@@ -183,7 +184,10 @@ class KitOverlaySheet extends StatelessWidget {
                             color: t.accentSoft,
                             borderRadius: AppRadius.smR,
                           ),
-                          child: Icon(icon, size: 18, color: t.accentText),
+                          // `.qa-mark` draws its glyph at --seal, not
+                          // --accent-text (the same value today, the wrong
+                          // name — F-81 (6)).
+                          child: KitGlyph(icon, size: 18, color: t.seal),
                         ),
                     const SizedBox(width: 12),
                     Expanded(
