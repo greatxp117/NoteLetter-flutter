@@ -90,9 +90,9 @@ class CohesiveColumn extends StatelessWidget {
         if (r.note != null) ...[
           Text(
             'The arrangement needed adjusting; every passage is here.',
-            // `.cohesive-note`
+            // `.cohesive-note` — serif italic 14 at --fg-subtle (F-75 (4)).
             style: KitText.lede(context,
-                fontSize: 14, height: 20, color: t.fgMuted),
+                fontSize: 14, height: 20, color: t.fgSubtle),
           ),
           const SizedBox(height: AppSpacing.s5),
         ],
@@ -223,8 +223,11 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
                     p.document.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    // `.cohesive-passage .pmeta .srctitle` — serif 14/500;
+                    // 15/1.2 is the passages mode's `.sresult-head` title
+                    // (F-75 (3)).
                     style: KitText.title(context,
-                        fontSize: 15, height: 1.2, weight: FontWeight.w500),
+                        fontSize: 14, weight: FontWeight.w500),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -248,19 +251,24 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
               // `text` is the representation `[Image: …]` lives in, so the
               // no-html branch draws its markers as §17.2 rather than as the
               // reader's own sentence.
+              // `.passage .quote` — serif 18/30 (F-75 (1); was 17/28).
               KitMarkedText(p.text,
                   style: KitText.bodyReading(context,
-                      fontSize: 17, height: 28))
+                      fontSize: 18, height: 30))
             else
               Html(
                 data: html,
                 extensions: AppTheme.htmlExtensions,
                 style: AppTheme.htmlStyles(
                   t,
+                  // The same quote in its stored html: the reading serif,
+                  // which this branch never named, so html set in the UI
+                  // sans while the plain branch was serif (F-75 (2)).
                   body: Style(
                     margin: Margins.zero,
-                    fontSize: FontSize(17),
-                    lineHeight: LineHeight.number(28 / 17),
+                    fontFamily: AppTheme.fontSerif,
+                    fontSize: FontSize(18),
+                    lineHeight: LineHeight.number(30 / 18),
                     color: t.fg,
                   ),
                 ),

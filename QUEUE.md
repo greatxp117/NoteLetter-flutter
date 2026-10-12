@@ -1431,7 +1431,7 @@ a new obligation on a finished screen is a new item.
 - notes: F-43 recomposed the panel bar, the sheet, its type, the edit-mode chunk head, the split control and the foot. Four reference parts were left for this item, each a behaviour rather than a type role: (1) `TypeControls` — the `Aa` popover beside Edit text (`.ms-type`, useReaderPrefs: size, leading, family, measure as `--ms-*` vars on the sheet); (2) `.ms-progress` — the accent reading-progress rule above the sheet, a MEASURED fraction of the sheet scrolled (only measured numbers on screen); (3) `.ms-resume` — `You stopped about N% of the way through.` with Pick up where you left off / Start over; (4) the drop cap on the first passage's first paragraph (`::first-letter`, serif 58/0.86/600 at --accent-text) — flutter_html has no first-letter, so it needs a decision on how the first paragraph is drawn. Read ManuscriptPanel.jsx for where (2) and (3) take their numbers before building either.
 
 ## F-75 · Search — the cohesive column's passage type and source title follow the reference
-- status: open
+- status: in-progress
 - screen: search
 - route: /search
 - spec: spec/screens/search.md §Composition; spec/component-kit.md §5.2
