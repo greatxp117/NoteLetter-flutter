@@ -24,7 +24,9 @@ String _grouped(int n) =>
 
 /// The sentence for a `docIds` answer, or null for a single-document one.
 /// Counts are the answer's own fields (`enqueued`, `failed`, `notStarted`) —
-/// never `docIds.length` re-derived.
+/// never `docIds.length` re-derived. A playlist longer than the server's cap
+/// says so, LAST, with the answer's own `cap` (5.2.0, ADR-160): "Added 100
+/// videos" alone reads as the whole list.
 String? playlistAdded(Map<String, dynamic>? res) {
   if (res == null || res['docIds'] is! List) return null;
   final enqueued = res['enqueued'];
@@ -43,6 +45,12 @@ String? playlistAdded(Map<String, dynamic>? res) {
     parts.add(k == 1
         ? 'The 1 after it was not added.'
         : 'The ${_grouped(k)} after it were not added.');
+  }
+  final cap = res['cap'];
+  if (res['capped'] == true && cap is num && cap.isFinite) {
+    final c = _grouped(cap.toInt());
+    parts.add('The playlist has more than $c videos; only the first $c were '
+        'read.');
   }
   return parts.join(' ');
 }

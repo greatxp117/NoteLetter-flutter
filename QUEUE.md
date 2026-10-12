@@ -1725,7 +1725,7 @@ a new obligation on a finished screen is a new item.
 - notes: The §7 standfirst under the control bar of an empty library said the passages "start arriving within a minute", which nothing measured and a long video breaks. It reads web's sentence: *Add a file or connect a service, and the passages arrive as each source is read — a long video or recording takes longest.* (sources.md §Composition). browse_section.dart ~814. The seed is not an empty library, so no pair shows it: a widget test is the proof. Booked by the coordinator from the web lane's close (signals 19:38Z).
 
 ## F-97 · Playlist — a cut playlist says where it was cut (5.2.0, ADR-160)
-- status: open
+- status: done 2026-10-12
 - screen: sources
 - route: /sources
 - spec: spec/decisions/ADR-160-a-playlist-says-where-it-was-cut.md; spec/api/ingest.md

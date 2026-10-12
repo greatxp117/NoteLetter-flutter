@@ -14,6 +14,8 @@ import 'package:flutter_app/state/upload_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/file_uploader.dart';
 
+import 'fixtures.dart';
+
 /// A YouTube playlist link (4.114.0, ADR-151 — api/ingest.md §A playlist link).
 ///
 /// `fn_ingest_url` has expanded `youtube_playlist` into one queued document
@@ -123,6 +125,33 @@ void main() {
     test('groups thousands as the reference’s toLocaleString does', () {
       expect(playlistAdded(_answerOf({'enqueued': 1200, 'notStarted': 1500})),
           'Added 1,200 videos from this playlist. The 1,500 after it were not added.');
+    });
+
+    // 5.2.0 (ADR-160): a playlist cut at the server's cap says where, LAST,
+    // with the answer's own `cap` — read off the captured answers, as web's
+    // playlist-link test reads them.
+    Map<String, dynamic> captured(String id) {
+      final suite = loadSuite('api/ingest')!;
+      final c = (suite['cases'] as List)
+          .cast<Map>()
+          .firstWhere((c) => c['id'] == id);
+      return ((c['response'] as Map)['body'] as Map).cast<String, dynamic>();
+    }
+
+    test('a cut playlist says where it was cut, last, with the answer\'s cap',
+        () {
+      final capped = captured('ingest:youtube-playlist-capped');
+      final said = playlistAdded(capped)!;
+      expect(said, startsWith('Added ${capped['enqueued']} videos'));
+      expect(said,
+          endsWith('The playlist has more than 100 videos; only the first 100 '
+              'were read.'));
+      expect(playlistAdded({...capped, 'cap': 250}),
+          endsWith('more than 250 videos; only the first 250 were read.'),
+          reason: 'the cap is the answer\'s, never a constant');
+      expect(playlistAdded(captured('ingest:youtube-playlist')),
+          isNot(contains('only the first')),
+          reason: 'capped: false says nothing about a cap');
     });
 
     test('is nothing for a single-document answer, and never renders `warnings`',
