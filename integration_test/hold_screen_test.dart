@@ -38,6 +38,7 @@ import 'package:flutter_app/shared/local_flags.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
+import 'package:flutter_app/pages/chat_page.dart';
 import 'package:flutter_app/pages/tags/shelf_sheet.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
 import 'package:flutter_app/state/chat_notifier.dart';
@@ -292,6 +293,20 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       // open one covers the transcript entirely and the frame would compare
       // nothing the web `ask-thread` frame shows. §9 has its own pair below.
       if (holdState == 'ask-rail') {
+        // The answer draws on `/ask` BEFORE the screen moves to the thread
+        // it made (`context.go('/ask/thread/{id}')` follows the send): a
+        // History tapped in between opened the rail on the page that was
+        // about to be replaced, and the new page had it closed (the
+        // 2026-10-12 batch). Wait for the thread's own page first.
+        for (var i = 0; i < 50; i++) {
+          final pages = find.byType(ChatPage).evaluate();
+          if (pages.length == 1 &&
+              (pages.single.widget as ChatPage).threadId != null) {
+            break;
+          }
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+        await settle();
         await tester.tap(find.text('History'));
         await settle();
         expect(find.byType(KitInspectorRail), findsOneWidget,
@@ -479,7 +494,12 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(row, findsOneWidget,
           reason: 'run tool/seed_overlay_sources.py first — no processing '
               'row for "$title"');
-      final view = find.descendant(of: row, matching: find.text('View file'));
+      // A set's control is "View images", a file's "View file"
+      // (source_sheet.dart, the reference's `.proc-view` labels).
+      final view = find.descendant(
+          of: row,
+          matching: find.text(
+              holdState == 'source-file' ? 'View file' : 'View images'));
       await tester.ensureVisible(view);
       await settle();
       await tester.tap(view);
@@ -879,6 +899,21 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       for (var i = 0; i < 50; i++) {
         await tester.pump(const Duration(milliseconds: 200));
         if (held.evaluate().isNotEmpty) break;
+      }
+      // On a scratch boot nothing has stamped `last_manual_scan_at`, so the
+      // first Rescan all is ACCEPTED (202) and starts no clock; it stamps it,
+      // and the second is refused with the cooldown — the state framed.
+      if (held.evaluate().isEmpty) {
+        final again = find.text('Rescan all');
+        for (var i = 0; i < 50; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+          if (again.evaluate().isNotEmpty) break;
+        }
+        await tester.tap(again.first);
+        for (var i = 0; i < 50; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+          if (held.evaluate().isNotEmpty) break;
+        }
       }
       expect(held, findsOneWidget,
           reason: 'Rescan all is not held — stamp '

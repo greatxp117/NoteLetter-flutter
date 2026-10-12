@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
@@ -235,9 +236,18 @@ class _ChatPageState extends State<ChatPage> {
                 left: 0,
                 top: 0,
                 bottom: 0,
-                child: MediaQuery(
-                  data: MediaQueryData.fromView(View.of(context)),
-                  child: _rail(context, context.watch<ChatNotifier>()),
+                // The rail is drawn under the status bar now, so the bar's
+                // glyphs take the RAIL's ground: the shell's plum chrome set
+                // them light, which over a light rail is white on white (the
+                // 2026-10-12 ask-rail frame lost the clock).
+                child: AnnotatedRegion<SystemUiOverlayStyle>(
+                  value: Theme.of(context).brightness == Brightness.dark
+                      ? SystemUiOverlayStyle.light
+                      : SystemUiOverlayStyle.dark,
+                  child: MediaQuery(
+                    data: MediaQueryData.fromView(View.of(context)),
+                    child: _rail(context, context.watch<ChatNotifier>()),
+                  ),
                 ),
               ),
             ],

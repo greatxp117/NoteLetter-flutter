@@ -1,9 +1,11 @@
 // F-78 (4) — Ask's §9 rail on a phone is drawn over everything (the shell's
 // bar and footer included), the full height of the screen, from the header's
 // History link. It moved onto the ROOT overlay in ae81173 and was given the
-// view's insets in 1da6a97 with analyze as its only gate; the 2026-10-12 frame
-// batch found History opening nothing. This is the gate that was missing.
+// view's insets in 1da6a97 with analyze as its only gate. (The 2026-10-12 frame
+// batch's "no rail" was its hold tapping History on the page the send was
+// about to replace — fixed in the hold; this is the gate that was missing.)
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +65,13 @@ void main() {
     final rail = tester.getRect(find.byType(KitInspectorRail));
     expect(rail.top, 0, reason: 'top: 0, over the shell\'s bar');
     expect(rail.height, 874, reason: 'the full height of the screen');
+    // Under the status bar, the bar's glyphs take the rail's light ground.
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(find
+        .ancestor(
+            of: find.byType(KitInspectorRail),
+            matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>))
+        .first);
+    expect(region.value, SystemUiOverlayStyle.dark);
 
     await tester.tapAt(const Offset(390, 400)); // the scrim, right of the rail
     await tester.pump();
