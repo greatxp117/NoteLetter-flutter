@@ -304,9 +304,11 @@ class _SiteFieldState extends State<SiteField> {
             fillColor: t.surfaceSunken,
             hintText: widget.hint,
             hintStyle: type.placeholder,
+            // `.si-field input { padding: 11px 13px }` — 13 drew the field
+            // 49 high against the reference's 43 (F-82 (2)).
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 13,
-              vertical: 13,
+              vertical: 11,
             ),
             enabledBorder: border(t.border),
             border: border(t.border),
@@ -345,7 +347,8 @@ class SiteSubmit extends StatelessWidget {
               borderRadius: AppRadius.smR,
               boxShadow: AppShadows.s1,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            // `.si-submit { padding: 12px 16px }` (F-82 (2): was 13).
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             alignment: Alignment.center,
             child: Text(label, style: SiteType(t).submit),
           ),
@@ -383,7 +386,8 @@ class SiteGhost extends StatelessWidget {
           borderRadius: AppRadius.smR,
           hoverColor: t.hover,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            // `.si-ghost { padding: 11px 14px }` (F-82 (2): was 12).
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

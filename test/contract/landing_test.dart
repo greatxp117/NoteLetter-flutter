@@ -133,6 +133,18 @@ void main() {
     'Independent, and staying that way',
   ];
 
+  // F-82 (3): `.lac .mh h1 .ln { display: block }` at every width — the two
+  // lines never join, on a phone either; a space there set "deserve" and
+  // "to be re-" on one line.
+  testWidgets('the hero keeps its two lines apart on a phone', (tester) async {
+    await pump(tester, 402);
+    final hero = tester.widgetList<RichText>(find.byType(RichText)).firstWhere(
+        (r) => r.text.toPlainText().startsWith('Your '));
+    expect(hero.text.toPlainText(), contains('deserve\nto be re-'));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  });
+
   for (final width in [402.0, 1440.0]) {
     testWidgets('the edition, in order, at $width', (tester) async {
       await pump(tester, width);

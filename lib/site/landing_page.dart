@@ -911,7 +911,10 @@ class _SayState extends State<_Say> {
               const TextSpan(text: 'Your '),
               rot(_typed.$1, t.accent),
               const TextSpan(text: ' deserve'),
-              TextSpan(text: lt.phone ? ' ' : '\n'),
+              // `.ln { display: block }` at every width — on a phone only
+              // their `white-space` goes normal, so each line may wrap but
+              // the two never join (F-82 (3)).
+              const TextSpan(text: '\n'),
               const TextSpan(text: 'to be re-'),
               rot(_typed.$2, t.fg),
               const TextSpan(text: '.'),

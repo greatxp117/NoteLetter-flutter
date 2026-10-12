@@ -461,34 +461,36 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           alignment: 0.0, duration: Duration.zero);
       await settle();
       return;
-    // component-kit §15.1 / §15.2 — the Original panel is where this client
-    // draws both viewers, exactly as the reference reader does. Which one
-    // appears is decided by the document's SHAPE, so the two states differ
-    // only in the document the route opened.
+    // component-kit §15.1 / §15.2 — the §15 overlay SHEET opened from a
+    // processing row on Sources, as the reference frames both (theme-shots
+    // `source-file`, `source-set`): a failed DOCX whose bytes are stored, and
+    // a pending image set with two of three pages landed. These holds framed
+    // the reader's Original section until F-82 — another surface under the
+    // same name, so the pairs compared nothing. Run
+    // tool/seed_overlay_sources.py first, and with `--remove` after.
     case 'source-file':
-      await tester.ensureVisible(find.text('Original'));
-      await tester.pump();
-      await tester.tap(find.text('Original'), warnIfMissed: false);
-      await settle();
-      expect(find.byType(KitSourceFileView), findsOneWidget,
-          reason: 'no §15.1 view — run tool/seed_recipe_and_sources.py first '
-              '(with no stored bytes the endpoint answers signed_url: null, '
-              'which is a different state and a different picture)');
-      return;
     case 'source-set':
-      await tester.ensureVisible(find.text('Original'));
-      await tester.pump();
-      await tester.tap(find.text('Original'), warnIfMissed: false);
       await settle();
-      expect(find.byType(KitSourceSetGallery), findsOneWidget,
-          reason: 'no §15.2 gallery — run tool/seed_recipe_and_sources.py '
-              'first; a set filed as a link draws a link button over a null');
-      // The grid is the subject, and three pages of it do not fit under the
-      // header. Aligned to the top so the frame holds the whole gallery —
-      // toolbar, count, and every tile including the one that has not landed.
-      await Scrollable.ensureVisible(
-          tester.element(find.byType(KitSourceSetGallery)),
-          alignment: 0.0, duration: Duration.zero);
+      final title = holdState == 'source-file'
+          ? 'minutes-2026-08.docx'
+          : 'Kitchen notebook, three pages';
+      final row = find.ancestor(
+          of: find.text(title), matching: find.byType(KitProcCard));
+      expect(row, findsOneWidget,
+          reason: 'run tool/seed_overlay_sources.py first — no processing '
+              'row for "$title"');
+      final view = find.descendant(of: row, matching: find.text('View file'));
+      await tester.ensureVisible(view);
+      await settle();
+      await tester.tap(view);
+      final want = holdState == 'source-file'
+          ? find.byType(KitSourceFileView)
+          : find.byType(KitSourceSetGallery);
+      for (var i = 0; i < 60 && want.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(want, findsOneWidget,
+          reason: 'the §15 sheet did not open on its viewer');
       await settle();
       return;
     // search.md — a route alone renders the §7 idle offer, so the query is

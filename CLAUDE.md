@@ -27,7 +27,6 @@ lib/
 ├── state/     *_notifier.dart            # Provider ChangeNotifiers
 ├── models/    document, chunk, tag, newsletter, activity_item, …
 ├── pages/     one per screen (+ pages/study/, pages/reader/)
-├── scripture/ parse.dart                 # citation parser
 ├── widgets/   support_shell, app_layout, sidebar, nav_drawer, kit/
 └── theme/     app_colors.dart            # semantic tokens from design-tokens.md
 ```
@@ -43,9 +42,8 @@ The live theme is `theme/app_theme.dart`.
 consistent while most widgets draw colours from no token file. Guard:
 `test/contract/theme_tokens_test.dart`.
 
-**Every request is built in `lib/services/api.dart`**, which every notifier
-calls — so live requests are exactly what the harness asserts. A notifier
-building its own is untested by construction.
+**Every request is built in `lib/services/api.dart`** — what the harness
+asserts; a notifier building its own is untested.
 
 ## Build & run
 
@@ -75,6 +73,7 @@ proportions hold:
 - touch copy, no keys bound: speed read hints only *Hold to pause & rest*
   (F-77 (8)); the drop zone says *tap* (F-79)
 - Sources' *Add an image set* row: a device capability web lacks
+- §15.1 draws no PDF (no renderer is embedded): the stage names it (F-82)
 
 ## Rules that are easy to break here
 
