@@ -37,12 +37,23 @@ const String _hintSourcePriority =
     'The weight you gave this source. Defaults to 0.50 when you have not set '
     'one.';
 
+/// The Source-priority row's hint once the server says whether the reader
+/// weighted the source (4.118.0, ADR-155; web `PRIORITY_HINT`).
+const String _hintPrioritySet = 'The weight you gave this source.';
+const String _hintPriorityDefault =
+    'You have not weighted this source, so it counts at the default.';
+
 class SearchScoreAnchor extends StatelessWidget {
   final double score;
 
   /// The measured components. A null renders **no row** for that component.
   final double? cosine;
   final double? sourcePriority;
+
+  /// `source_priority_set` (4.118.0, ADR-155): false draws the row as
+  /// *default · 0.50* instead of a half-full bar that reads as "you rated
+  /// this a half"; null (an older response) draws as before.
+  final bool? sourcePrioritySet;
 
   /// The score element itself — the meter, or the cohesive column's figure.
   final Widget child;
@@ -52,6 +63,7 @@ class SearchScoreAnchor extends StatelessWidget {
     required this.score,
     required this.cosine,
     required this.sourcePriority,
+    this.sourcePrioritySet,
     required this.child,
   });
 
@@ -73,7 +85,13 @@ class SearchScoreAnchor extends StatelessWidget {
           weight: _wSourcePriority,
           value: sourcePriority!,
           contribution: _wSourcePriority * sourcePriority!,
-          hint: _hintSourcePriority,
+          hint: switch (sourcePrioritySet) {
+            true => _hintPrioritySet,
+            false => _hintPriorityDefault,
+            null => _hintSourcePriority,
+          },
+          // `.pop-default` in place of the bar while unweighted.
+          defaultValue: sourcePrioritySet == false,
         ),
     ];
 

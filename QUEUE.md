@@ -1837,3 +1837,16 @@ a new obligation on a finished screen is a new item.
 - shots: ask; ask-thread; ask-rail; ask-turn-failed; folder-contents
 - extra_gates: none
 - notes: Seen on every Ask pair (the empty composer's send) and the folder-contents pair (Import 0 items with nothing chosen): web draws the held control at full strength, this client at 0.45, as both draw Support's held send. A spec-vs-web disagreement, not adjudicated here (flutter-next §6): rule which look a held send/confirm has, then the clients follow.
+
+## F-104 · Search — the explainer's Source-priority row reads default while unset (4.118.0 tandem, ADR-155)
+- status: done 2026-10-12
+- screen: search
+- route: /search
+- spec: spec/screens/search.md §Score explainer; spec/api/search.md; spec/decisions/ADR-155-a-chosen-priority-is-stamped.md
+- web: src/pages/SearchView.jsx; src/styles/app-kit.css
+- flutter: lib/models/search_result.dart; lib/models/cohesive_reading.dart; lib/pages/search/score_explainer.dart; lib/pages/search/result_card.dart; lib/pages/search/cohesive_column.dart; lib/widgets/kit/kit_popover.dart
+- folds: 4.118.0 (ADR-155)
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: CHANGELOG 4.118.0's Flutter tandem ("the same row; its Sources priority control may offer Default") was marked queued and never was: no item held it. Every search result and cohesive passage carries `source_priority_set` (bool); while false the explainer's row draws `default · 0.50` (`.pop-default`) in place of the bar, with "You have not weighted this source, so it counts at the default."; true reads "The weight you gave this source."; absent (an older response) draws as before. Default (sending `null`) on the priority control belongs with the control's placement: F-99, blocked on Xavier. No pair frames the open popover (search is framed closed).

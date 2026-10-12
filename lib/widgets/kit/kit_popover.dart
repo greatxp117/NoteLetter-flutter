@@ -366,6 +366,11 @@ class KitPopoverMeterRow extends StatelessWidget {
 
   final String hint;
 
+  /// The figure is the DEFAULT, not a reading (4.118.0, ADR-155): drawn as
+  /// `default · 0.50` in the mono caption (`.pop-default`) where the bar
+  /// would be, so an unweighted source is not a half-full meter.
+  final bool defaultValue;
+
   const KitPopoverMeterRow({
     super.key,
     required this.label,
@@ -373,6 +378,7 @@ class KitPopoverMeterRow extends StatelessWidget {
     required this.value,
     required this.contribution,
     required this.hint,
+    this.defaultValue = false,
   });
 
   @override
@@ -419,6 +425,13 @@ class KitPopoverMeterRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
+          if (defaultValue)
+            Text(
+              'default · ${value.toStringAsFixed(2)}',
+              style: AppTheme.mono(fontSize: 10, color: t.fgMuted)
+                  .copyWith(letterSpacing: 0.04 * 10),
+            )
+          else
           Container(
             height: 3,
             decoration: BoxDecoration(

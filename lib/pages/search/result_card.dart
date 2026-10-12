@@ -98,6 +98,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
                     score: r.score,
                     cosine: r.cosine,
                     sourcePriority: r.sourcePriority,
+                    sourcePrioritySet: r.sourcePrioritySet,
                   ),
                 ],
               ),
@@ -159,11 +160,13 @@ class _ScoreMeter extends StatelessWidget {
   final double score;
   final double? cosine;
   final double? sourcePriority;
+  final bool? sourcePrioritySet;
 
   const _ScoreMeter({
     required this.score,
     required this.cosine,
     required this.sourcePriority,
+    this.sourcePrioritySet,
   });
 
   @override
@@ -174,6 +177,7 @@ class _ScoreMeter extends StatelessWidget {
       score: score,
       cosine: cosine,
       sourcePriority: sourcePriority,
+      sourcePrioritySet: sourcePrioritySet,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

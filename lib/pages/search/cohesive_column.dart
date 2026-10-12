@@ -240,6 +240,7 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
                   score: p.score,
                   cosine: p.cosine,
                   sourcePriority: p.sourcePriority,
+                  sourcePrioritySet: p.sourcePrioritySet,
                   child: Text(p.score.toStringAsFixed(2),
                       style: KitText.monoFigure(context,
                           fontSize: 10, color: t.fgMuted)),

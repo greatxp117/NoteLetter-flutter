@@ -90,6 +90,9 @@ class CohesivePassage {
   final double? cosine;
   final double? sourcePriority;
 
+  /// `source_priority_set` (4.118.0, ADR-155) — as [SearchResult]'s.
+  final bool? sourcePrioritySet;
+
   /// `/reader/{document_id}?p={chunk_id}`, built in code from ids by the
   /// server (INV-21). Never re-derived here: a link a client assembles is a
   /// link that can disagree with the one the letter sent.
@@ -109,6 +112,7 @@ class CohesivePassage {
     required this.score,
     required this.cosine,
     required this.sourcePriority,
+    this.sourcePrioritySet,
     required this.link,
     required this.pageNumber,
     required this.timestampStart,
@@ -126,6 +130,7 @@ class CohesivePassage {
         score: (json['score'] as num?)?.toDouble() ?? 0,
         cosine: (json['cosine'] as num?)?.toDouble(),
         sourcePriority: (json['source_priority'] as num?)?.toDouble(),
+        sourcePrioritySet: json['source_priority_set'] as bool?,
         link: json['link'] as String? ?? '',
         pageNumber: (json['page_number'] as num?)?.toInt(),
         timestampStart: (json['timestamp_start'] as num?)?.toDouble(),

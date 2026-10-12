@@ -94,12 +94,19 @@ class SearchResult {
   final double? cosine;
   final double? sourcePriority;
 
+  /// Whether the reader weighted this source (4.118.0, ADR-155): the
+  /// SERVER's answer, read off `source_priority_set_at`. A stored 0.5 is the
+  /// default or a choice and the number cannot say which, so nothing here is
+  /// inferred from [sourcePriority]. Null on a response from before it.
+  final bool? sourcePrioritySet;
+
   const SearchResult({
     required this.chunk,
     required this.document,
     this.score = 0,
     this.cosine,
     this.sourcePriority,
+    this.sourcePrioritySet,
   });
 
   factory SearchResult.fromJson(Map<String, dynamic> json) {
@@ -110,6 +117,7 @@ class SearchResult {
       score: (json['score'] as num?)?.toDouble() ?? 0,
       cosine: (json['cosine'] as num?)?.toDouble(),
       sourcePriority: (json['source_priority'] as num?)?.toDouble(),
+      sourcePrioritySet: json['source_priority_set'] as bool?,
     );
   }
 }
