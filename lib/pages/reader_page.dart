@@ -244,10 +244,47 @@ class _ReaderPageState extends State<ReaderPage> {
     if (current != _current) setState(() => _current = current);
   }
 
+  /// The section a jump landed on, held until the reader scrolls by hand.
+  ///
+  /// A browser keeps a landed jump where it landed when content ABOVE it
+  /// changes size (scroll anchoring); Flutter does not. The sections above
+  /// History load on their own clocks — the Original panel's answer, the
+  /// listen panel's — and each one that grew after a jump pushed the target
+  /// down: tapping History left it ~90 under the rail with Original still
+  /// marked (the 2026-10-07 and 2026-10-12 reader-history frames, F-77).
+  String? _anchored;
+
+  /// A section changed size: if a jump is being held, put its section back
+  /// under the rail.
+  bool _onSectionSize(SizeChangedLayoutNotification _) {
+    final id = _anchored;
+    if (id != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _anchored != id || !_scroll.hasClients) return;
+        final box = _sectionKeys[id]?.currentContext?.findRenderObject();
+        if (box is! RenderBox || !box.attached) return;
+        final target = RenderAbstractViewport.of(box)
+            .getOffsetToReveal(box, 0)
+            .offset
+            .clamp(0.0, _scroll.position.maxScrollExtent);
+        if ((target - _scroll.offset).abs() > 0.5) _scroll.jumpTo(target);
+        _reportSoon();
+      });
+    }
+    return false;
+  }
+
+  /// The reader's own hand ends the hold.
+  bool _onScrollStart(ScrollStartNotification n) {
+    if (n.dragDetails != null) _anchored = null;
+    return false;
+  }
+
   /// A jump scrolls; it never hides. The target offset is the rail's own
   /// height — a jump that lands a section's header UNDERNEATH the sticky rail
   /// has not arrived at it (§19).
   Future<void> _jumpTo(String id) async {
+    _anchored = id;
     final ctx = _sectionKeys[id]?.currentContext;
     final box = ctx?.findRenderObject();
     if (box is! RenderBox || !_scroll.hasClients) return;
@@ -465,7 +502,14 @@ class _ReaderPageState extends State<ReaderPage> {
       // a sliver builder runs only at layout, and a section beyond the cache
       // extent is never laid out — so its key had no context and a jump to
       // it did nothing (the device run's Manuscript tap, 2026-10-07).
-      child: LayoutBuilder(builder: (context, viewport) => CustomScrollView(
+      // A held jump stays landed while the sections above it load (F-77):
+      // their size changes reach [_onSectionSize]; a drag ends the hold.
+      child: LayoutBuilder(builder: (context, viewport) =>
+          NotificationListener<ScrollStartNotification>(
+        onNotification: _onScrollStart,
+        child: NotificationListener<SizeChangedLayoutNotification>(
+        onNotification: _onSectionSize,
+        child: CustomScrollView(
         key: _viewportKey,
         controller: _scroll,
         slivers: [
@@ -582,6 +626,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 // §19's section: ruled off from the one above, and the last
                 // one tall enough that a jump to it reaches the rail (F-77 4,
                 // 5; web `.src-section`).
+                child: SizeChangedLayoutNotifier(
                 child: KitRailSection(
                   sectionKey: _sectionKeys[id],
                   first: id == _sectionIds.first,
@@ -609,11 +654,12 @@ class _ReaderPageState extends State<ReaderPage> {
                     ],
                   ),
                 ),
+                ),
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.s20)),
         ],
-      )),
+      )))),
     );
   }
 
