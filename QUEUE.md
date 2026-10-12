@@ -881,7 +881,7 @@ a new obligation on a finished screen is a new item.
 - notes: Split from F-44 on Xavier's 2026-09-26 decisions: (1) the WEB REFERENCE BINDS for the signed-out pages — site furniture with their own sheet (`lib/site/site_sheet.dart`, the port of signin.css), not the app kit; tokens still bind; (2) BUILD Continue with Google. The landing is F-68 (F-44b). This item: `/signin` (router redirect for both signed-out routes, `analytics.dart` map, `support_footer_test` exempt), the AuthModal (Sign in | Subscribe, the letter opt-in stashed before the auth call and replayed by the signed-in app), "Forgot it?" that sends, the reference's error vocabulary gated against `authErrors.js` itself, and Google through `google_sign_in` (native) / Firebase's popup (web), guarded by `GoogleSignInSetup` whose flags a test reads from the native config. Android has no OAuth client (no SHA-1) so its button says "Google sign-in is not set up on this build." The old landing's Material dialog is deleted; its two doors open the modal.
 
 ## F-45 · Sources — an import-activity row breaks its title across two lines
-- status: open
+- status: in-progress
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md; spec/component-kit.md §4.1

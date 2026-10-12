@@ -1119,10 +1119,15 @@ class _JobRowState extends State<_JobRow> {
     final job = widget.job;
     final (label, tone) = _status(job, t);
 
+    final viewable = job.isDuplicate && job.documentId != null;
     final row = KitSourceRow(
       // The plate is the FILE's kind, from its MIME through the one kind
       // table. A hardcoded `web` plate said every imported PDF was a page.
       leading: KitFileBadge(kitDocKind(job.docType)),
+      // A row with a control drops its controls under the title on a phone
+      // (F-45): two actions and the status glyph beside the name left it so
+      // little width that `taxes.pdf` broke as `taxes.pd` / `f`.
+      wideTrailing: viewable || job.canRetry || job.canUpdateFromSource,
       title: job.providerFileName.isEmpty
           ? '(fetching name…)'
           : job.providerFileName,
@@ -1136,10 +1141,12 @@ class _JobRowState extends State<_JobRow> {
         if (job.errorMessage != null && !job.isDuplicate && !job.isDismissed)
           job.errorMessage!,
       ].join(' · '),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+      // Wraps rather than overflows once it sits under the title, as the
+      // reference's strip does (`.proc-actions { flex-wrap: wrap }`).
+      trailing: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          if (job.isDuplicate && job.documentId != null)
+          if (viewable)
             KitButton.ghost('View',
                 onPressed: () => context.go('/reader/${job.documentId}')),
           // `canRetry` is the whole rule: error/cancelled retry, and of the

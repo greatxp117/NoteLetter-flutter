@@ -72,10 +72,11 @@ class KitSourceRow extends StatefulWidget {
   /// is the overflow that hangs off it, not a fifth column of content.
   final Widget? trailing;
 
-  /// A trailing cluster too wide to share a phone's row with the text — the
-  /// processing row's source affordance, its one primary and its overflow, all
-  /// three at once. Below the compact width it drops **under** the row's own
-  /// column rather than overflowing it; the row keeps its anatomy and its list.
+  /// A trailing cluster too wide to share a phone's row with the text — an
+  /// import row's View · Import again · status, say. Below the compact width it
+  /// drops **under the title**, into the text column (web `.proc-actions {
+  /// grid-column: 2 }` at ≤720), rather than taking the title's width: beside
+  /// two actions and a glyph a filename broke as `taxes.pd` / `f` (F-45).
   ///
   /// The same adaptation a setting row's control strip already makes at the
   /// same breakpoint (`CLAUDE.md` §Composition deviations). A `Row` that
@@ -117,7 +118,7 @@ class _KitSourceRowState extends State<KitSourceRow> {
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     final stackTrailing = compact && widget.wideTrailing;
-    final Widget body = MouseRegion(
+    return MouseRegion(
       cursor: widget.onTap == null
           ? SystemMouseCursors.basic
           : SystemMouseCursors.click,
@@ -183,6 +184,10 @@ class _KitSourceRowState extends State<KitSourceRow> {
                         ),
                       ),
                     ],
+                    if (stackTrailing && widget.trailing != null) ...[
+                      const SizedBox(height: 6),
+                      widget.trailing!,
+                    ],
                   ],
                 ),
               ),
@@ -212,21 +217,6 @@ class _KitSourceRowState extends State<KitSourceRow> {
           ),
         ),
       ),
-    );
-
-    if (!stackTrailing || widget.trailing == null) return body;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        body,
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: widget.trailing!,
-          ),
-        ),
-      ],
     );
   }
 }
