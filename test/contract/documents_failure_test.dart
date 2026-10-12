@@ -289,6 +289,14 @@ void main() {
         reason: 'an empty library is a real measurement — ADR-109 keeps 0 '
             'drawable at BOTH sites, it only refuses an UNREAD figure');
     expect(find.byType(KitFailureBlock), findsNothing);
+    // F-96 (web e924677, sources.md): the §7 standfirst promises nothing it
+    // does not measure — "within a minute" is gone.
+    expect(
+        find.text('Add a file or connect a service, and the passages arrive '
+            'as each source is read — a long video or recording takes '
+            'longest.'),
+        findsOneWidget);
+    expect(find.textContaining('within a minute'), findsNothing);
   });
 }
 

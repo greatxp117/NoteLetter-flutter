@@ -810,11 +810,15 @@ class _NothingYet extends StatelessWidget {
     return KitEmptyState(
       icon: Icons.auto_stories_outlined,
       title: 'Nothing here yet.',
-      standfirst: 'Add a file or connect a service, and the passages start '
-          'arriving within a minute.',
+      // web e924677 (sources.md, 2026-10-12): "within a minute" was a
+      // promise nothing measured — a long video or a recording is
+      // transcribed before it has any passages (F-96).
+      standfirst: 'Add a file or connect a service, and the passages arrive '
+          'as each source is read — a long video or recording takes longest.',
       suggestions: [
         KitSuggestion(
-          icon: Icons.upload_outlined,
+          // "leading upload glyph" (sources.md): the reference's IcoUpload.
+          icon: KitUploadGlyph.icon,
           label: 'Add your first file',
           onTap: onAddFile,
         ),

@@ -197,14 +197,15 @@ class _SourcesPageState extends State<SourcesPage> {
                 // Both figures come from the subscription already loaded, so
                 // the standfirst costs no extra read — and it states what is
                 // measured, not what would be impressive.
+                // One sentence at every count, as the reference's
+                // (`counted(totalPassages, 'passage')`): the empty library's
+                // own line said "within a minute", which nothing measured
+                // (F-96, web e924677); §7 below speaks for the empty state.
                 standfirst: docs.error != null
                     ? null
-                    : volumes.isEmpty
-                        ? 'Nothing indexed yet. Add a file or connect a '
-                            'service, and the passages start arriving within '
-                            'a minute.'
-                        : '${_count(passages)} passages, indexed and '
-                            'searchable — add a volume, or connect a service.',
+                    : '${_count(passages)} '
+                        '${passages == 1 ? 'passage' : 'passages'}, indexed '
+                        'and searchable — add a volume, or connect a service.',
               ),
 
               // §14.1 for the subscription every figure on this screen is

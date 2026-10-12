@@ -1712,7 +1712,7 @@ a new obligation on a finished screen is a new item.
 - notes: `_ticker` and the "Read" group gain EPUBs after PDFs, verbatim from web's TICKER and WAYS; `test/contract/landing_test.dart` now reads both lists out of LandingActual.jsx, so a format one landing names and the other does not is red. The `landing-actual` pair is re-shot with web's in the same sitting.
 
 ## F-96 · Sources — the empty library says the passages arrive as each source is read (web e924677)
-- status: open
+- status: done 2026-10-12
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md
