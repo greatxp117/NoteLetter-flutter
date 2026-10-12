@@ -196,6 +196,33 @@ void main() {
     });
   });
 
+  // The reference's recipe sits inside the manuscript's `.ms-body`, whose
+  // `ul`/`ol { padding-left: 26px }` outranks `.rc-ings`/`.rc-steps`: the
+  // items are indented 26 under the eyebrow, a group's key is not (the
+  // 2026-10-07 recipe pair, F-77).
+  testWidgets('§5.4 ingredients indent 26 under the eyebrow; a group key '
+      'does not', (tester) async {
+    const grouped = Recipe(title: 'T', ingredients: [
+      RecipeGroup(group: 'Batter', items: ['flour']),
+      RecipeGroup(group: 'To finish', items: ['butter']),
+    ], steps: [
+      RecipeStep(text: 'Mix.'),
+    ]);
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+            body: SingleChildScrollView(child: KitRecipeBody(recipe: grouped)))));
+    final eyebrow = tester.getTopLeft(find.text('INGREDIENTS')).dx;
+    expect(tester.getTopLeft(find.text('TO FINISH')).dx, eyebrow);
+    final tick = tester.getTopLeft(find
+            .ancestor(of: find.text('butter'), matching: find.byType(Row))
+            .first)
+        .dx;
+    expect(tick - eyebrow, 26);
+    expect(tester.getTopLeft(find.text('Mix.', findRichText: true)).dx -
+        tester.getTopLeft(find.text('1.')).dx, 26,
+        reason: 'the step text sits 26 in, as `.ms-body ol` puts it');
+  });
+
   group('§15.1 / §15.2 source viewers', () {
     testWidgets('§15.1 names what it cannot draw rather than drawing nothing',
         (tester) async {

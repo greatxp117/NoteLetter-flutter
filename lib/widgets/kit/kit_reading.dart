@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_html/flutter_html.dart';
 
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
@@ -424,5 +425,84 @@ class KitDropCap extends StatelessWidget {
         ],
       );
     });
+  }
+}
+
+/// `.ms-body img` — a passage's image as the manuscript frames it: block,
+/// at most the measure wide, 1px `--border` at `--r-sm`, 6 above and 14
+/// below, and a tap opens it full size (`cursor: zoom-in`). An image that
+/// does not load keeps its frame and says its `alt` inside it, as the
+/// browser draws a broken image — the bare alt text in the reading type read
+/// as a sentence of the author's (the 2026-10-07 reader-manuscript pair,
+/// F-77). Manuscript-only, as the reference's rule is: other surfaces that
+/// render html keep their own.
+HtmlExtension kitManuscriptImage({
+  required TextStyle altStyle,
+  void Function(String url, String? alt)? onOpen,
+}) =>
+    ImageExtension(
+      handleAssetImages: false,
+      handleDataImages: false,
+      builder: (ctx) {
+        final src = ctx.attributes['src'] ?? '';
+        final alt = ctx.attributes['alt'];
+        return _ManuscriptImage(
+            src: src, alt: alt, altStyle: altStyle, onOpen: onOpen);
+      },
+    );
+
+class _ManuscriptImage extends StatelessWidget {
+  final String src;
+  final String? alt;
+  final TextStyle altStyle;
+  final void Function(String url, String? alt)? onOpen;
+
+  const _ManuscriptImage({
+    required this.src,
+    required this.alt,
+    required this.altStyle,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    Widget broken() => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.broken_image_outlined, size: 16, color: t.fgSubtle),
+              if ((alt ?? '').isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Flexible(child: Text(alt!, style: altStyle)),
+              ],
+            ],
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 14),
+      child: GestureDetector(
+        onTap: onOpen == null ? null : () => onOpen!(src, alt),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.smR,
+            border: Border.all(color: t.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Semantics(
+            image: true,
+            label: alt,
+            child: Image.network(
+              src,
+              fit: BoxFit.contain,
+              alignment: Alignment.topLeft,
+              errorBuilder: (_, _, _) => broken(),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

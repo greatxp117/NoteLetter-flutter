@@ -149,6 +149,7 @@ class _KitRecipeBodyState extends State<KitRecipeBody> {
         for (var gi = 0; gi < r.ingredients.length; gi++)
           _Group(
             group: r.ingredients[gi],
+            first: gi == 0,
             // A group heading is rendered only where the SOURCE grouped: a
             // single-group recipe shows none.
             showLabel: r.ingredients.length > 1 &&
@@ -236,12 +237,16 @@ class KitFigure extends StatelessWidget {
 
 class _Group extends StatelessWidget {
   final RecipeGroup group;
+
+  /// The first group: no `.rc-group + .rc-group` space above its key.
+  final bool first;
   final bool showLabel;
   final bool Function(int) isChecked;
   final ValueChanged<int> onToggle;
 
   const _Group({
     required this.group,
+    required this.first,
     required this.showLabel,
     required this.isChecked,
     required this.onToggle,
@@ -250,23 +255,36 @@ class _Group extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // The reference's list sits INSIDE the manuscript's `.ms-body`, whose
+    // `ul { padding-left: 26px; margin-bottom: 14px }` outranks `.rc-ings`'s
+    // zero: the items are indented 26 under the eyebrow and the group's own
+    // key (`.rc-group-k`, 8 above the list) is not — "To finish" outdented
+    // (F-77 (9), the 2026-10-07 recipe pair). `.rc-group + .rc-group` adds 18.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (showLabel) ...[
-          const SizedBox(height: AppSpacing.s3),
+          if (!first) const SizedBox(height: 18),
           Text(group.group!.toUpperCase(),
               style: KitText.capsLabel(context,
                   fontSize: 10, letterSpacing: 0.1, color: t.fgSubtle)),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
         ],
-        for (var i = 0; i < group.items.length; i++)
-          _Ingredient(
-            text: group.items[i],
-            on: isChecked(i),
-            first: i == 0,
-            onTap: () => onToggle(i),
+        Padding(
+          padding: const EdgeInsets.only(left: 26, bottom: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < group.items.length; i++)
+                _Ingredient(
+                  text: group.items[i],
+                  on: isChecked(i),
+                  first: i == 0,
+                  onTap: () => onToggle(i),
+                ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -290,10 +308,12 @@ class _Ingredient extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // `.rc-ings li { padding: 5px 0 }` with `.ms-body li`'s 6 under each
+    // item, the rule on the NEXT item's top — 5 above the text and 11 below.
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.only(top: 5, bottom: 11),
         decoration: first
             ? null
             : BoxDecoration(border: Border(top: BorderSide(color: t.rule))),
@@ -303,7 +323,8 @@ class _Ingredient extends StatelessWidget {
             Container(
               width: 18,
               height: 18,
-              margin: const EdgeInsets.only(top: 3, right: 12),
+              // `.rc-tick { margin-top: 4px }`, `li { gap: 11px }`.
+              margin: const EdgeInsets.only(top: 4, right: 11),
               // `.rc-tick`: a square at `--r-xs` on `--surface`, filled
               // `--positive` when ticked — a checkbox, not a radio.
               decoration: BoxDecoration(
@@ -365,10 +386,14 @@ class _Step extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // `.ms-body ol { padding-left: 26px }` outranks `.rc-steps`'s 32
+          // on the reference, as the list's indent does above.
           SizedBox(
-            width: 32,
+            width: 26,
             child: Text(
               '${index + 1}.',
+              softWrap: false,
+              overflow: TextOverflow.visible,
               style: AppTheme.serif(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,

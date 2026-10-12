@@ -1210,7 +1210,15 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     final p = ReaderPrefs.current.value;
     return Html(
       data: html,
-      extensions: AppTheme.htmlExtensions,
+      // `.ms-body img` — framed, and a tap opens it full size.
+      extensions: [
+        ...AppTheme.htmlExtensions,
+        kitManuscriptImage(
+          altStyle: _sheetType(context),
+          onOpen: (url, alt) =>
+              KitLightbox.show(context, url: url, caption: alt),
+        ),
+      ],
       style: _tableAt15(AppTheme.htmlStyles(
         ui.tokens,
         body: Style(

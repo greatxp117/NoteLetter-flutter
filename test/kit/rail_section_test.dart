@@ -78,4 +78,32 @@ void main() {
         reason: 'a short last section is held open to the rail\'s reach');
     expect(KitRailSection.lastReach(100), 0, reason: 'never negative');
   });
+
+  // F-77 (3): on a phone the row scrolls sideways, and its trailing 26 fade
+  // (web ≤720 `mask-image`), with 12 a side per jump; wide, nothing fades.
+  const items = [
+    KitSectionRailItem('summary', 'Summary', Icons.auto_awesome_outlined),
+    KitSectionRailItem('manuscript', 'Manuscript', Icons.title),
+    KitSectionRailItem('speedread', 'Speed read', Icons.speed_outlined),
+    KitSectionRailItem('listen', 'Listen', Icons.headset_outlined),
+  ];
+  Widget rail(Color ground) => SizedBox(
+        height: KitSectionRail.height,
+        child: KitSectionRail(
+            items: items, current: 'summary', onJump: (_) {}, background: ground),
+      );
+
+  testWidgets('a phone rail fades its trailing edge; a wide one does not',
+      (tester) async {
+    await pump(tester, rail(Tokens.light.bg), width: 402);
+    expect(find.byType(ShaderMask), findsOneWidget);
+    final icon = tester.getTopLeft(find.byIcon(Icons.auto_awesome_outlined));
+    final jump = tester.getTopLeft(find
+        .ancestor(of: find.text('Summary'), matching: find.byType(Container))
+        .first);
+    expect(icon.dx - jump.dx, 12, reason: '`.src-jump` 12 a side on a phone');
+
+    await pump(tester, rail(Tokens.light.surface), width: 1000);
+    expect(find.byType(ShaderMask), findsNothing);
+  });
 }

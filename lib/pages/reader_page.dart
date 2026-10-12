@@ -555,10 +555,15 @@ class _ReaderPageState extends State<ReaderPage> {
             delegate: KitSectionRailHeader(
               items: readerRailItems(doc),
               current: _current,
-              // The reader's own ground: it sits outside `AppLayout`, on the
-              // support shell's `--surface`, and a rail painting `--bg` here
+              // The reader's own ground. Wide it sits outside `AppLayout`, on
+              // the support shell's `--surface`; on a phone it is inside
+              // AppLayout's compact branch, on the shell's `--bg` — the
+              // reference's `.src-rail` ground (F-77 (3)). Either other token
               // is a band across the page rather than the page's own top.
-              background: Tokens.of(context).surface,
+              background: MediaQuery.sizeOf(context).width <
+                      AppSpacing.compactWidth
+                  ? Tokens.of(context).bg
+                  : Tokens.of(context).surface,
               onJump: (id) {
                 // Which section the reader actually reads in. A jump is a use
                 // of a mode; the scroll that reaches the same section is not,

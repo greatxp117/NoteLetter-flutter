@@ -392,8 +392,14 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
         'history': 'History',
       }[holdState]!;
       // The rail scrolls sideways on a phone: Listen and History start off
-      // its right edge, and a tap there hits nothing.
-      await tester.ensureVisible(find.text(label).first);
+      // its right edge, and a tap there hits nothing. Revealed by the WHOLE
+      // jump, not its label: revealing the Text put the label at the rail's
+      // leading edge and cut its glyph off (the 2026-10-07 speed-read frame).
+      await tester.ensureVisible(find
+          .ancestor(
+              of: find.text(label).first,
+              matching: find.byType(GestureDetector))
+          .first);
       await settle();
       await tester.tap(find.text(label).first);
       await settle();

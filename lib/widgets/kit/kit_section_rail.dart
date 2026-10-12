@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_frame.dart';
@@ -51,8 +52,10 @@ class KitSectionRail extends StatelessWidget {
   /// It has to hide the content scrolling beneath it, so it paints — and a
   /// rail painting a different token from the surface behind it reads as a
   /// **bar across the page** instead of as part of it. Measured, not guessed:
-  /// the first pair of this screen drew `--bg` over the reader's `--surface`
-  /// ground and the band was obvious in dark mode.
+  /// the first pair of this screen drew `--bg` over the reader's wide
+  /// `--surface` ground and the band was obvious in dark mode; and on a phone,
+  /// where the reader sits in the shell's `--bg`, `--surface` was the band
+  /// (F-77 (3); web `.src-rail` is `--bg`).
   final Color background;
 
   /// Reference metrics: 13px above the label, 14px below, plus the 1px rule.
@@ -70,6 +73,41 @@ class KitSectionRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // On a phone the row scrolls sideways (web ≤720): its trailing 26 fade
+    // out, so the cut-off jump reads as "there is more" rather than as a
+    // clipped label, and each jump takes 12 a side (`.src-jump { padding:
+    // 12px 12px 13px }`). Wide, the rail fits and a fade would be a lie.
+    final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    Widget row = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final item in items)
+            _Jump(
+              item: item,
+              on: item.id == current,
+              compact: compact,
+              onTap: () => onJump(item.id),
+            ),
+        ],
+      ),
+    );
+    if (compact) {
+      row = ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (bounds) => LinearGradient(
+          colors: const [
+            // literal-ok: a mask's alpha ramp under dstIn — only alpha is read, nothing is painted in it
+            Color(0xFF000000),
+            // literal-ok: a mask's alpha ramp under dstIn — only alpha is read, nothing is painted in it
+            Color(0xFF000000),
+            Color(0x00000000),
+          ],
+          stops: [0, ((bounds.width - 26) / bounds.width).clamp(0.0, 1.0), 1],
+        ).createShader(bounds),
+        child: row,
+      );
+    }
     return Container(
       color: background,
       alignment: Alignment.topCenter,
@@ -79,19 +117,7 @@ class KitSectionRail extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: t.rule)),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final item in items)
-                  _Jump(
-                    item: item,
-                    on: item.id == current,
-                    onTap: () => onJump(item.id),
-                  ),
-              ],
-            ),
-          ),
+          child: row,
         ),
       ),
     );
@@ -145,9 +171,15 @@ class KitSectionRailHeader extends SliverPersistentHeaderDelegate {
 class _Jump extends StatelessWidget {
   final KitSectionRailItem item;
   final bool on;
+  final bool compact;
   final VoidCallback onTap;
 
-  const _Jump({required this.item, required this.on, required this.onTap});
+  const _Jump({
+    required this.item,
+    required this.on,
+    required this.compact,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +191,12 @@ class _Jump extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 13, 16, 12),
+        padding: EdgeInsets.fromLTRB(
+          compact ? 12 : 16,
+          13,
+          compact ? 12 : 16,
+          12,
+        ),
         // The current mark is a BOTTOM BORDER, not a sized bar: the row scrolls
         // horizontally, so its children are laid out with an unbounded width
         // and a `Container(height: 2)` with no child collapses to nothing
@@ -260,8 +297,7 @@ class KitRailSection extends StatelessWidget {
         decoration: first
             ? null
             : BoxDecoration(
-                border:
-                    Border(top: BorderSide(color: Tokens.of(context).rule)),
+                border: Border(top: BorderSide(color: Tokens.of(context).rule)),
               ),
         child: child,
       ),
