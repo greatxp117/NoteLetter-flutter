@@ -7,6 +7,7 @@ import '../../theme/app_spacing.dart';
 import '../../widgets/file_uploader.dart';
 import '../../widgets/kit/kit.dart';
 import '../letters/readings_letter.dart' show calendarLabel, calendarNote;
+import '../tags/suggest_shelves.dart';
 
 /// First-run onboarding — the step bodies (`spec/screens/onboarding.md`).
 ///
@@ -81,7 +82,7 @@ class WelcomeStep extends StatelessWidget {
             title: 'Welcome to *your library.*',
             standfirst: 'You’ve read more than you remember. NoteLetter keeps '
                 'it close — searchable, and quietly distilled into a letter '
-                'you’ll actually read. Three steps and it’s yours.',
+                'you’ll actually read. Four steps and it’s yours.',
           ),
           for (var i = 0; i < _moves.length; i++)
             KitNumberedMove(
@@ -121,7 +122,7 @@ class SourcesStep extends StatelessWidget {
         const ChapterOpening(
             // Onboarding's own head, not §2.1's (F-80 (4)).
             onboarding: true,
-          folio: '№ 01 · of 03',
+          folio: '№ 01 · of 04',
           title: 'Bring in your reading.',
           standfirst: 'Drop a file or paste a link. The more you bring, the '
               'more your letter has to draw from — you can always add more '
@@ -208,7 +209,7 @@ class LibrarianStep extends StatelessWidget {
           const ChapterOpening(
             // Onboarding's own head, not §2.1's (F-80 (4)).
             onboarding: true,
-            folio: '№ 02 · of 03',
+            folio: '№ 02 · of 04',
             title: 'Teach your *librarian.*',
             standfirst: 'Write a short mission — what you’re reading toward, '
                 'and what you want kept close. Your librarian uses it to '
@@ -290,6 +291,51 @@ const List<(String, String)> frequencies = [
   ('weekly', 'Weekly'),
 ];
 
+/// Suggest shelves as a step (ruled 2026-10-08; `onboarding.md`,
+/// `library.md` §Suggesting shelves) — the Library sheet's own parts, over the
+/// wizard's state. The field starts as the mission from the step before;
+/// asking writes nothing, and the shelves left ticked are created on Finish.
+class ShelvesStep extends StatelessWidget {
+  final ShelfSuggestions s;
+  const ShelvesStep({super.key, required this.s});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = s.chosen.length;
+    final review = s.phase == SuggestPhase.review;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const ChapterOpening(
+          // Onboarding's own head, not §2.1's (F-80 (4)).
+          onboarding: true,
+          folio: '№ 03 · of 04',
+          title: 'Choose your *shelves.*',
+          standfirst: 'Every source is filed on a shelf. Say what you read '
+              'about and NoteLetter will suggest some — keep the ones you want.',
+        ),
+        if (review) ...[
+          SuggestReview(s: s),
+          const SizedBox(height: 14),
+          Wrap(children: [
+            s.tags.isNotEmpty
+                ? KitButton.ghost('Change what I wrote', onPressed: s.back)
+                : KitButton.primary('Change what I wrote', onPressed: s.back),
+          ]),
+        ] else ...[
+          SuggestAsk(s: s, autofocus: false),
+          SuggestFailure(s: s),
+        ],
+        KitProcNote(review && n > 0
+            ? '$n ${n == 1 ? 'shelf' : 'shelves'} will be created when you '
+                'finish.'
+            : 'You can skip this — NoteLetter also makes shelves as your '
+                'sources are indexed.'),
+      ],
+    );
+  }
+}
+
 class LetterStep extends StatelessWidget {
   final String frequency;
   final ValueChanged<String> onFrequency;
@@ -317,7 +363,7 @@ class LetterStep extends StatelessWidget {
           const ChapterOpening(
             // Onboarding's own head, not §2.1's (F-80 (4)).
             onboarding: true,
-            folio: '№ 03 · of 03',
+            folio: '№ 04 · of 04',
             title: 'Tune your *letter.*',
             standfirst: 'A letter is from someone, to someone. Set when yours '
                 'arrives and how much it carries.',
@@ -408,8 +454,16 @@ class DoneStep extends StatelessWidget {
   final String time;
   final int count;
   final bool readings;
+
+  /// The kept proposals' titles, and whether they were made (`fn_approve_tags`
+  /// ran on this finish).
+  final List<String> shelves;
+  final bool shelvesMade;
   final bool saving;
   final String? error;
+
+  /// The error is the shelves' (the third write), not the letter's.
+  final bool shelvesFailed;
   final ValueChanged<int> goTo;
 
   const DoneStep({
@@ -420,8 +474,11 @@ class DoneStep extends StatelessWidget {
     required this.time,
     required this.count,
     required this.readings,
+    this.shelves = const [],
+    this.shelvesMade = false,
     required this.saving,
     required this.error,
+    this.shelvesFailed = false,
     required this.goTo,
   });
 
@@ -451,8 +508,12 @@ class DoneStep extends StatelessWidget {
                   : 'Ready',
           title: 'Your library is *open.*',
           standfirst: error != null
-              ? 'Your sources are safe, but these settings could not be saved. '
-                  'You can set them in Letter settings.'
+              ? (shelvesFailed
+                  ? 'Your sources and your letter are set, but your shelves '
+                      'could not be created. Try again, or suggest them later '
+                      'from your Library.'
+                  : 'Your sources are safe, but these settings could not be '
+                      'saved. You can set them in Letter settings.')
               : 'Everything’s in place. Here’s what to expect.',
         ),
         // §14.2 — the rejection, in the place the reader is looking, with every
@@ -464,9 +525,11 @@ class DoneStep extends StatelessWidget {
         KitRowList(
           raised: true,
           rows: [
+            // The sources row is **Your sources** (onboarding.md, F-89): it
+            // said *Your shelves* over a count of sources.
             KitSettingRow(
-              icon: Icons.layers_outlined,
-              title: 'Your shelves',
+              icon: KitStackGlyph.icon,
+              title: 'Your sources',
               description: '${documents.length} '
                   '${documents.length == 1 ? 'source' : 'sources'} · '
                   '$indexed indexed so far',
@@ -483,12 +546,25 @@ class DoneStep extends StatelessWidget {
               ],
             ),
             KitSettingRow(
+              icon: Icons.shelves,
+              title: 'Your shelves',
+              description: shelves.isEmpty
+                  ? 'Made as your sources are indexed'
+                  : '${shelves.length} ${shelvesMade ? 'created' : 'to create'}'
+                      ' · ${shelves.join(' · ')}',
+              trailing: [
+                if (!shelvesMade)
+                  KitSettingLink(shelves.isEmpty ? 'Choose' : 'Change',
+                      icon: null, onTap: () => goTo(3)),
+              ],
+            ),
+            KitSettingRow(
               icon: Icons.mail_outline,
               title: 'Your letter',
               description: '$freq, $time · $count '
                   '${count == 1 ? 'passage' : 'passages'}',
               trailing: [
-                KitSettingLink('Adjust', icon: null, onTap: () => goTo(3)),
+                KitSettingLink('Adjust', icon: null, onTap: () => goTo(4)),
               ],
             ),
             if (showReadings)
@@ -497,7 +573,7 @@ class DoneStep extends StatelessWidget {
                 title: 'The readings letter',
                 description: 'On · $calendarLabel calendar, at its own hour',
                 trailing: [
-                  KitSettingLink('Adjust', icon: null, onTap: () => goTo(3)),
+                  KitSettingLink('Adjust', icon: null, onTap: () => goTo(4)),
                 ],
               ),
           ],

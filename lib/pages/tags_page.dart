@@ -10,6 +10,7 @@ import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
 import 'tags/shelf_parts.dart';
 import 'tags/shelf_sheet.dart';
+import 'tags/suggest_shelves.dart';
 
 /// **Shelves — the index** (`screens/library.md` §Shelf color, §Shelf
 /// granularity and splitting; composition per `screens/sources.md`
@@ -117,6 +118,15 @@ class _ShelvesPageState extends State<ShelvesPage> {
                       subtitle: 'Group volumes by subject or project',
                       onTap: () => setState(() => _adding = true),
                     ),
+                  // Beside New shelf (ruled 2026-10-08, library.md
+                  // §Suggesting shelves; 4.116.0, F-89).
+                  KitNewCard(
+                    icon: KitSparkle.icon,
+                    title: 'Suggest shelves',
+                    subtitle: 'From what you read about',
+                    onTap: () => showSuggestShelvesSheet(context,
+                        canBackfill: complete.isNotEmpty),
+                  ),
                 ],
               ),
             ],

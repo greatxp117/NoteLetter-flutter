@@ -14,6 +14,9 @@ import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import '../../services/analytics.dart';
+import '../../services/api.dart';
+import '../../services/api_service.dart';
+import '../tags/suggest_shelves.dart';
 import 'steps.dart';
 
 /// First-run onboarding (`spec/screens/onboarding.md`) — five steps, shown
@@ -116,7 +119,9 @@ const List<_Step> _steps = [
   _Step('welcome', 'Welcome', 'What this is'),
   _Step('sources', 'Bring in your reading', 'Upload & connect', number: '01'),
   _Step('librarian', 'Teach your librarian', 'Set its mission', number: '02'),
-  _Step('letter', 'Tune your letter', 'When & how much', number: '03'),
+  // Suggest shelves as a step (ruled 2026-10-08, onboarding.md; F-89).
+  _Step('shelves', 'Choose your shelves', 'Where it is filed', number: '03'),
+  _Step('letter', 'Tune your letter', 'When & how much', number: '04'),
   _Step('done', 'You’re set', 'Open your library'),
 ];
 
@@ -169,8 +174,25 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
   late final TextEditingController _time = TextEditingController(text: '07:00');
   int _count = 3;
 
+  /// Suggest shelves (ruled 2026-10-08, `onboarding.md`): the mission seeds
+  /// the field, asking is stateless, and the kept shelves are created on
+  /// Finish like everything else here — never on the step itself.
+  late final ShelfSuggestions _suggest = ShelfSuggestions(seed: _prompt.text)
+    ..addListener(_suggestChanged);
+
+  /// Made once: a retry after the letter's save failed must not create them a
+  /// second time.
+  bool _shelvesMade = false;
+
   bool _saving = false;
   String? _saveError;
+
+  /// Which write the error is about — the standfirst says which.
+  bool _shelvesFailed = false;
+
+  void _suggestChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void initState() {
@@ -188,6 +210,9 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
   @override
   void dispose() {
     _scroll.dispose();
+    _suggest
+      ..removeListener(_suggestChanged)
+      ..dispose();
     _prompt.dispose();
     _time.dispose();
     super.dispose();
@@ -232,11 +257,30 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
       failed ??= readingsLetter.saveError;
     }
 
+    // The shelves are a THIRD, separate write (`fn_approve_tags`), and like
+    // the readings letter their failure costs neither call above.
+    String? shelvesFailed;
+    final chosen = _suggest.chosen;
+    if (chosen.isNotEmpty && !_shelvesMade) {
+      try {
+        final res = await Api.instance.approveTags(chosen);
+        for (var i = 0; i < ((res['tagIds'] as List?)?.length ?? 0); i++) {
+          Analytics.track('shelf_created', {'origin': 'suggested'});
+        }
+        _shelvesMade = true;
+      } catch (e) {
+        shelvesFailed = 'Your shelves could not be created: '
+            '${e is ApiException ? e.message : 'that request could not be completed.'}';
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _saving = false;
-      _saveError = failed;
+      _saveError = failed ?? shelvesFailed;
+      _shelvesFailed = failed == null && shelvesFailed != null;
     });
+    failed ??= shelvesFailed;
     // A save failure keeps the wizard open with every choice intact and says
     // so (§14.2, `onboarding.md` §States/Save failed). It must not claim
     // success, and it must not throw the run away.
@@ -333,6 +377,10 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
           }),
         );
       case 3:
+        // The field follows the mission until the reader types in it.
+        _suggest.seed(_prompt.text);
+        return ShelvesStep(s: _suggest);
+      case 4:
         return LetterStep(
           frequency: _frequency,
           onFrequency: (f) => setState(() => _frequency = f),
@@ -350,8 +398,11 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
           time: _time.text,
           count: _count,
           readings: _readings,
+          shelves: [for (final c in _suggest.chosen) c['title'] as String],
+          shelvesMade: _shelvesMade,
           saving: _saving,
           error: _saveError,
+          shelvesFailed: _shelvesFailed,
           goTo: _goTo,
         );
     }

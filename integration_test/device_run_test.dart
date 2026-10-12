@@ -2196,12 +2196,13 @@ void main() {
       // step list. Below the compact width the rail is a header carrying the
       // brand and a progress line, which is the reference's own <900px form.
       expect(find.byType(KitBrand), findsOneWidget);
-      expect(find.textContaining('Step 1 of 5'), findsOneWidget);
+      expect(find.textContaining('Step 1 of 6'), findsOneWidget);
 
       // The welcome step: mark, folio, the accent-claused title, standfirst,
-      // the chapter rule, and the three moves.
+      // onboarding's own `.ob-rule` (not §2.1's two bars, F-80 (4)), and the
+      // three moves.
       expect(find.byType(ChapterOpening), findsOneWidget);
-      expect(find.byType(ChapterRule), findsWidgets);
+      expect(find.byType(ChapterRule), findsNothing);
       expect(find.textContaining('SETTING UP · A FEW MINUTES'), findsOneWidget);
       expect(find.textContaining('Welcome to'), findsWidgets);
       expect(find.byType(KitNumberedMove), findsNWidgets(3));
@@ -2217,7 +2218,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 250));
       }
       expect(find.byType(KitDropZone), findsOneWidget);
-      expect(find.textContaining('№ 01 · OF 03'), findsOneWidget);
+      expect(find.textContaining('№ 01 · OF 04'), findsOneWidget);
 
       // Skipping is a decision: it sets the same flag finishing does, and the
       // app is behind it immediately. Nothing was written to the account.

@@ -774,16 +774,20 @@ class _ProvenanceBadge extends StatelessWidget {
 /// page ground rather than a `--surface` sheet, so it reads as a slot beside
 /// the real cards instead of an eleventh shelf.
 class KitNewCard extends StatefulWidget {
+  /// A Material glyph or a kit one ([KitSparkle.icon] for Suggest shelves).
   final IconData icon;
   final String title;
-  final String subtitle;
+
+  /// Null draws none — the Library home's cards carry only their titles
+  /// (`.shelf-new` there has no `.shelf-new-sub`).
+  final String? subtitle;
   final VoidCallback? onTap;
 
   const KitNewCard({
     super.key,
     this.icon = Icons.add,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.onTap,
   });
 
@@ -826,7 +830,7 @@ class _KitNewCardState extends State<KitNewCard> {
                   color: t.accentChipBg,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(widget.icon, size: 20, color: t.seal),
+                child: KitGlyph(widget.icon, size: 20, color: t.seal),
               ),
               const SizedBox(height: AppSpacing.s2),
               Text(
@@ -837,9 +841,10 @@ class _KitNewCardState extends State<KitNewCard> {
                   color: t.fg,
                 ),
               ),
+              if (widget.subtitle != null) ...[
               const SizedBox(height: AppSpacing.s2),
               Text(
-                widget.subtitle,
+                widget.subtitle!,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: AppTheme.fontSans,
@@ -847,6 +852,7 @@ class _KitNewCardState extends State<KitNewCard> {
                   color: t.fgSubtle,
                 ),
               ),
+              ],
             ],
           ),
         ),

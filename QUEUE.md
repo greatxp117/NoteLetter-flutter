@@ -1619,7 +1619,7 @@ a new obligation on a finished screen is a new item.
 - notes: Web below its studio breakpoint makes `.letter-studio` a flex column: `.letter-config` and `.letter-preview-pane` each `overflow: auto`, shrinking to share the height, with `.letter-config`'s 1px --rule between — so the letter is on the first screen. Flutter below 1024 had the letter after the whole form. Now a Column of two Expanded KitPages (each with its own ScrollController — two scroll views cannot share the primary one) parted by a 1px --rule. Web's split follows the panes' content heights (flex-shrink by basis); here it is even, which the web frame (form ~53%, letter ~47%) is within a few points of. No widget test mounts this page (it needs most of the app's notifiers); the gate is the phone frame against letter-settings.web.phone.
 
 ## F-89 · Suggest shelves (4.116.0 tandem) — the Library sheet beside New shelf, and onboarding's shelves step
-- status: open
+- status: in-progress
 - screen: onboarding
 - route: /settings
 - spec: spec/decisions/ADR-153-suggested-shelves-are-new-shelves.md; spec/api/tags.md; spec/screens/library.md §Suggesting shelves; spec/screens/onboarding.md
@@ -1630,7 +1630,7 @@ a new obligation on a finished screen is a new item.
 - shots: onboarding; shelves
 - extra_gates: python3 ../NoteLetter-contracts/harness/endpoint_reach_check.py
 - notes: Booked by the 2026-10-09 frame sitting: web's onboarding now reads "Step 1 of 6" and "Four steps and it's yours." with a "Choose your shelves" step; Flutter reads "Step 1 of 5" / "Three steps". The sheet: what you read about → `fn_suggest_tags {purposeText}` only (closed key) → the proposals, with the answer's `existing` titles said, never re-proposed → keep the ones you tick → `fn_approve_tags` with `{title, description, color}` and the ANSWERED colour token (always one of the ten since 4.116.0). Fewer than eight or none is a normal 200; a model failure is 502 PROVIDER_API_ERROR through §14. Flutter's approveTags/suggestTags builders exist and have no caller. Not built in this lane (coordinator: owed, after the frames).
-
+  2026-10-12: built — `lib/pages/tags/suggest_shelves.dart` mirrors web's SuggestShelves.jsx: one `ShelfSuggestions` state for both hosts (the field seeded until typed, `fn_suggest_tags {purposeText}` stateless and repeatable, every proposal ticked, `existing` said, a 4xx beside the button and anything else §14.1 — never "no shelves to suggest"), the §15 sheet (480, the sparkle, *Nothing is created until you choose.*) creating with ONE `fn_approve_tags` (`{title, description, color}`, the colour one of the ten or a swatch by position), write before move, the follow-on fill per new shelf. Entry cards: Shelves' *Suggest shelves* after *New shelf*; the Library home's card grid gains *New shelf* and *Suggest shelves*. Onboarding is six steps: the shelves step (№ 03 · of 04) holds the ticks, and Finish makes them as a THIRD, separate write, at most once, its failure its own standfirst and line; the summary's sources row is *Your sources* (it said *Your shelves*) and *Your shelves* follows it. test/contract/suggest_shelves_test.dart (9, over the captured api/tags answers); the device run's first-run test now reads Step 1 of 6 and № 01 · OF 04. Pairs owed (onboarding, shelves).
 ## F-90 · What the 2026-10-09 frame sitting found — the notification level control, Study's glyph, two holds that frame another state
 - status: open
 - screen: notifications

@@ -17,6 +17,7 @@ import '../theme/app_colors.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 import 'sources/shelf_books.dart';
+import 'tags/suggest_shelves.dart';
 
 /// **Library — the home screen** (`spec/screens/library.md`).
 ///
@@ -394,6 +395,19 @@ class _LibraryHomeState extends State<_LibraryHome> {
                     onTap: () => context.go('/shelves/${s.id}'),
                   );
                 }),
+              // The grid's New shelf and, beside it, Suggest shelves (ruled
+              // 2026-10-08, library.md §Suggesting shelves; F-89). The section
+              // header keeps its one trailing link (kit §3).
+              KitNewCard(
+                title: 'New shelf',
+                onTap: () => context.go('/shelves'),
+              ),
+              KitNewCard(
+                icon: KitSparkle.icon,
+                title: 'Suggest shelves',
+                onTap: () => showSuggestShelvesSheet(context,
+                    canBackfill: complete.isNotEmpty),
+              ),
             ],
           ),
       ],

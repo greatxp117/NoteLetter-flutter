@@ -705,7 +705,7 @@ class KitSettingRow extends StatelessWidget {
                       color: t.accentSoft,
                       borderRadius: AppRadius.smR,
                     ),
-                    child: Icon(icon, size: 18, color: t.accent),
+                    child: KitGlyph(icon, size: 18, color: t.accent),
                   ),
               const SizedBox(width: 18),
               Expanded(child: main),
