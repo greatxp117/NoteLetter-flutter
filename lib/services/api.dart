@@ -521,6 +521,15 @@ class Api {
   Future<Map<String, dynamic>> disconnectCloudStorage(String provider) =>
       _http.post('/fn_disconnect_cloud_storage', data: {'provider': provider});
 
+  /// The connection's second half (5.0.0, ADR-158, INV-32): the callback
+  /// stores nothing and redirects with a one-time `claim`; the account that
+  /// started the connection redeems it here, signed in. The answer is the
+  /// vocabulary the return URL used to carry — `{cloud_connect, provider,
+  /// connection, org, reason}` — and a refusal (403 another account started
+  /// it, 404 expired or spent) is the server's sentence. Closed key set.
+  Future<Map<String, dynamic>> claimCloudConnection(String claim) =>
+      _http.post('/fn_claim_cloud_connection', data: {'claim': claim});
+
   Future<Map<String, dynamic>> listCloudFiles(Map<String, dynamic> params) =>
       _http.get('/fn_list_cloud_files', queryParameters: params);
 

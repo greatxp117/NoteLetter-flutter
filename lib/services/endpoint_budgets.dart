@@ -29,6 +29,7 @@ const Map<String, int> kEndpointDeadlineSeconds = {
   'fn_ask_turn': 60,
   'fn_cancel_document': 60,
   'fn_check_source_freshness': 60,
+  'fn_claim_cloud_connection': 60,
   'fn_connect_cloud_storage': 60,
   'fn_create_multi_image_session': 60,
   'fn_create_tag': 60,

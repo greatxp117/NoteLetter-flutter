@@ -218,6 +218,9 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       Api.instance.connectCloudStorage(b['provider']),
   'fn_disconnect_cloud_storage': (b) =>
       Api.instance.disconnectCloudStorage(b['provider']),
+  // 5.0.0 (ADR-158) — the claim the callback's redirect carries (F-95).
+  'fn_claim_cloud_connection': (b) =>
+      Api.instance.claimCloudConnection(b['claim']),
   'fn_import_from_cloud': (b) => Api.instance.importFromCloud(b['provider'],
       folderIds: _strs(b['folder_ids']),
       fileIds: _strs(b['file_ids']),
@@ -463,6 +466,19 @@ void main() {
         final adapter = endpoint == null ? null : adapters[endpoint];
         final methodAware = endpoint != null && _methodAware.contains(endpoint);
         final id = c['id'] as String;
+        final status = ((c['response'] as Map?)?['status'] as int?) ?? 0;
+        // A GET answered by a redirect is the provider sending a BROWSER to
+        // the callback (`cloud:callback-claim-redirect`, 5.0.0): no client
+        // builds that request, by construction. A category, counted, before
+        // the builder check — so it is never mistaken for a missing builder,
+        // and never declared as debt a builder could pay.
+        if (method == 'GET' && status >= 300 && status < 400) {
+          skipped['a redirect a browser follows, not a builder call'] =
+              (skipped['a redirect a browser follows, not a builder call'] ??
+                      0) +
+                  1;
+          continue;
+        }
         // Only cases with a builder we can drive from the request body/query.
         // Each skip is recorded rather than dropped — see _noBuilder.
         if (adapter == null && !methodAware) {
