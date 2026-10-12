@@ -636,10 +636,9 @@ class KitSettingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    // Below 768 the control strip takes the WHOLE row width under the plate
-    // — the web wraps `.set-row` at 640 for the same reason: four segments
-    // beside a switch and a delete do not fit a phone. Recorded in CLAUDE.md
-    // §Composition deviations with the other stacks at this breakpoint.
+    // Below 768 a [wideControl] drops under the main column (the web wraps
+    // `.set-row` at 640). Recorded in CLAUDE.md §Composition deviations with
+    // the other stacks at this breakpoint.
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     final descStyle = TextStyle(
@@ -671,7 +670,11 @@ class KitSettingRow extends StatelessWidget {
           const SizedBox(height: 3),
           Text(description!, style: descStyle),
         ],
-        if (below != null && !compact) ...[
+        // In the text column at every width (`.set-row-main` holds the level
+        // picker on web, phone included): beside the icon column, where on a
+        // phone its track wraps into a 2×2 block. It took the whole row width
+        // under the plate below 768 (F-90 (1)).
+        if (below != null) ...[
           const SizedBox(height: AppSpacing.s2),
           below!,
         ],
@@ -718,10 +721,6 @@ class KitSettingRow extends StatelessWidget {
           if (stackTrailing) ...[
             const SizedBox(height: AppSpacing.s3),
             Align(alignment: Alignment.centerRight, child: controls),
-          ],
-          if (below != null && compact) ...[
-            const SizedBox(height: AppSpacing.s3),
-            below!,
           ],
         ],
       ),

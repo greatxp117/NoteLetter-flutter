@@ -334,3 +334,105 @@ class KitReviewRow extends StatelessWidget {
     );
   }
 }
+
+/// An organized folder (`screens/sources.md` §Organized-folders panel; web
+/// `OrganizationPanel.jsx` FolderRow): the `.proc-row` card with no badge —
+/// its grid re-templated to `1fr auto auto` — the path (serif 15/500, one
+/// line) over its file count (mono 11 `--fg-subtle`), then [trailing] (the
+/// README chip and the rescan control), and under them [below] (the charter,
+/// its editor, a refusal). It drew as a §5.1 card with a folder glyph, a doc
+/// count and a row of buttons until F-90 (6).
+class KitFolderCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<Widget> trailing;
+  final Widget? below;
+
+  const KitFolderCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    this.trailing = const [],
+    this.below,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        border: Border.all(color: t.border),
+        borderRadius: AppRadius.mdR,
+        boxShadow: AppShadows.s1,
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.serif(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: t.fg)),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.mono(fontSize: 11, color: t.fgSubtle)),
+                  ],
+                ),
+              ),
+              for (final w in trailing) ...[
+                const SizedBox(width: 10),
+                w,
+              ],
+            ],
+          ),
+          ?below,
+        ],
+      ),
+    );
+  }
+}
+
+/// A folder's README status (web `ReadmeChip`): sans 11/600 at 0.02em in a
+/// pill, `2px 8px`, on the status's own ground. An unknown status draws as
+/// `pending`, never as its raw token.
+class KitReadmeChip extends StatelessWidget {
+  final String? status;
+  const KitReadmeChip(this.status, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final (label, bg, fg) = switch (status) {
+      'written' => ('README written', t.positiveChipBg, t.positiveChipFg),
+      'user_modified' => ('README edited by you', t.hover, t.fg),
+      'error' => ('README error', t.accentSoft, t.criticalText),
+      _ => ('README pending', t.hover, t.fgMuted),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: AppRadius.pillR(18)),
+      child: Text(label,
+          softWrap: false,
+          style: TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.02 * 11,
+            color: fg,
+          )),
+    );
+  }
+}

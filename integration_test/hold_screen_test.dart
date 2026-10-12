@@ -689,14 +689,18 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // searches are real (fn_search_notes through the shim), which is what the
     // frame is of — a replay of the stored passages would be a picture of the
     // letter.
+    // The reference's state (F-90 (3)): web theme-shots' readings letter —
+    // Friday of week 18 — with the Psalm's search made to fail, so the frame
+    // carries the partial notice, the `—` count and the §14.2 line. Run
+    // tool/seed_frame_states.py first (and `--remove` after).
     case 'scripture-day':
       // By the ROW's own type: the same text is in the card above it, where
       // it is not a control, and a tap that lands on nothing is silent.
       final row = find.byWidgetPredicate((w) =>
-          w is KitLetterRow && w.title.contains('Thursday of week 23'));
+          w is KitLetterRow && w.title.contains('Friday of week 18'));
       expect(row, findsOneWidget,
-          reason: 'run tool/seed_letters.py first — no readings letter to '
-              'open');
+          reason: 'run tool/seed_frame_states.py first — no readings letter '
+              'for Friday of week 18 to open');
       await tester.ensureVisible(row);
       await settle();
       await tester.tap(row);
@@ -706,13 +710,27 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           reason: 'the letter did not open — this frame would be the list');
       await tester.ensureVisible(seeAll);
       await settle();
+      // A REAL refusal, as the reference's: the Psalm's search goes out with
+      // `sourceTypes` as a string, which the backend refuses with its own
+      // sentence and reference id.
+      ApiService.instance.httpClientAdapter = _FailOneReading();
       await tester.tap(seeAll);
       // Three live searches, each a round trip through the shim.
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.byType(KitFailureInline).evaluate().isNotEmpty ||
+            find.byType(KitFailureBlock).evaluate().isNotEmpty) {
+          break;
+        }
+      }
       await settle();
-      await settle();
-      await settle();
+      ApiService.instance.resetTestSeams();
       expect(find.text('Back to the letter'), findsOneWidget,
           reason: 'the day did not open — this frame would be the letter');
+      expect(find.textContaining('One reading could not be searched',
+              findRichText: true),
+          findsOneWidget,
+          reason: 'no partial notice — the failure was not armed');
       return;
     // component-kit §20.1 Shelf picker (4.104.0, ADR-137; QUEUE F-39) — the
     // reader's Shelves row with its picker open, and searched for "st" (a
@@ -901,6 +919,32 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
   }
 }
 
+
+/// Forwards every request to the real transport, with the Psalm's
+/// `fn_search_notes` carrying `sourceTypes` as a string — not a list
+/// Firestore's `in` can take — so the readings day's failed row is the
+/// backend's own refusal, as web theme-shots' `scripture-day` arms it.
+class _FailOneReading implements HttpClientAdapter {
+  final _inner = IOHttpClientAdapter();
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) {
+    final data = options.data;
+    if (!options.path.endsWith('/fn_search_notes') ||
+        data is! Map ||
+        data['query'] != 'Psalm 42') {
+      return _inner.fetch(options, requestStream, cancelFuture);
+    }
+    final body = utf8.encode(jsonEncode({...data, 'sourceTypes': 'pdf'}));
+    options.headers['content-length'] = body.length.toString();
+    return _inner.fetch(
+        options, Stream.value(Uint8List.fromList(body)), cancelFuture);
+  }
+
+  @override
+  void close({bool force = false}) => _inner.close(force: force);
+}
 
 /// Forwards every request to the real transport, with `fn_update_tag`'s
 /// `letter_mode` swapped for a value outside the closed set — so the refusal

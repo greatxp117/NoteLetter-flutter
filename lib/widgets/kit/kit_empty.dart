@@ -167,7 +167,7 @@ class KitEmptyState extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: t.accentChipBorder),
                   ),
-                  child: Icon(icon, size: 26, color: t.seal),
+                  child: KitGlyph(icon, size: 26, color: t.seal),
                 )
               else
                 KitMark(icon),

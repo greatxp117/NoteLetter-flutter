@@ -96,7 +96,10 @@ Widget _panel() => ChangeNotifierProvider<OrgNotifier>(
 Finder _link(String label) => find.widgetWithText(KitSettingLink, label);
 KitSettingLink _linkOf(WidgetTester t, String label) =>
     t.widget<KitSettingLink>(_link(label));
-Finder _folderRescan(String label) => find.widgetWithText(KitButton, label);
+/// An organized folder's rescan — the reference's `.proc-cancel` icon control,
+/// its title `Rescan this folder` carrying the wait (`· m:ss`), F-90 (6).
+Finder _folderRescan([String suffix = '']) => find.byWidgetPredicate(
+    (w) => w is KitIconButton && w.tooltip == 'Rescan this folder$suffix');
 
 void main() {
   late DateTime now;
@@ -125,10 +128,18 @@ void main() {
     await tester.pumpWidget(_panel());
     await tester.pumpAndSettle();
 
+    // The header over the folders, as the reference's `.lib-section-h`: the
+    // provider's name in the eyebrow and Rescan all on its line (F-90 (6)).
+    final eyebrow = find.text('ORGANIZED FOLDERS · NOTION');
+    expect(eyebrow, findsOneWidget);
     expect(
-        find.ancestor(of: _link('Rescan all'), matching: find.byType(SectionHeader)),
-        findsOneWidget,
-        reason: 'the §3 header over the folders, as the reference\'s .lib-section-h');
+        (tester.getCenter(_link('Rescan all')).dy -
+                tester.getCenter(eyebrow).dy)
+            .abs(),
+        lessThan(12),
+        reason: 'Rescan all sits on the header\'s line');
+    expect(_link('Choose folders'), findsOneWidget,
+        reason: 'Choose folders · Rescan all, as the reference');
     expect(_linkOf(tester, 'Rescan all').onTap, isNotNull);
     expect(_linkOf(tester, 'Rescan all').icon, isNull,
         reason: 'a bare link: it acts here, it does not go anywhere');
@@ -150,7 +161,8 @@ void main() {
     ApiService.instance.httpClientAdapter = _Server((_) => (202, {'queued': true}));
     await tester.pumpWidget(_panel());
     await tester.pumpAndSettle();
-    expect(find.text('No organized folders yet.'), findsOneWidget);
+    expect(find.text('No organized folders yet — choose folders to begin.'),
+        findsOneWidget);
     expect(_linkOf(tester, 'Rescan all').onTap, isNotNull);
   });
 
@@ -168,7 +180,7 @@ void main() {
     expect(_link('Rescan all'), findsNothing);
     expect(_linkOf(tester, 'Scanning…').onTap, isNull,
         reason: 'held while its own request is in flight');
-    expect(tester.widget<KitButton>(_folderRescan('Rescan')).onPressed, isNull,
+    expect(tester.widget<KitIconButton>(_folderRescan()).onPressed, isNull,
         reason: 'one scan at a time, as the reference\'s one `rescanning` '
             'flag holds every rescan control');
     expect(find.textContaining('0:'), findsNothing,
@@ -177,7 +189,7 @@ void main() {
     api.release();
     await tester.pumpAndSettle();
     expect(_linkOf(tester, 'Rescan all').onTap, isNotNull);
-    expect(tester.widget<KitButton>(_folderRescan('Rescan')).onPressed, isNotNull);
+    expect(tester.widget<KitIconButton>(_folderRescan()).onPressed, isNotNull);
   });
 
   testWidgets(
@@ -198,7 +210,7 @@ void main() {
     await tester.tap(_link('Rescan all · 0:02'));
     await tester.pump();
     expect(api.sent, hasLength(1), reason: 'a held link sends nothing');
-    expect(_folderRescan('Rescan · 0:02'), findsOneWidget,
+    expect(_folderRescan(' · 0:02'), findsOneWidget,
         reason: 'the cooldown is the PROVIDER\'s: the folder waits on it too');
     expect(find.text(sentence), findsOneWidget);
     expect(
@@ -271,7 +283,7 @@ void main() {
     await tester.pumpWidget(_panel());
     await tester.pumpAndSettle();
 
-    await tester.tap(_folderRescan('Rescan'));
+    await tester.tap(_folderRescan());
     await tester.pumpAndSettle();
     expect(api.sent.single.data, {'provider': 'notion', 'folder_id': 'f1'});
     expect(
@@ -286,7 +298,7 @@ void main() {
         reason: 'the panel\'s slot under the header, where Rescan all says its');
 
     refuse = false;
-    await tester.tap(_folderRescan('Rescan'));
+    await tester.tap(_folderRescan());
     await tester.pump();
     expect(find.byType(KitFailureInline), findsNothing,
         reason: 'the next ask clears the last answer before it is sent');
@@ -333,7 +345,7 @@ void main() {
     expect(_link('Rescan all'), findsNothing);
     expect(_link('Scanning…'), findsNWidgets(2),
         reason: 'the reference\'s one flag reads Scanning… on every Rescan all');
-    for (final b in tester.widgetList<KitButton>(_folderRescan('Rescan'))) {
+    for (final b in tester.widgetList<KitIconButton>(_folderRescan())) {
       expect(b.onPressed, isNull, reason: 'and holds every folder\'s rescan');
     }
 

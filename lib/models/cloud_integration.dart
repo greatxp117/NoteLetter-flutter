@@ -64,6 +64,10 @@ class CloudIntegration {
   final bool orgEnabled;
   final bool orgWriteAccess;
   final String? orgScopeLevel;
+
+  /// `organization.root_folder_ids` — the roots *Choose folders* opens on
+  /// (`fn_set_organized_folders`, ≤10).
+  final List<String> orgRootFolderIds;
   bool get orgWriteReady => orgEnabled && orgWriteAccess;
 
   const CloudIntegration({
@@ -85,6 +89,7 @@ class CloudIntegration {
     this.orgEnabled = false,
     this.orgWriteAccess = false,
     this.orgScopeLevel,
+    this.orgRootFolderIds = const [],
   });
 
   factory CloudIntegration.fromJson(Map<String, dynamic> json) {
@@ -121,6 +126,10 @@ class CloudIntegration {
       orgEnabled: org['enabled'] == true,
       orgWriteAccess: org['write_access'] == true,
       orgScopeLevel: org['scope_level'] as String?,
+      orgRootFolderIds: [
+        for (final id in (org['root_folder_ids'] as List? ?? const []))
+          if (id is String) id,
+      ],
     );
   }
 

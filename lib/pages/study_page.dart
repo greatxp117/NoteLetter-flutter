@@ -189,7 +189,8 @@ class _StudyPageState extends State<StudyPage> {
   /// for; the action row is what makes one.
   Widget _empty(BuildContext context) => KitEmptyState(
         flush: true,
-        icon: Icons.style_outlined,
+        // `IcoCards`, the reference's study glyph (F-90 (2)).
+        icon: KitCardsGlyph.icon,
         title: 'Go deeper on one subject',
         standfirst:
             'Your letter keeps the whole library in view. A study program is '

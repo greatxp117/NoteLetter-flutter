@@ -323,8 +323,10 @@ class _SourcesPageState extends State<SourcesPage> {
               ),
               _ImportHistory(
                   jobs: cloud.historyJobs, windowFull: cloud.jobs.length >= 50),
-              const OrganizedFoldersSection(),
+              // The reference's OrganizationPanel: the suggestions FIRST, then
+              // each provider's organized folders (F-90 (6)).
               const _OrganizationSection(),
+              const OrganizedFoldersSection(),
 
               // ── In your library ────────────────────────────────────────
               BrowseSection(

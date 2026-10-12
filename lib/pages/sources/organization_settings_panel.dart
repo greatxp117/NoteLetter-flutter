@@ -5,11 +5,12 @@ import '../../services/firestore_service.dart';
 import '../../shared/cooldown.dart';
 import '../../state/cloud_notifier.dart';
 import '../../state/org_notifier.dart';
-import '../../theme/app_radius.dart';
 import '../../theme/tokens.dart';
-import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import '../../services/error_text.dart';
+import '../../shared/cloud_providers.dart';
+import 'cloud_picker.dart' show CloudPickerFoot;
+import 'sync_folder_picker.dart';
 
 /// Organized folders on Sources (`screens/sources.md` §Organized-folders
 /// panel): one [OrganizedFoldersPanel] per provider whose organizing grant is
@@ -65,8 +66,10 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
   /// folder's — §14.2 under the header, carrying the server's sentence: the
   /// reference's one `notice` slot, which both of its rescans write. A toast
   /// would be gone before the reader looked; this stays until the next ask.
-  /// (A folder's refusal was an error toast until 2026-10-07.)
   String? _failure;
+
+  /// *Choose folders* is open (web `pickerFor`).
+  bool _choosing = false;
 
   /// Rescan all ([folderId] null) or one folder: one path, so both say a
   /// refusal in the same slot and a cooldown in the same calm one.
@@ -75,11 +78,8 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
     setState(() => _failure = null);
     final err = await org.scan(widget.provider, folderId: folderId);
     if (!mounted) return;
-    // A cooldown is the provider's WAIT, said as calm copy over the folders
-    // for as long as it runs (below). Anything else is a failure, said here.
-    // A rescan that started says nothing: progress arrives on the folders
-    // themselves, as on the reference (the folder's "Rescanning folder…"
-    // info toast went with its error toast).
+    // A cooldown is the provider's WAIT, said as calm copy above the header
+    // for as long as it runs. Anything else is a failure, said under it.
     if (err != null && !org.scanIsWaiting(widget.provider)) {
       setState(() => _failure = err);
     }
@@ -87,26 +87,76 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final t = Tokens.of(context);
     final provider = widget.provider;
+    final name = cloudProviders[provider]?.name ?? provider;
     final scanning = context.watch<OrgNotifier?>()?.scanInFlight ?? false;
+    final roots = context
+            .watch<CloudNotifier?>()
+            ?.integrationFor(provider)
+            ?.orgRootFolderIds ??
+        const <String>[];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(
-          'Organized folders',
-          first: true,
-          // The reference's `.set-link`: the label carries ` · m:ss` while the
-          // provider's cooldown runs, and it is held (KitSettingLink's dimmed
-          // look) while waiting or while any scan of this provider is in
-          // flight — Rescan all's or one folder's.
-          tools: KitWait(
-            waitKey: WaitKey.orgScan(provider),
-            builder: (context, wait) => KitSettingLink(
-              scanning ? 'Scanning…' : 'Rescan all',
-              icon: null,
-              wait: scanning ? 0 : wait.left,
-              onTap: scanning ? null : () => _rescan(),
-            ),
+        // The scan cooldown is the PROVIDER's (4.107.0, ADR-140), said once,
+        // ABOVE the header, as web's ScanWaitNotice sits above the providers'
+        // headers (F-90 (6)) — calm copy (§6.1), never §14.2: nothing broke.
+        KitWait(
+          waitKey: WaitKey.orgScan(provider),
+          builder: (context, wait) {
+            final said = wait.sentence ??
+                context.watch<OrgNotifier?>()?.scanWaitNote(provider);
+            return said == null
+                ? const SizedBox.shrink()
+                : KitWaitNote(said,
+                    padding: const EdgeInsets.symmetric(vertical: 12));
+          },
+        ),
+        // `.lib-section-h` at 18: the provider's glyph and "Organized folders
+        // · {provider}", then Choose folders · Rescan all (web
+        // OrganizationPanel). On a phone the links take the next line.
+        Padding(
+          padding: const EdgeInsets.only(top: 18, bottom: 6),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(cloudProviders[provider]?.icon ?? Icons.folder_outlined,
+                      size: 14, color: t.fgMuted),
+                  const SizedBox(width: 7),
+                  Eyebrow('Organized folders · $name'),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  KitSettingLink(
+                    _choosing ? 'Close' : 'Choose folders',
+                    icon: null,
+                    onTap: () => setState(() => _choosing = !_choosing),
+                  ),
+                  Text('  ·  ', style: KitText.meta(context)),
+                  // The reference's `.set-link`: ` · m:ss` while the
+                  // provider's cooldown runs, held while waiting or while any
+                  // scan of this provider is in flight.
+                  KitWait(
+                    waitKey: WaitKey.orgScan(provider),
+                    builder: (context, wait) => KitSettingLink(
+                      scanning ? 'Scanning…' : 'Rescan all',
+                      icon: null,
+                      wait: scanning ? 0 : wait.left,
+                      onTap: scanning ? null : () => _rescan(),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
         if (_failure != null)
@@ -114,30 +164,27 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
             padding: const EdgeInsets.only(bottom: 6),
             child: KitFailureInline(_failure!),
           ),
-        // The scan cooldown is the PROVIDER's (4.107.0, ADR-140), so its
-        // sentence is said once, under the header, for exactly
-        // as long as the wait every one of their rescans is held for —
-        // web's ScanWaitNotice. A toast would be gone long before the
-        // wait it explains.
-        //
-        // A cooldown is a WAIT, not a failure, so it is calm copy
-        // (`.proc-note`) and never §14.2's `--critical-text` — the
-        // treatment Summary's Regenerate and Study give theirs. Nothing
-        // broke and there is nothing to correct (web 23d21a8; 7b0e5fd drew
-        // it red). One with no number (a pre-4.107.0 backend) is still a
-        // wait, and is said in the same slot.
-        KitWait(
-          waitKey: WaitKey.orgScan(provider),
-          builder: (context, wait) {
-            final said = wait.sentence ??
-                context.watch<OrgNotifier?>()?.scanWaitNote(provider);
-            // The kit's one calm caption (§6.1, 4.108.0, ADR-145) — it was
-            // `.proc-note`'s serif italic until then.
-            return said == null
-                ? const SizedBox.shrink()
-                : KitWaitNote(said, padding: const EdgeInsets.only(top: 6));
-          },
-        ),
+        // The roots, chosen with the folders-only picker (`api/organization.md`
+        // §fn_set_organized_folders, ≤10). Write before move: it closes only
+        // once the save has been answered, and a refusal stays inside it.
+        if (_choosing)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SyncFolderPicker(
+              provider: provider,
+              initial: roots,
+              cap: 10,
+              allowEmpty: roots.isNotEmpty,
+              onConfirm: (ids) async {
+                final err = await context
+                    .read<OrgNotifier>()
+                    .setOrganizedFolders(provider, ids);
+                if (err == null && mounted) setState(() => _choosing = false);
+                return err;
+              },
+              onCancel: () => setState(() => _choosing = false),
+            ),
+          ),
         _FolderList(
             provider: provider,
             scanning: scanning,
@@ -169,23 +216,22 @@ class _FolderList extends StatelessWidget {
           );
         }
 
-        final folders =
-            (snap.data ?? const []).where((f) => f.organized).toList();
+        final folders = (snap.data ?? const []).where((f) => f.organized).toList()
+          ..sort((a, b) => a.providerPath.compareTo(b.providerPath));
         if (folders.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child:
-                Text('No organized folders yet.', style: KitText.meta(context)),
-          );
+          return const KitProcNote(
+              'No organized folders yet — choose folders to begin.');
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final f in folders)
+            for (var i = 0; i < folders.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
               _FolderRow(
-                  folder: f,
+                  folder: folders[i],
                   scanning: scanning,
-                  onRescan: () => onRescan(f.id)),
+                  onRescan: () => onRescan(folders[i].id)),
+            ],
           ],
         );
       },
@@ -213,6 +259,7 @@ class _FolderRow extends StatefulWidget {
 class _FolderRowState extends State<_FolderRow> {
   bool _editing = false;
   bool _busy = false;
+  String? _error;
   late final TextEditingController _controller =
       TextEditingController(text: widget.folder.charterText ?? '');
 
@@ -223,7 +270,10 @@ class _FolderRowState extends State<_FolderRow> {
   }
 
   Future<void> _saveCharter({bool regenerate = false}) async {
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     final org = context.read<OrgNotifier>();
     // User text sets `charter.source: "user"`; regenerate clears it back to the
     // model's own, which is why the two are one call with a flag and not two
@@ -235,121 +285,105 @@ class _FolderRowState extends State<_FolderRow> {
     setState(() {
       _busy = false;
       if (err == null) _editing = false;
+      // §14.2 on the row, as web's FolderRow says it (it was a toast).
+      _error = err;
     });
-    if (err != null) AppToast.show(context, err, type: ToastType.error);
   }
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     final f = widget.folder;
     // `missing`/`archived` folders render muted — they are history, not an
     // error, and dimming says so without a word.
-    final dim = f.status != 'active';
+    final inactive = f.status != 'active';
+    final charter = f.charterText ?? '';
+    final quote = KitText.monoMeta(context).copyWith(fontStyle: FontStyle.italic);
+
+    Widget? below;
+    if (_editing) {
+      below = Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KitTextField(
+              controller: _controller,
+              face: KitFieldFace.sans,
+              minLines: 3,
+              maxLines: 6,
+              maxLength: 2000,
+              enabled: !_busy,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 10),
+            // `.proc-error-actions`: Save charter · Cancel, trailing on a phone.
+            CloudPickerFoot(
+              confirmLabel: _busy ? 'Saving…' : 'Save charter',
+              onConfirm: _controller.text.trim().isEmpty || _busy
+                  ? null
+                  : () => _saveCharter(),
+              onCancel: () => setState(() => _editing = false),
+              busy: _busy,
+            ),
+          ],
+        ),
+      );
+    } else if (charter.isNotEmpty) {
+      // The charter as the reference draws it: a mono italic quote, then Edit ·
+      // Regenerate inline (F-90 (6); it was serif italic over two buttons).
+      below = Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          runSpacing: 2,
+          children: [
+            Text('“$charter”', style: quote),
+            if (!inactive) ...[
+              KitSettingLink('Edit', icon: null, onTap: () {
+                _controller.text = charter;
+                setState(() => _editing = true);
+              }),
+              KitSettingLink('Regenerate',
+                  icon: null,
+                  onTap: _busy ? null : () => _saveCharter(regenerate: true)),
+            ],
+          ],
+        ),
+      );
+    }
+    if (_error != null) {
+      below = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ?below,
+          const SizedBox(height: 6),
+          KitFailureInline(_error!),
+        ],
+      );
+    }
 
     return Opacity(
-      opacity: dim ? 0.55 : 1,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: KitCard(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.folder_outlined, size: 16, color: t.fgMuted),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      f.providerPath.isEmpty ? f.name : f.providerPath,
-                      overflow: TextOverflow.ellipsis,
-                      style: KitText.body(context),
-                    ),
-                  ),
-                  if (f.readmeStatus != null) ...[
-                    KitStatusPill('README ${f.readmeStatus}',
-                        positive: f.readmeStatus == 'written'),
-                    const SizedBox(width: 8),
-                  ],
-                  Text('${f.docCount} docs',
-                      style: KitText.monoMeta(context, letterSpacing: 0)),
-                ],
+      opacity: inactive ? 0.55 : 1,
+      child: KitFolderCard(
+        title: '${f.providerPath.isEmpty ? f.name : f.providerPath}'
+            '${inactive ? ' · ${f.status}' : ''}',
+        subtitle: '${f.docCount} ${f.docCount == 1 ? 'file' : 'files'}',
+        trailing: [
+          KitReadmeChip(f.readmeStatus),
+          if (!inactive)
+            KitWait(
+              waitKey: WaitKey.orgScan(f.provider),
+              builder: (context, wait) => KitIconButton(
+                Icons.refresh,
+                tooltip: 'Rescan this folder${waitSuffix(wait.left)}',
+                onPressed: widget.scanning || wait.left > 0
+                    ? null
+                    : widget.onRescan,
               ),
-              if (_editing) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: t.surfaceSunken,
-                    borderRadius: AppRadius.smR,
-                    border: Border.all(color: t.border),
-                  ),
-                  child: TextField(
-                    controller: _controller,
-                    maxLines: 3,
-                    enabled: !_busy,
-                    style: KitText.body(context),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      hintText: 'What belongs in this folder…',
-                      hintStyle: KitText.meta(context),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    KitButton.ghost('Regenerate',
-                        onPressed:
-                            _busy ? null : () => _saveCharter(regenerate: true)),
-                    const Spacer(),
-                    KitButton.ghost('Cancel',
-                        onPressed: _busy
-                            ? null
-                            : () => setState(() => _editing = false)),
-                    const SizedBox(width: 8),
-                    KitButton.primary('Save charter',
-                        onPressed: _busy ? null : () => _saveCharter()),
-                  ],
-                ),
-              ] else ...[
-                if ((f.charterText ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    f.charterText!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: KitText.lede(context, fontSize: 14, height: 20),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    KitButton.ghost(
-                      (f.charterText ?? '').isEmpty
-                          ? 'Add charter'
-                          : 'Edit charter',
-                      icon: Icons.edit_outlined,
-                      onPressed: () => setState(() => _editing = true),
-                    ),
-                    const Spacer(),
-                    KitWait(
-                      waitKey: WaitKey.orgScan(f.provider),
-                      builder: (context, wait) => KitButton.ghost('Rescan',
-                          icon: Icons.refresh,
-                          wait: wait.left,
-                          onPressed: widget.scanning ? null : widget.onRescan),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
+            ),
+        ],
+        below: below,
       ),
     );
   }

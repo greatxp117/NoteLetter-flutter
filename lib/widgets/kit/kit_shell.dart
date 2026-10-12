@@ -462,10 +462,68 @@ class _StackPainter extends CustomPainter {
   bool shouldRepaint(_StackPainter old) => old.color != color;
 }
 
+/// The reference's `IcoCards` — a card with two lines on it and a second
+/// card's edge tilted behind: Study's glyph. Material's `style` is three fanned
+/// cards, which read as another app's (F-90 (2)).
+class KitCardsGlyph extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const KitCardsGlyph({super.key, required this.size, required this.color});
+
+  /// A sentinel for kit widgets that take an [IconData], as [KitQuill.icon].
+  static const IconData icon = IconData(0xF8FB, fontFamily: 'NoteLetterCards');
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _CardsPainter(color)),
+      );
+}
+
+class _CardsPainter extends CustomPainter {
+  final Color color;
+  const _CardsPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.75
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    // M8.6 4.7l6.6-1.5a1.6 1.6 0 0 1 1.9 1.2l1 4.4
+    canvas.drawPath(
+        Path()
+          ..moveTo(8.6, 4.7)
+          ..lineTo(15.2, 3.2)
+          ..arcToPoint(const Offset(17.1, 4.4),
+              radius: const Radius.circular(1.6))
+          ..lineTo(18.1, 8.8),
+        paint);
+    // rect x4 y7 w12.5 h14 rx1.8
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(const Rect.fromLTWH(4, 7, 12.5, 14),
+            const Radius.circular(1.8)),
+        paint);
+    // M7.6 12.5h5.3M7.6 16h3.2
+    canvas.drawLine(const Offset(7.6, 12.5), const Offset(12.9, 12.5), paint);
+    canvas.drawLine(const Offset(7.6, 16), const Offset(10.8, 16), paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_CardsPainter old) => old.color != color;
+}
+
 /// An [IconData] as a kit widget draws it: [KitQuill.icon] is the quill,
 /// [KitSparkle.icon] the reference's sparkle, [KitUploadGlyph.icon] its
-/// upload tray, [KitStackGlyph.icon] its shelf stack, any other a Material
-/// [Icon].
+/// upload tray, [KitStackGlyph.icon] its shelf stack, [KitCardsGlyph.icon]
+/// Study's cards, any other a Material [Icon].
 class KitGlyph extends StatelessWidget {
   final IconData icon;
   final double size;
@@ -482,7 +540,9 @@ class KitGlyph extends StatelessWidget {
               ? KitUploadGlyph(size: size, color: color)
               : icon == KitStackGlyph.icon
                   ? KitStackGlyph(size: size, color: color)
-                  : Icon(icon, size: size, color: color);
+                  : icon == KitCardsGlyph.icon
+                      ? KitCardsGlyph(size: size, color: color)
+                      : Icon(icon, size: size, color: color);
 }
 
 /// The phone app bar's trailing control (`.mh-btn`): 36 square, `--r-sm`, the

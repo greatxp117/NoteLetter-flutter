@@ -112,4 +112,24 @@ void main() {
     expect(node.center.dx - list.left, closeTo(16, 1.5),
         reason: 'the row\'s -12 inset puts the 32 node flush, centred on 16');
   });
+
+  // F-90 (6): a folder's README status is web's ReadmeChip — its own words,
+  // and an unknown status drawn as pending, never as its raw token.
+  testWidgets('the README chip says each status in the reference\'s words',
+      (tester) async {
+    await _pump(
+        tester,
+        const Wrap(children: [
+          KitReadmeChip('written'),
+          KitReadmeChip('user_modified'),
+          KitReadmeChip('error'),
+          KitReadmeChip('pending'),
+          KitReadmeChip('something_new'),
+        ]));
+    expect(find.text('README written'), findsOneWidget);
+    expect(find.text('README edited by you'), findsOneWidget);
+    expect(find.text('README error'), findsOneWidget);
+    expect(find.text('README pending'), findsNWidgets(2));
+    expect(find.textContaining('something_new'), findsNothing);
+  });
 }

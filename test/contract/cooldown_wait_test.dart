@@ -164,6 +164,11 @@ Widget _app(Widget child) => MaterialApp(
 /// The KitButton whose whole label (suffix included) is [label].
 Finder _button(String label) => find.widgetWithText(KitButton, label);
 
+/// An organized folder's rescan — the reference's `.proc-cancel` icon control,
+/// its title `Rescan this folder` carrying the wait (`· m:ss`), F-90 (6).
+Finder _folderRescan([String suffix = '']) => find.byWidgetPredicate(
+    (w) => w is KitIconButton && w.tooltip == 'Rescan this folder$suffix');
+
 void main() {
   // The registry's clock, moved by hand: `testWidgets` fakes timers but not
   // `DateTime.now`, so a step through a wait moves both together.
@@ -593,11 +598,12 @@ void main() {
         child: _app(const OrganizedFoldersPanel(provider: 'notion')),
       ));
       await tester.pumpAndSettle();
-      await tester.tap(_button('Rescan').first);
+      await tester.tap(_folderRescan().first);
       await tester.pumpAndSettle();
 
-      expect(api.sent.single.data, {'provider': 'notion', 'folder_id': 'f1'});
-      expect(_button('Rescan · 4:58'), findsNWidgets(2),
+      // The folders are listed by path, as web's are: /Letters (f2) first.
+      expect(api.sent.single.data, {'provider': 'notion', 'folder_id': 'f2'});
+      expect(_folderRescan(' · 4:58'), findsNWidgets(2),
           reason: 'the cooldown is the PROVIDER\'s, whichever folder asked');
       expect(find.text(sentence), findsOneWidget,
           reason: 'said once, over the folders — not per row, not a toast');
@@ -631,7 +637,7 @@ void main() {
         child: _app(const OrganizedFoldersPanel(provider: 'notion')),
       ));
       await tester.pumpAndSettle();
-      await tester.tap(_button('Rescan'));
+      await tester.tap(_folderRescan());
       await tester.pumpAndSettle();
 
       expect(
@@ -644,11 +650,11 @@ void main() {
           reason: 'said once — not also a toast');
       expect(find.byType(SnackBar), findsNothing,
           reason: 'not an error toast: nothing broke');
-      expect(_button('Rescan'), findsOneWidget,
+      expect(_folderRescan(), findsOneWidget,
           reason: 'no number, so no countdown — the control is not held');
 
       cooldown = false;
-      await tester.tap(_button('Rescan'));
+      await tester.tap(_folderRescan());
       await tester.pump();
       expect(find.text(sentence), findsNothing,
           reason: 'the sentence leaves when the reader asks again');
@@ -673,7 +679,7 @@ void main() {
         child: _app(const OrganizedFoldersPanel(provider: 'notion')),
       ));
       await tester.pumpAndSettle();
-      await tester.tap(_button('Rescan'));
+      await tester.tap(_folderRescan());
       await tester.pumpAndSettle();
 
       expect(find.text(sentence), findsOneWidget);
