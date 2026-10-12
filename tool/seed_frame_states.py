@@ -60,9 +60,6 @@ if "--remove" in sys.argv:
 
 # ── scripture-day: web theme-shots `scriptureLetter(date)` ──────────────────
 REFS = ["Isaiah 55:1-11", "Psalm 42", "John 6:1-15"]
-LEADS = ["Come to the waters, all you who thirst.",
-         "As the deer longs for running streams.",
-         "He took the loaves, gave thanks, and distributed them."]
 DAY = "Friday of week 18 in Ordinary Time"
 call(f"{ROOT}/newsletters/{DOC}", "PATCH", {"fields": {
     "user_id": S(UID),
@@ -76,9 +73,16 @@ call(f"{ROOT}/newsletters/{DOC}", "PATCH", {"fields": {
         "week": I(18), "weekday": S("friday"), "cycle": S("B"),
         "id": S("ot-18"), "name": S(DAY), "keys": A([S("ot-18")]),
     }),
+    # `lead` is a BOOL on every letter the backend writes (main.py
+    # `"lead": bool(r.get("lead"))`). Web's shot writes each reading's opening
+    # line there — a string, truthy, so all three draw as lead rows on web —
+    # and this client's model reads the field typed, so a string made the
+    # whole newsletters subscription fail ("Your letters could not be read").
+    # True for all three: the shape the backend writes, drawn as the
+    # reference draws it.
     "readings": A([M({
         "label": S(["First reading", "Psalm", "Gospel"][i]),
-        "ref": S(ref), "lead": S(LEADS[i]),
+        "ref": S(ref), "lead": B(True),
         "passages": A([]), "match_total": I(0),
     }) for i, ref in enumerate(REFS)]),
     "passages_sent": I(3), "passages_found": I(5),
@@ -92,12 +96,12 @@ res = call(f"{ROOT}:runQuery", "POST", {"structuredQuery": {
                               "op": "EQUAL", "value": S(UID)}},
 }})
 count = sum(1 for r in res if "document" in r) if isinstance(res, list) else 0
+# Only the cap: `_plan_limits()` merges this block over `_PLAN_DEFAULTS`, and
+# every other figure on the row (the month's ingests, narration) must stay the
+# default the reference frames — a 40 written here drew "0 of 40" against
+# web's "0 of 60".
 call(f"{ROOT}/config/plans", "PATCH", {"fields": {
-    "free": M({
-        "max_documents": I(count),
-        "max_ingests_per_month": I(40),
-        "audio_narration": B(False),
-    }),
+    "free": M({"max_documents": I(count)}),
 }})
 print(f"seeded {DOC} ({DAY}, 2026-10-02) and config/plans (free cap {count} "
       f"= {UID}'s documents)")

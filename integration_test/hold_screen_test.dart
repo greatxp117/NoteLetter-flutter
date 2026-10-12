@@ -718,6 +718,12 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       // it is not a control, and a tap that lands on nothing is silent.
       final row = find.byWidgetPredicate((w) =>
           w is KitLetterRow && w.title.contains('Friday of week 18'));
+      // The readings rows sit below the latest letters, past a phone's
+      // fold, in a list that builds only what it shows: scroll for it.
+      for (var i = 0; i < 20 && row.evaluate().isEmpty; i++) {
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
+        await settle();
+      }
       expect(row, findsOneWidget,
           reason: 'run tool/seed_frame_states.py first — no readings letter '
               'for Friday of week 18 to open');

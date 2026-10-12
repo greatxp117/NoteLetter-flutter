@@ -881,7 +881,7 @@ a new obligation on a finished screen is a new item.
 - notes: Split from F-44 on Xavier's 2026-09-26 decisions: (1) the WEB REFERENCE BINDS for the signed-out pages — site furniture with their own sheet (`lib/site/site_sheet.dart`, the port of signin.css), not the app kit; tokens still bind; (2) BUILD Continue with Google. The landing is F-68 (F-44b). This item: `/signin` (router redirect for both signed-out routes, `analytics.dart` map, `support_footer_test` exempt), the AuthModal (Sign in | Subscribe, the letter opt-in stashed before the auth call and replayed by the signed-in app), "Forgot it?" that sends, the reference's error vocabulary gated against `authErrors.js` itself, and Google through `google_sign_in` (native) / Firebase's popup (web), guarded by `GoogleSignInSetup` whose flags a test reads from the native config. Android has no OAuth client (no SHA-1) so its button says "Google sign-in is not set up on this build." The old landing's Material dialog is deleted; its two doors open the modal.
 
 ## F-45 · Sources — an import-activity row breaks its title across two lines
-- status: in-progress
+- status: done 2026-10-12
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md; spec/component-kit.md §4.1
@@ -892,6 +892,7 @@ a new obligation on a finished screen is a new item.
 - shots: sources
 - extra_gates: none
 - notes: A `_JobRow` carrying two actions (View · Import again) plus its status glyph leaves the title so little width that `taxes.pdf` renders as `taxes.pd` / `f` and the subtitle as `Already im…` — on the seed's already-imported job, iPhone 17 Pro. Seen in screenshots/folder-contents.flutter.*.png (first shot, below the picker). The row is §4.1: when actions and title cannot share a line, the actions go under the title, never the title into a sliver.
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): sources MATCH — the import row keeps its title on one line with its controls under it on a phone (folder-contents frame).
 
 ## F-46 · Notifications — a level label ellipsises in the channel cards
 - status: done 2026-09-25
@@ -1373,7 +1374,7 @@ a new obligation on a finished screen is a new item.
 - notes: CHANGELOG 4.99.0 Flutter tandem. (a) The hero reads NewsletterNotifier.latest (the newest BUILT daily letter, web getLatestLetter); delete todaysLetter. (b) library.md §The letter: header Today's letter / Latest letter by whether generated_at is on the device's calendar day; standfirst `Today's letter is ready — {n} passages from your library.` or `Your latest letter is from {Weekday, Month D} — {n} passages from your library.`, the count clause dropped when chunk_ids is absent (chunkIdsKnown); failure `Your latest letter could not be read.`; Sent already only for status == sent. (c) Ask citation: AppRadius.xl below compactWidth, a full pill above it (was pillR(44) = 22 at every width — F-69's recorded single-cap deviation, now superseded by ask.md 4.99.0).
 
 ## F-71 · Library hero — the masthead is web's versal A LETTER, and the stat cluster carries Min read
-- status: in-progress
+- status: done 2026-10-12
 - screen: library
 - route: /
 - spec: spec/screens/library.md §Composition; spec/screens/letters.md §The letter-settings preview; spec/component-kit.md §5.3
@@ -1384,6 +1385,7 @@ a new obligation on a finished screen is a new item.
 - shots: library
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: Seen on F-70's frames (2026-09-28), not F-70's subject. (1) The hero masthead: web draws `.masthead-title versal` — small caps with versal initials (`A LETTER`); this client draws 'A *Letter*' with the accent italic. (2) The stat cluster: web draws Passages · Min read (`~{n+1}`, dash without chunk_ids) · Sent; this client drops Min read on a comment calling it arithmetic, while letters.md specifies `{n} passages · ~{n+1} min read` on the same record. Decide by the reference; KitStat cannot yet carry an unmeasured figure (stat_figure_check CARRIES-ABSENCE).
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): library MATCH — the masthead is the versal A LETTER; Passages · ~4 Min read · Sent.
 
 ## F-72 · For your review — the inbox (4.100.0 tandem)
 - status: done 2026-10-07
@@ -1402,7 +1404,7 @@ a new obligation on a finished screen is a new item.
   2026-10-07: the whole device run over bed2e81 (alt-port emulator, scratch boot, NL_DEV_FAKES shim, iPhone 17 Pro simulator): this item's test PASSES — "signs in, opens For your review from the drawer, dismisses a failed source" — 22 of 25 green; the three reds are F-77's and F-44a's, not this item's (burn-down evidence/flutter/device-run-2026-10-07.log). The review pair matched at a8e9ec6. Done.
 
 ## F-73 · Reader — Delete a source; the re-shelve review's shelf select (4.105.0)
-- status: open
+- status: done 2026-10-12
 - screen: reader
 - route: /reader/{id}
 - spec: spec/screens/reader.md §Deleting a source §Composition; spec/component-kit.md §18 §20.2; spec/screens/library.md §Re-shelve review; spec/api/documents.md §fn_delete_document
@@ -1416,9 +1418,10 @@ a new obligation on a finished screen is a new item.
   2026-10-02: built 4790210 (analyze clean, contract+kit 1026 green, confirm_check PASS); device run + the reader pair owed — no emulator this wave.
   2026-10-05: the reader pair was re-shot from 0d329b8; this item's own parts (the ghost Delete with its trash glyph, §20.2's select) are on screen, but the pair does NOT match for other reasons, booked as F-77 — so it is not committed and this stays open until F-77's reader frame matches.
   2026-10-07: re-shot over 5b0b73e. Delete and its trash glyph, the §20.2 select (reader-shelves, shelf-picker-search — those two pairs MATCH and are committed) are right; the reader pair still does not match, for F-77 (2) and (3) only — not committed, still open.
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): reader — Delete with its trash glyph and the §20.2 select (reader-shelves, shelf-picker-search) are right; the one difference, web's new Priority row under Shelves, is booked on F-99 (BLOCKED, Xavier).
 
 ## F-74 · Reader — the manuscript's reading controls: Aa, the reading-progress rule, Pick up where you left off, the drop cap
-- status: in-progress
+- status: done 2026-10-12
 - screen: reader-manuscript
 - route: /reader/{id}
 - spec: spec/screens/reader.md §Composition §Sections; spec/component-kit.md §5.2
@@ -1429,9 +1432,10 @@ a new obligation on a finished screen is a new item.
 - shots: reader-manuscript
 - extra_gates: none
 - notes: F-43 recomposed the panel bar, the sheet, its type, the edit-mode chunk head, the split control and the foot. Four reference parts were left for this item, each a behaviour rather than a type role: (1) `TypeControls` — the `Aa` popover beside Edit text (`.ms-type`, useReaderPrefs: size, leading, family, measure as `--ms-*` vars on the sheet); (2) `.ms-progress` — the accent reading-progress rule above the sheet, a MEASURED fraction of the sheet scrolled (only measured numbers on screen); (3) `.ms-resume` — `You stopped about N% of the way through.` with Pick up where you left off / Start over; (4) the drop cap on the first passage's first paragraph (`::first-letter`, serif 58/0.86/600 at --accent-text) — flutter_html has no first-letter, so it needs a decision on how the first paragraph is drawn. Read ManuscriptPanel.jsx for where (2) and (3) take their numbers before building either.
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): reader-manuscript MATCH — Aa, the progress rule, the drop cap at the body's optical size, the framed image with its alt.
 
 ## F-75 · Search — the cohesive column's passage type and source title follow the reference
-- status: in-progress
+- status: done 2026-10-12
 - screen: search
 - route: /search
 - spec: spec/screens/search.md §Composition; spec/component-kit.md §5.2
@@ -1442,6 +1446,7 @@ a new obligation on a finished screen is a new item.
 - shots: search
 - extra_gates: none
 - notes: F-43 respelled these sites into KitText roles without moving a pixel, and found four drifts it did not fix: (1) the cohesive passage body is `.passage .quote` serif 18/30 on the reference, 17/28 here; (2) its `Html` branch sets no family, so stored html renders in the UI SANS while the no-html branch is serif — the manuscript had the same defect (fixed in F-43 by `fontFamily: AppTheme.fontSerif` on the body Style); (3) `.cohesive-passage .pmeta .srctitle` is 14/500, 15/1.2/500 here; (4) `.cohesive-note` is at --fg-subtle, --fg-muted here. Needs a frame of the COHESIVE mode — the `search` pair's query does not reach it.
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): search MATCH — the passage text on one collapsed line, the source title in the serif.
 
 ## F-76 · Letters and Sources — the reader bar's Copy and Open in email; readings rows are letter rows; the source control's glyph
 - status: done 2026-10-07
@@ -1459,7 +1464,7 @@ a new obligation on a finished screen is a new item.
   2026-10-07: re-shot over HEAD and compared to web 5413658's phone frames. letter-reader: f417c96's call holds — the ground above the paper is the LETTER's own `padding:34px 20px` (#FAFAF7), not app ground, on both sides. What did NOT match was scale: KitLetterPaper laid the 640px paper out at 640 and fitted it by scaling the page (~0.6: title 27 on one line where web wraps it at 38, 12pt margins vs 20). Fixed by web's host rule (`[data-nl-letterhead]>table{table-layout:fixed}`, app-kit.css) plus, because WKWebView did not reflow with that rule alone, the paper held to its cell (`width:100%; max-width:640px`, !important over the inline width) — the letter now reflows at its true sizes. Residual, web-side: `.letter-sheet` inherits the app's 24px body line box into the letter, so web spaces the folio's two lines 24 apart where the letter itself (and this host, and a mail client) sets them at `normal`. letters: the card head read ~14% tight — its lines now take web's inherited 24px line box, `.nl-status`'s 13, the masthead's 12 row gap, `.nl-lede`'s 9/13, the phone grid's 18 and `padding: 20px`; every gap within 2pt of the reference. proc-affordances re-shot and still matches. All three pairs committed.
 
 ## F-77 · Reader — the parts the 2026-10-05 pairs found: LISTEN stat, a link web has not, the rail's ground, History lands short
-- status: in-progress
+- status: done 2026-10-12
 - screen: reader
 - route: /reader/{id}
 - spec: spec/screens/reader.md §Composition §Sections; spec/component-kit.md §19 §5.4 §15.2
@@ -1473,9 +1478,10 @@ a new obligation on a finished screen is a new item.
   2026-10-06: (1) and (6) built — LISTEN is drawn as §8's unmeasured dash (the reference reads `audio_seconds`, which nothing writes, so it is the dash there too), and Ask / Reorganize / the Manuscript and History jumps take IcoChat / IcoText / IcoClock as this client draws them elsewhere (chat_bubble_outline, title, schedule). Not re-shot. (2) is blocked on F-74: the reference's only stats toggle is Reading stats inside the Aa popover, which this client does not have, so removing the link would leave the opt-in unreachable. (3) is a page-ground question, not the rail's: the reader sits outside AppLayout on the support shell's --surface, and the rail paints that ground to avoid a band — compare the page grounds before moving the rail. (4) and (5) built — `KitRailSection` (kit §19): a 1px --rule 40 above every section after the first (30 on a phone), the panel 22 under it, the host's key on the box that starts at the rule, and the last section held to `viewport - rail - 72` (`.src-section:last-child`); test/kit/rail_section_test.dart. Owed: the device run's jump tests over it, and the reader-history pair. (10) built — the set gallery's FRAME is 3:4 (`AspectRatio`) with the caption line under it and the grid's extent computed from the tile width (`.srcset-grid` padding 14); test/kit/kit_smoke_test.dart. Owed: the source-set pair, which is also F-82 (1)'s wrong-surface hold. (9) built — ingredients sans 15/26 (was the body's 16), the --rule BETWEEN items (`li + li`, was under every item), the figure caption sans 12 at --fg-muted (was §3's 14 at --fg-subtle); kit_smoke_test. Owed: the recipe pair. (8) built — `KitKeyHint`, and the row says only Hold to pause & rest: this client binds no keys, so the reference's Space and arrow hints would name controls that do nothing. A composition deviation, recorded in CLAUDE.md §Composition deviations (b9d77ee; the file was at its 750-word cap until prose was tightened) and at the site. (7) built — the passage mark sits in the sheet's padding at -26 (-14 where the padding collapses), top/bottom 4, and the text keeps its measure; a manuscript table sets at 15 (`.ms-body table`); dwell_test. Still open: (2) (needs F-74's Aa popover) and (3) (the reader's page ground, --surface here vs --bg on web). Every pair this item lists is owed: no re-shoot this session (disk under 5 GB; the emulator held by other lanes).
   2026-10-07: every listed hold re-shot over 5b0b73e (frames in the burn-down evidence, flutter-3), compared to web 5413658's phone frames. MATCH, committed: reader-shelves, shelf-picker-search. NOT matching: reader — (2) and (3). reader-history — the hold ends with the rail marking Original and History's head 72 under the rail (its `lastReach`), where web marks History with the rows under the rail. reader-manuscript — no drop cap on the first passage, no `Aa` (F-74), no accent rule above the sheet, the image caption drawn without its figure frame, marks full sage where web's are unfilled, and 22 words where web counts 9. reader-speed-read — the rail scrolls the current jump to its leading edge and clips its glyph; the standfirst omits web's key sentence (8, recorded here). recipe — ingredients sit flush with their eyebrow where web indents the list (and outdents `To finish`). source-set — F-82 (1), two surfaces.
   2026-10-12: (2) done with F-74 (f9d1d56): Aa → Reading stats is the breakdown's one door, and the link under Mark finished is gone. (3) built: on a phone the reader sits in AppLayout's --bg, so the rail paints --bg there (--surface wide, outside AppLayout), its trailing 26 fade (`mask-image`), each jump 12 a side; rail_section_test. recipe: the reference's `.ms-body ul/ol { padding-left: 26px }` outranks `.rc-ings`/`.rc-steps`, so the items indent 26 under the eyebrow and a group key does not, `li` 5 / 11 with the rule between, the tick 4 down and 11 before the text, step text 26 in; kit_smoke_test. reader-manuscript's image: `.ms-body img` is framed (1px --border, --r-sm, 6/14) and a tap opens the lightbox; one that does not load keeps its frame with a broken glyph and its alt, as the browser draws it (`kitManuscriptImage`). reader-speed-read: the hold revealed the jump's LABEL, which put it at the rail's leading edge and cut its glyph; it reveals the whole jump now. The full-sage marks are the hold's dwell (12 words count as read in 1.6 s; web shoots before that) — a hold-timing difference, not a defect. Owed: reader-history's landing (to be read on the device), and every listed pair.
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): reader (Priority row → F-99), reader-history (History lands and stays; its first batch frame was shot late and re-taken), reader-manuscript, reader-speed-read (the jump's glyph whole), reader-shelves and shelf-picker-search (Priority row → F-99), recipe (26 indent), source-set (the §15.2 sheet on Sources) — all MATCH otherwise.
 
 ## F-78 · Ask and Search — passage text keeps its line breaks, the Ask header and composer, the rail overlay, the open result card
-- status: in-progress
+- status: done 2026-10-12
 - screen: ask
 - route: /ask
 - spec: spec/screens/ask.md §Composition; spec/screens/search.md §Composition; spec/component-kit.md §6.6 §17
@@ -1487,9 +1493,10 @@ a new obligation on a finished screen is a new item.
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: (1) One root, two screens: kit_markers.dart ~169 renders `TextSpan(text: p.text)`, so a `\n` in chunk text breaks the line in Search snippets and Ask citation excerpts; web collapses white space (`.sresult-passage`). (2) Ask: History is a padded KitButton.ghost (chat_page.dart ~180) where web has a bare `.pact` link (sans 12, padding 0, 13px glyph); the title stays 30 at phone width, web 26 at ≤680 (app-responsive.css ~385); the empty state starts ~48pt lower (chat_page.dart ~370 `s8` on KitEmptyState's own `s8`); the prompt glyph is a filled auto_awesome vs IcoSparkle; the empty send is drawn at 0.45 (kit_composer.dart ~209, Support's rule) where Ask's `.send` has no disabled rule. (3) ask-thread: the reader avatar uses the flipping toneSage; web pins raw `--sage-700` in both themes (app-kit.css ~365). (4) ask-rail: the overlay is a Stack inside the page body, so the app bar and footer stay undimmed; web's rail is position fixed over everything with its backdrop. (5) Search: the open card draws an accent border + shadow-2 (result_card.dart ~56) that web has no rule for; the count line is left-aligned (kit_controls.dart ~913) where search.md says it stays trailing. (6) ask-turn-failed: the batch hold reported OK yet the frame is the empty scoped screen — no question, no refusal, no Try again; find out how a hold that asserts `Try again` photographed a state without it. The web hold for it runs on /ask with an injected shelf key (theme-shots.mjs ~690), so the headers differ by construction — align the two holds first.
   2026-10-12: built — (1) `KitMarkedText` collapses white space as every web host of `MarkedText` does (a normal-flow element), and the manuscript's plain text is one paragraph as web's `<p>${text}</p>` is; (2) History is the bare `.pact` link (`KitPassageAction`), the title 26 below the compact width (`ScreenHeader.titleSizeCompact`), the empty state 20 under the rule where it was s8 on s8, the prompts draw `KitSparkle` (the reference's stroked IcoSparkle, painted; Material has none) at the row's 15; (3) the reader's avatar pins raw --sage-700 in both themes (`AppColors.askAvatarYou`); (4) the rail and its backdrop draw on the ROOT overlay, over the app bar and the support footer; (5) the open result card has no rule of its own (`.sresult.open` has none) and the count line is `KitControlBar.count` — last in the row, or its own line at the trailing edge once the bar stacks. NOT done, a spec-vs-web disagreement for Xavier: Ask's empty send is held at 0.45 here (Support's `.sup-send:disabled`); web's Ask `.send` has no disabled rule at all, and component-kit §6.1 says a held control dims at --held-opacity 0.5. (6) the two holds still differ by construction (web injects a shelf key on /ask; this client's hold is /ask/shelf/no-such-shelf) — web's hold is the web lane's. Pairs owed.
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): ask, ask-thread, ask-turn-failed (the transcript against the composer), ask-rail (one conversation, full height, the status bar legible over it), search — MATCH; the held send's look is booked on F-103 (BLOCKED, Xavier).
 
 ## F-79 · Sources, the folder picker and Activity — the drop zone, a disabled Add link, the import counter row, the timeline spine
-- status: in-progress
+- status: done 2026-10-12
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md §Composition; spec/screens/activity.md §Composition; spec/component-kit.md §4.2 §6.4
@@ -1501,8 +1508,10 @@ a new obligation on a finished screen is a new item.
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: (1) Drop zone: a centred filled Material upload arrow vs web's stroke upload-tray glyph at the leading edge; copy says "tap to add a few" where web says "click to add a few" — a touch adaptation recorded nowhere, so either record it in CLAUDE.md §Composition deviations or follow web. (2) Add link with an empty field is drawn disabled, nearly invisible in dark; web draws `.btn-secondary` at full strength. (3) An "Add an image set (up to 20)" row under the link row that is in no §Composition and no recorded deviation. (4) Folder picker: "Import 0 items" is dimmed where web is full-strength (web may be the side at fault — a disabled control drawn enabled; decide by spec), Import + Cancel left-aligned where web right-aligns at phone width (`.proc-error-actions`), the checkbox a heavy 2px Material square vs web's 1px rounded box. (5) Activity: the spine sits at left 15 but rows lack web's `margin: 0 -12px` inset, so it runs along the nodes' left edge, not their centres (kit_rows.dart KitTimeline); the youtube/instagram/tiktok/podcast/video badges are filled --surface-sunken where web leaves them untinted.
   2026-10-12: built (b79b16e) — (1) the drop zone draws `KitUploadGlyph` (web's stroked IcoUpload tray, painted) in a 40 box at the zone's LEADING edge, as `.dz-feather` sits; *tap* not *click* is a recorded touch deviation (CLAUDE.md). (2) MATCH since 4.108.0: web's `.btn:disabled` holds Add link at --held-opacity too, and both draw it faint in dark. (3) recorded in CLAUDE.md §Composition deviations: *Add an image set* is a device capability web lacks. (4) "Import 0 items" held as web's `.proc-retry:disabled` (MATCH); confirm and Cancel at the trailing edge on a phone; the checkbox is `KitCheckbox`, the reference's 13px box. (5) the timeline's rows carry their -12 inset, so the spine runs through the nodes' centres; platform and recording badges take no tint. Pairs owed (sources, folder-contents, activity).
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): sources (the tray, the leading upload glyph), folder-contents (the picker's box and trailing foot; Import 0 items held → F-103), activity (the inset spine) — MATCH.
+
 ## F-80 · Readings day, Notifications, Settings, Onboarding — the drifts the 2026-10-05 pairs found
-- status: in-progress
+- status: done 2026-10-12
 - screen: scripture-day
 - route: /letters
 - spec: spec/screens/letters.md §Composition; spec/screens/notifications.md §Composition; spec/screens/settings.md §Composition; spec/screens/onboarding.md §Composition
@@ -1514,8 +1523,10 @@ a new obligation on a finished screen is a new item.
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: (1) Readings day: the reading reference is h3 28 where `.sc-day-ref` is serif 21/600; on a phone web wraps the header with `.sc-day-ct{margin-left:0}` so the count follows the reference, here it is pinned right by an Expanded; the live notice's figures are plain where web wraps them in <b>. (2) Notifications: the Type group is `KitFieldGroup(first: true)` and draws no top rule; web's `.cfg-group:first-of-type` does not match there, so web rules it. (3) Settings: Theme is a labelled segmented control (Light / System / Dark, settings_page.dart ~99); web's ThemeToggle is three glyphs with titles, no text. (4) Onboarding: the head borrows §2.1's two-bar rule where web draws `.ob-rule` (a 38px --ink-300 dash with a 12px accent tick); title 32 vs `.ob-title` 27 at ≤460 (wraps "library." alone); standfirst ~19 vs 17; the rail band reads lighter than --chrome in dark. (5) Letter settings — a RULING, not a fix: web phone stacks two separately scrolling panes with the preview on the first screen; here the preview follows the whole form. The spec says only "below it on a phone". The web references for letter-settings are v4.97.0 and show the pre-4.98.0 preview — re-shoot web first.
   2026-10-12: built — (1) the readings day's head is `.sc-day-h`: the label mono 9.5, the reference `.sc-day-ref` serif 21/600 (not h3's 28), the count mono 10.5 at --fg-subtle pushed trailing, and on a phone the row wraps at 8 with the count FOLLOWING the reference; the live notice is sans 13/20 --fg-muted with its figures in `<b>` (--fg, 600); scripture_day_test. (2) the Type group is ruled above, as web's `.cfg-group:first-of-type` never matches there. (3) Theme is `KitThemeToggle` — three glyphs named by their titles, no text, web's `.theme-toggle` pill track. (4) onboarding's head is its own (`ChapterOpening(onboarding: true)`): `.ob-title` 40 / 31 below the compact width / 27 at ≤460, `.ob-stand` 19 → 17 at ≤460, and `.ob-rule` (a 38px --ink-300 dash, a 12px accent tick) in place of the two-bar chapter rule; the rail band's dark shade is still to be measured on the frames. (5) closed by F-88 (the two-pane letter settings, ruled 2026-10-08). Pairs owed.
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): scripture-day (web's Friday of week 18 with the partial notice; its seed now writes `lead` as the bool the backend writes), notifications, settings (icon-only theme toggle), onboarding (Step 1 of 6, four steps, the two-tone rule), letter-settings — MATCH.
+
 ## F-81 · Shelves — the grid's top margin, spine heights, the selected swatch's size, the sheet's glyph; serif optical size everywhere
-- status: in-progress
+- status: done 2026-10-12
 - screen: shelves
 - route: /shelves
 - spec: spec/screens/library.md §Shelves §Shelf color; spec/component-kit.md §15 §21; spec/design-tokens.md
@@ -1527,8 +1538,10 @@ a new obligation on a finished screen is a new item.
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: (1) The grid follows the chapter opening directly; web `.shelf-grid { margin-top: 26px }`. (2) Spines scale on 44 (kit_cards.dart ~644) where web's percent heights are of a 56px strip. (3) `Empty shelf` is serif italic; `.scv-empty` is sans italic. (4) The index standfirst says `N volumes, shelved.` with no singular. (5) KitSwatch draws the 2px selection ring OUTSIDE the 24pt circle, so the selected swatch is 28; web's ring is the circle's own border, every swatch one size, hairline 2px inside. (6) The create sheet's glyph is layers_outlined vs IcoStack (three layers), coloured accentText where web uses --seal (same value today, wrong name). (7) Cross-cutting, seen on ask, search, recipe and the landing: serif text sets 8-15% wider than web at the same glyph height. app_theme.dart drives only the `wght` axis; web sets `opsz` per role (theme.css ~480-519). Cause unproven — measure before changing a face every screen uses. (8) shelf-backfill-review is RETIRED (4.102.0) and fails its hold, but done item F-38 still lists it in shots:, so screenshot_pair_check reports it STALE-PAIR forever; the review's pair is web's review-backfill, which needs a stored shelf_backfill task. Needs a pair-check rule for a retired state, not an edit to F-38.
   2026-10-12: built — (1) 26 above the grid (`.shelf-grid { margin-top }`); (2) the spines are percents of 56, `.shelf-spines`' height; (3) *Empty shelf* is sans italic (`.scv-empty`); (4) the standfirst counts `1 volume` singular; (5) `KitSwatch` is one 24 circle in every state, the 2px ring its own border drawn inside it, the --border hairline inset under the ring; (6) the create sheet's mark is `KitStackGlyph` (web's IcoStack, painted) and every §15 sheet mark is at --seal. (7) MEASURED and moved to F-100: the cause is proved (no `opsz` is set; `Library` at 44 lays out 158 wide against web's ~133, 134 with `opsz`), but flutter_html cannot set font variations, so it waits on a plan for html-rendered serif. (8) already settled by the queue's `retired-shots:` header, which screenshot_pair_check reads. Pairs owed (shelves, shelf-color-picker, shelf-create-sheet).
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): shelves, shelf-color-picker (one row of one-size swatches), shelf-create-sheet (the stack mark at 18 in its tile — the batch caught it drawn at 36, fixed in 252b19b) — MATCH.
+
 ## F-82 · Holds that shoot a different surface than the reference, and the site's control heights and hero lines
-- status: in-progress
+- status: done 2026-10-12
 - screen: source-file
 - route: /reader/{id}
 - spec: spec/component-kit.md §15.1 §15.2; spec/clients/flutter.md
@@ -1540,6 +1553,8 @@ a new obligation on a finished screen is a new item.
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: (1) source-file and source-set: the Flutter holds frame the reader's Original section (§15.1/§15.2 inline on the reader) while web theme-shots frames the §15 overlay sheet opened from /sources (theme-shots.mjs ~1067, ~1621), so the pairs compare two surfaces — align one side's hold before judging either. §15.1 asks for a PDF in a frame on a white sheet; Flutter prints a sentence (kit_overlay.dart ~398), recorded nowhere. (2) signin / signin-fail: fields 49 vs 43, Sign in 47 vs 43, Google 46 vs 43 — the field's 13pt vertical padding vs `padding: 11px 13px`, the button's 13 vs 12, line height 1.3 vs normal (site_sheet.dart ~307-348, signin.css ~137-159). (3) landing-actual: on a phone the hero's two fixed lines are joined with a space (landing_page.dart ~912), so "deserve" and "to be re-" share a line; web's lines are display:block. The masthead is ~26pt shorter (tighter line boxes, landing_page.dart ~698).
   2026-10-12: built — (1) the holds now frame the reference's surface: `source-file` and `source-set` open the §15 SHEET from a processing row on /sources (a failed DOCX with stored bytes; a pending image set with two of three pages), seeded by `tool/seed_overlay_sources.py` before the shot and removed after (`--remove`), as web writes and deletes them per shot; the PDF stage's sentence is a recorded deviation (CLAUDE.md: no PDF renderer is embedded, §15.1 rule 1). (2) the sign-in field is `padding: 11px 13px` (was 13), Sign in 12 (was 13), the Google button 11 (was 12); Geist's own normal line height is 1.3 (hhea 1005/-295/0), so the line box was never the gap. (3) the hero's two lines never join (`.ln { display: block }` at every width). The masthead's height is to be measured on the frames. Pairs owed (source-file, source-set — routes now /sources; signin, signin-fail, landing-actual).
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): source-file and source-set (the §15 sheet from Sources' processing rows), signin, signin-fail (control heights), landing-actual (the hero's break) — MATCH; the sheet's `esc to close` foot is touch copy (CLAUDE.md).
+
 ## F-83 · Cooldowns wait it out — `retry_after_s` and §6.1 Waiting (4.107.0 tandem)
 - status: done 2026-10-06
 - screen: none
@@ -1619,7 +1634,7 @@ a new obligation on a finished screen is a new item.
 - notes: Web below its studio breakpoint makes `.letter-studio` a flex column: `.letter-config` and `.letter-preview-pane` each `overflow: auto`, shrinking to share the height, with `.letter-config`'s 1px --rule between — so the letter is on the first screen. Flutter below 1024 had the letter after the whole form. Now a Column of two Expanded KitPages (each with its own ScrollController — two scroll views cannot share the primary one) parted by a 1px --rule. Web's split follows the panes' content heights (flex-shrink by basis); here it is even, which the web frame (form ~53%, letter ~47%) is within a few points of. No widget test mounts this page (it needs most of the app's notifiers); the gate is the phone frame against letter-settings.web.phone.
 
 ## F-89 · Suggest shelves (4.116.0 tandem) — the Library sheet beside New shelf, and onboarding's shelves step
-- status: in-progress
+- status: done 2026-10-12
 - screen: onboarding
 - route: /settings
 - spec: spec/decisions/ADR-153-suggested-shelves-are-new-shelves.md; spec/api/tags.md; spec/screens/library.md §Suggesting shelves; spec/screens/onboarding.md
@@ -1631,8 +1646,10 @@ a new obligation on a finished screen is a new item.
 - extra_gates: python3 ../NoteLetter-contracts/harness/endpoint_reach_check.py
 - notes: Booked by the 2026-10-09 frame sitting: web's onboarding now reads "Step 1 of 6" and "Four steps and it's yours." with a "Choose your shelves" step; Flutter reads "Step 1 of 5" / "Three steps". The sheet: what you read about → `fn_suggest_tags {purposeText}` only (closed key) → the proposals, with the answer's `existing` titles said, never re-proposed → keep the ones you tick → `fn_approve_tags` with `{title, description, color}` and the ANSWERED colour token (always one of the ten since 4.116.0). Fewer than eight or none is a normal 200; a model failure is 502 PROVIDER_API_ERROR through §14. Flutter's approveTags/suggestTags builders exist and have no caller. Not built in this lane (coordinator: owed, after the frames).
   2026-10-12: built — `lib/pages/tags/suggest_shelves.dart` mirrors web's SuggestShelves.jsx: one `ShelfSuggestions` state for both hosts (the field seeded until typed, `fn_suggest_tags {purposeText}` stateless and repeatable, every proposal ticked, `existing` said, a 4xx beside the button and anything else §14.1 — never "no shelves to suggest"), the §15 sheet (480, the sparkle, *Nothing is created until you choose.*) creating with ONE `fn_approve_tags` (`{title, description, color}`, the colour one of the ten or a swatch by position), write before move, the follow-on fill per new shelf. Entry cards: Shelves' *Suggest shelves* after *New shelf*; the Library home's card grid gains *New shelf* and *Suggest shelves*. Onboarding is six steps: the shelves step (№ 03 · of 04) holds the ticks, and Finish makes them as a THIRD, separate write, at most once, its failure its own standfirst and line; the summary's sources row is *Your sources* (it said *Your shelves*) and *Your shelves* follows it. test/contract/suggest_shelves_test.dart (9, over the captured api/tags answers); the device run's first-run test now reads Step 1 of 6 and № 01 · OF 04. Pairs owed (onboarding, shelves).
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): onboarding (Step 1 of 6 — the shelves step is counted), shelves — MATCH; the step and the sheet are gated by suggest_shelves_test.
+
 ## F-90 · What the 2026-10-09 frame sitting found — the notification level control, Study's glyph, two holds that frame another state
-- status: in-progress
+- status: done 2026-10-12
 - screen: notifications
 - route: /settings/notifications
 - spec: spec/screens/notifications.md §Composition; spec/screens/study.md §Composition; spec/screens/letters.md §Composition; spec/screens/settings.md §Plan row
@@ -1645,6 +1662,8 @@ a new obligation on a finished screen is a new item.
 - notes: (1) Notifications on a phone: each channel's level control (Errors · Warnings · Successes · Info) spans the whole card in one row; web indents it under the channel's text (beside the icon column) where it wraps into a 2×2 block. (2) Study's empty state: the plate's glyph is a cards icon; web draws its study glyph (IcoStudy, a document). (3) scripture-day: the reference frame is now Friday of week 18 (Oct 2) with the partial-failure notice ("One reading could not be searched just now…"); the hold opens the seed's Thursday of week 23 at rest — align the two holds before the pair can be judged (pair NOT committed in the sitting). (4) settings-plan: the reference frames the plan AT its cap (13 of 13, the limit notice and Ask about upgrading); the hold frames the plain row, and the dev shim's pinned plan clock says "resets 1 October" — align the hold (pair NOT committed). (5) Ask: a short transcript (one turn, or one refused turn) starts under the header here; on web it sits at the BOTTOM, against the composer, as a chat does (ask-thread and ask-turn-failed pairs, 2026-10-09). (6) Sources → Organized folders, seen in the first Rescan-all frame (org-scan-wait, 2026-10-09): web's §3 header names the provider (glyph + "· Google Drive") and carries "Choose folders · Rescan all"; here it is "ORGANIZED FOLDERS" with Rescan all alone. Web's folder rows carry a README status pill (pending / edited by you / written) and a rescan glyph, with the charter as a mono quote followed by Edit · Regenerate; here the row has a doc count, the charter in serif italic, and Edit charter / Rescan buttons. Web orders Suggestions ABOVE the folders and says the wait sentence above the header; here suggestions follow the folders and the sentence sits under the header. Tooling found on the way, fixed in hold_screen_test.dart (bdf30a6 and the 2026-10-09 keyboard commit): a fresh simulator raises the software keyboard over every state that focuses a field; ask-turn-failed's refused turn returns focus to the composer (F-78 (6)'s mystery); the Library's setup checklist hides once an Ask hold has set the asked flag earlier in the same app install — shoot library first after `simctl uninstall`.
   2026-10-12: (5) built with F-78 — `KitPage.anchorBottom`: a transcript shorter than the viewport rests against the composer (`.ask-thread { margin: auto auto 0 }`); ask-thread / ask-turn-failed pairs owed.
   2026-10-12: built — (1) a setting row's `below` (the level picker) stays in the text column at every width, beside the icon column, where its track wraps 2×2 on a phone. (2) Study's empty plate is `KitCardsGlyph` (web's IcoCards, painted). (3) the hold now frames the reference's state: `tool/seed_frame_states.py` writes web's readings letter (Friday of week 18, dated as web's frame, 2026-10-02) and the hold makes the Psalm's search fail through the backend, as theme-shots arms it. (4) the same script caps the free plan at the reader's own count (`config/plans`, `--remove` after), so the Plan row is at its cap with §12's notice as the reference frames it. (5) built with F-78 (ae81173). (6) the organized-folders panel is web's OrganizationPanel: the suggestions first, the scan wait above the header, the header the provider's glyph and *Organized folders · {provider}* with *Choose folders · Rescan all* (Choose folders opens the folders-only picker over `organization.root_folder_ids`, ≤10, write before move), each folder a `.proc-row` card (`KitFolderCard`: the path over *N files*, `KitReadmeChip`, the rescan as an icon titled *Rescan this folder*), its charter a mono italic quote with Edit · Regenerate inline, the folders ordered by path, *No organized folders yet — choose folders to begin.* Pairs owed (notifications, study, scripture-day, settings-plan, org-scan-wait, ask-thread, ask-turn-failed).
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): notifications (the level picker in the text column, 2×2), study (the cards glyph), scripture-day, settings-plan (13 of 13 with §12's notice; "resets 1 October" against web's "1 November" is the dev shim's pinned plan clock, not the screen), ask-thread, ask-turn-failed, org-scan-wait (web's anatomy; the README chips read the stored `readme.status` since 5422e2e) — MATCH.
+
 ## F-91 · A shelf colour resolves per theme (4.117.0 tandem) — the dark ten, at every site that paints a shelf
 - status: done 2026-10-09
 - screen: library
@@ -1739,7 +1758,7 @@ a new obligation on a finished screen is a new item.
 - notes: Every playlist answer from fn_ingest_url gains `capped` (bool, measured) and `cap` (100); `warnings` now carries only our sentences. When `capped`, `playlistAdded` appends LAST "The playlist has more than {cap} videos; only the first {cap} were read." with the answer's `cap`, never a constant. Tested from fixture `ingest:youtube-playlist-capped` (POST {url,type}, replays like `ingest:youtube-playlist`), as web's playlist.js is. Booked from the backend's 19:27Z VERSION line.
 
 ## F-98 · Frames — re-look at the pairs whose web reference moved (ask, reader, reader-shelves, shelf-picker-search)
-- status: open
+- status: done 2026-10-12
 - screen: none
 - route: none
 - spec: spec/clients/flutter.md
@@ -1750,6 +1769,7 @@ a new obligation on a finished screen is a new item.
 - shots: ask; reader; reader-shelves; shelf-picker-search
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: screenshot_pair_check reports STALE-WEB-FRAME on all four: Ask's §7 rows span 512, not 440 (web's §7 fold, 18e19c3), and the reader draws a Priority row under Shelves (web 9477c9c). Copy web's frames (`tool/web_frames.sh`) once the screens they frame are done, look again, and commit each pair MATCH or booked — the reader's Priority row is booked on the blocked Priority item below.
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): ask, reader, reader-shelves, shelf-picker-search re-copied from web 985bb87 and looked at: Ask's rows MATCH; the reader's Priority row is booked on F-99.
 
 ## F-99 · Reader — the Priority row (web 9477c9c)
 - status: blocked: XAVIER: placement not ruled (web put it in the reader; Flutter has it on library rows)
@@ -1760,7 +1780,7 @@ a new obligation on a finished screen is a new item.
 - flutter: lib/pages/reader_page.dart; lib/pages/sources/browse_section.dart
 - folds: none — web 9477c9c, contracts 66dea71 (UI-only, 2026-10-12)
 - device_test: none
-- shots: reader
+- shots: reader; reader-shelves; shelf-picker-search
 - extra_gates: none
 - notes: reader.md §Source priority: under the Shelves row a §6.8 Segmented control Default · Low · Normal · High, the stored number in mono, one quiet line; Default sends `sourcePriority: null`; the lit segment is read off `source_priority_set_at`, never the number (ADR-155); write before move. This client sets priority from the library rows' overflow (browse_section.dart ~704) and sources.md now says a finished source's settings live in the reader. Do not move the priority control until Xavier rules where it lives (coordinator, 2026-10-12).
 
@@ -1779,7 +1799,7 @@ a new obligation on a finished screen is a new item.
   2026-10-12: built, with no modified face. `AppTheme.serif` drives `opsz` beside `wght` (`serifAxes`: the size clamped 8–60, the browser's auto; a role passes its own where web names one — the reading roles' 18 through `bodyReading`, the drop cap's inherited 18, the search field's 24, speed read's 16, a versal cap at its line's). The html bodies take theirs WITHOUT a font-variation hook: flutter_html builds every block as a `Text.rich` whose spans inherit `DefaultTextStyle`, so `AppTheme.htmlOpticalSize` wraps the manuscript (18, as `.ms-body`), the letter body (17) and the cohesive quote (18) — the drop cap's Text and the Html around it now draw at one size. Measured first (flutter_test, the bundled face): a style naming no `opsz` draws the default outlines, 573.2 wide where opsz 18 is 538.1 (19px line) — every html body was 6.5% wide, not only the titles. An `opsz`-pinned instance of the face was built and NOT used: the OFL reserves the name *Source*, so a modified face must be renamed, and inheritance made it unnecessary. serif_optical_size_test (3); kit goldens type_roles/headers/cards re-baselined, looked at (the serif narrows; nothing else moves). Every pair re-shot after it.
 
 ## F-101 · Sources and Settings — the connectors draw their vendors' own marks (web ProviderLogo)
-- status: in-progress
+- status: done 2026-10-12
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md; spec/screens/settings.md; spec/component-kit.md §5.1
@@ -1790,6 +1810,7 @@ a new obligation on a finished screen is a new item.
 - shots: sources; org-scan-wait; folder-contents; settings
 - extra_gates: python3 ../NoteLetter-contracts/harness/token_contrast_check.py --target flutter
 - notes: Web draws each connector's published brand mark, unmodified and in its own colours (ProviderLogo: the connect card plate at 22, the Import from / Organized folders headers at 14, Settings → Sources' rows at 18 on a white plate); this client drew generic Material glyphs in --fg-muted (a drive-add, a cloud, a document, a box).
+  2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): sources, org-scan-wait, folder-contents, settings — the vendors' marks MATCH (the Drive mark in its colours in both headers; the white plates).
 
 ## F-102 · Sources — an import job row's sub-line names its provider, with the mark (web CloudImportPanel)
 - status: open
@@ -1803,3 +1824,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: Web's import-activity and history rows read `{ProviderLogo 12} {provider name} · {path}` under the file name, the status apart; this client's `_JobRow` reads `{status} · {path} · {reason}`. No pair frames an import row (the folder-contents frame is cropped to the picker on web), so the difference is read from the source, not a frame: frame it (a hold that scrolls to Import activity) before changing it.
+
+## F-103 · A held send or confirm — how it looks is not ruled (spec 0.5, web full on Ask and the picker, faded on Support)
+- status: blocked: XAVIER: the held look of a send/confirm control is not ruled — component-kit §6.1 says 0.5 opacity; web draws Ask's send and the picker's Import N items at full strength while held (no :disabled rule), and Support's send faded; this client fades every held control (0.45)
+- screen: ask
+- route: /ask
+- spec: spec/component-kit.md §6.1; spec/screens/ask.md; spec/screens/sources.md
+- web: src/styles/app-kit.css; src/pages/AskView.jsx; src/pages/sources/CloudFilePicker.jsx
+- flutter: lib/widgets/kit/kit_composer.dart; lib/widgets/kit/kit_controls.dart
+- folds: none — read off the 2026-10-12 pairs
+- device_test: none
+- shots: ask; ask-thread; ask-rail; ask-turn-failed; folder-contents
+- extra_gates: none
+- notes: Seen on every Ask pair (the empty composer's send) and the folder-contents pair (Import 0 items with nothing chosen): web draws the held control at full strength, this client at 0.45, as both draw Support's held send. A spec-vs-web disagreement, not adjudicated here (flutter-next §6): rule which look a held send/confirm has, then the clients follow.
