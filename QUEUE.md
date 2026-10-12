@@ -1777,3 +1777,29 @@ a new obligation on a finished screen is a new item.
 - extra_gates: none
 - notes: Measured (flutter_test, the bundled SourceSerif4-Variable, axes wght 200-900 and opsz 8-20-60): `Library` at 44/600 lays out 165.8 wide with only `wght` set and 141.9 with `opsz` 44 — less the title's -0.024em, 158 against 134; web's `.ch-title` on the 2026-10-12 sources frame measures ~133 CSS px. `Ask your library a question` 28/600: 376.0 vs 336.4; the manuscript's 19px body: 431.8 vs 400.8. So the cause F-81 (7) asked to prove is proved: `AppTheme.serif` drives only `wght`, while web sets `font-variation-settings: "opsz" N` per role (≈ the size: `.ms-body` 18, `.ob-title` 48, `.proc-title` 16). The fix is one line in `AppTheme.serif` (`opsz` = the size, clamped 8-60) — but NOT alone: serif drawn by flutter_html (the manuscript's html, the summary, letter bodies) has no font-variation support, so the two renderers would then disagree inside one passage (the drop cap's paragraph is a Text, the rest is Html). It needs a way for Html's serif to take the same optical size (an `opsz`-pinned instance of the face for the html bodies, or an Html TextStyle hook) before it lands, then every pair re-shot and the kit goldens re-baselined.
   2026-10-12: built, with no modified face. `AppTheme.serif` drives `opsz` beside `wght` (`serifAxes`: the size clamped 8–60, the browser's auto; a role passes its own where web names one — the reading roles' 18 through `bodyReading`, the drop cap's inherited 18, the search field's 24, speed read's 16, a versal cap at its line's). The html bodies take theirs WITHOUT a font-variation hook: flutter_html builds every block as a `Text.rich` whose spans inherit `DefaultTextStyle`, so `AppTheme.htmlOpticalSize` wraps the manuscript (18, as `.ms-body`), the letter body (17) and the cohesive quote (18) — the drop cap's Text and the Html around it now draw at one size. Measured first (flutter_test, the bundled face): a style naming no `opsz` draws the default outlines, 573.2 wide where opsz 18 is 538.1 (19px line) — every html body was 6.5% wide, not only the titles. An `opsz`-pinned instance of the face was built and NOT used: the OFL reserves the name *Source*, so a modified face must be renamed, and inheritance made it unnecessary. serif_optical_size_test (3); kit goldens type_roles/headers/cards re-baselined, looked at (the serif narrows; nothing else moves). Every pair re-shot after it.
+
+## F-101 · Sources and Settings — the connectors draw their vendors' own marks (web ProviderLogo)
+- status: in-progress
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md; spec/screens/settings.md; spec/component-kit.md §5.1
+- web: src/shared/ProviderLogo.jsx; src/pages/SourcesBrowse.jsx; src/pages/sources/CloudImportPanel.jsx; src/pages/sources/OrganizationPanel.jsx; src/pages/SettingsView.jsx
+- flutter: lib/widgets/kit/kit_provider_logo.dart; lib/widgets/kit/kit_shell.dart; lib/widgets/kit/kit_cards.dart; lib/widgets/kit/kit_rows.dart; lib/shared/cloud_providers.dart; lib/pages/sources_page.dart; lib/pages/sources/organization_settings_panel.dart
+- folds: none — found by the 2026-10-12 org-scan-wait pair
+- device_test: none
+- shots: sources; org-scan-wait; folder-contents; settings
+- extra_gates: python3 ../NoteLetter-contracts/harness/token_contrast_check.py --target flutter
+- notes: Web draws each connector's published brand mark, unmodified and in its own colours (ProviderLogo: the connect card plate at 22, the Import from / Organized folders headers at 14, Settings → Sources' rows at 18 on a white plate); this client drew generic Material glyphs in --fg-muted (a drive-add, a cloud, a document, a box).
+
+## F-102 · Sources — an import job row's sub-line names its provider, with the mark (web CloudImportPanel)
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md; spec/component-kit.md §4.1
+- web: src/pages/sources/CloudImportPanel.jsx
+- flutter: lib/pages/sources_page.dart
+- folds: none — found beside F-101, 2026-10-12
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Web's import-activity and history rows read `{ProviderLogo 12} {provider name} · {path}` under the file name, the status apart; this client's `_JobRow` reads `{status} · {path} · {reason}`. No pair frames an import row (the folder-contents frame is cropped to the picker on web), so the difference is read from the source, not a frame: frame it (a hold that scrolls to Import activity) before changing it.

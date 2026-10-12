@@ -14,6 +14,7 @@ import 'kit_shell.dart' show KitGlyph, KitQuill;
 import 'kit_source_link.dart';
 import 'kit_text.dart';
 import 'kit_wait.dart';
+import 'kit_provider_logo.dart';
 
 part 'kit_shelf.dart';
 
@@ -704,10 +705,20 @@ class KitSettingRow extends StatelessWidget {
                     width: 38,
                     height: 38,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: t.accentSoft,
-                      borderRadius: AppRadius.smR,
-                    ),
+                    // A vendor's mark sits on `.set-row-ico.provider`'s plate:
+                    // white with the border, in both themes — the marks are
+                    // tuned for light grounds (F-101).
+                    decoration: KitProviderLogo.providerOf(icon) != null
+                        ? BoxDecoration(
+                            // literal-ok: a vendor brand-mark plate, fixed white in both themes (`.set-row-ico.provider`)
+                            color: const Color(0xFFFFFFFF),
+                            borderRadius: AppRadius.smR,
+                            border: Border.all(color: t.border),
+                          )
+                        : BoxDecoration(
+                            color: t.accentSoft,
+                            borderRadius: AppRadius.smR,
+                          ),
                     child: KitGlyph(icon, size: 18, color: t.accent),
                   ),
               const SizedBox(width: 18),

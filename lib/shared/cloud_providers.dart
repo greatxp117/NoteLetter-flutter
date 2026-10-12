@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/kit/kit_provider_logo.dart';
+
 /// Canonical provider ids (1.2.0) with display names for not-yet-connected
 /// providers (the integration list only carries connected ones). The ids are
 /// exactly the backend provider strings — earlier web builds passed `gdrive`
@@ -12,21 +14,21 @@ const cloudProviders = <String, ({String name, String sub, IconData icon})>{
   'google_drive': (
     name: 'Google Drive',
     sub: 'Docs, PDFs, slides',
-    icon: Icons.add_to_drive_outlined
+    icon: KitProviderLogo.googleDrive
   ),
   'onedrive': (
     name: 'OneDrive',
     sub: 'Files & folders',
-    icon: Icons.cloud_outlined
+    icon: KitProviderLogo.oneDrive
   ),
   'notion': (
     name: 'Notion',
     sub: 'Pages & databases',
-    icon: Icons.article_outlined
+    icon: KitProviderLogo.notion
   ),
   'dropbox': (
     name: 'Dropbox',
     sub: 'Files & folders',
-    icon: Icons.inventory_2_outlined
+    icon: KitProviderLogo.dropbox
   ),
 };

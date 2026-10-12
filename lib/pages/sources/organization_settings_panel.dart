@@ -127,8 +127,11 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(cloudProviders[provider]?.icon ?? Icons.folder_outlined,
-                      size: 14, color: t.fgMuted),
+                  // The provider's own mark at 14 (`ProviderLogo`, F-101).
+                  KitGlyph(
+                      cloudProviders[provider]?.icon ?? Icons.folder_outlined,
+                      size: 14,
+                      color: t.fgMuted),
                   const SizedBox(width: 7),
                   Eyebrow('Organized folders · $name'),
                 ],

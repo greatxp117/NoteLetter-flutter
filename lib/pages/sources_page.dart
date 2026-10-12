@@ -631,7 +631,8 @@ class _ImportFromProviderState extends State<_ImportFromProvider> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(widget.spec.icon, size: 14, color: t.fgMuted),
+                  // The provider's own mark at 14 (`ProviderLogo`, F-101).
+                  KitGlyph(widget.spec.icon, size: 14, color: t.fgMuted),
                   const SizedBox(width: 7),
                   Eyebrow('Import from ${widget.spec.name}'),
                 ],

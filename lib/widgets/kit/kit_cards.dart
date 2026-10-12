@@ -132,7 +132,8 @@ class KitConnectCard extends StatelessWidget {
               borderRadius: AppRadius.smR,
               border: Border.all(color: t.border),
             ),
-            child: Icon(icon, size: 19, color: AppColors.chrome),
+            // The vendor's own mark at 22 (`ProviderLogo size={22}`, F-101).
+            child: KitGlyph(icon, size: 22, color: AppColors.chrome),
           ),
           const SizedBox(height: 10),
           Text(

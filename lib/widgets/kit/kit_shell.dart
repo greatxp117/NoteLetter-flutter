@@ -8,6 +8,7 @@ import '../../theme/tokens.dart';
 import 'kit_cards.dart' show kitFigure;
 import 'kit_ground.dart';
 import 'kit_text.dart';
+import 'kit_provider_logo.dart';
 
 /// §1.1 — the app shell: a **chrome rail** and an inset **main pane**.
 ///
@@ -543,7 +544,12 @@ class KitGlyph extends StatelessWidget {
                     ? KitStackGlyph(size: size, color: color)
                     : icon == KitCardsGlyph.icon
                         ? KitCardsGlyph(size: size, color: color)
-                        : null;
+                        : KitProviderLogo.providerOf(icon) != null
+                            // A vendor's mark carries its own colours.
+                            ? KitProviderLogo(
+                                provider: KitProviderLogo.providerOf(icon)!,
+                                size: size)
+                            : null;
     if (painted == null) return Icon(icon, size: size, color: color);
     // Laid out as [Icon] lays out: its own box at [size], the glyph centred
     // in whatever a parent forces it to fill. A bare painted box took a
