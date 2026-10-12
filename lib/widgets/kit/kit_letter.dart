@@ -351,19 +351,34 @@ class KitLetterSheet extends StatelessWidget {
 ///
 /// **Which letters rise is not a detail.** The sent letter raised the O and the
 /// L for a whole release, so every letter read `NOteLETTER` (4.50.1).
+///
+/// The site's own numbers ride along: the letter sheet and the Letters card
+/// track 0.08em with the capital at 1.2em; the Library hero's masthead
+/// (`.letter-hero .masthead-title.versal`) tracks 0.09em, raises its capitals
+/// to 1.22em and sets one line at 1.1 (F-71).
 class KitVersal extends StatelessWidget {
   final String text;
   final double fontSize;
+  final double tracking;
+  final double capScale;
+  final double height;
+  final int maxLines;
 
-  const KitVersal(this.text, {super.key, this.fontSize = 36});
+  const KitVersal(this.text,
+      {super.key,
+      this.fontSize = 36,
+      this.tracking = 0.08,
+      this.capScale = 1.2,
+      this.height = 1,
+      this.maxLines = 2});
 
   @override
   Widget build(BuildContext context) {
     final base = AppTheme.serif(
       fontSize: fontSize,
-      height: 1,
+      height: height,
       fontWeight: FontWeight.w700,
-      letterSpacing: 0.08 * fontSize,
+      letterSpacing: tracking * fontSize,
       color: Tokens.of(context).fg,
     );
     final spans = <TextSpan>[];
@@ -373,14 +388,15 @@ class KitVersal extends StatelessWidget {
       spans.add(TextSpan(
         text: ch,
         style: (atWordStart && isLetter)
-            ? base.copyWith(fontSize: fontSize * 1.2, fontWeight: FontWeight.w600)
+            ? base.copyWith(
+                fontSize: fontSize * capScale, fontWeight: FontWeight.w600)
             : null,
       ));
       if (isLetter) atWordStart = false;
       if (ch == ' ') atWordStart = true;
     }
     return Text.rich(TextSpan(style: base, children: spans),
-        maxLines: 2, overflow: TextOverflow.ellipsis);
+        maxLines: maxLines, overflow: TextOverflow.ellipsis);
   }
 }
 

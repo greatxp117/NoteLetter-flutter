@@ -7,6 +7,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
+import 'kit_letter.dart' show KitVersal;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 
@@ -256,8 +257,14 @@ class _KitPassageCardState extends State<KitPassageCard> {
 /// Masthead (**title + trailing issue marker**, baseline-aligned) → standfirst
 /// → [KitStatCluster] → actions, bottom-aligned.
 class KitHeroCard extends StatelessWidget {
-  /// Accent clause written as `*clause*`.
+  /// Accent clause written as `*clause*` — or, with [versal], the masthead
+  /// lockup's plain words.
   final String title;
+
+  /// The title as the letter's own masthead (`.masthead-title.versal`): caps
+  /// with each word's capital raised, never an accent clause. The Library's
+  /// letter hero draws it (F-71); §5.3's default is the accent title.
+  final bool versal;
   final String? marker;
   final String? standfirst;
   final List<KitStat> stats;
@@ -266,6 +273,7 @@ class KitHeroCard extends StatelessWidget {
   const KitHeroCard({
     super.key,
     required this.title,
+    this.versal = false,
     this.marker,
     this.standfirst,
     this.stats = const [],
@@ -307,16 +315,24 @@ class KitHeroCard extends StatelessWidget {
                   // long, and a fixed-width marker beside an Expanded title
                   // overflowed the phone row by 44px.
                   children: [
-                    AccentTitle(
-                      title,
-                      style: AppTheme.serif(
-                        fontSize: 24,
-                        height: 1.1,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -0.018 * 24,
-                        color: t.fg,
+                    if (versal)
+                      KitVersal(title,
+                          fontSize: 24,
+                          tracking: 0.09,
+                          capScale: 1.22,
+                          height: 1.1,
+                          maxLines: 1)
+                    else
+                      AccentTitle(
+                        title,
+                        style: AppTheme.serif(
+                          fontSize: 24,
+                          height: 1.1,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: -0.018 * 24,
+                          color: t.fg,
+                        ),
                       ),
-                    ),
                     if (marker != null) ...[
                       const SizedBox(width: AppSpacing.s3),
                       Expanded(

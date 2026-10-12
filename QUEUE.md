@@ -1373,7 +1373,7 @@ a new obligation on a finished screen is a new item.
 - notes: CHANGELOG 4.99.0 Flutter tandem. (a) The hero reads NewsletterNotifier.latest (the newest BUILT daily letter, web getLatestLetter); delete todaysLetter. (b) library.md §The letter: header Today's letter / Latest letter by whether generated_at is on the device's calendar day; standfirst `Today's letter is ready — {n} passages from your library.` or `Your latest letter is from {Weekday, Month D} — {n} passages from your library.`, the count clause dropped when chunk_ids is absent (chunkIdsKnown); failure `Your latest letter could not be read.`; Sent already only for status == sent. (c) Ask citation: AppRadius.xl below compactWidth, a full pill above it (was pillR(44) = 22 at every width — F-69's recorded single-cap deviation, now superseded by ask.md 4.99.0).
 
 ## F-71 · Library hero — the masthead is web's versal A LETTER, and the stat cluster carries Min read
-- status: open
+- status: in-progress
 - screen: library
 - route: /
 - spec: spec/screens/library.md §Composition; spec/screens/letters.md §The letter-settings preview; spec/component-kit.md §5.3

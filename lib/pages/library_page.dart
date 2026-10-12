@@ -247,7 +247,11 @@ class _LibraryHomeState extends State<_LibraryHome> {
             onAction: () => context.go('/letters'),
           ),
           KitHeroCard(
-            title: 'A *Letter*',
+            // The letter's own masthead, as web draws it: `A LETTER` with
+            // raised capitals (`.masthead-title.versal`), never an accent
+            // clause (F-71).
+            title: 'A Letter',
+            versal: true,
             // The reference's masthead number is the letter's subject; the
             // date is the Sent cell's.
             marker: (letter.subject?.isNotEmpty ?? false)
@@ -260,12 +264,19 @@ class _LibraryHomeState extends State<_LibraryHome> {
                 ? letter.ledeOf(140)
                 : 'Your daily reading, drawn from what you’ve added to your '
                     'library.',
-            // Counted off the record this hero is drawn from, so there is no
-            // unread state. The web's "~n+1 min read" is arithmetic on a
-            // passage count, not a measurement, and has no cell here; Sent
-            // is drawn only for a letter that was.
+            // Counted off the record this hero is drawn from. A record with
+            // no `chunk_ids` is the one unread state, and both figures draw
+            // §8's dash, never 0 (ADR-109). Min read is the Letters card's own
+            // arithmetic (`~{n+1}`, letters.md), as web's hero draws it; Sent
+            // only for a letter that was (ADR-132).
             stats: [
-              KitStat('${letter.chunkIds.length}', 'Passages'),
+              KitStat(letter.chunkIdsKnown ? '${letter.chunkIds.length}' : null,
+                  'Passages'),
+              KitStat(
+                  letter.chunkIdsKnown
+                      ? '~${letter.chunkIds.length + 1}'
+                      : null,
+                  'Min read'),
               if (letter.status == 'sent' &&
                   _letterDate(letter.generatedAt) != null)
                 KitStat(_letterDate(letter.generatedAt)!, 'Sent'),

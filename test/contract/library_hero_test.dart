@@ -183,6 +183,26 @@ void main() {
           findsOneWidget);
     });
 
+    // F-71: the reference's hero (LibraryHome.jsx) — the letter's own
+    // masthead, `A LETTER` with raised capitals, and Passages · Min read with
+    // Min read the Letters card's `~{n+1}` (letters.md).
+    testWidgets('the masthead is the versal, and Min read is ~n+1',
+        (tester) async {
+      await _pump(tester, [_readings, _letterheaded]);
+      expect(find.byType(KitVersal), findsOneWidget);
+      expect(find.text('A LETTER', findRichText: true), findsOneWidget);
+      expect(find.text('MIN READ'), findsOneWidget);
+      expect(find.text('~4'), findsOneWidget, reason: '3 passages → ~4');
+    });
+
+    testWidgets('no chunk_ids: both figures are the unmeasured dash',
+        (tester) async {
+      await _pump(tester, [_kindless]);
+      expect(find.text('MIN READ'), findsOneWidget);
+      expect(find.text('~1'), findsNothing, reason: 'never 0 + 1');
+      expect(find.text('0'), findsNothing);
+    });
+
     testWidgets('a built letter with no lede draws the fallback line',
         (tester) async {
       await _pump(tester, [_kindless]);
