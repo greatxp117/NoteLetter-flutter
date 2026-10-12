@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/organization_settings.dart';
 import '../models/organization_suggestion.dart';
+import '../shared/cloud_return.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -172,13 +173,18 @@ class OrgNotifier extends ChangeNotifier {
     }
   }
 
-  /// Write-scope re-OAuth. The callback returns to /sources with
-  /// `cloud_connect=success&org=enabled` on a full grant.
+  /// Write-scope re-OAuth. The callback returns a claim, as a connect's
+  /// does (5.0.0, ADR-158), to this app's auth session (`return: "app"`,
+  /// 5.1.0, ADR-159) or to /sources; spending it answers `org: "enabled"` on
+  /// a full grant.
   Future<String?> enableOrganization(String provider) async {
     try {
-      final data = await Api.instance.enableOrganization(provider);
+      final app = CloudReturn.appReturn;
+      final data = await Api.instance
+          .enableOrganization(provider, returnTo: app ? 'app' : null);
       final authUrl = data['authUrl'] as String?;
       if (authUrl == null) return 'No authorization URL returned.';
+      if (app) return await CloudReturn.runSession(authUrl);
       final ok = await launchUrl(Uri.parse(authUrl),
           mode: LaunchMode.externalApplication);
       return ok ? null : 'Could not open the browser for authorization.';

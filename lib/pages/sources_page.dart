@@ -6,6 +6,7 @@ import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/import_job.dart';
 import '../shared/cloud_providers.dart';
+import '../shared/cloud_return.dart';
 import '../shared/cooldown.dart';
 import '../state/cloud_notifier.dart';
 import '../state/documents_notifier.dart';
@@ -46,25 +47,21 @@ const _providers = cloudProviders;
 /// you are already looking, and the reader with an empty library is exactly the
 /// reader who must not have to scroll past it.
 class SourcesPage extends StatefulWidget {
-  /// OAuth return params (2.3.0, ADR-012), passed from the /sources route.
-  final String? cloudConnectResult; // 'success' | 'error'
+  /// OAuth return params (ADR-012, ADR-158), passed from the /sources route
+  /// on a web build: `claim` (with [cloudConnectClaim]) or `error` (with
+  /// [cloudConnectReason]). An app's return arrives through its auth session
+  /// instead ([CloudReturn]). A 4.x `success` link is believed by nobody.
+  final String? cloudConnectResult; // 'claim' | 'error'
   final String? cloudConnectProvider;
   final String? cloudConnectReason;
-  final String? cloudConnectOrg; // 'enabled' on org_upgrade success
-
-  /// 2.21.0 (ADR-026) — `new` | `reconnected`, read from the integration doc
-  /// immediately before it is overwritten, which is the only moment a reconnect
-  /// is still distinguishable from a first connect. **Open vocabulary**: any
-  /// other value takes the ordinary success path.
-  final String? cloudConnectConnection;
+  final String? cloudConnectClaim;
 
   const SourcesPage({
     super.key,
     this.cloudConnectResult,
     this.cloudConnectProvider,
     this.cloudConnectReason,
-    this.cloudConnectOrg,
-    this.cloudConnectConnection,
+    this.cloudConnectClaim,
   });
 
   @override
@@ -73,6 +70,13 @@ class SourcesPage extends StatefulWidget {
 
 class _SourcesPageState extends State<SourcesPage> {
   String? _errorBanner;
+  // The provider whose returned claim is being spent (5.0.0, ADR-158): the
+  // exchange with the provider happens inside that request, so it takes a
+  // moment, and the return says so rather than look like nothing happened.
+  String? _claiming;
+  // A claim the server REFUSED (403 another account started it, 404 expired
+  // or already finished) — its own sentence, verbatim (§14.2).
+  String? _claimRefusal;
   CloudNotifier? _cloud;
   final _uploader = GlobalKey<FileUploaderState>();
 
@@ -89,6 +93,7 @@ class _SourcesPageState extends State<SourcesPage> {
       // it drives the folio, the processing rows and the volume list.
       context.read<DocumentsNotifier>().start();
       context.read<TagsNotifier>().start();
+      CloudReturn.pending.addListener(_onReturn);
       _handleOAuthReturn();
     });
   }
@@ -96,7 +101,15 @@ class _SourcesPageState extends State<SourcesPage> {
   @override
   void dispose() {
     _cloud?.completionMessage.removeListener(_onSessionComplete);
+    CloudReturn.pending.removeListener(_onReturn);
     super.dispose();
+  }
+
+  // An app's auth session came back while this screen was open.
+  void _onReturn() {
+    if (!mounted || CloudReturn.pending.value == null) return;
+    final r = CloudReturn.take();
+    if (r != null) _actOnReturn(r);
   }
 
   // Completion notification (1.4.0): a tracked import/sync session went
@@ -108,63 +121,116 @@ class _SourcesPageState extends State<SourcesPage> {
     _cloud!.completionMessage.value = null;
   }
 
-  // 2.3.0 (ADR-012): the callback lands here with an explicit result. Success →
-  // confirm + auto-open the provider's picker; error → reason banner. Then strip
-  // the params so a refresh/back doesn't re-fire. We do NOT infer connection
-  // from an integrations diff.
+  // The OAuth return (ADR-012, ADR-158, ADR-159; api/cloud-storage.md §Client
+  // behavior on return). It arrives as /sources params on a web build — stripped
+  // FIRST, so neither a refresh nor Back can claim twice — or through the
+  // app's auth session, held by [CloudReturn] for whichever Sources takes it.
+  // Either way it is acted on once. We do NOT infer a connection from the URL
+  // or from an integrations diff.
   Future<void> _handleOAuthReturn() async {
     final result = widget.cloudConnectResult;
-    if (result == null) return;
-    final cloud = context.read<CloudNotifier>();
-    final provider = widget.cloudConnectProvider;
-
-    if (result == 'success') {
-      await cloud.loadIntegrations();
-      if (!mounted) return;
-      final name = provider != null
-          ? (_providers[provider]?.name ?? provider)
-          : 'Your account';
-      final org = widget.cloudConnectOrg == 'enabled';
-      // 2.21.0 — a re-authorisation is not a new connection. Saying "connected"
-      // for a routine token refresh is wrong, and auto-opening the import
-      // picker on every rotation nags: that prompt is for a library GAINING a
-      // source. Open vocabulary, so anything unrecognised takes the new-connect
-      // path rather than falling into silence.
-      final reconnected = widget.cloudConnectConnection == 'reconnected';
-      AppToast.show(
-        context,
-        reconnected
-            ? '$name was already connected — sign-in refreshed, nothing else changed.'
-            : org
-                ? '$name connected — auto-organization enabled.'
-                : '$name connected.',
-        type: ToastType.success,
-      );
-      if (provider != null && !reconnected) {
-        await cloud.openPicker(provider); // auto-open the import picker
-      }
-    } else {
-      setState(() => _errorBanner = _reasonCopy(widget.cloudConnectReason));
+    CloudReturn? routed;
+    if (result != null) {
+      routed = CloudReturn.fromParams({
+        'cloud_connect': result,
+        if (widget.cloudConnectClaim != null) 'claim': widget.cloudConnectClaim!,
+        if (widget.cloudConnectProvider != null)
+          'provider': widget.cloudConnectProvider!,
+        if (widget.cloudConnectReason != null)
+          'reason': widget.cloudConnectReason!,
+      });
+      // Strip the params (equivalent of history.replaceState).
+      context.go('/sources');
     }
-    if (!mounted) return;
-    // Strip the params (equivalent of history.replaceState).
-    context.go('/sources');
+    final r = routed ?? CloudReturn.take();
+    if (r != null) await _actOnReturn(r);
   }
 
-  // Open vocabulary — unknown reasons fall through to generic copy.
-  String _reasonCopy(String? reason) {
+  Future<void> _actOnReturn(CloudReturn r) async {
+    if (r.result == 'error') {
+      setState(() => _errorBanner = _reasonCopy(r.provider, r.reason));
+      return;
+    }
+    // `error` and `claim` are the only results a return carries (5.0.0);
+    // anything else is believed by nobody.
+    final claim = r.claim;
+    if (r.result != 'claim' || claim == null || claim.isEmpty) return;
+    final cloud = context.read<CloudNotifier>();
+    setState(() {
+      _claiming = r.provider ?? '';
+      _claimRefusal = null;
+      _errorBanner = null;
+    });
+    final (:answer, :refusal) = await cloud.claim(claim);
+    if (!mounted) return;
+    setState(() {
+      _claiming = null;
+      _claimRefusal = refusal;
+    });
+    final res = answer;
+    if (res == null) return;
+    final provider = (res['provider'] as String?) ?? r.provider;
+    if (res['cloud_connect'] == 'success') {
+      await _confirmConnected(provider,
+          org: res['org'] == 'enabled',
+          reconnected: res['connection'] == 'reconnected');
+    } else {
+      setState(() =>
+          _errorBanner = _reasonCopy(provider, res['reason'] as String?));
+    }
+  }
+
+  // Success → confirm + auto-open the provider's picker (the first-import
+  // prompt fires on return, not on a later focus event).
+  Future<void> _confirmConnected(String? provider,
+      {required bool org, required bool reconnected}) async {
+    final cloud = context.read<CloudNotifier>();
+    final name = provider != null
+        ? (_providers[provider]?.name ?? provider)
+        : 'Your account';
+    // 2.21.0 — a re-authorisation is not a new connection. Saying "connected"
+    // for a routine token refresh is wrong, and auto-opening the import
+    // picker on every rotation nags: that prompt is for a library GAINING a
+    // source. Open vocabulary, so anything unrecognised takes the new-connect
+    // path rather than falling into silence.
+    AppToast.show(
+      context,
+      reconnected
+          ? '$name was already connected — sign-in refreshed, nothing else changed.'
+          : org
+              ? '$name connected — auto-organization enabled.'
+              : '$name connected.',
+      type: ToastType.success,
+    );
+    // org_upgrade confirms the write-scope grant; the reader was not
+    // importing, so no first-import prompt either.
+    if (provider != null && !reconnected && !org) {
+      await cloud.openPicker(provider);
+    }
+  }
+
+  // The reference's connectErrorCopy (ADR-012). Open vocabulary — unknown
+  // reasons fall through to generic copy. insufficient_scope is the one
+  // "error" where the base connection did succeed: only the
+  // auto-organization write-scope upgrade was declined.
+  String _reasonCopy(String? provider, String? reason) {
+    final name = _providers[provider]?.name ?? 'the service';
+    final cap = _providers[provider]?.name ?? 'The service';
     switch (reason) {
       case 'invalid_state':
-        return "Connection couldn't be verified. Please try connecting again.";
+        return 'That sign-in link expired before it could finish. Connect '
+            '$name again.';
       case 'missing_params':
-        return 'The provider returned an incomplete response. Please try again.';
+        return 'The connection didn’t complete. Connect $name again.';
       case 'insufficient_scope':
-        return 'Not enough permissions were granted. Reconnect and accept the '
-            'requested access.';
+        return '$cap is connected, but didn’t grant the permissions '
+            'needed for auto-organization. Reconnect and allow all requested '
+            'access to enable it.';
       case 'access_denied':
-        return 'The connection was cancelled.';
+        return 'Access to $name was declined. Connect again and approve to '
+            'import your files.';
       default:
-        return "Couldn't finish connecting. Please try again.";
+        return 'Couldn’t finish connecting $name. Please try again.';
     }
   }
 
@@ -215,6 +281,17 @@ class _SourcesPageState extends State<SourcesPage> {
                   sentence: 'Your sources could not be loaded.',
                   detail: docs.error!,
                   onRetry: () => context.read<DocumentsNotifier>().refresh(),
+                ),
+
+              if (_claiming != null)
+                KitProcNote(
+                    'Finishing the '
+                    '${_providers[_claiming]?.name ?? 'cloud'} connection…',
+                    padding: const EdgeInsets.only(bottom: 12)),
+              if (_claimRefusal != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: KitFailureInline(_claimRefusal!),
                 ),
 
               if (_errorBanner != null)

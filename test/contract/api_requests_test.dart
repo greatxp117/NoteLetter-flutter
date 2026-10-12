@@ -215,7 +215,7 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       Api.instance.regenerateSummary(b['documentId'] as String),
   'fn_request_newsletter': (b) => Api.instance.requestNewsletter(),
   'fn_connect_cloud_storage': (b) =>
-      Api.instance.connectCloudStorage(b['provider']),
+      Api.instance.connectCloudStorage(b['provider'], returnTo: b['return']),
   'fn_disconnect_cloud_storage': (b) =>
       Api.instance.disconnectCloudStorage(b['provider']),
   // 5.0.0 (ADR-158) — the claim the callback's redirect carries (F-95).
@@ -241,7 +241,7 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   'fn_organization_settings': (b) =>
       Api.instance.updateOrganizationSettings(b),
   'fn_enable_organization': (b) =>
-      Api.instance.enableOrganization(b['provider']),
+      Api.instance.enableOrganization(b['provider'], returnTo: b['return']),
   'fn_set_organized_folders': (b) => Api.instance
       .setOrganizedFolders(b['provider'], _strs(b['root_folder_ids'])!),
   'fn_scan_organization': (b) =>

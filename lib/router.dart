@@ -226,15 +226,14 @@ List<RouteBase> appRoutes() {
                   const SettingsPage(focusSources: true),
             ),
             GoRoute(
-              // 2.3.0 (ADR-012): the OAuth callback lands here with an explicit
-              // result in the query string.
+              // The OAuth callback lands here, on a web build, with an explicit
+              // result in the query string (ADR-012; a claim since 5.0.0).
               path: '/sources',
               builder: (context, state) => SourcesPage(
                 cloudConnectResult: state.uri.queryParameters['cloud_connect'],
                 cloudConnectProvider: state.uri.queryParameters['provider'],
                 cloudConnectReason: state.uri.queryParameters['reason'],
-                cloudConnectOrg: state.uri.queryParameters['org'],
-                cloudConnectConnection: state.uri.queryParameters['connection'],
+                cloudConnectClaim: state.uri.queryParameters['claim'],
               ),
             ),
             GoRoute(

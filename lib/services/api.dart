@@ -515,8 +515,15 @@ class Api {
   Future<Map<String, dynamic>> getCloudIntegrations() =>
       _http.get('/fn_get_cloud_integrations');
 
-  Future<Map<String, dynamic>> connectCloudStorage(String provider) =>
-      _http.post('/fn_connect_cloud_storage', data: {'provider': provider});
+  /// [returnTo] is the optional `return` (5.1.0, ADR-159): `'app'` from a
+  /// build that runs the consent in an in-app auth session, absent otherwise
+  /// — web never sends it, and absent is `web`.
+  Future<Map<String, dynamic>> connectCloudStorage(String provider,
+          {String? returnTo}) =>
+      _http.post('/fn_connect_cloud_storage', data: {
+        'provider': provider,
+        if (returnTo != null) 'return': returnTo,
+      });
 
   Future<Map<String, dynamic>> disconnectCloudStorage(String provider) =>
       _http.post('/fn_disconnect_cloud_storage', data: {'provider': provider});
@@ -635,8 +642,13 @@ class Api {
           Map<String, dynamic> partial) =>
       _http.put('/fn_organization_settings', data: partial);
 
-  Future<Map<String, dynamic>> enableOrganization(String provider) =>
-      _http.post('/fn_enable_organization', data: {'provider': provider});
+  /// [returnTo] as [connectCloudStorage]'s (5.1.0, ADR-159).
+  Future<Map<String, dynamic>> enableOrganization(String provider,
+          {String? returnTo}) =>
+      _http.post('/fn_enable_organization', data: {
+        'provider': provider,
+        if (returnTo != null) 'return': returnTo,
+      });
 
   Future<Map<String, dynamic>> setOrganizedFolders(
           String provider, List<String> rootFolderIds) =>

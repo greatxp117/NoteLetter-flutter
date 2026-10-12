@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/analytics.dart';
 import '../services/error_text.dart';
+import '../shared/cloud_return.dart';
 
 /// Import caps enforced by the picker (mirror `fn_import_from_cloud`).
 const int kMaxImportFolders = 20;
@@ -367,12 +368,17 @@ class CloudNotifier extends ChangeNotifier {
   }
 
   /// Start (or re-start, for reconnect) the OAuth flow. Returns an error string
-  /// or null. The callback returns to /sources with `cloud_connect` params.
+  /// or null. The callback returns the `cloud_connect` params — to this app's
+  /// auth session (`return: "app"`, 5.1.0, ADR-159), or to /sources on a web
+  /// build — and Sources spends the claim ([claim], [CloudReturn]).
   Future<String?> connect(String provider) async {
     try {
-      final data = await Api.instance.connectCloudStorage(provider);
+      final app = CloudReturn.appReturn;
+      final data = await Api.instance
+          .connectCloudStorage(provider, returnTo: app ? 'app' : null);
       final authUrl = data['authUrl'] as String?;
       if (authUrl == null) return 'No authorization URL returned.';
+      if (app) return await CloudReturn.runSession(authUrl);
       final ok = await launchUrl(Uri.parse(authUrl),
           mode: LaunchMode.externalApplication);
       return ok ? null : 'Could not open the browser for authorization.';
@@ -383,6 +389,29 @@ class CloudNotifier extends ChangeNotifier {
       return e.message;
     } catch (_) {
       return 'Failed to start the connection.';
+    }
+  }
+
+  /// The connection's second half (5.0.0, ADR-158, INV-32): spends a returned
+  /// claim, once, signed in. Answers the claim's response
+  /// (`{cloud_connect, provider, org?, connection?, reason?}`), or the
+  /// refusal's own sentence (403 another account started it, 404 expired or
+  /// already finished — §14.2 shows it verbatim). The integrations are re-read
+  /// either way: the integration exists only now.
+  Future<({Map<String, dynamic>? answer, String? refusal})> claim(
+      String claim) async {
+    try {
+      return (
+        answer: await Api.instance.claimCloudConnection(claim),
+        refusal: null
+      );
+    } on UnauthorizedException {
+      await AuthService.instance.signOut();
+      return (answer: null, refusal: null);
+    } catch (e) {
+      return (answer: null, refusal: describeSdkError(e));
+    } finally {
+      await loadIntegrations();
     }
   }
 

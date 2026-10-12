@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/cloud_integration.dart';
 import '../../models/organization_settings.dart';
 import '../../shared/cloud_providers.dart';
+import '../../shared/cloud_return.dart';
 import '../../state/cloud_notifier.dart';
 import '../../state/org_notifier.dart';
 import '../../theme/tokens.dart';
@@ -97,6 +98,11 @@ class _SourcesSectionState extends State<SourcesSection> {
       _busy = null;
       _error = err;
     });
+    // The app's auth session came back with a claim (5.1.0, ADR-159): Sources
+    // is where a returned claim is spent and answered, as on web.
+    if (err == null && CloudReturn.pending.value != null) {
+      context.go('/sources');
+    }
   }
 
   /// One write; the controls draw what the notifier STORED, so a refusal
