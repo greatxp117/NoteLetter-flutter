@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import '../../models/chunk.dart';
 import '../../models/document.dart';
@@ -13,6 +15,7 @@ import '../../theme/app_shadows.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import 'passage_mark.dart';
+import 'reader_prefs.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'dwell.dart';
 import '../../services/firestore_service.dart';
@@ -105,11 +108,36 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   final GlobalKey _sharedKey = GlobalKey();
   bool _anchorScrolled = false;
 
+  /// `.ms-doc` — what the reading-progress rule and the resume offer measure.
+  final GlobalKey _sheetKey = GlobalKey();
+
+  /// The measured fraction of the sheet scrolled (`.ms-progress`). A notifier,
+  /// so a scroll repaints the rule and nothing else — the passages are Html.
+  final ValueNotifier<double> _progress = ValueNotifier(0);
+  ScrollPosition? _position;
+
+  /// Where the reader stopped last time, offered once (`.ms-resume`); null
+  /// when there is nothing to offer or the offer was taken or declined.
+  double? _resumed;
+
+  /// Positions are written only once the stored one has been READ — the first
+  /// measure on open says 0, and it must not be what the offer reads.
+  bool _prefsLoaded = false;
+
   @override
   void initState() {
     super.initState();
     _chunks = _initFrom(widget.chunks);
     _scheduleAnchor();
+    ReaderPrefs.current.addListener(_onPrefs);
+    ReaderPrefs.ensureLoaded().then((_) {
+      if (!mounted) return;
+      setState(() {
+        _resumed = ReaderPrefs.positionOf(widget.docId);
+        _prefsLoaded = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+    });
     // Registered ONCE, for the life of the panel, and it answers by reading
     // `_dirty` at the moment it is asked. The alternative — pushing a dirty
     // flag up to the screen on every change — is a second copy of a fact this
@@ -152,6 +180,66 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _scheduleAnchor();
+    // The position is a Listenable; notifications bubble UP from a
+    // Scrollable, so a listener inside its subtree would never hear them.
+    final pos = Scrollable.maybeOf(context)?.position;
+    if (pos != _position) {
+      _position?.removeListener(_measure);
+      _position = pos;
+      _position?.addListener(_measure);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+    }
+  }
+
+  void _onPrefs() {
+    if (mounted) setState(() {});
+  }
+
+  /// The sheet against the viewport: its top relative to the viewport's top,
+  /// its height, and the viewport's height. Null before layout.
+  ({double top, double height, double viewport})? _sheetGeometry() {
+    final box = _sheetKey.currentContext?.findRenderObject() as RenderBox?;
+    final scrollBox =
+        _position?.context.storageContext.findRenderObject() as RenderBox?;
+    if (box == null || scrollBox == null || !box.hasSize || !scrollBox.hasSize) {
+      return null;
+    }
+    return (
+      top: box.localToGlobal(Offset.zero, ancestor: scrollBox).dy,
+      height: box.size.height,
+      viewport: scrollBox.size.height,
+    );
+  }
+
+  /// `.ms-progress`'s measure (web ManuscriptPanel `measure`): the fraction of
+  /// the sheet scrolled past the viewport's top, of the part that does not fit
+  /// — 1 when the whole sheet fits, as there is nothing to progress through.
+  /// Recorded as the reading position; never a read event (ADR-020).
+  void _measure() {
+    if (!mounted || _editing) return;
+    final g = _sheetGeometry();
+    if (g == null) return;
+    final readable = g.height - g.viewport;
+    final ratio =
+        readable <= 0 ? 1.0 : (-g.top / readable).clamp(0.0, 1.0).toDouble();
+    _progress.value = ratio;
+    if (_prefsLoaded) ReaderPrefs.savePosition(widget.docId, ratio);
+  }
+
+  /// Pick up where you left off: the same arithmetic backwards, then the offer
+  /// goes — it is made once per open.
+  void _resume() {
+    final at = _resumed;
+    final g = _sheetGeometry();
+    final pos = _position;
+    setState(() => _resumed = null);
+    if (at == null || g == null || pos == null) return;
+    final readable = math.max(0.0, g.height - g.viewport);
+    final target = (pos.pixels + g.top + readable * at)
+        .clamp(pos.minScrollExtent, pos.maxScrollExtent)
+        .toDouble();
+    pos.animateTo(target,
+        duration: const Duration(milliseconds: 420), curve: Curves.easeOut);
   }
 
   /// Scroll to the anchor once, after the frame that first laid it out.
@@ -232,6 +320,10 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
   @override
   void dispose() {
+    ReaderPrefs.current.removeListener(_onPrefs);
+    _position?.removeListener(_measure);
+    _progress.dispose();
+    ReaderPrefs.flushPositions();
     _unguard?.call();
     for (final t in _dwellTimers.values) {
       t.cancel();
@@ -562,6 +654,12 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
               style: KitText.monoCaps(context)),
         ),
         const SizedBox(width: 12),
+        // `.ms-type` — Aa at rest only, as the reference hides it while
+        // editing: the editor sets the passage in the sheet's own type.
+        if (!_editing) ...[
+          _typeControls(),
+          const SizedBox(width: 12),
+        ],
         _editing
             ? KitButton.secondary('Done & save',
                 icon: Icons.check, onPressed: _saving ? null : _save)
@@ -582,6 +680,22 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           child: KitFailureInline(_error!),
         ),
       const SizedBox(height: 18),
+      // `.ms-progress` and `.ms-resume` — at rest only.
+      if (!_editing) ...[
+        ValueListenableBuilder<double>(
+          valueListenable: _progress,
+          builder: (context, v, _) => KitProgressRule(value: v),
+        ),
+        const SizedBox(height: 14),
+        if (_resumed != null) ...[
+          KitResumeOffer(
+            fraction: _resumed!,
+            onResume: _resume,
+            onDismiss: () => setState(() => _resumed = null),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
       _sheet(ui, [
       ...List.generate(visible.length, (i) {
         final c = visible[i];
@@ -640,7 +754,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                     url: im.url, caption: im.caption),
               )
             else
-              _rendered(c, ui),
+              _rendered(c, ui, dropCap: i == 0),
             if (_editing && c.atomic)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
@@ -857,8 +971,52 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   /// resting render set no family at all, so the manuscript — the author's
   /// own words, the one place the reading serif matters most — drew in the
   /// UI sans at 16, and the editor in a third size.
-  static TextStyle _sheetType(BuildContext context) =>
-      KitText.bodyReading(context, fontSize: 19, height: 19 * 1.68);
+  ///
+  /// The reader's own size, leading and face replace the defaults when chosen
+  /// (Aa, F-74 — web `useReaderPrefs` `--ms-*`); Medium · Serif is the above.
+  static TextStyle _sheetType(BuildContext context) {
+    final p = ReaderPrefs.current.value;
+    return KitText.bodyReading(context,
+        fontSize: p.px, height: p.px * p.leading, sans: p.sans);
+  }
+
+  /// Aa's panel (`TypeControls`): Text size · Typeface · Line width · Reading
+  /// stats, each a row of the reference's own labels. The stats toggle is the
+  /// reader's breakdown opt-in — its only door, as on web (F-77 (2)).
+  Widget _typeControls() {
+    final p = ReaderPrefs.current.value;
+    int at<T>(List<T> table, bool Function(T) hit) =>
+        math.max(0, table.indexWhere(hit));
+    return KitTypeControls(groups: [
+      KitTypeGroup(
+        label: 'Text size',
+        options: [for (final s in ReaderPrefs.sizes) s.$2],
+        selected: at(ReaderPrefs.sizes, (s) => s.$1 == p.size),
+        onChanged: (i) =>
+            ReaderPrefs.set(p.copyWith(size: ReaderPrefs.sizes[i].$1)),
+      ),
+      KitTypeGroup(
+        label: 'Typeface',
+        options: [for (final f in ReaderPrefs.faces) f.$2],
+        selected: at(ReaderPrefs.faces, (f) => f.$1 == p.face),
+        onChanged: (i) =>
+            ReaderPrefs.set(p.copyWith(face: ReaderPrefs.faces[i].$1)),
+      ),
+      KitTypeGroup(
+        label: 'Line width',
+        options: [for (final m in ReaderPrefs.measures) m.$2],
+        selected: at(ReaderPrefs.measures, (m) => m.$1 == p.measure),
+        onChanged: (i) =>
+            ReaderPrefs.set(p.copyWith(measure: ReaderPrefs.measures[i].$1)),
+      ),
+      KitTypeGroup(
+        label: 'Reading stats',
+        options: const ['Hidden', 'Shown'],
+        selected: p.stats ? 1 : 0,
+        onChanged: (i) => ReaderPrefs.set(p.copyWith(stats: i == 1)),
+      ),
+    ]);
+  }
 
   static TextStyle _foot(BuildContext context, {Color? color}) =>
       KitText.monoMeta(context, color: color);
@@ -892,8 +1050,19 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                 ]
               : AppShadows.s1,
         ),
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: chunks),
+        // `.ms-body { max-width: var(--ms-measure) }` — the reader's line
+        // width, which a phone's sheet never reaches.
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ConstrainedBox(
+            key: _sheetKey,
+            constraints: BoxConstraints(
+                maxWidth: ReaderPrefs.current.value.measureWidth),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: chunks),
+          ),
+        ),
       ),
       if (_editing)
         Positioned(
@@ -1009,11 +1178,36 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     );
   }
 
-  Widget _rendered(_EditChunk c, ReaderUi ui) {
+  /// [dropCap] — this is the first passage, whose first paragraph opens with
+  /// the drop cap (`.ms-chunk:first-child … p:first-child::first-letter`).
+  Widget _rendered(_EditChunk c, ReaderUi ui, {bool dropCap = false}) {
     final html = _markShared(markSanitizedHtml(c.html.trim()));
+    final type = _sheetType(context);
     if (html.isEmpty) {
-      return KitMarkedText(c.text, style: _sheetType(context));
+      final (lead, rest) = dropCap ? _plainLead(c.text) : (null, c.text);
+      if (lead == null) return KitMarkedText(c.text, style: type);
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        KitDropCap(lead, style: type),
+        if (rest.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          KitMarkedText(rest, style: type),
+        ],
+      ]);
     }
+    final (lead, rest) = dropCap ? _htmlLead(html) : (null, html);
+    final body = _html(rest, ui);
+    if (lead == null) return body;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      KitDropCap(lead, style: type),
+      if (rest.trim().isNotEmpty) ...[
+        const SizedBox(height: 14),
+        body,
+      ],
+    ]);
+  }
+
+  Widget _html(String html, ReaderUi ui) {
+    final p = ReaderPrefs.current.value;
     return Html(
       data: html,
       extensions: AppTheme.htmlExtensions,
@@ -1021,13 +1215,39 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         ui.tokens,
         body: Style(
           margin: Margins.zero,
-          fontFamily: AppTheme.fontSerif,
-          fontSize: FontSize(19),
-          lineHeight: LineHeight.number(1.68),
+          fontFamily: p.sans ? AppTheme.fontSans : AppTheme.fontSerif,
+          fontSize: FontSize(p.px),
+          lineHeight: LineHeight.number(p.leading),
           color: ui.fg,
         ),
       )),
     );
+  }
+
+  /// The first block of a passage's html when it is a `<p>` of plain text —
+  /// the paragraph the drop cap opens — and the html after it. A first block
+  /// that is not a paragraph (a heading, a figure) takes no cap, as
+  /// `p:first-child` matches none; one carrying inline markup (a link, an
+  /// emphasis, a marker) keeps it and draws without a cap rather than lose it.
+  static (String?, String) _htmlLead(String html) {
+    final frag = html_parser.parseFragment(html);
+    final first = frag.nodes.where((n) =>
+        n.nodeType != 3 || (n.text ?? '').trim().isNotEmpty).firstOrNull;
+    if (first is! dom.Element || first.localName != 'p') return (null, html);
+    if (first.children.isNotEmpty) return (null, html);
+    final text = first.text.trim();
+    if (text.isEmpty) return (null, html);
+    first.remove();
+    return (text, frag.outerHtml);
+  }
+
+  /// The plain-text form's first paragraph, when it carries no marker.
+  static (String?, String) _plainLead(String text) {
+    final t = text.trim();
+    final cut = t.indexOf(RegExp(r'\n\s*\n'));
+    final lead = cut < 0 ? t : t.substring(0, cut);
+    if (lead.isEmpty || lead.contains('[')) return (null, text);
+    return (lead, cut < 0 ? '' : t.substring(cut).trim());
   }
 
   /// `.ms-body table { font-size: 15px }` — a table is read as data, a size

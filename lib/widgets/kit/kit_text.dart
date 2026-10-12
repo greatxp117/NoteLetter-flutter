@@ -213,17 +213,25 @@ class KitText {
   /// [fontSize] and [height] (the leading in px): `.sresult-passage` 17/28,
   /// `.rd-body p` 17/30, `.sc-p-t` 15/25, `.rsvp-para` 15/26, the manuscript
   /// sheet 19/32. Upright serif, the author's voice — never the UI sans.
+  ///
+  /// [sans] is the reader's own choice and nobody else's: the manuscript's
+  /// Typeface preference (`--ms-family`, F-74). No screen picks it.
   static TextStyle bodyReading(BuildContext context,
-          {double fontSize = 18,
-          double? height,
-          Color? color,
-          FontWeight weight = FontWeight.w400}) =>
-      AppTheme.serif(
-        fontSize: fontSize,
-        height: (height ?? 30) / fontSize,
-        fontWeight: weight,
-        color: color ?? Tokens.of(context).fg,
-      );
+      {double fontSize = 18,
+      double? height,
+      Color? color,
+      FontWeight weight = FontWeight.w400,
+      bool sans = false}) {
+    final style = AppTheme.serif(
+      fontSize: fontSize,
+      height: (height ?? 30) / fontSize,
+      fontWeight: weight,
+      color: color ?? Tokens.of(context).fg,
+    );
+    return sans
+        ? style.copyWith(fontFamily: AppTheme.fontSans, fontVariations: const [])
+        : style;
+  }
 
   /// A serif title between the ramp's steps — the title a card, a row, a
   /// panel or a result carries (`.srctitle` 15/1.2/500, `.rd-title` 19/600,

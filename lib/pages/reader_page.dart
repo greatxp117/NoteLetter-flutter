@@ -3,7 +3,6 @@ import 'package:flutter/rendering.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 import '../shared/reader_origin.dart';
@@ -20,6 +19,7 @@ import 'reader/history_panel.dart';
 import 'reader/listen_panel.dart';
 import 'reader/manuscript_panel.dart';
 import 'reader/original_panel.dart';
+import 'reader/reader_prefs.dart';
 import 'reader/reader_ui.dart';
 import 'reader/reading_cost.dart';
 import 'reader/source_freshness.dart';
@@ -126,13 +126,6 @@ class _ListenLine {
 }
 
 class _ReaderPageState extends State<ReaderPage> {
-  /// The detailed reading breakdown is **opt-in and off by default** (4.1.0):
-  /// the reader is a reading surface, and instrumentation shown to someone who
-  /// did not ask for it is noise on the one screen that should be quiet. The
-  /// toggle is a client-local display preference and explicitly NOT contract
-  /// state — no field, no endpoint, no sync.
-  static const _statsPrefKey = 'reader_detailed_stats';
-
   /// Where a recipe step's time chip asked Listen to start (§Step jump).
   double? _listenSeek;
 
@@ -146,7 +139,12 @@ class _ReaderPageState extends State<ReaderPage> {
   String? _error;
   String? _errorRequestId;
   bool _notFound = false;
-  bool _showStats = false;
+  /// The detailed reading breakdown is **opt-in and off by default** (4.1.0):
+  /// the reader is a reading surface, and instrumentation shown to someone who
+  /// did not ask for it is noise on the one screen that should be quiet. The
+  /// toggle is the manuscript's Aa → Reading stats (F-74), stored with the
+  /// typography — a client-local display preference, never contract state.
+  bool get _showStats => ReaderPrefs.current.value.stats;
   Document? _document;
   List<Chunk> _chunks = const [];
 
@@ -180,11 +178,13 @@ class _ReaderPageState extends State<ReaderPage> {
     super.initState();
     _scroll.addListener(_reportSoon);
     _load();
-    _loadStatsPref();
+    ReaderPrefs.current.addListener(_onReaderPrefs);
+    ReaderPrefs.ensureLoaded();
   }
 
   @override
   void dispose() {
+    ReaderPrefs.current.removeListener(_onReaderPrefs);
     _scroll.removeListener(_reportSoon);
     _scroll.dispose();
     super.dispose();
@@ -279,16 +279,8 @@ class _ReaderPageState extends State<ReaderPage> {
     _reportCurrent();
   }
 
-  Future<void> _loadStatsPref() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() => _showStats = prefs.getBool(_statsPrefKey) ?? false);
-  }
-
-  Future<void> _setStatsPref(bool on) async {
-    setState(() => _showStats = on);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_statsPrefKey, on);
+  void _onReaderPrefs() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -1044,9 +1036,8 @@ class _ReaderPageState extends State<ReaderPage> {
   /// NOT optimistic: `finished_at` comes back from the response rather than
   /// being minted locally.
   ///
-  /// The detailed-stats toggle rides alongside it: a display preference, on the
-  /// row where the reader is already deciding what this screen says about a
-  /// document rather than what the document says.
+  /// The detailed-stats toggle is NOT here: it is Aa → Reading stats on the
+  /// manuscript (F-74), the reference's only door to it (F-77 (2)).
   Widget _finishControl(Document doc) {
     final finished = doc.finishedAt != null;
     return Column(
@@ -1076,13 +1067,6 @@ class _ReaderPageState extends State<ReaderPage> {
                 style: KitText.small(context,
                     color: Tokens.of(context).fgSubtle, height: 18),
               ),
-            ),
-            KitSettingLink(
-              _showStats
-                  ? 'Hide reading detail'
-                  : 'How these passages reached you',
-              icon: _showStats ? Icons.expand_less : Icons.expand_more,
-              onTap: () => _setStatsPref(!_showStats),
             ),
           ],
         ),

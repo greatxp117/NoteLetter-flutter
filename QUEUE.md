@@ -1418,7 +1418,7 @@ a new obligation on a finished screen is a new item.
   2026-10-07: re-shot over 5b0b73e. Delete and its trash glyph, the §20.2 select (reader-shelves, shelf-picker-search — those two pairs MATCH and are committed) are right; the reader pair still does not match, for F-77 (2) and (3) only — not committed, still open.
 
 ## F-74 · Reader — the manuscript's reading controls: Aa, the reading-progress rule, Pick up where you left off, the drop cap
-- status: open
+- status: in-progress
 - screen: reader-manuscript
 - route: /reader/{id}
 - spec: spec/screens/reader.md §Composition §Sections; spec/component-kit.md §5.2
