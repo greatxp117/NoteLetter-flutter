@@ -532,17 +532,26 @@ class KitGlyph extends StatelessWidget {
   const KitGlyph(this.icon, {super.key, required this.size, required this.color});
 
   @override
-  Widget build(BuildContext context) => icon == KitQuill.icon
-      ? KitQuill(size: size, color: color)
-      : icon == KitSparkle.icon
-          ? KitSparkle(size: size, color: color)
-          : icon == KitUploadGlyph.icon
-              ? KitUploadGlyph(size: size, color: color)
-              : icon == KitStackGlyph.icon
-                  ? KitStackGlyph(size: size, color: color)
-                  : icon == KitCardsGlyph.icon
-                      ? KitCardsGlyph(size: size, color: color)
-                      : Icon(icon, size: size, color: color);
+  Widget build(BuildContext context) {
+    final Widget? painted = icon == KitQuill.icon
+        ? KitQuill(size: size, color: color)
+        : icon == KitSparkle.icon
+            ? KitSparkle(size: size, color: color)
+            : icon == KitUploadGlyph.icon
+                ? KitUploadGlyph(size: size, color: color)
+                : icon == KitStackGlyph.icon
+                    ? KitStackGlyph(size: size, color: color)
+                    : icon == KitCardsGlyph.icon
+                        ? KitCardsGlyph(size: size, color: color)
+                        : null;
+    if (painted == null) return Icon(icon, size: size, color: color);
+    // Laid out as [Icon] lays out: its own box at [size], the glyph centred
+    // in whatever a parent forces it to fill. A bare painted box took a
+    // tile's tight 36 and drew the sheet's 18 mark at 36, over its own tile
+    // (the 2026-10-12 shelf-create-sheet frame).
+    return SizedBox(
+        width: size, height: size, child: Center(child: painted));
+  }
 }
 
 /// The phone app bar's trailing control (`.mh-btn`): 36 square, `--r-sm`, the

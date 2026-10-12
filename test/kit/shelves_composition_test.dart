@@ -45,6 +45,22 @@ void main() {
     expect(empty.style?.fontStyle, FontStyle.italic);
   });
 
+  testWidgets('a painted glyph keeps its size inside a tile, as Icon does',
+      (tester) async {
+    await _pump(
+        tester,
+        const SizedBox(
+            width: 36,
+            height: 36,
+            child: KitGlyph(KitStackGlyph.icon,
+                size: 18, color: Color(0xFF000000))));
+    final r = tester.getRect(find.byType(KitStackGlyph));
+    expect(r.size, const Size(18, 18),
+        reason: 'the sheet\'s 18 mark, not the tile\'s 36');
+    final tile = tester.getRect(find.byType(KitGlyph));
+    expect(r.center, tile.center, reason: 'centred in the tile');
+  });
+
   testWidgets('the sheet mark is the stack, at --seal', (tester) async {
     await _pump(tester,
         const KitGlyph(KitStackGlyph.icon, size: 18, color: Color(0xFF000000)));
