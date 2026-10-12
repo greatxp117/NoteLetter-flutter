@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_app/models/chunk.dart';
+import 'package:flutter_app/models/cloud_folder.dart';
 import 'package:flutter_app/models/document.dart';
 import 'fixtures.dart';
 
@@ -55,5 +56,23 @@ void main() {
         expect(doc.type, expectedDoc['type']);
       });
     }
+  }
+
+  // firestore/organization-shapes — an organized folder as Sources reads it.
+  // `readme` is an OBJECT on the stored document; the model read a flat
+  // `readme_status` nothing writes, so every chip said "pending" (F-90's
+  // org-scan-wait frame, 2026-10-12).
+  final org = loadSuite('firestore/organization-shapes');
+  for (final c in (org?['cases'] as List? ?? [])) {
+    final req = c['request'] as Map<String, dynamic>;
+    if (req['collection'] != 'cloud_folders') continue;
+    final expected = c['response']['body'] as Map<String, dynamic>;
+    test('${c['id']} — cloud folder: readme status, path, count', () {
+      final input = (decode(req['input']) as Map).cast<String, dynamic>();
+      final f = CloudFolder.fromJson(req['id'] as String, input);
+      expect(f.readmeStatus, (expected['readme'] as Map?)?['status']);
+      expect(f.providerPath, expected['provider_path']);
+      expect(f.docCount, expected['doc_count']);
+    });
   }
 }

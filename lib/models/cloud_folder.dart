@@ -42,7 +42,12 @@ class CloudFolder {
       docCount: (json['doc_count'] as num?)?.toInt() ?? 0,
       charterText: charter?['text'] as String?,
       charterSource: charter?['source'] as String?,
-      readmeStatus: json['readme_status'] as String?,
+      // `readme` is an object (data-model.md §cloud_folders:
+      // `{enabled, provider_file_id, content_hash, last_written_at, status}`).
+      // This read `readme_status`, a field nothing writes, so every folder's
+      // chip said "pending" whatever its README was (the 2026-10-12
+      // org-scan-wait frame).
+      readmeStatus: (json['readme'] as Map?)?['status'] as String?,
       lastScannedAt: tsMs(json['last_scanned_at']),
     );
   }
