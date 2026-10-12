@@ -356,11 +356,13 @@ class KitDropCap extends StatelessWidget {
     return (m.group(1)!, text.substring(m.end));
   }
 
-  /// The cap's own style: serif 58 / 0.86 / 600 in `--accent-text`.
+  /// The cap's own style: serif 58 / 0.86 / 600 in `--accent-text`, at the
+  /// body's optical size — `::first-letter` inherits `.ms-body`'s `"opsz" 18`.
   static TextStyle capStyle(BuildContext context) => AppTheme.serif(
         fontSize: 58,
         height: 0.86,
         fontWeight: FontWeight.w600,
+        opsz: 18,
         color: Tokens.of(context).accentText,
       );
 

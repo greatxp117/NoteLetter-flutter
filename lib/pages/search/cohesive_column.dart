@@ -256,7 +256,8 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
                   style: KitText.bodyReading(context,
                       fontSize: 18, height: 30))
             else
-              Html(
+              // `.passage .quote` 18 — the browser's auto optical size.
+              AppTheme.htmlOpticalSize(18, child: Html(
                 data: html,
                 extensions: AppTheme.htmlExtensions,
                 style: AppTheme.htmlStyles(
@@ -272,7 +273,7 @@ class _CohesivePassageCardState extends State<_CohesivePassageCard> {
                     color: t.fg,
                   ),
                 ),
-              ),
+              )),
             const SizedBox(height: 12),
             Container(height: 1, color: t.rule),
             const SizedBox(height: 10),

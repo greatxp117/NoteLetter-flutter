@@ -647,7 +647,7 @@ class _ParaText extends StatelessWidget {
     final ui = ReaderUi(context);
     final t = ui.tokens;
     final base = KitText.bodyReading(context,
-        fontSize: 15, height: 26, color: t.fgMuted);
+        fontSize: 15, height: 26, color: t.fgMuted, opsz: 16);
     final spans = <InlineSpan>[];
     for (var i = 0; i < ids.length; i++) {
       final g = ids[i];

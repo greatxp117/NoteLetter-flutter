@@ -1208,7 +1208,8 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
   Widget _html(String html, ReaderUi ui) {
     final p = ReaderPrefs.current.value;
-    return Html(
+    // `.ms-body` — `"opsz" 18` for the body, its headings and its emphasis.
+    return AppTheme.htmlOpticalSize(18, child: Html(
       data: html,
       // `.ms-body img` — framed, and a tap opens it full size.
       extensions: [
@@ -1229,7 +1230,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
           color: ui.fg,
         ),
       )),
-    );
+    ));
   }
 
   /// The first block of a passage's html when it is a `<p>` of plain text —

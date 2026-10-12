@@ -150,10 +150,12 @@ class AppTheme {
   /// the platform serif — which is exactly what the google_fonts path did when
   /// a fetch failed, invisibly, on every heading in the app.
   ///
-  /// It is a VARIABLE font: one asset covers the weight axis, so the weight has
-  /// to be driven through `fontVariations`. `fontWeight` is passed as well —
-  /// it is what the engine falls back to for synthetic bolding, and what any
-  /// style-merging code reads.
+  /// It is a VARIABLE font: one asset covers the weight and optical-size axes,
+  /// so both are driven through `fontVariations` ([serifAxes]). `fontWeight`
+  /// is passed as well — it is what the engine falls back to for synthetic
+  /// bolding, and what any style-merging code reads. [opsz] is the role's
+  /// optical size where the reference sets one other than its size (the
+  /// reading roles' 18); left null it is the size.
   static TextStyle serif({
     double? fontSize,
     FontWeight? fontWeight,
@@ -161,19 +163,42 @@ class AppTheme {
     double? height,
     FontStyle? fontStyle,
     double? letterSpacing,
+    double? opsz,
   }) {
     final w = fontWeight ?? FontWeight.w400;
     return TextStyle(
       fontFamily: fontSerif,
       fontSize: fontSize,
       fontWeight: w,
-      fontVariations: [FontVariation('wght', w.value.toDouble())],
+      fontVariations: serifAxes(w, opsz ?? fontSize),
       color: color,
       height: height,
       fontStyle: fontStyle,
       letterSpacing: letterSpacing,
     );
   }
+
+  /// The serif's two axes: the weight, and the optical size clamped to the
+  /// face's 8–60 (F-100). Web sets `font-variation-settings: "opsz" N` on most
+  /// serif roles and the browser's `font-optical-sizing: auto` gives every
+  /// other one its own size; Skia does neither, and a style that names no
+  /// `opsz` draws the face's default outlines — measured 7% wider than any
+  /// optical size web draws (`Library` 44/600: 165.8 against 141.9).
+  static List<FontVariation> serifAxes(FontWeight weight, double? opsz) => [
+        FontVariation('wght', weight.value.toDouble()),
+        if (opsz != null) FontVariation('opsz', opsz.clamp(8.0, 60.0)),
+      ];
+
+  /// Wraps a serif `Html()` body at the optical size [opsz] (F-100).
+  /// flutter_html's `Style` carries no font variations, but every span it
+  /// builds is a `Text.rich` that inherits them from [DefaultTextStyle] — so
+  /// the body, its headings and its emphasis take the size here, as `.ms-body`
+  /// gives all of them its `"opsz" 18`. Weight stays the engine's, as before.
+  static Widget htmlOpticalSize(double opsz, {required Widget child}) =>
+      DefaultTextStyle.merge(
+        style: TextStyle(fontVariations: serifAxes(FontWeight.w400, opsz)),
+        child: child,
+      );
 
   /// Mono (`Geist Mono`) — code and caps-labels.
   ///

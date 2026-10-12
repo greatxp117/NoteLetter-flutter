@@ -387,9 +387,12 @@ class KitVersal extends StatelessWidget {
       final isLetter = RegExp(r'[A-Z]').hasMatch(ch);
       spans.add(TextSpan(
         text: ch,
+        // `.versal .cap` — 1.2em at 600, the line's optical size inherited.
         style: (atWordStart && isLetter)
             ? base.copyWith(
-                fontSize: fontSize * capScale, fontWeight: FontWeight.w600)
+                fontSize: fontSize * capScale,
+                fontWeight: FontWeight.w600,
+                fontVariations: AppTheme.serifAxes(FontWeight.w600, fontSize))
             : null,
       ));
       if (isLetter) atWordStart = false;
@@ -413,7 +416,7 @@ class KitLetterBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return Html(
+    return AppTheme.htmlOpticalSize(17, child: Html(
       data: html,
       extensions: AppTheme.htmlExtensions,
       style: {
@@ -444,7 +447,7 @@ class KitLetterBody extends StatelessWidget {
         'a': Style(color: t.link),
         'img': Style(width: Width(100, Unit.percent)),
       },
-    );
+    ));
   }
 }
 

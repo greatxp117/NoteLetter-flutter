@@ -104,7 +104,8 @@ class _SearchBigFieldState extends State<SearchBigField> {
                   // `.search-bigfield input` — the reading face, upright.
                   style: KitText.bodyReading(context,
                       fontSize: compact ? 18 : 22,
-                      height: (compact ? 18 : 22) * 28 / 22),
+                      height: (compact ? 18 : 22) * 28 / 22,
+                      opsz: 24),
                   cursorColor: t.accent,
                   decoration: InputDecoration(
                     isDense: true,

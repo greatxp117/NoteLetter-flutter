@@ -216,16 +216,22 @@ class KitText {
   ///
   /// [sans] is the reader's own choice and nobody else's: the manuscript's
   /// Typeface preference (`--ms-family`, F-74). No screen picks it.
+  ///
+  /// [opsz] is web's: every reading role sets `"opsz" 18` whatever its size
+  /// (`.ms-body`, `.rd-body p`, `.sresult-passage`); a site whose reference
+  /// sets another passes it.
   static TextStyle bodyReading(BuildContext context,
       {double fontSize = 18,
       double? height,
       Color? color,
       FontWeight weight = FontWeight.w400,
-      bool sans = false}) {
+      bool sans = false,
+      double opsz = 18}) {
     final style = AppTheme.serif(
       fontSize: fontSize,
       height: (height ?? 30) / fontSize,
       fontWeight: weight,
+      opsz: opsz,
       color: color ?? Tokens.of(context).fg,
     );
     return sans
