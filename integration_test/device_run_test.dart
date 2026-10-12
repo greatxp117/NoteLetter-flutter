@@ -1933,9 +1933,12 @@ void main() {
     expect(find.textContaining('LIBRARY · 3 SHELVES'), findsOneWidget);
     expect(find.text('Shelves'), findsOneWidget);
 
-    // §5.1 — one card per shelf, and the dashed slot that makes one.
+    // §5.1 — one card per shelf, and the dashed slots: the one that makes a
+    // shelf, and Suggest shelves beside it (4.116.0, F-89).
     expect(find.byType(KitShelfCard), findsNWidgets(3));
-    expect(find.byType(KitNewCard), findsOneWidget);
+    expect(find.byType(KitNewCard), findsNWidgets(2));
+    expect(find.text('New shelf'), findsOneWidget);
+    expect(find.text('Suggest shelves'), findsOneWidget);
     expect(find.text('Recipes'), findsWidgets);
     // Stories is `auto_created`; provenance is a LABEL and nothing more.
     expect(find.text('AUTO'), findsOneWidget);
@@ -1946,6 +1949,11 @@ void main() {
     expect(find.byType(FloatingActionButton), findsNothing);
 
     // ── the shelf's own page ────────────────────────────────────────────
+    // Recipes is the third card: on a phone it sits at the fold, under the
+    // support footer, since the grid took web's top margin and 56 spines
+    // (F-81). Brought on first, as a reader scrolls to it.
+    await tester.ensureVisible(find.text('Recipes').first);
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
     await tester.tap(find.text('Recipes').first);
     await pumpFor(tester, total: const Duration(seconds: 2));
     expect(router.state.matchedLocation, '/shelves/seed-tag-recipes');
