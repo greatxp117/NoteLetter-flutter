@@ -276,8 +276,8 @@ void main() {
       expect(tester.widget<KitButton>(button).onPressed, isNull,
           reason: 'disabled at zero — `!canConfirm`');
 
-      await tester.ensureVisible(find.byType(Checkbox));
-      await tester.tap(find.byType(Checkbox));
+      await tester.ensureVisible(find.byType(KitCheckbox));
+      await tester.tap(find.byType(KitCheckbox));
       await tester.pump();
       expect(find.text('0/20 folders · 1/50 files'), findsOneWidget);
       expect(
@@ -302,10 +302,10 @@ void main() {
       await openPicker(tester, drive, 'google_drive');
 
       expect(find.textContaining('isn’t a supported file type'), findsOneWidget);
-      expect(find.byType(Checkbox), findsOneWidget,
+      expect(find.byType(KitCheckbox), findsOneWidget,
           reason: 'only the PDF is offered a checkbox');
-      await tester.ensureVisible(find.byType(Checkbox));
-      await tester.tap(find.byType(Checkbox));
+      await tester.ensureVisible(find.byType(KitCheckbox));
+      await tester.tap(find.byType(KitCheckbox));
       await tester.pump();
       await tester.ensureVisible(find.text('Import 1 item'));
       await tester.tap(find.text('Import 1 item'));
@@ -868,7 +868,7 @@ void main() {
           reason: 'the unmapped exportable row carries no label');
       expect(find.text('“Budget” isn’t a supported file type. $uploadAcceptHelp.'),
           findsOneWidget);
-      expect(find.byType(Checkbox), findsNWidgets(3),
+      expect(find.byType(KitCheckbox), findsNWidgets(3),
           reason: 'the refused native spreadsheet is offered no checkbox');
     });
   });

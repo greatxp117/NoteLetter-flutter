@@ -345,8 +345,70 @@ class _SparklePainter extends CustomPainter {
   bool shouldRepaint(_SparklePainter old) => old.color != color;
 }
 
+/// The reference's `IcoUpload` (Lucide `upload`): an open tray with an arrow
+/// rising out of it, stroked at 1.75 on a 24 grid. Material's upload glyphs
+/// are a filled arrow over a bar — the drop zone drew one, centred, where the
+/// reference draws this (F-79 (1)).
+class KitUploadGlyph extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const KitUploadGlyph({super.key, required this.size, required this.color});
+
+  /// A sentinel for kit widgets that take an [IconData], as [KitQuill.icon].
+  static const IconData icon = IconData(0xF8FD, fontFamily: 'NoteLetterUpload');
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _UploadPainter(color)),
+      );
+}
+
+class _UploadPainter extends CustomPainter {
+  final Color color;
+  const _UploadPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.75
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    // M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4
+    canvas.drawPath(
+        Path()
+          ..moveTo(21, 15)
+          ..lineTo(21, 19)
+          ..arcToPoint(const Offset(19, 21), radius: const Radius.circular(2))
+          ..lineTo(5, 21)
+          ..arcToPoint(const Offset(3, 19), radius: const Radius.circular(2))
+          ..lineTo(3, 15),
+        paint);
+    // M17 8l-5-5-5 5M12 3v12
+    canvas.drawPath(
+        Path()
+          ..moveTo(17, 8)
+          ..lineTo(12, 3)
+          ..lineTo(7, 8)
+          ..moveTo(12, 3)
+          ..lineTo(12, 15),
+        paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_UploadPainter old) => old.color != color;
+}
+
 /// An [IconData] as a kit widget draws it: [KitQuill.icon] is the quill,
-/// [KitSparkle.icon] the reference's sparkle, any other a Material [Icon].
+/// [KitSparkle.icon] the reference's sparkle, [KitUploadGlyph.icon] its
+/// upload tray, any other a Material [Icon].
 class KitGlyph extends StatelessWidget {
   final IconData icon;
   final double size;
@@ -359,7 +421,9 @@ class KitGlyph extends StatelessWidget {
       ? KitQuill(size: size, color: color)
       : icon == KitSparkle.icon
           ? KitSparkle(size: size, color: color)
-          : Icon(icon, size: size, color: color);
+          : icon == KitUploadGlyph.icon
+              ? KitUploadGlyph(size: size, color: color)
+              : Icon(icon, size: size, color: color);
 }
 
 /// The phone app bar's trailing control (`.mh-btn`): 36 square, `--r-sm`, the

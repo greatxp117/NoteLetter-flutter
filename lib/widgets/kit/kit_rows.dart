@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
@@ -242,24 +243,37 @@ class KitTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return Stack(
-      children: [
-        Positioned(
-          left: 15,
-          top: 6,
-          bottom: 6,
-          child: Container(width: 1, color: t.rule),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < rows.length; i++) ...[
-              if (i > 0) Container(height: 1, color: t.rule),
-              rows[i],
-            ],
-          ],
-        ),
-      ],
+    // The rows carry `margin: 0 -12px`: each is 24 wider than the list and
+    // starts 12 before it, so its 12 of padding puts the node FLUSH with the
+    // list's edge and the spine at 15 runs through the nodes' centres. Without
+    // the inset the spine ran along the nodes' left edges (F-79 (5)). Drawn
+    // as an overflow of the list's own width, centred; the 12 either side is
+    // paint (divider and hover), not a tap target.
+    return LayoutBuilder(
+      builder: (context, c) => Stack(
+        children: [
+          Positioned(
+            left: 15,
+            top: 6,
+            bottom: 6,
+            child: Container(width: 1, color: t.rule),
+          ),
+          OverflowBox(
+            fit: OverflowBoxFit.deferToChild,
+            minWidth: c.maxWidth + 24,
+            maxWidth: c.maxWidth + 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < rows.length; i++) ...[
+                  if (i > 0) Container(height: 1, color: t.rule),
+                  rows[i],
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

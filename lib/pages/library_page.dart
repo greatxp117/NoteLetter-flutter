@@ -494,7 +494,7 @@ class _LibraryEmpty extends StatelessWidget {
           // by `file_uploader` — and this screen was the second place the copy
           // was written by hand, which is how it stayed a release behind.
           KitDropZone(
-            icon: Icons.upload_outlined,
+            icon: KitUploadGlyph.icon,
             title: 'Drop files to begin',
             help: '$uploadAcceptHelp — or open Sources to browse',
             formats: const [

@@ -187,7 +187,7 @@ class FileUploaderState extends State<FileUploader> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             KitDropZone(
-              icon: Icons.upload_outlined,
+              icon: KitUploadGlyph.icon,
               title: uploading
                   ? 'Uploading…'
                   : 'Drop files, or tap to add a few',

@@ -38,7 +38,7 @@ Pattern is `pages/` + `state/` + `services/` — **not** feature-first.
 **Library** (the rail's *Home*); the rail's *Library* is `/sources` (volumes,
 uploader).
 
-The live theme is `theme/app_theme.dart` (`app.dart` only passes it on).
+The live theme is `theme/app_theme.dart`.
 **Never reintroduce `ColorScheme.fromSeed`** — a generated palette looks
 consistent while most widgets draw colours from no token file. Guard:
 `test/contract/theme_tokens_test.dart`.
@@ -63,8 +63,8 @@ config and refuses.
 ## Composition deviations
 
 Kit metrics are web's numbers and this client's **starting** values; each
-deviation is recorded here (component-kit.md) and applied **once, inside the
-kit**, never per screen. Roles and proportions hold:
+deviation is recorded here and applied **once, inside the kit**. Roles and
+proportions hold:
 
 - §1.5 gutter 56 → 20 · §2.1 title 44 → 32
 - §2/§5.3 actions stack under the whole title BLOCK, standfirst included —
@@ -72,8 +72,9 @@ kit**, never per screen. Roles and proportions hold:
 - §6.6/§6.8, §4.2's timestamp, §12's action and a setting row's control strip
   stack, and §4.1's count hides, at 768, not web's 680/640/480 — one breakpoint
 - §16's anchor also opens on **tap**: a coarse pointer has neither trigger
-- speed read's hint row says only *Hold to pause & rest*: no key is bound
-  here, so Space/arrow hints would lie (F-77 (8))
+- touch copy, no keys bound: speed read hints only *Hold to pause & rest*
+  (F-77 (8)); the drop zone says *tap* (F-79)
+- Sources' *Add an image set* row: a device capability web lacks
 
 ## Rules that are easy to break here
 

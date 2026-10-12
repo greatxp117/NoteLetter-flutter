@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_radius.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'folder_contents.dart';
@@ -106,21 +107,15 @@ class CloudPickerCheck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     return SizedBox(
       width: 20,
       height: 20,
       child: value == null
           ? null
-          : Semantics(
-              label: label,
-              child: Checkbox(
-                value: value,
-                onChanged: (_) => onToggle(),
-                activeColor: t.accent,
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+          : KitCheckbox(
+              value: value!,
+              semanticsLabel: label,
+              onChanged: onToggle,
             ),
     );
   }
@@ -218,11 +213,18 @@ class CloudPickerFoot extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) => Container(
+    // The full width, so the trailing alignment has an edge to reach.
+    width: double.infinity,
     padding: const EdgeInsets.only(top: 10),
     child: Wrap(
       spacing: 8,
       runSpacing: 8,
+      // `.proc-error-actions { justify-content: flex-end }` on a phone: the
+      // confirm and Cancel sit at the trailing edge (F-79 (4)).
+      alignment: MediaQuery.sizeOf(context).width < AppSpacing.compactWidth
+          ? WrapAlignment.end
+          : WrapAlignment.start,
       children: [
         KitButton.primary(confirmLabel, onPressed: busy ? null : onConfirm),
         KitButton.ghost('Cancel', onPressed: busy ? null : onCancel),

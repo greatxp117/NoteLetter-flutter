@@ -576,14 +576,22 @@ class KitFileBadge extends StatelessWidget {
         fg = t.positiveChipFg;
         border = t.positiveChipBorder;
       case 'web':
+      case 'note':
+        bg = t.surfaceSunken;
+        fg = t.fgMuted;
+        border = t.border;
+      // The platforms and the recordings take no tint on the reference: no
+      // `.filebadge.youtube` (… `.podcast`, `.video`) rule exists, so the
+      // plate is the base `.filebadge` — transparent, the hairline, the
+      // host's text colour (§6.4: "pdf brick, epub sage, web and note
+      // neutral"; F-79 (5)). Filled --surface-sunken here, they read as web.
       case 'youtube':
       case 'instagram':
       case 'tiktok':
-      case 'note':
       case 'podcast':
       case 'video':
-        bg = t.surfaceSunken;
-        fg = t.fgMuted;
+        bg = const Color(0x00000000);
+        fg = t.fg;
         border = t.border;
       default:
         bg = t.surfaceSunken;
@@ -891,6 +899,49 @@ class _RenderActionFlow extends RenderBox
   @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
       defaultHitTestChildren(result, position: position);
+}
+
+/// A checkbox as the reference draws one: the platform's own 13px box,
+/// tinted by `accent-color: var(--accent)` — a 1px `--border-strong` square at
+/// 2px radius on `--surface`, filled `--accent` with an `--accent-fg` tick
+/// when checked. Material's is an 18px square with a 2px rule, which read as
+/// a heavier control than every other on the row (F-79 (4)). The tap target
+/// is the slot the caller gives it, not the 13px drawn.
+class KitCheckbox extends StatelessWidget {
+  final bool value;
+  final VoidCallback? onChanged;
+  final String? semanticsLabel;
+
+  const KitCheckbox(
+      {super.key, required this.value, this.onChanged, this.semanticsLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      checked: value,
+      label: semanticsLabel,
+      enabled: onChanged != null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onChanged,
+        child: Center(
+          child: Container(
+            width: 13,
+            height: 13,
+            decoration: BoxDecoration(
+              color: value ? t.accent : t.surface,
+              borderRadius: const BorderRadius.all(Radius.circular(2)),
+              border: Border.all(color: value ? t.accent : t.borderStrong),
+            ),
+            child: value
+                ? Icon(Icons.check, size: 11, color: t.accentFg)
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// §6.6 — the control bar (contract 4.5.2): the row of filters between a

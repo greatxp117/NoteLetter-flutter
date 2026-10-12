@@ -369,8 +369,21 @@ class _KitDropZoneState extends State<KitDropZone> {
               children: [
                 // `.dz-feather` — the glyph is a quiet cue at `--fg-subtle`,
                 // turning `--accent` only while something is over the zone.
-                Icon(widget.icon, size: 40,
-                    color: _hover ? t.accent : t.fgSubtle),
+                // A 40 BLOCK, which `text-align: center` does not move: the
+                // reference draws it at the zone's leading edge while the
+                // title and help centre (F-79 (1)).
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Center(
+                      child: KitGlyph(widget.icon,
+                          size: 36,
+                          color: _hover ? t.accent : t.fgSubtle),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 8 + 6),
                 Text(
                   widget.title,

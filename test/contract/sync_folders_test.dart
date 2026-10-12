@@ -154,7 +154,7 @@ void main() {
 
   Finder check(String name) => find.descendant(
     of: find.byKey(ValueKey('sync-folder-$name')),
-    matching: find.byType(Checkbox),
+    matching: find.byType(KitCheckbox),
   );
 
   testWidgets('the picker lists folders only, each with its disclosure', (
@@ -208,7 +208,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<Checkbox>(check('fld-b')).value,
+      tester.widget<KitCheckbox>(check('fld-b')).value,
       isTrue,
       reason: 'the picker opens on the stored scope',
     );
@@ -265,7 +265,7 @@ void main() {
       findsOneWidget,
       reason: '§14.2 inline, the server\'s sentence',
     );
-    expect(tester.widget<Checkbox>(check('fld-b')).value, isTrue);
+    expect(tester.widget<KitCheckbox>(check('fld-b')).value, isTrue);
     expect(
       find.text('0/20'),
       findsOneWidget,
@@ -337,7 +337,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(check('fld-b'));
     await tester.pump();
-    expect(tester.widget<Checkbox>(check('fld-b')).value, isFalse);
+    expect(tester.widget<KitCheckbox>(check('fld-b')).value, isFalse);
     expect(
       find.text('20-folder limit reached — untick one to choose another.'),
       findsOneWidget,
