@@ -1681,6 +1681,20 @@ a new obligation on a finished screen is a new item.
 - extra_gates: python3 ../NoteLetter-contracts/harness/screenshot_pair_check.py
 - notes: The threshold (web's words now: "Confidence threshold"), the default reorganize mode (Split · Copy) and each write-ready provider's three switches moved OFF Sources (`OrganizationSettingsPanel`, gone) into Settings' section, renamed Organization → Sources (`SourcesSection`, file `settings/sources_section.dart`). The switches write `{enabled: true, flag: v}` and draw `flag && enabled`, as the reference does; the segmented control and switches draw the STORED value (write before you move). Sources keeps `OrganizedFoldersSection`: one `OrganizedFoldersPanel` per provider whose integration is write-ready — the reference's gate, no longer the settings read's. Every connected provider's Import-from header gains **Organization settings** → `/settings/sources` (`SettingsPage(focusSources: true)`, which `Scrollable.ensureVisible`s the section once it is drawn). `screenNames` gains `/settings/sources` → `settings-sources`. The C4 unread-settings and UNKNOWN_KEYS tests moved with the controls (they mount `SourcesSection`); the focus scroll is mutation-checked.
 
+## F-95 · A cloud connection is claimed, not read off the URL (5.0.0 tandem, ADR-158, INV-32)
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/decisions/ADR-158-a-grant-is-claimed-by-the-account-that-asked.md; spec/api/cloud-storage.md; spec/screens/sources.md
+- web: src/shared/cloudClaim.js; src/pages/SourcesBrowse.jsx; src/api.js; tests/contract/cloud-claim.test.js
+- flutter: lib/router.dart; lib/pages/sources_page.dart; lib/services/api.dart; lib/services/endpoint_budgets.dart
+- folds: 5.0.0 (ADR-158)
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/client_timeout_check.py --target flutter; python3 ../NoteLetter-contracts/harness/endpoint_reach_check.py
+- notes: The callback no longer says a connection happened: it redirects to /sources?cloud_connect=claim&claim=…&provider=… (or cloud_connect=error&reason=…). The router reads `claim`; SourcesPage strips the params FIRST (`context.go('/sources')`), calls `Api.claimCloudConnection(claim)` ONCE (`{claim}`, closed key set) and feeds the answer — {cloud_connect, provider, connection, org, reason}, the vocabulary `_handleOAuthReturn` already reads from the URL — into that handler. `cloud_connect=success` in a URL is believed by nobody. A refusal (403 FORBIDDEN another account started it, 404 NOT_FOUND expired or spent) shows the server's sentence on the kit's inline failure, never copy of ours. While the claim runs, the return says 'Finishing the {Provider} connection…' (web's words). `endpoint_budgets.dart` gains fn_claim_cloud_connection at the recipe's 60s. On a PHONE the return lands in the system browser's web app, not here, until an app return exists (an additive MINOR booked in TODO); the web app claims it if signed in to the same account, and this app sees the connection on its next loadIntegrations. Web's frames: cloud-claim pending / refused / success were rendered for looking only (not committed).
+- placed: after F-93
+
 ## F-94 · The landing names EPUBs (ruled 2026-10-09)
 - status: done 2026-10-09
 - screen: landing
