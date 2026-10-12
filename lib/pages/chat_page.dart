@@ -227,11 +227,18 @@ class _ChatPageState extends State<ChatPage> {
                   child: ColoredBox(color: t.scrim),
                 ),
               ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SafeArea(
-                    right: false,
-                    child: _rail(context, context.watch<ChatNotifier>())),
+              // `position: fixed; top: 0; bottom: 0; left: 0` — the full
+              // height of the screen. The page's own MediaQuery has had the
+              // status bar taken out by the shell's app bar, so the inset is
+              // read off the VIEW, or the head sits under the notch.
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: MediaQuery(
+                  data: MediaQueryData.fromView(View.of(context)),
+                  child: _rail(context, context.watch<ChatNotifier>()),
+                ),
               ),
             ],
           ),
