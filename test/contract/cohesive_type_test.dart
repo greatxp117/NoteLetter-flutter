@@ -63,9 +63,9 @@ void main() {
   testWidgets('the plain quote is serif 18/30', (tester) async {
     await _pump(tester, _reading());
     final quote = tester.widget<KitMarkedText>(find.byType(KitMarkedText));
-    expect(quote.style?.fontFamily, AppTheme.fontSerif);
-    expect(quote.style?.fontSize, 18);
-    expect(quote.style!.height! * 18, closeTo(30, 0.01));
+    expect(quote.style.fontFamily, AppTheme.fontSerif);
+    expect(quote.style.fontSize, 18);
+    expect(quote.style.height! * 18, closeTo(30, 0.01));
   });
 
   testWidgets('the html quote names the serif too, at 18/30', (tester) async {
