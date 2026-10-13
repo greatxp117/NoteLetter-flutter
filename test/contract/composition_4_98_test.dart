@@ -66,6 +66,47 @@ void main() {
       expect(find.text('Cancel'), findsOneWidget);
     });
 
+    // 5.3.0 (ADR-161; copy ruled 2026-10-13). A `queued` run past its stored
+    // deadline never started: Stalled, failure tone, no spinner, Retry — and
+    // its own sentence, not the one for a run that stopped.
+    testWidgets('a queued run past its deadline is Stalled, with Retry',
+        (tester) async {
+      final past = DateTime.now().millisecondsSinceEpoch - 60000;
+      await _pumpRow(tester, _doc('queued', {'processing_stalls_at': past}));
+      final pill = tester.widget<KitProcPill>(find.byType(KitProcPill));
+      expect(pill.label, 'Stalled');
+      expect(pill.tone, KitProcTone.fail);
+      expect(
+          find.text('Indexing never started. Waiting will not help — Retry '
+              'to start it.'),
+          findsOneWidget);
+      expect(find.textContaining('stopped before it finished'), findsNothing);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Remove'), findsOneWidget);
+      expect(find.text('Cancel'), findsNothing);
+    });
+
+    testWidgets('a queued run before its deadline still waits', (tester) async {
+      final ahead = DateTime.now().millisecondsSinceEpoch + 3600000;
+      await _pumpRow(tester, _doc('queued', {'processing_stalls_at': ahead}));
+      final pill = tester.widget<KitProcPill>(find.byType(KitProcPill));
+      expect((pill.label, pill.tone), ('Queued', KitProcTone.wait));
+      expect(find.text('Retry'), findsNothing);
+    });
+
+    testWidgets('a stalled processing run keeps its own sentence',
+        (tester) async {
+      final past = DateTime.now().millisecondsSinceEpoch - 60000;
+      await _pumpRow(tester, _doc('processing',
+          {'processing_stage': 'embedding', 'processing_stalls_at': past}));
+      expect(tester.widget<KitProcPill>(find.byType(KitProcPill)).label,
+          'Stalled');
+      expect(
+          find.text('Indexing stopped before it finished. Waiting will not '
+              'help — Retry to start it again.'),
+          findsOneWidget);
+    });
+
     testWidgets('extracting works, with a spinner', (tester) async {
       await _pumpRow(tester,
           _doc('processing', {'processing_stage': 'extraction'}));

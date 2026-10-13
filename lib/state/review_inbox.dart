@@ -15,9 +15,10 @@ const reviewReadLimit = 500;
 
 /// `screens/review.md` §The needs-decision set — normative (INV-30). A source
 /// is asked about when it failed, was skipped, or stalled, and the reader has
-/// not dismissed it. A FRESH `processing` document is read (so a stalled one
-/// can be seen crossing its threshold) but is not in the set: it is work in
-/// progress, and asking about it would be inventing a failure.
+/// not dismissed it. A FRESH `queued` or `processing` document is read (so a
+/// stalled one can be seen crossing its threshold — `queued` since 5.3.0,
+/// ADR-161) but is not in the set: it is work in progress, and asking about it
+/// would be inventing a failure.
 bool sourceNeedsReview(Document d, DateTime now) {
   if (d.reviewDismissedAt != null) return false;
   return d.status == DocumentStatus.error ||
@@ -217,11 +218,13 @@ class ReviewInbox extends ChangeNotifier {
   }
 
   /// A stalled row crosses its threshold with NO Firestore write, so nothing
-  /// would move it into the set. One clock, running only while a `processing`
-  /// document or an in-flight task is held, so every row and the count flip
-  /// on the same tick.
+  /// would move it into the set. One clock, running only while a `queued` or
+  /// `processing` document or an in-flight task is held, so every row and the
+  /// count flip on the same tick.
   void _syncTick() {
-    final watching = _docs.data.any((d) => d.status == DocumentStatus.processing) ||
+    final watching = _docs.data.any((d) =>
+            d.status == DocumentStatus.processing ||
+            d.status == DocumentStatus.queued) ||
         _tasks.data.any((t) => BackgroundTask.inFlight.contains(t.status));
     if (watching && _tick == null) {
       _tick = Timer.periodic(const Duration(seconds: 15), (_) {

@@ -1855,3 +1855,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: CHANGELOG 4.118.0's Flutter tandem ("the same row; its Sources priority control may offer Default") was marked queued and never was: no item held it. Every search result and cohesive passage carries `source_priority_set` (bool); while false the explainer's row draws `default · 0.50` (`.pop-default`) in place of the bar, with "You have not weighted this source, so it counts at the default."; true reads "The weight you gave this source."; absent (an older response) draws as before. Default (sending `null`) on the priority control belongs with the control's placement: F-99, blocked on Xavier. No pair frames the open popover (search is framed closed).
+
+## F-105 · Sources and For your review — a run that never started is stalled too (5.3.0, ADR-161)
+- status: done 2026-10-13
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md §Stalled rows; spec/screens/review.md; spec/decisions/ADR-161-a-run-that-never-started-is-stalled.md; spec/data-model.md
+- web: src/shared/stalled.js; src/pages/SourcesBrowse.jsx; src/api.js
+- flutter: lib/models/document.dart; lib/pages/sources/browse_section.dart; lib/services/firestore_service.dart; lib/state/review_inbox.dart; test/contract/review_inbox_test.dart; test/contract/composition_4_98_test.dart
+- folds: 5.3.0
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/job_status_check.py
+- notes: CHANGELOG 5.3.0 Flutter tandem (backend signal 11:52Z, contracts 3efed6e): `processing_stalls_at` is meaningful while status ∈ {queued, processing}; one comparison. `Document.isStalled` accepts `queued` (a `queued` with no stamp — a passage, a pre-5.3.0 row — is never stalled); `browse_section.dart`: the Stalled label and `fail` tone checked before the Queued label, the never-started sentence ("Indexing never started. Waiting will not help — Retry to start it.", ruled 2026-10-13; processing keeps its own), Retry as the primary, the row's 15 s tick while `queued` too; `firestore_service.dart` `subscribeAttentionDocuments` reads `queued`; `review_inbox.dart`'s clock ticks while a `queued` row is held. Tests: the row (Stalled · fail · the sentence · Retry · no Cancel; a fresh queued still waits; a stalled processing keeps its sentence) and the needs-decision set (stalled queued in; fresh or unstamped out). The three new api/documents fixture cases are requests this client's builders already construct. No pair: the seed holds no stamped `queued` row, so no frame changes; the frames re-shot over this code show the seed's own queued row still Queued.

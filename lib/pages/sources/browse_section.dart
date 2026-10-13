@@ -465,7 +465,10 @@ class _ProcessingRowState extends State<ProcessingRow> {
   }
 
   void _syncTick() {
-    final watching = widget.doc.status == DocumentStatus.processing;
+    // `queued` too since 5.3.0 (ADR-161): a run that never started crosses
+    // its 24 h deadline with no write behind it either.
+    final watching = widget.doc.status == DocumentStatus.processing ||
+        widget.doc.status == DocumentStatus.queued;
     if (watching && _tick == null) {
       _tick = Timer.periodic(const Duration(seconds: 15), (_) {
         if (mounted) setState(() {});
@@ -500,9 +503,10 @@ class _ProcessingRowState extends State<ProcessingRow> {
   /// could. The two branches are disjoint by construction.
   (String, bool)? _primary(Document doc) {
     if (doc.status == DocumentStatus.error) return ('Retry', false);
-    // A stalled `processing` row gets the same primary (4.74.0, ADR-108).
-    // `fn_retry_document` accepts it — the widened status is reachable from
-    // here, which is the whole reason the backend half was not shipped alone.
+    // A stalled `processing` row gets the same primary (4.74.0, ADR-108), and
+    // a stalled `queued` one (5.3.0, ADR-161). `fn_retry_document` accepts
+    // both — the widened status is reachable from here, which is the whole
+    // reason the backend half was not shipped alone.
     if (doc.isStalled()) return ('Retry', false);
     if (doc.status == DocumentStatus.skipped &&
         (doc.skipReason == 'unresolved_article' || !doc.forceProcess)) {
@@ -591,9 +595,12 @@ class _ProcessingRowState extends State<ProcessingRow> {
     // There is no `error_message` on a stalled document — nothing failed, a run
     // stopped existing — so it needs copy of its own, saying the two things the
     // reader cannot see: that waiting will not help, and that Retry costs them
-    // nothing already spent. Mirrors web's STALLED_PROC_MSG verbatim.
-    const stalledMsg =
-        'Indexing stopped before it finished. Waiting will not help — Retry to start it again.';
+    // nothing already spent. Mirrors web's STALLED_PROC_MSG verbatim. The copy
+    // follows the status (5.3.0, ADR-161; ruled 2026-10-13): a `queued` run
+    // never started, so it has nothing to finish.
+    final stalledMsg = doc.status == DocumentStatus.queued
+        ? 'Indexing never started. Waiting will not help — Retry to start it.'
+        : 'Indexing stopped before it finished. Waiting will not help — Retry to start it again.';
     // web DEFAULT_PROC_ERROR, for a failed row the backend left unexplained.
     const defaultMsg =
         'No readable text was found. Retry, or remove this source.';
@@ -662,7 +669,8 @@ KitProcTone _stageTone(Document doc) {
     case DocumentStatus.complete:
       return KitProcTone.done;
     case DocumentStatus.queued:
-      return KitProcTone.wait;
+      // A run that never started is a stall, not a wait (5.3.0, ADR-161).
+      return doc.isStalled() ? KitProcTone.fail : KitProcTone.wait;
     case DocumentStatus.pendingUpload:
       return KitProcTone.work;
     case DocumentStatus.processing:
@@ -679,6 +687,9 @@ String _stageLabel(Document doc) {
     case DocumentStatus.pendingUpload:
       return 'Uploading';
     case DocumentStatus.queued:
+      // Checked BEFORE the Queued label: "Queued" on a run that will never
+      // start is the defect ADR-161 exists to end.
+      if (doc.isStalled()) return 'Stalled';
       return 'Queued';
     case DocumentStatus.processing:
       // Checked BEFORE the stage: a stage label on a run that ended is the

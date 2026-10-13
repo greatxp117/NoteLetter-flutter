@@ -111,13 +111,16 @@ class Document {
   /// neutrally, never as an error, and never render the raw token to a user.
   final String? processingStage;
 
-  /// 4.74.0 (ADR-108) — the moment this `processing` run stops being
-  /// believable, in epoch millis. Computed and stored by the BACKEND from its
-  /// own deploy deadlines, so no client carries a threshold and no client can
-  /// drift from the endpoint that referees the retry. Meaningful ONLY while
-  /// [status] is processing, cleared at every terminal write. `null` on every
-  /// pre-4.74.0 document and on every document that is not mid-pipeline, and
-  /// null is **not** stalled: absence is not evidence.
+  /// 4.74.0 (ADR-108) — the moment this run stops being believable, in epoch
+  /// millis. Computed and stored by the BACKEND from its own deploy deadlines,
+  /// so no client carries a threshold and no client can drift from the
+  /// endpoint that referees the retry. Meaningful ONLY while [status] is
+  /// `queued` (5.3.0, ADR-161: stamped 24 h out wherever a run token is
+  /// minted) or `processing` (the claim overwrites it with the extraction
+  /// deadline), cleared at every terminal write. `null` on every pre-4.74.0
+  /// document, on a `queued` row no task was enqueued for, and on every
+  /// document that is not mid-pipeline — and null is **not** stalled: absence
+  /// is not evidence.
   final int? processingStallsAt;
 
   /// 4.100.0 (ADR-135, INV-30) — when the reader dismissed this source from For
@@ -126,14 +129,23 @@ class Document {
   /// retry that fails again brings it back.
   final int? reviewDismissedAt;
 
-  /// Is this run past its own stall moment? One comparison, no threshold.
+  /// Is this run past its own stall moment? One comparison, no threshold:
+  /// `status ∈ {queued, processing} && now > processing_stalls_at`.
   ///
   /// `fn_chunk_and_embed` is Pub/Sub-triggered with no retry, so a run its host
   /// kills is simply gone and the document stays `processing` for ever. Drawn
   /// as a live spinner it is indistinguishable from work in progress — which is
-  /// what this answers. Pass [now] so one clock moves every row together.
+  /// what this answers. Since 5.3.0 (ADR-161) a run that never STARTED is the
+  /// same picture one state earlier: a task that fails before its claim writes
+  /// nothing, and the document stays `queued` for ever — so every enqueue that
+  /// mints a run token stamps a deadline 24 h out, and `queued` is judged by
+  /// it too. A `queued` with no stamp (a passage, a pre-5.3.0 row) is never
+  /// stalled. Pass [now] so one clock moves every row together.
   bool isStalled([DateTime? now]) {
-    if (status != DocumentStatus.processing) return false;
+    if (status != DocumentStatus.processing &&
+        status != DocumentStatus.queued) {
+      return false;
+    }
     final at = processingStallsAt;
     if (at == null) return false;
     return (now ?? DateTime.now()).millisecondsSinceEpoch > at;

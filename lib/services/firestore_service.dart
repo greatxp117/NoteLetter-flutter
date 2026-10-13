@@ -241,17 +241,19 @@ class FirestoreService {
             snap.docs.map((d) => ImportJob.fromJson(d.id, d.data())).toList());
   }
 
-  /// For your review's sources (4.100.0): `status in [error, skipped,
-  /// processing]`, newest first, limit [limit]. `processing` is read so a
-  /// stalled run can be seen crossing its threshold; a fresh one is not in the
-  /// needs-decision set.
+  /// For your review's sources (4.100.0): `status in [error, skipped, queued,
+  /// processing]`, newest first, limit [limit]. `queued` (5.3.0, ADR-161) and
+  /// `processing` are read so a stalled run — one that stopped, or one that
+  /// never started — can be seen crossing its threshold; a fresh one is not in
+  /// the needs-decision set.
   Stream<List<Document>> subscribeAttentionDocuments({int limit = 500}) {
     final uid = _uid;
     if (uid == null) return Stream.value(const []);
     return _db
         .collection('documents')
         .where('user_id', isEqualTo: uid)
-        .where('status', whereIn: const ['error', 'skipped', 'processing'])
+        .where('status',
+            whereIn: const ['error', 'skipped', 'queued', 'processing'])
         .orderBy('created_at', descending: true)
         .limit(limit)
         .snapshots()

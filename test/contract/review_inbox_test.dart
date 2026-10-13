@@ -68,6 +68,21 @@ void main() {
       expect(sourceNeedsReview(_doc('a', 'processing', stalls: _past), _now), isTrue);
       expect(sourceNeedsReview(_doc('b', 'error', dismissed: _past), _now), isFalse);
     });
+
+    // 5.3.0 (ADR-161): a run that never started is stalled too — `queued`
+    // past its own stored moment. Fresh, or with no stamp (a passage, a
+    // pre-5.3.0 row), it is waiting its turn and is not asked about.
+    test('a queued run past its deadline is in; fresh or unstamped is not', () {
+      expect(sourceNeedsReview(_doc('a', 'queued', stalls: _past), _now), isTrue);
+      expect(sourceNeedsReview(_doc('b', 'queued', stalls: _future), _now), isFalse);
+      expect(sourceNeedsReview(_doc('c', 'queued'), _now), isFalse,
+          reason: 'no token, no deadline — null is never stalled');
+      expect(_doc('d', 'queued', stalls: _past).isStalled(_now), isTrue);
+      for (final s in ['complete', 'error', 'skipped', 'pending_upload']) {
+        expect(_doc('e', s, stalls: _past).isStalled(_now), isFalse,
+            reason: '$s is not a run in flight');
+      }
+    });
   });
 
   group('tasks', () {
