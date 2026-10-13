@@ -355,8 +355,9 @@ void main() {
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true)));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Waiting'), findsWidgets);
-      expect(find.text('Queued'), findsOneWidget,
+      // The §6.3 pill draws its word in caps, as `.proc-pill` does (F-102).
+      expect(find.textContaining('WAITING'), findsWidgets);
+      expect(find.text('QUEUED'), findsOneWidget,
           reason: '`queued` fell to the default branch and read "Waiting"');
       // A terminal row from before this session lives in Import history.
       await tester.ensureVisible(find.text('Show 1'));
@@ -420,15 +421,16 @@ void main() {
           reason: 'the row reads the server sentence');
       expect(find.text('Retry'), findsNothing);
       expect(find.text('Import again'), findsNothing);
-      final control = find.widgetWithText(KitButton, 'Update from source');
+      // A `.set-link` on the import row (F-102), as the reference draws it.
+      final control = find.widgetWithText(KitSettingLink, 'Update from source');
       expect(control, findsOneWidget);
 
       await tester.ensureVisible(control);
       await tester.tap(control);
       await tester.pump();
       expect(find.text('Queuing…'), findsOneWidget);
-      expect(tester.widget<KitButton>(
-              find.widgetWithText(KitButton, 'Queuing…')).onPressed,
+      expect(tester.widget<KitSettingLink>(
+              find.widgetWithText(KitSettingLink, 'Queuing…')).onTap,
           isNull, reason: 'busy is not tappable twice');
       // The token read and Dio's interceptors are microtask hops away.
       for (var i = 0; i < 10 && held.sent.isEmpty; i++) {
@@ -476,7 +478,8 @@ void main() {
         await tester.ensureVisible(find.text('Show 1'));
         await tester.tap(find.text('Show 1'));
         await tester.pumpAndSettle();
-        final control = find.widgetWithText(KitButton, 'Update from source');
+        final control =
+            find.widgetWithText(KitSettingLink, 'Update from source');
         await tester.ensureVisible(control);
         await tester.tap(control);
         await tester.pumpAndSettle();
@@ -571,7 +574,7 @@ void main() {
         await tester.tap(find.text('Keep it as it is'));
         await tester.pumpAndSettle();
         expect(rec.sent, isEmpty);
-        expect(find.widgetWithText(KitButton, 'Update from source'),
+        expect(find.widgetWithText(KitSettingLink, 'Update from source'),
             findsOneWidget, reason: 'the control is given back');
       });
     });

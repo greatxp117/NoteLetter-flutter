@@ -164,6 +164,9 @@ Widget _app(Widget child) => MaterialApp(
 /// The KitButton whose whole label (suffix included) is [label].
 Finder _button(String label) => find.widgetWithText(KitButton, label);
 
+/// The same for a `.set-link` — an import job row's controls (F-102).
+Finder _link(String label) => find.widgetWithText(KitSettingLink, label);
+
 /// An organized folder's rescan — the reference's `.proc-cancel` icon control,
 /// its title `Rescan this folder` carrying the wait (`· m:ss`), F-90 (6).
 Finder _folderRescan([String suffix = '']) => find.byWidgetPredicate(
@@ -1064,17 +1067,17 @@ void main() {
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true)));
       await tester.pumpAndSettle();
-      final retry = _button('Retry');
+      final retry = _link('Retry');
       if (retry.evaluate().isEmpty) {
         await tester.ensureVisible(find.text('Show 1'));
         await tester.tap(find.text('Show 1'));
         await tester.pumpAndSettle();
       }
-      await tester.ensureVisible(_button('Retry'));
-      await tester.tap(_button('Retry'));
+      await tester.ensureVisible(_link('Retry'));
+      await tester.tap(_link('Retry'));
       await tester.pumpAndSettle();
 
-      expect(_button('Retry · 3:20'), findsOneWidget);
+      expect(_link('Retry · 3:20'), findsOneWidget);
       // Calm, where it was §14.2 until 4.108.0 (sources.md §Trust & feedback).
       expect(
           find.ancestor(

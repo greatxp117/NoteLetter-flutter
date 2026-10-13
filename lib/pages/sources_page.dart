@@ -916,7 +916,7 @@ class _FileRow extends StatelessWidget {
   }
 }
 
-// ── Import activity ──────────────────────────────────────────────────────────
+// ── Cloud imports ────────────────────────────────────────────────────────────
 
 class _ImportActivity extends StatelessWidget {
   /// The progress rows (`CloudNotifier.progressJobs`): every non-terminal job
@@ -962,7 +962,7 @@ class _ImportActivity extends StatelessWidget {
         children: [
           // No count: the figure is derived from a list nothing read, and
           // unread is not zero (§8, ADR-109).
-          const SectionHeader('Import activity'),
+          const SectionHeader('Cloud imports'),
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: KitFailureInline(error!),
@@ -975,9 +975,11 @@ class _ImportActivity extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SectionHeader(
+          // The reference's label (`CloudImportPanel`); this client said
+          // "Import activity" until F-102.
           error != null || jobs.isEmpty
-              ? 'Import activity'
-              : 'Import activity · ${jobs.length}',
+              ? 'Cloud imports'
+              : 'Cloud imports · ${jobs.length}',
           note: error != null ? null : summary,
         ),
         if (error != null)
@@ -1003,8 +1005,7 @@ class _ImportActivity extends StatelessWidget {
               ],
             ),
           ),
-        if (jobs.isNotEmpty)
-          KitRowList(rows: [for (final j in jobs) _JobRow(key: ValueKey(j.id), job: j)]),
+        if (jobs.isNotEmpty) _procList(jobs),
       ],
     );
   }
@@ -1024,6 +1025,25 @@ String? _progressSummary(CloudNotifier cloud) {
   return '$done of ${visible.length} imported'
       '${cloud.discovering ? ' so far — still discovering files' : ''}';
 }
+
+/// `.proc-list` of import job cards: 12 under its header, 10 apart.
+Widget _procList(List<ImportJob> jobs) => Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < jobs.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _JobRow(key: ValueKey(jobs[i].id), job: jobs[i]),
+          ],
+        ],
+      ),
+    );
+
+/// `.proc-note` — the italic serif 13 at `--fg-subtle` (KitProcNote's face).
+TextStyle _procNote(BuildContext context) =>
+    KitText.lede(context, fontSize: 13, height: 20)
+        .copyWith(color: Tokens.of(context).fgSubtle);
 
 /// **Import history** (`screens/sources.md` §Trust & feedback): collapsed,
 /// terminal jobs grouped by calendar day (`created_at`, client-local), the
@@ -1078,25 +1098,29 @@ class _ImportHistoryState extends State<_ImportHistory> {
         ),
         if (_open) ...[
           for (final e in byDay.entries) ...[
+            // A day: its date and its own counts, both `.proc-note` (the
+            // italic serif the section's other notes are), then its cards.
             Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 8),
+              padding: const EdgeInsets.only(top: 10),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
                   Expanded(
                     child: Text(
                       '${_months[e.key.month - 1]} ${e.key.day}, ${e.key.year}',
-                      style: KitText.meta(context),
+                      style: _procNote(context),
                     ),
                   ),
                   Flexible(
                     child: Text(_daySummary(e.value),
                         textAlign: TextAlign.right,
-                        style: KitText.meta(context)),
+                        style: _procNote(context)),
                   ),
                 ],
               ),
             ),
-            KitRowList(rows: [for (final j in e.value) _JobRow(key: ValueKey(j.id), job: j)]),
+            _procList(e.value),
           ],
           if (widget.windowFull)
             const KitProcNote('Showing the most recent 50 import jobs.'),
@@ -1199,101 +1223,106 @@ class _JobRowState extends State<_JobRow> {
     final t = Tokens.of(context);
     final job = widget.job;
     final (label, tone) = _status(job, t);
-
     final viewable = job.isDuplicate && job.documentId != null;
-    final row = KitSourceRow(
+    final provider = _providers[job.provider]?.name ?? job.provider;
+
+    // The reference's `ImportJobRow` (F-102): a `.proc-row` card — the File
+    // badge · the file name over `{mark} {provider} · {path}` · the controls
+    // and the §6.3 status pill — then the slots under it. It was a §4.1 source
+    // row with the status folded into its subtitle.
+    final card = KitProcCard(
       // The plate is the FILE's kind, from its MIME through the one kind
       // table. A hardcoded `web` plate said every imported PDF was a page.
-      leading: KitFileBadge(kitDocKind(job.docType)),
-      // A row with a control drops its controls under the title on a phone
-      // (F-45): two actions and the status glyph beside the name left it so
-      // little width that `taxes.pdf` broke as `taxes.pd` / `f`.
-      wideTrailing: viewable || job.canRetry || job.canUpdateFromSource,
+      kind: kitDocKind(job.docType),
       title: job.providerFileName.isEmpty
           ? '(fetching name…)'
           : job.providerFileName,
-      subtitle: [
-        label,
-        if (job.providerPath.isNotEmpty) job.providerPath,
-        // The failure reason is shown verbatim; a skipped job's reason is what
-        // makes a skip a fact rather than a shrug. Not for a duplicate or a
-        // dismissal: their `error_message` IS the status word above, and the
-        // row said it twice.
-        if (job.errorMessage != null && !job.isDuplicate && !job.isDismissed)
-          job.errorMessage!,
-      ].join(' · '),
-      // Wraps rather than overflows once it sits under the title, as the
-      // reference's strip does (`.proc-actions { flex-wrap: wrap }`).
-      trailing: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
+      subtitleLeading: KitProviderLogo(provider: job.provider, size: 12),
+      subtitle: job.providerPath.isEmpty
+          ? provider
+          : '$provider · ${job.providerPath}',
+      // `.set-link`s, as the reference's row draws them; held is its quiet
+      // tier (`.set-link:disabled`).
+      actions: [
+        if (viewable)
+          KitSettingLink('View',
+              icon: null,
+              onTap: () => context.go('/reader/${job.documentId}')),
+        // `canRetry` is the whole rule: error/cancelled retry, and of the
+        // skips only duplicate · dismissed · plan_limit import again. A
+        // size-cap skip would skip identically; a legacy skip is action-less.
+        if (job.canRetry)
+          KitSettingLink(
+              _busy
+                  ? 'Retrying…'
+                  : job.isImportAgain
+                      ? 'Import again'
+                      : 'Retry',
+              icon: null,
+              wait: _busy ? 0 : retryWait.left,
+              onTap: _busy ? null : _retry),
+        // A kept refresh (skipped · document_complete | document_unchanged,
+        // with its document): no Retry — it would mint a second document —
+        // and the sentence names this control.
+        if (job.canUpdateFromSource)
+          KitSettingLink(_updating ? 'Queuing…' : 'Update from source',
+              icon: null,
+              wait: _updating ? 0 : updateWait.left,
+              onTap: _updating ? null : _update),
+      ],
+      pill: KitProcPill(label, tone: tone),
+      failed: job.status == 'error',
+      foot: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (viewable)
-            KitButton.ghost('View',
-                onPressed: () => context.go('/reader/${job.documentId}')),
-          // `canRetry` is the whole rule: error/cancelled retry, and of the
-          // skips only duplicate · dismissed · plan_limit import again. A
-          // size-cap skip would skip identically; a legacy skip is action-less.
-          if (job.canRetry)
-            KitButton.ghost(
-                _busy
-                    ? 'Retrying…'
-                    : job.isImportAgain
-                        ? 'Import again'
-                        : 'Retry',
-                wait: _busy ? 0 : retryWait.left,
-                onPressed: _busy ? null : _retry),
-          // A kept refresh (skipped · document_complete | document_unchanged,
-          // with its document): no Retry — it would mint a second document —
-          // and the sentence names this control.
-          if (job.canUpdateFromSource)
-            KitButton.ghost(_updating ? 'Queuing…' : 'Update from source',
-                wait: _updating ? 0 : updateWait.left,
-                onPressed: _updating ? null : _update),
-          if (tone != null) ...[
-            const SizedBox(width: 4),
-            Icon(tone.$1, size: 16, color: tone.$2),
-          ],
+          // A failure's sentence, verbatim, in `.proc-error`'s strip.
+          if (job.status == 'error' && job.errorMessage != null)
+            KitProcAttention(detail: job.errorMessage!, actions: const []),
+          // A skip's reason is what makes a skip a fact rather than a shrug —
+          // calm, never failure-styled. Not for a duplicate or a dismissal:
+          // their `error_message` IS the pill's word.
+          if (job.status == 'skipped' &&
+              job.errorMessage != null &&
+              !job.isDuplicate &&
+              !job.isDismissed)
+            KitProcNote(job.errorMessage!,
+                padding: const EdgeInsets.only(bottom: 12)),
+          // Each control's one slot: its cooldown as the calm caption, the
+          // cap or any other refusal as §14.2 (sources.md §Trust & feedback,
+          // 4.108.0 — `retry_after_s` decides).
+          for (final w in [
+            ?kitRefusalSlot(retryWait, _retryError, dense: true),
+            ?kitRefusalSlot(updateWait, _updateError, dense: true),
+          ])
+            Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
         ],
       ),
     );
-    // Each control's one slot: its cooldown as the calm caption, the cap or
-    // any other refusal as §14.2 (sources.md §Trust & feedback, 4.108.0 —
-    // `retry_after_s` decides).
-    final slots = [
-      ?kitRefusalSlot(retryWait, _retryError, dense: true),
-      ?kitRefusalSlot(updateWait, _updateError, dense: true),
-    ];
-    if (slots.isEmpty) return row;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        row,
-        for (final w in slots)
-          Padding(
-            padding: const EdgeInsets.only(left: 18, right: 18, bottom: 12),
-            child: w,
-          ),
-      ],
-    );
+    // **A skipped or cancelled job is muted, never failure-styled** — a
+    // correct outcome, made visible rather than silent (the reference's
+    // `opacity: 0.55` on the row).
+    final muted = job.status == 'skipped' || job.status == 'cancelled';
+    return muted ? Opacity(opacity: 0.55, child: card) : card;
   }
 
-  /// The row's status word, and the icon that carries its tone. **A skipped job
-  /// is muted, never failure-styled** — it is a correct outcome, and the row
-  /// exists so that outcome is visible rather than silent.
-  (String, (IconData, Color)?) _status(ImportJob j, Tokens t) {
+  /// The pill's word and tone — the reference's `PILL` map, every member
+  /// named. **A skipped job is muted, never failure-styled** — it is a correct
+  /// outcome, and the row exists so that outcome is visible rather than
+  /// silent.
+  (String, KitProcTone) _status(ImportJob j, Tokens t) {
     switch (j.status) {
       // 4.45.0 (ADR-083) — **held, waiting on the user.** Attention styling,
       // never failure styling, and **never omitted**: a status the pill map
       // does not list drops the row out of the section entirely, which is how
       // a file waiting on a judgement becomes a file that silently is not
       // there. This client rendered six of nine and had no `awaiting_review`
-      // at all until now.
+      // at all until 4.45.0.
       case 'awaiting_review':
-        return ('Waiting for you', (Icons.pause_circle_outline, t.accentText));
+        return ('Needs you', KitProcTone.hold);
       case 'complete':
-        return ('Imported', (Icons.check_circle_outline, t.positive));
+        return ('Imported', KitProcTone.done);
       case 'error':
-        return ('Failed', (Icons.error_outline, t.criticalText));
+        return ('Error', KitProcTone.fail);
       case 'skipped':
         return (
           j.isDuplicate
@@ -1305,25 +1334,25 @@ class _JobRowState extends State<_JobRow> {
                   // covers `skipped`, so the control is there.
                   ? 'Dismissed — not imported'
                   : 'Skipped',
-          (Icons.remove_circle_outline, t.fgSubtle)
+          KitProcTone.wait
         );
       case 'cancelled':
-        return ('Cancelled', (Icons.remove_circle_outline, t.fgSubtle));
+        return ('Cancelled', KitProcTone.wait);
       // Named, not left to the default branch (`job_status_check` reported
       // both as MIRROR-GAP): `queued` read "Waiting" here and "Queued" on the
       // reference, and a status the switch never names is one nobody decided.
       case 'pending':
-        return ('Waiting', null);
+        return ('Waiting', KitProcTone.wait);
       case 'queued':
-        return ('Queued', null);
+        return ('Queued', KitProcTone.wait);
       case 'downloading':
-        return ('Downloading', null);
+        return ('Downloading', KitProcTone.work);
       case 'processing':
-        return ('Processing', null);
+        return ('Processing', KitProcTone.work);
       default:
         // A status this client does not know yet: the reference draws it as
         // `pending` does, and never as its raw token.
-        return ('Waiting', null);
+        return ('Waiting', KitProcTone.wait);
     }
   }
 }

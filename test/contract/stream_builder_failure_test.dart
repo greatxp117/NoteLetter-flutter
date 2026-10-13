@@ -164,11 +164,11 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(textLike('Import activity'), findsOneWidget,
+      expect(textLike('Cloud imports'), findsOneWidget,
           reason: 'the section vanished entirely, which reads as no imports');
       expect(find.textContaining('You appear to be offline'), findsOneWidget);
       // Unread is not zero (§8, ADR-109) — the label stays, the count goes.
-      expect(textLike('Import activity · '), findsNothing);
+      expect(textLike('Cloud imports · '), findsNothing);
     });
 
     testWidgets('and stays absent when there are genuinely no imports',
@@ -180,7 +180,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(textLike('Import activity'), findsNothing,
+      expect(textLike('Cloud imports'), findsNothing,
           reason: 'an absent section is the right answer to a real empty');
     });
 

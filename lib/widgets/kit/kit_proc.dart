@@ -73,6 +73,12 @@ class KitProcPill extends StatelessWidget {
 /// [foot] — the progress strip while working, the ruled attention strip when
 /// the row needs a person. Below the compact width the pill drops under the
 /// title, as web's does at 720.
+///
+/// An import job's row (F-102, web `ImportJobRow`) adds two parts: the
+/// [subtitleLeading] mark before the sub-line (`{mark} {provider} · {path}`,
+/// the vendor's own mark at 12) and [actions] — `.proc-actions`, the row's
+/// set-link controls ahead of the pill, 12 apart, wrapping under the title on a
+/// phone as the pill does.
 class KitProcCard extends StatelessWidget {
   final String kind;
 
@@ -80,7 +86,14 @@ class KitProcCard extends StatelessWidget {
   final Widget? mark;
   final String title;
   final String subtitle;
+
+  /// Drawn before [subtitle], 5 apart; keeps its size while the text
+  /// ellipsizes (`.proc-sub`'s mark, web `ProviderLogo` with `flexShrink: 0`).
+  final Widget? subtitleLeading;
   final Widget pill;
+
+  /// The controls ahead of [pill] (`.proc-actions`).
+  final List<Widget> actions;
   final Widget foot;
 
   /// A failed row's edge takes the accent chip border (`.proc-row.failed`).
@@ -95,12 +108,27 @@ class KitProcCard extends StatelessWidget {
     required this.foot,
     this.failed = false,
     this.mark,
+    this.subtitleLeading,
+    this.actions = const [],
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final sub = Text(subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTheme.mono(fontSize: 11, color: t.fgSubtle));
+    // `.proc-actions`: inline, 12 apart, the pill last; wraps on a phone.
+    final trailing = actions.isEmpty
+        ? pill
+        : Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [...actions, pill],
+          );
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -110,13 +138,17 @@ class KitProcCard extends StatelessWidget {
             style: AppTheme.serif(
                 fontSize: 15, fontWeight: FontWeight.w500, color: t.fg)),
         const SizedBox(height: 2),
-        Text(subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTheme.mono(fontSize: 11, color: t.fgSubtle)),
+        if (subtitleLeading == null)
+          sub
+        else
+          Row(children: [
+            subtitleLeading!,
+            const SizedBox(width: 5),
+            Flexible(child: sub),
+          ]),
         if (compact) ...[
           const SizedBox(height: 8),
-          pill,
+          trailing,
         ],
       ],
     );
@@ -144,7 +176,7 @@ class KitProcCard extends StatelessWidget {
                 Expanded(child: info),
                 if (!compact) ...[
                   const SizedBox(width: 14),
-                  pill,
+                  trailing,
                 ],
               ],
             ),
@@ -194,7 +226,9 @@ class KitProcActive extends StatelessWidget {
 
 /// `.proc-error`: a `--rule` above, the italic serif detail sentence, an
 /// optional §14.2 [failure], then the actions — trailing beside the sentence
-/// on a wide row, under it (right-aligned) below the compact width.
+/// on a wide row, under it (right-aligned) below the compact width. An import
+/// job's strip carries the sentence alone (its controls are the card's
+/// [KitProcCard.actions]): with no actions nothing is drawn for them.
 class KitProcAttention extends StatelessWidget {
   /// Null: the strip holds only its [failure] and actions (§22 — a proposal
   /// whose kind no renderer lists has no one-line summary to give).
@@ -235,7 +269,9 @@ class KitProcAttention extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.only(top: 12, bottom: 14),
       decoration: BoxDecoration(border: Border(top: BorderSide(color: t.rule))),
-      child: compact
+      child: actions.isEmpty
+          ? text
+          : compact
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

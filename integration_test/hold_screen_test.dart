@@ -934,6 +934,42 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // integration's `organization.last_manual_scan_at` to now first, as web
     // theme-shots does, and remove it after. This hold only presses Rescan
     // all and waits for the 409's countdown on the link.
+    // sources.md §Cloud import / §Trust & feedback (F-102) — web's
+    // `import-activity` and `import-activity-failed`: an import job's card,
+    // framed with its section at the top (the reference scrolls the header to
+    // 32px under whatever covers the page). The seed's own jobs, nothing
+    // written: `old-notes.pdf` waits in Cloud imports; Import history, opened,
+    // holds taxes.pdf imported, its duplicate (View · Import again) and
+    // report.docx failed ("download failed: 503 from provider").
+    case 'import-activity':
+    case 'import-activity-failed':
+      final failed = holdState == 'import-activity-failed';
+      final head = failed ? 'IMPORT HISTORY' : 'CLOUD IMPORTS';
+      final header = find.byWidgetPredicate((w) =>
+          w is Text && (w.data ?? '').toUpperCase().startsWith(head));
+      final row = find.text(failed ? 'report.docx' : 'old-notes.pdf');
+      for (var i = 0; i < 60 && header.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(header, findsWidgets,
+          reason: 'no $head section — the seed\'s import jobs did not load');
+      if (failed) {
+        final show = find.textContaining(RegExp(r'^Show \d+$'));
+        await tester.ensureVisible(show.first);
+        await settle();
+        await tester.tap(show.first);
+      }
+      for (var i = 0; i < 60 && row.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(row, findsWidgets, reason: 'the section drew no import card');
+      final el = tester.element(header.first);
+      await Scrollable.ensureVisible(el);
+      await settle();
+      final pos = Scrollable.of(el).position;
+      pos.jumpTo((pos.pixels - 32).clamp(0, pos.maxScrollExtent));
+      await settle();
+      return;
     case 'org-scan-wait':
       final rescan = find.textContaining(RegExp(r'^Rescan all'));
       for (var i = 0; i < 60; i++) {

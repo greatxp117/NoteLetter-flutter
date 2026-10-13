@@ -1815,18 +1815,19 @@ a new obligation on a finished screen is a new item.
   2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): sources, org-scan-wait, folder-contents, settings — the vendors' marks MATCH (the Drive mark in its colours in both headers; the white plates).
 
 ## F-102 · Sources — an import job row's sub-line names its provider, with the mark (web CloudImportPanel)
-- status: open
+- status: in-progress
 - screen: sources
 - route: /sources
-- spec: spec/screens/sources.md; spec/component-kit.md §4.1
-- web: src/pages/sources/CloudImportPanel.jsx
-- flutter: lib/pages/sources_page.dart
+- spec: spec/screens/sources.md §Cloud import; spec/screens/sources.md §Trust & feedback; spec/component-kit.md §4.1; spec/component-kit.md §6.3
+- web: src/pages/sources/CloudImportPanel.jsx; src/styles/app-sources-browse.css; src/shared/ProviderLogo.jsx
+- flutter: lib/pages/sources_page.dart; lib/widgets/kit/kit_proc.dart; integration_test/hold_screen_test.dart; test/contract/cloud_sync_tandem_test.dart; test/contract/cooldown_wait_test.dart; test/contract/stream_builder_failure_test.dart
 - folds: none — found beside F-101, 2026-10-12
 - device_test: none
-- shots: none
+- shots: import-activity; import-activity-failed
 - extra_gates: none
 - notes: Web's import-activity and history rows read `{ProviderLogo 12} {provider name} · {path}` under the file name, the status apart; this client's `_JobRow` reads `{status} · {path} · {reason}`. No pair frames an import row (the folder-contents frame is cropped to the picker on web), so the difference is read from the source, not a frame: frame it (a hold that scrolls to Import activity) before changing it.
   2026-10-12, read further: the difference is the whole row, not its sub-line. Web's import-activity and history row is a `.proc-row` card (FileBadge · the file name over `{mark} {provider} · {path}` · the controls and a status pill on the right; the job's error under it as `.proc-error`, a skip's reason as a `.proc-note`, each control's wait and refusal in its own slot); this client's `_JobRow` is a §4.1 source row with the status folded into its subtitle. Frame it first (a hold that scrolls to Import activity — the seed's `old-notes.pdf` job is waiting), then recompose on `KitProcCard`.
+  2026-10-13: web framed it (import-activity: Cloud imports with the seed's waiting old-notes.pdf; import-activity-failed: Import history opened — report.docx failed, taxes.pdf imported, its duplicate). Recomposed: `_JobRow` is a `KitProcCard` — the File badge (the MIME's kind) · the file name over `{mark} {provider} · {path}` (`KitProcCard.subtitleLeading`, the vendor mark at 12, new) · the controls as `.set-link`s (KitSettingLink: View · Retry/Import again · Update from source, each with its wait) ahead of the §6.3 pill (`KitProcCard.actions`, new; under the title on a phone) — then the failure's sentence in `.proc-error`'s strip (KitProcAttention with no actions now draws none), a skip's reason as `.proc-note`, each control's refusal slot; a failed card takes the failed edge; skipped/cancelled cards are muted at 0.55 as the reference's. The pill map is web's `PILL` (Needs you · Error, where this said Waiting for you · Failed; tones from `KitProcTone`). The section reads *Cloud imports* (was *Import activity*); `.proc-list` 10 apart; history's day line is `.proc-note`. Holds `import-activity` / `import-activity-failed` scroll the section's header to 32 under the bar, as the reference's shot does.
 
 ## F-103 · A held send or confirm — how it looks is not ruled (spec 0.5, web full on Ask and the picker, faded on Support)
 - status: in-progress
