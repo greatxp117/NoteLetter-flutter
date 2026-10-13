@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
+import '../../theme/app_spacing.dart';
 import '../../widgets/kit/kit_controls.dart' show KitKeyHint;
 import '../../widgets/kit/kit_text.dart';
 
@@ -372,8 +373,9 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
   /// `.rsvp-icon` — a 40px ring on `--surface`, the glyph at `--fg-muted`.
   Widget _restart(ReaderUi ui) {
     final enabled = _idx != 0;
+    // §6.1 Held — it was 0.4 (`.rsvp-icon:disabled`, ruled 2026-10-13).
     return Opacity(
-      opacity: enabled ? 1 : 0.4,
+      opacity: enabled ? 1 : AppSpacing.heldOpacity,
       child: Tooltip(
         message: 'Start over',
         child: Material(
@@ -470,7 +472,8 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
   Widget _stepper(
           ReaderUi ui, String glyph, String label, VoidCallback? onTap) =>
       Opacity(
-        opacity: onTap == null ? 0.4 : 1,
+        // §6.1 Held — it was 0.4 (`.rsvp-step:disabled`, ruled 2026-10-13).
+        opacity: onTap == null ? AppSpacing.heldOpacity : 1,
         child: Semantics(
           button: true,
           label: label,

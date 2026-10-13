@@ -8,6 +8,7 @@ import '../../shared/shelf_pick.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_failure.dart';
@@ -399,8 +400,10 @@ class _KitShelfSelectState extends State<KitShelfSelect>
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: enabled ? _toggle : null,
+              // §6.1 Held — it was 0.55 (`.shelf-select-trigger:disabled`,
+              // ruled 2026-10-13).
               child: Opacity(
-                opacity: enabled ? 1 : 0.55,
+                opacity: enabled ? 1 : AppSpacing.heldOpacity,
                 // Content-sized between 180 and the host's width, the value
                 // taking what is left and ellipsising (`.shelf-select-value
                 // { flex: 1 }`); a host that stretches it fills the line.
@@ -925,8 +928,9 @@ class _RoundTapState extends State<_RoundTap> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.enabled ? widget.onTap : null,
+        // §6.1 Held — it was 0.4 (ruled 2026-10-13).
         child: Opacity(
-          opacity: widget.enabled ? 1 : 0.4,
+          opacity: widget.enabled ? 1 : AppSpacing.heldOpacity,
           child: Container(
             width: widget.size,
             height: widget.size,
@@ -972,8 +976,9 @@ class _DashedTapState extends State<_DashedTap> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.enabled ? widget.onTap : null,
+        // §6.1 Held — it was 0.4 (ruled 2026-10-13).
         child: Opacity(
-          opacity: widget.enabled ? 1 : 0.4,
+          opacity: widget.enabled ? 1 : AppSpacing.heldOpacity,
           child: Container(
             height: 20,
             padding: const EdgeInsets.symmetric(horizontal: 8),

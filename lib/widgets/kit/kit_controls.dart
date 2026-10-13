@@ -1200,8 +1200,9 @@ class _KitFilterChipState extends State<KitFilterChip> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onPressed,
+        // §6.1 Held — it was 0.4 (`.browse-chip:disabled`, ruled 2026-10-13).
         child: Opacity(
-          opacity: disabled ? 0.4 : 1,
+          opacity: disabled ? AppSpacing.heldOpacity : 1,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             curve: Curves.easeOut,
@@ -1365,6 +1366,8 @@ Widget _segTrack(
   required ValueChanged<int>? onTap,
 }) {
   final t = Tokens.of(context);
+  final cursor =
+      onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click;
 
   Widget segment(int i) {
     final s = segments[i];
@@ -1377,7 +1380,7 @@ Widget _segTrack(
         label: s.label,
         excludeSemantics: true,
         child: MouseRegion(
-          cursor: SystemMouseCursors.click,
+          cursor: cursor,
           child: GestureDetector(
             onTap: onTap == null ? null : () => onTap(i),
             child: AnimatedContainer(
@@ -1398,7 +1401,7 @@ Widget _segTrack(
       );
     }
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: cursor,
       child: GestureDetector(
         onTap: onTap == null ? null : () => onTap(i),
         child: AnimatedContainer(
@@ -1443,6 +1446,13 @@ Widget _segTrack(
     );
   }
 
+  // §6.1 Held (ruled 2026-10-13): a track with no handler — its write in
+  // flight — is every segment at the token, the selected one included
+  // (`.seg button:disabled`). It drew at full strength until then.
+  Widget heldSegment(int i) => onTap == null
+      ? Opacity(opacity: AppSpacing.heldOpacity, child: segment(i))
+      : segment(i);
+
   final decoration = BoxDecoration(
     color: t.surfaceSunken,
     borderRadius: AppRadius.smR,
@@ -1456,7 +1466,7 @@ Widget _segTrack(
         children: [
           for (var i = 0; i < segments.length; i++) ...[
             if (i > 0) const SizedBox(width: _segGap),
-            segment(i),
+            heldSegment(i),
           ],
         ],
       ),
@@ -1483,7 +1493,7 @@ Widget _segTrack(
                 if (k > 0) const SizedBox(width: _segGap),
                 SizedBox(
                   width: lines[l][k].width,
-                  child: segment(lines[l][k].index),
+                  child: heldSegment(lines[l][k].index),
                 ),
               ],
             ]),
@@ -1600,47 +1610,55 @@ class KitSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // §6.1 Held (ruled 2026-10-13): no handler — its write in flight, or
+    // nothing it may change — is the whole switch at the token
+    // (`.switch.is-busy`). It drew exactly as a live switch until then.
+    final held = onChanged == null;
     return Semantics(
       toggled: value,
       label: tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onChanged == null ? null : () => onChanged!(!value),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            width: _w,
-            height: _h,
-            decoration: BoxDecoration(
-              color: value ? t.accent : t.surfaceSunken,
-              borderRadius: AppRadius.pillR(_h),
-              border: Border.all(
-                color: value ? const Color(0x00000000) : t.border,
+      enabled: !held,
+      child: Opacity(
+        opacity: held ? AppSpacing.heldOpacity : 1,
+        child: MouseRegion(
+          cursor: held ? SystemMouseCursors.basic : SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: held ? null : () => onChanged!(!value),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              width: _w,
+              height: _h,
+              decoration: BoxDecoration(
+                color: value ? t.accent : t.surfaceSunken,
+                borderRadius: AppRadius.pillR(_h),
+                border: Border.all(
+                  color: value ? const Color(0x00000000) : t.border,
+                ),
               ),
-            ),
-            child: Stack(
-              children: [
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  top: 2,
-                  left: value ? _w - _knob - 4 : 2,
-                  child: Container(
-                    width: _knob,
-                    height: _knob,
-                    decoration: const BoxDecoration(
-                      // literal-ok: a switch knob is white on both of its
-                      // grounds — the accent fill when on, --surface-sunken
-                      // when off — which is the control's convention, not a
-                      // surface that flips (`.switch i` on the web).
-                      color: Color(0xFFFFFFFF),
-                      shape: BoxShape.circle,
-                      boxShadow: AppShadows.s1,
+              child: Stack(
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    top: 2,
+                    left: value ? _w - _knob - 4 : 2,
+                    child: Container(
+                      width: _knob,
+                      height: _knob,
+                      decoration: const BoxDecoration(
+                        // literal-ok: a switch knob is white on both of its
+                        // grounds — the accent fill when on, --surface-sunken
+                        // when off — which is the control's convention, not a
+                        // surface that flips (`.switch i` on the web).
+                        color: Color(0xFFFFFFFF),
+                        shape: BoxShape.circle,
+                        boxShadow: AppShadows.s1,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -2191,23 +2209,28 @@ class KitStepper extends StatelessWidget {
       button: true,
       enabled: onTap != null,
       label: glyph == '+' ? 'Increase' : 'Decrease',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: AppRadius.controlR(32),
-            border: Border.all(color: t.border),
+      // §6.1 Held (ruled 2026-10-13) — the whole control at the token; it
+      // greyed only its glyph until then (`.stepper button:disabled`).
+      child: Opacity(
+        opacity: onTap == null ? AppSpacing.heldOpacity : 1,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: t.surface,
+              borderRadius: AppRadius.controlR(32),
+              border: Border.all(color: t.border),
+            ),
+            child: Text(glyph,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 16,
+                  color: t.fg,
+                )),
           ),
-          child: Text(glyph,
-              style: TextStyle(
-                fontFamily: AppTheme.fontSans,
-                fontSize: 16,
-                color: onTap == null ? t.fgSubtle : t.fg,
-              )),
         ),
       ),
     );
@@ -2295,7 +2318,7 @@ class KitSwatch extends StatelessWidget {
         child: GestureDetector(
           onTap: readOnly ? null : onTap,
           child: Opacity(
-            opacity: onTap == null && !readOnly ? 0.5 : 1,
+            opacity: onTap == null && !readOnly ? AppSpacing.heldOpacity : 1,
             // `.ss-swatch` is border-box: ONE 24 circle whatever its state —
             // the fill under a 2px border that is transparent at rest and
             // --fg when chosen, the --border hairline inset just inside it,

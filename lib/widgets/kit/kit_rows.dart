@@ -794,40 +794,39 @@ class _KitSettingLinkState extends State<KitSettingLink> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    // Held: waiting out a cooldown, or nothing to follow. The reference's
-    // `.set-link:disabled` — the quiet text tier with a neutral underline, a
-    // plain cursor and no hover. Still underlined, because it is still the
-    // control that acts at zero. The chevron is `currentColor` there, so it
-    // dims with the label.
+    // Held (§6.1, ruled 2026-10-13): waiting out a cooldown, or nothing to
+    // follow — the whole link at the token in its own colours, a plain cursor
+    // and no hover (`.set-link:disabled`). It had been the quiet text tier, a
+    // colour change no other control used. Still underlined, because it is
+    // still the control that acts at zero.
     final held = widget.wait > 0 || widget.onTap == null;
     final onTap = held ? null : widget.onTap;
-    final color = held
-        ? t.fgSubtle
-        : _hover
-            ? t.accentText
-            : t.fgMuted;
+    final color = _hover && !held ? t.accentText : t.fgMuted;
     return MouseRegion(
       cursor: held ? SystemMouseCursors.basic : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: onTap,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            kitWaitLabel(widget.label, widget.wait,
-                style: TextStyle(
-                  fontFamily: AppTheme.fontSans,
-                  fontSize: 13.5,
-                  color: color,
-                  decoration: TextDecoration.underline,
-                  decorationColor: held ? t.borderStrong : t.linkDecor,
-                )),
-            if (widget.icon != null) ...[
-              const SizedBox(width: 5),
-              Icon(widget.icon, size: 14, color: color),
+        child: Opacity(
+          opacity: held ? AppSpacing.heldOpacity : 1,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              kitWaitLabel(widget.label, widget.wait,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 13.5,
+                    color: color,
+                    decoration: TextDecoration.underline,
+                    decorationColor: t.linkDecor,
+                  )),
+              if (widget.icon != null) ...[
+                const SizedBox(width: 5),
+                Icon(widget.icon, size: 14, color: color),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

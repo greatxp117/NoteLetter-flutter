@@ -475,13 +475,14 @@ class _RailEntryActionButton extends StatelessWidget {
         child: InkWell(
           onTap: enabled ? action.onPressed : null,
           borderRadius: AppRadius.smR,
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: Icon(
-              action.icon,
-              size: 14,
-              color: enabled ? t.fgSubtle : t.fgSubtle.withValues(alpha: 0.4),
+          // §6.1 Held — the whole control at the token (ruled 2026-10-13);
+          // it faded only its glyph's colour, to 0.4, until then.
+          child: Opacity(
+            opacity: enabled ? 1 : AppSpacing.heldOpacity,
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: Icon(action.icon, size: 14, color: t.fgSubtle),
             ),
           ),
         ),

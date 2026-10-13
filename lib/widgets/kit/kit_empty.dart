@@ -144,6 +144,12 @@ class KitEmptyState extends StatelessWidget {
   bool get _movesOnly => suggestions.every(
       (w) => w is KitNumberedMove && !w.ruled && w.icon == null);
 
+  /// Study's offer — its numbered moves where the rows go (`.st-empty`). It
+  /// keeps its documented 28/34 title and 16/25 standfirst; every other §7
+  /// draws the kit's 28/1.1 and 16/24 (component-kit §7; ruled 2026-10-13:
+  /// the kit and web stand). This widget drew 34/25 everywhere until then.
+  bool get _studyForm => suggestions.isNotEmpty && _movesOnly;
+
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
@@ -188,7 +194,7 @@ class KitEmptyState extends StatelessWidget {
                       )
                     : AppTheme.serif(
                         fontSize: 28,
-                        height: 34 / 28,
+                        height: _studyForm ? 34 / 28 : 1.1,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.02 * 28,
                         color: t.fg,
@@ -201,7 +207,7 @@ class KitEmptyState extends StatelessWidget {
                   standfirst,
                   textAlign: TextAlign.center,
                   style: KitText.lede(context,
-                      fontSize: 16, height: quiet ? 24 : 25),
+                      fontSize: 16, height: _studyForm ? 25 : 24),
                 ),
               ),
               if (suggestions.isNotEmpty && _movesOnly) ...[
