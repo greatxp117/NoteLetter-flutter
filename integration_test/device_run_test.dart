@@ -880,18 +880,46 @@ void main() {
       reason: 'the sort control is a segmented control (§6.8), not a menu',
     );
 
-    // Either there are volumes, and they are §4.1 rows — never a table — or
-    // the library is empty and the offer leads.
-    final rows = find.byType(KitSourceRow).evaluate().isNotEmpty;
-    if (rows) {
+    // Either the library is empty and the offer leads, or there are volumes,
+    // drawn in the view the reader chose — never a table. The view is kept
+    // per device (`nl-sources-view`) and is the §21 shelf when none is stored
+    // (F-65), so this reads the view it finds instead of assuming the list:
+    // on a device with nothing stored the run found neither a row nor an
+    // empty state and failed on a correct screen (2026-10-13). The list is
+    // then reached through the toggle itself, and the view put back.
+    if (find.byType(KitEmptyState).evaluate().isNotEmpty) {
+      expect(find.byType(KitEmptyState), findsOneWidget);
+    } else {
+      final stored = LocalFlags.sourcesView.value;
+      expect(
+        find.byType(switch (stored) {
+          'shelf' => KitShelfView,
+          'cards' => KitSourceCardGrid,
+          _ => KitRowList,
+        }),
+        findsWidgets,
+        reason: 'the volumes are drawn in the stored view ($stored)',
+      );
+      final toList = find.descendant(
+        of: find.byType(KitControlBar),
+        matching: find.bySemanticsLabel('List view'),
+      );
+      await tester.ensureVisible(toList);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(toList);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(LocalFlags.sourcesView.value, 'list');
+      expect(find.byType(KitSourceRow), findsWidgets);
       expect(find.byType(KitRowList), findsWidgets);
       expect(
         find.byType(DataTable),
         findsNothing,
         reason: 'the volume list is the row list; there is no table pattern',
       );
-    } else {
-      expect(find.byType(KitEmptyState), findsOneWidget);
+      await LocalFlags.setView(LocalFlags.sourcesView, stored);
+      await tester.pump(const Duration(milliseconds: 200));
     }
 
     // ── F-13 ────────────────────────────────────────────────────────────
