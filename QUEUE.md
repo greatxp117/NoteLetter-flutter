@@ -1829,17 +1829,18 @@ a new obligation on a finished screen is a new item.
   2026-10-12, read further: the difference is the whole row, not its sub-line. Web's import-activity and history row is a `.proc-row` card (FileBadge · the file name over `{mark} {provider} · {path}` · the controls and a status pill on the right; the job's error under it as `.proc-error`, a skip's reason as a `.proc-note`, each control's wait and refusal in its own slot); this client's `_JobRow` is a §4.1 source row with the status folded into its subtitle. Frame it first (a hold that scrolls to Import activity — the seed's `old-notes.pdf` job is waiting), then recompose on `KitProcCard`.
 
 ## F-103 · A held send or confirm — how it looks is not ruled (spec 0.5, web full on Ask and the picker, faded on Support)
-- status: blocked: XAVIER: the held look of a send/confirm control is not ruled — component-kit §6.1 says 0.5 opacity; web draws Ask's send and the picker's Import N items at full strength while held (no :disabled rule), and Support's send faded; this client fades every held control (0.45)
+- status: in-progress
 - screen: ask
 - route: /ask
-- spec: spec/component-kit.md §6.1; spec/screens/ask.md; spec/screens/sources.md
-- web: src/styles/app-kit.css; src/pages/AskView.jsx; src/pages/sources/CloudFilePicker.jsx
-- flutter: lib/widgets/kit/kit_composer.dart; lib/widgets/kit/kit_controls.dart
-- folds: none — read off the 2026-10-12 pairs
+- spec: spec/component-kit.md §6.1; spec/decisions/ADR-145-a-wait-looks-like-a-wait.md; spec/screens/ask.md; spec/screens/sources.md
+- web: src/styles/app-kit.css; src/styles/app-support.css; src/styles/signin.css; src/shared/AuthModal.jsx; src/pages/AskView.jsx; src/pages/sources/CloudFilePicker.jsx; src/pages/sources/SyncSettingsPanel.jsx; src/pages/sources/OrganizationPanel.jsx; src/pages/reader/ReorganizeSheet.jsx; src/pages/study/ProgramEditor.jsx
+- flutter: lib/widgets/kit/kit_composer.dart; lib/widgets/kit/kit_cards.dart; lib/site/site_sheet.dart; lib/site/auth_modal.dart; lib/pages/sources/sync_settings_panel.dart; lib/pages/sources/organization_settings_panel.dart; lib/pages/reader/reorganize_sheet.dart; lib/pages/study/program_editor.dart; test/kit/held_button_test.dart; test/contract/cloud_sync_tandem_test.dart
+- folds: none — read off the 2026-10-12 pairs; ruled 2026-10-13 (TODO "RULED 2026-10-13: the spec stands")
 - device_test: none
-- shots: ask; ask-thread; ask-rail; ask-turn-failed; folder-contents
+- shots: ask; ask-thread; ask-rail; ask-turn-failed; folder-contents; support; org-scan-wait
 - extra_gates: none
 - notes: Seen on every Ask pair (the empty composer's send) and the folder-contents pair (Import 0 items with nothing chosen): web draws the held control at full strength, this client at 0.45, as both draw Support's held send. A spec-vs-web disagreement, not adjudicated here (flutter-next §6): rule which look a held send/confirm has, then the clients follow.
+  2026-10-13: RULED — the spec stands (ADR-145 §4: every held control at `--held-opacity`, 0.5); web dims Ask's send and the picker's Import and swept its other held controls to the token (web lane, same day). Read before building: the picker's Import and Cancel were already KitButtons at the token; the 0.45 was the composer's send alone (Ask AND Support), which also drew full strength while busy. Every place that was not the token, matched to the web site that moved: the send (0.45 → token, busy held — web disables it in flight); sign-in's submit, ghost and text link and the sign-up modal's Google row and submit (0.6 → token, as signin.css / AuthModal); the connect card (no held look → token, `.connect-card:disabled`); an organized folder's Rescan while scanning or waiting (none → token, `.proc-cancel:disabled`); the sync settings panel while it saves (0.6 → token; web's is 0.5); and the Material FilledButton/OutlinedButton/TextButton held in Material's own disabled grey where web draws `.btn`/`.proc-retry` — the reorganize sheet (Run again · Analyze again · Close · Yes, reorganize · Go back · Reorganize N · Cancel) and the program editor (Save/Create · Start a new unit · Detach · Read this syllabus) are KitButtons now. Left as web leaves them (not §6.1, each web's own figure): filter chip 0.4 (`.browse-chip`), shelf select 0.55 / shelf chip controls 0.4, speed read 0.4, swatch 0.5. held_button_test holds the send, the card and the three sign-in controls to the token.
 
 ## F-104 · Search — the explainer's Source-priority row reads default while unset (4.118.0 tandem, ADR-155)
 - status: done 2026-10-12

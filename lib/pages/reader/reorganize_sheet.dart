@@ -7,6 +7,7 @@ import 'reader_ui.dart';
 import '../sources/cloud_sync_copy.dart'
     show operationOutcome, destinationLabel;
 import '../../theme/app_radius.dart';
+import '../../widgets/kit/kit_controls.dart';
 import '../../widgets/kit/kit_failure.dart';
 import '../../widgets/kit/kit_text.dart';
 
@@ -236,13 +237,13 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
                     const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerLeft,
+                      // §6.1 controls, held at the token (F-103): web's
+                      // `.proc-retry`. Material's FilledButton drew a held
+                      // control in its own disabled grey.
                       child: widget.stored != null
-                          ? FilledButton(
-                              onPressed: _rerun,
-                              child: const Text('Run again'))
-                          : FilledButton(
-                              onPressed: _reanalyze,
-                              child: const Text('Analyze again')),
+                          ? KitButton.primary('Run again', onPressed: _rerun)
+                          : KitButton.primary('Analyze again',
+                              onPressed: _reanalyze),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -286,10 +287,8 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
         if (_error == null) const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
-          child: FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
+          child: KitButton.primary('Close',
+              onPressed: () => Navigator.of(context).pop()),
         ),
       ]),
     );
@@ -318,30 +317,28 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
             ),
             const SizedBox(height: 12),
             Row(children: [
-              FilledButton(
-                  onPressed: _execute, child: const Text('Yes, reorganize')),
+              KitButton.danger('Yes, reorganize', onPressed: _execute),
               const SizedBox(width: 8),
-              TextButton(
-                  onPressed: () => setState(() => _confirming = false),
-                  child: const Text('Go back')),
+              KitButton.ghost('Go back',
+                  onPressed: () => setState(() => _confirming = false)),
             ]),
           ]),
         )
       else
         Row(children: [
-          FilledButton(
+          // web `.btn-secondary`; held at the token while nothing is chosen
+          // or the plan is stale.
+          KitButton.secondary(
+            'Reorganize ${_ops.length} section${_ops.length == 1 ? '' : 's'}',
             onPressed: _ops.isEmpty || _stale != null
                 ? null
                 : () => _hasSplit
                     ? setState(() => _confirming = true)
                     : _execute(),
-            child: Text(
-                'Reorganize ${_ops.length} section${_ops.length == 1 ? '' : 's'}'),
           ),
           const SizedBox(width: 8),
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel')),
+          KitButton.ghost('Cancel',
+              onPressed: () => Navigator.of(context).pop()),
         ]),
     ]);
   }

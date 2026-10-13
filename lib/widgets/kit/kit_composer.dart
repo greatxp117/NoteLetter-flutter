@@ -234,11 +234,15 @@ class _SendControl extends StatelessWidget {
         cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         child: GestureDetector(
           onTap: enabled ? onSend : null,
-          // Disabled is the SAME control at 0.45 (`.sup-send:disabled`), not
-          // a different, grey one: a grey disc read as a secondary button,
-          // and the reference's send is accent whether or not it can fire.
+          // Held is the SAME control at `--held-opacity` (component-kit §6.1
+          // State — Held; ruled again 2026-10-13, F-103), not a different,
+          // grey one: a grey disc read as a secondary button, and the
+          // reference's send is accent whether or not it can fire. Empty,
+          // waiting AND busy are held — the reference disables its send while
+          // a turn is in flight. It was 0.45 (`.sup-send`'s old figure) and
+          // full strength while busy.
           child: Opacity(
-            opacity: enabled || busy ? 1 : 0.45,
+            opacity: enabled ? 1 : AppSpacing.heldOpacity,
             child: Container(
               width: 38,
               height: 38,

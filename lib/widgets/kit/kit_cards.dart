@@ -110,58 +110,65 @@ class KitConnectCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return KitCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              // The kit's one sanctioned raw colour: the iconbox is a plate
-              // holding a VENDOR's mark, and vendor artwork is tuned for light
-              // surfaces. A `--surface` fill flips near-black in dark mode and
-              // swallows half of them (component-kit.md §5.1).
-              // literal-ok: a vendor brand-mark plate, fixed white in both
-              // themes — the same class as `.connect-card .iconbox` on the web
-              color: const Color(0xFFFFFFFF),
-              borderRadius: AppRadius.smR,
-              border: Border.all(color: t.border),
+    // §6.1 State — Held: while its own request runs the card is the whole
+    // control at `--held-opacity` (`.connect-card:disabled`, ruled again
+    // 2026-10-13, F-103). It drew at full strength here, so a card that
+    // refused the press still invited it.
+    return Opacity(
+      opacity: onTap == null ? AppSpacing.heldOpacity : 1,
+      child: KitCard(
+        onTap: onTap,
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                // The kit's one sanctioned raw colour: the iconbox is a plate
+                // holding a VENDOR's mark, and vendor artwork is tuned for light
+                // surfaces. A `--surface` fill flips near-black in dark mode and
+                // swallows half of them (component-kit.md §5.1).
+                // literal-ok: a vendor brand-mark plate, fixed white in both
+                // themes — the same class as `.connect-card .iconbox` on the web
+                color: const Color(0xFFFFFFFF),
+                borderRadius: AppRadius.smR,
+                border: Border.all(color: t.border),
+              ),
+              // The vendor's own mark at 22 (`ProviderLogo size={22}`, F-101).
+              child: KitGlyph(icon, size: 22, color: AppColors.chrome),
             ),
-            // The vendor's own mark at 22 (`ProviderLogo size={22}`, F-101).
-            child: KitGlyph(icon, size: 22, color: AppColors.chrome),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: AppTheme.fontSans,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: t.fg,
+            const SizedBox(height: 10),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: t.fg,
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: AppTheme.fontSans,
-              fontSize: 12,
-              height: 1.35,
-              color: t.fgMuted,
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 12,
+                height: 1.35,
+                color: t.fgMuted,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          KitStatusPill(status, positive: connected),
-        ],
+            const SizedBox(height: 10),
+            KitStatusPill(status, positive: connected),
+          ],
+        ),
       ),
     );
   }

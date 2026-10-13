@@ -716,7 +716,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
       expect(analyzed, 1);
-      await tester.tap(find.widgetWithText(FilledButton, 'Reorganize 1 section'));
+      await tester.tap(find.widgetWithText(KitButton, 'Reorganize 1 section'));
       await tester.pumpAndSettle();
       // The default mode is split, so the destructive confirm comes first.
       await tester.tap(find.text('Yes, reorganize'));
@@ -724,8 +724,8 @@ void main() {
 
       expect(find.textContaining('changed after the plan was made'),
           findsOneWidget);
-      final stale = tester.widget<FilledButton>(
-          find.widgetWithText(FilledButton, 'Reorganize 1 section'));
+      final stale = tester.widget<KitButton>(
+          find.widgetWithText(KitButton, 'Reorganize 1 section'));
       expect(stale.onPressed, isNull,
           reason: 'the stale plan could only 409 again');
       await tester.tap(find.text('Analyze again'));

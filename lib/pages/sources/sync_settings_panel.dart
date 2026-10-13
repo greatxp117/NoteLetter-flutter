@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/cloud_integration.dart';
 import '../../state/cloud_notifier.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'folder_contents.dart' show cloudTypeLabel;
@@ -254,7 +255,9 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
             AbsorbPointer(
               absorbing: _saving,
               child: Opacity(
-                opacity: _saving ? 0.6 : 1,
+                // Held while the save runs, at the token (web's panel is
+                // 0.5; this was 0.6).
+                opacity: _saving ? AppSpacing.heldOpacity : 1,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

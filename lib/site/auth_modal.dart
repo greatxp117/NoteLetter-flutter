@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../state/pending_letter_setup.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_shadows.dart';
+import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit_failure.dart';
@@ -532,8 +533,9 @@ class _GoogleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // §6.1 State — Held: the token (it was 0.6, as the modal's was).
     return Opacity(
-      opacity: onPressed == null ? 0.6 : 1,
+      opacity: onPressed == null ? AppSpacing.heldOpacity : 1,
       child: Material(
         color: t.surface,
         shape: RoundedRectangleBorder(
@@ -805,8 +807,9 @@ class _Submit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // §6.1 State — Held: the token (it was 0.6, as the modal's was).
     return Opacity(
-      opacity: onPressed == null ? 0.6 : 1,
+      opacity: onPressed == null ? AppSpacing.heldOpacity : 1,
       child: Material(
         color: t.fg,
         borderRadius: AppRadius.smR,

@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flutter_app/site/site_sheet.dart';
 import 'package:flutter_app/theme/app_spacing.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
@@ -61,4 +62,84 @@ void main() {
           reason: 'waiting out a cooldown — "· 0:42" on a held control');
     });
   }
+
+  // Ruled again 2026-10-13 (F-103): EVERY held control at the token, not only
+  // KitButton. The send drew 0.45 (`.sup-send`'s old figure) and full strength
+  // while busy; the sign-in and sign-up controls 0.6; the connect card and the
+  // sync settings panel no token at all. Each is the one figure now.
+  group('every held control, not only KitButton', () {
+    double opacityIn(WidgetTester tester, Finder of) => tester
+        .widget<Opacity>(
+            find.descendant(of: of, matching: find.byType(Opacity)).first)
+        .opacity;
+
+    testWidgets('the composer send: live full, empty / waiting / busy held',
+        (tester) async {
+      final c = TextEditingController();
+      addTearDown(c.dispose);
+      Future<void> dock({VoidCallback? onSend, bool busy = false, int wait = 0}) =>
+          tester.pumpWidget(_app(SizedBox(
+            width: 600,
+            child: KitComposerDock(
+                controller: c,
+                placeholder: 'Ask',
+                onSend: onSend,
+                busy: busy,
+                waitLeft: wait),
+          )));
+      // The send is the one Opacity under the arrow / spinner.
+      double send() => tester
+          .widget<Opacity>(find
+              .ancestor(
+                  of: find.byWidgetPredicate((w) =>
+                      (w is Icon && w.icon == Icons.arrow_forward) ||
+                      w is CircularProgressIndicator),
+                  matching: find.byType(Opacity))
+              .first)
+          .opacity;
+
+      await dock(onSend: () {});
+      expect(send(), 1);
+      await dock();
+      expect(send(), AppSpacing.heldOpacity, reason: 'nothing to send');
+      await dock(onSend: () {}, wait: 9);
+      expect(send(), AppSpacing.heldOpacity, reason: 'waiting out a cooldown');
+      await dock(onSend: () {}, busy: true);
+      expect(send(), AppSpacing.heldOpacity,
+          reason: 'busy is held — the reference disables its send in flight');
+    });
+
+    testWidgets('a connect card held while its own request runs', (tester) async {
+      Widget card(VoidCallback? onTap) => SizedBox(
+          width: 240,
+          child: KitConnectCard(
+              icon: Icons.cloud,
+              title: 'Google Drive',
+              subtitle: 'Connect',
+              status: 'Not connected',
+              onTap: onTap));
+      await tester.pumpWidget(_app(card(() {})));
+      expect(opacityIn(tester, find.byType(KitConnectCard)), 1);
+      await tester.pumpWidget(_app(card(null)));
+      expect(opacityIn(tester, find.byType(KitConnectCard)),
+          AppSpacing.heldOpacity);
+    });
+
+    testWidgets('sign-in: submit, ghost and the text link held at the token',
+        (tester) async {
+      final style = AppTheme.light.textTheme.bodyMedium!;
+      for (final (name, make) in <(String, Widget Function(VoidCallback?))>[
+        ('SiteSubmit', (f) => SiteSubmit('Open the library', onPressed: f)),
+        ('SiteGhost', (f) => SiteGhost('Continue with Google', onPressed: f)),
+        ('SiteTextButton', (f) => SiteTextButton('Forgot it?', style: style, onTap: f)),
+      ]) {
+        await tester.pumpWidget(_app(SizedBox(width: 320, child: make(() {}))));
+        expect(opacityIn(tester, find.byType(SizedBox).first), 1, reason: name);
+        await tester.pumpWidget(_app(SizedBox(width: 320, child: make(null))));
+        expect(opacityIn(tester, find.byType(SizedBox).first),
+            AppSpacing.heldOpacity,
+            reason: '$name held');
+      }
+    });
+  });
 }

@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
 import '../theme/app_shadows.dart';
+import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit_ground.dart';
@@ -206,8 +207,9 @@ class SiteTextButton extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
+        // §6.1 State — Held: the token (it was 0.6, as `.si-forgot`'s was).
         child: Opacity(
-          opacity: onTap == null ? 0.6 : 1,
+          opacity: onTap == null ? AppSpacing.heldOpacity : 1,
           child: Text(label, style: style),
         ),
       ),
@@ -331,8 +333,9 @@ class SiteSubmit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // §6.1 State — Held: the token (it was 0.6, as signin.css's was).
     return Opacity(
-      opacity: onPressed == null ? 0.6 : 1,
+      opacity: onPressed == null ? AppSpacing.heldOpacity : 1,
       child: Material(
         color: t.accent,
         borderRadius: AppRadius.smR,
@@ -373,8 +376,9 @@ class SiteGhost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // §6.1 State — Held: the token (it was 0.6, as signin.css's was).
     return Opacity(
-      opacity: onPressed == null ? 0.6 : 1,
+      opacity: onPressed == null ? AppSpacing.heldOpacity : 1,
       child: Material(
         color: t.surfaceRaised,
         shape: RoundedRectangleBorder(

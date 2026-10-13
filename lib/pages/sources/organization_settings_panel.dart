@@ -5,6 +5,7 @@ import '../../services/firestore_service.dart';
 import '../../shared/cooldown.dart';
 import '../../state/cloud_notifier.dart';
 import '../../state/org_notifier.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import '../../services/error_text.dart';
@@ -377,13 +378,21 @@ class _FolderRowState extends State<_FolderRow> {
           if (!inactive)
             KitWait(
               waitKey: WaitKey.orgScan(f.provider),
-              builder: (context, wait) => KitIconButton(
-                Icons.refresh,
-                tooltip: 'Rescan this folder${waitSuffix(wait.left)}',
-                onPressed: widget.scanning || wait.left > 0
-                    ? null
-                    : widget.onRescan,
-              ),
+              // §6.1 State — Held: scanning or waiting, the control at
+              // `--held-opacity` (web's `.proc-cancel:disabled`, ruled again
+              // 2026-10-13, F-103). §6.5's icon button has no held look of
+              // its own, so the hold is drawn here, where the wait is.
+              builder: (context, wait) {
+                final held = widget.scanning || wait.left > 0;
+                return Opacity(
+                  opacity: held ? AppSpacing.heldOpacity : 1,
+                  child: KitIconButton(
+                    Icons.refresh,
+                    tooltip: 'Rescan this folder${waitSuffix(wait.left)}',
+                    onPressed: held ? null : widget.onRescan,
+                  ),
+                );
+              },
             ),
         ],
         below: below,

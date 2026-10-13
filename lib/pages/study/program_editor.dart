@@ -202,11 +202,14 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
 
               _schedule(theme, muted),
               const SizedBox(height: 18),
-              FilledButton(
-                onPressed: _saving ? null : _save,
-                child: Text(_saving
-                    ? 'Saving…'
-                    : (_isNew ? 'Create program' : 'Save')),
+              // §6.1, held at the token while it saves (F-103; web
+              // `.btn-primary`). A Material FilledButton held in its own grey.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: KitButton.primary(
+                  _saving ? 'Saving…' : (_isNew ? 'Create program' : 'Save'),
+                  onPressed: _saving ? null : _save,
+                ),
               ),
               if (_saveError != null)
                 Padding(
@@ -468,10 +471,8 @@ class _UnitPanelState extends State<UnitPanel> {
             ),
           ),
         const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: _busy ? null : _advance,
-          child: Text(_busy ? 'Starting…' : 'Start a new unit'),
-        ),
+        KitButton.primary(_busy ? 'Starting…' : 'Start a new unit',
+            onPressed: _busy ? null : _advance),
       ],
     );
   }
@@ -571,7 +572,8 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
               '${attached.assessments.length} assessments',
               style: theme.textTheme.bodySmall?.copyWith(color: muted)),
           const SizedBox(height: 8),
-          OutlinedButton(
+          KitButton.ghost(
+            'Detach — keeps every passage and all progress',
             onPressed: _busy
                 ? null
                 : () async {
@@ -583,7 +585,6 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
                       if (mounted) setState(() => _busy = false);
                     }
                   },
-            child: const Text('Detach — keeps every passage and all progress'),
           ),
         ] else if (_requested)
           Text(
@@ -607,10 +608,8 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
             onChanged: (v) => setState(() => _sourceId = v),
           ),
           const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: (_busy || _sourceId == null) ? null : _suggest,
-            child: Text(_busy ? 'Asking…' : 'Read this syllabus'),
-          ),
+          KitButton.primary(_busy ? 'Asking…' : 'Read this syllabus',
+              onPressed: (_busy || _sourceId == null) ? null : _suggest),
         ],
       ],
     );
