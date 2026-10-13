@@ -526,8 +526,11 @@ class _ProcessingRowState extends State<ProcessingRow> {
     final title = doc.title.isEmpty ? 'Untitled' : doc.title;
     // reader.md §Supersession confirm names "retry of an errored doc": it
     // re-derives the document, and an errored document CAN hold both facts —
-    // one that failed a RE-extraction keeps its passages, and a study program
-    // that took it in while complete still lists it. So both primaries run
+    // one whose edit failed to re-embed keeps its passages (a `docHtml`
+    // reindex retires the old set only once the new one is embedded; any
+    // other re-entry retires them and nulls the counts as it claims, 5.4.0,
+    // ADR-162), and a study program that took it in while complete still
+    // lists it. So both primaries run
     // through the supersession confirm (web 71987f6): it asks when a passage
     // was edited or the document is in a program, or either could not be
     // checked, and sends straight through on two definite noes. Inside the
