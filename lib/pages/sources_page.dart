@@ -1105,14 +1105,16 @@ class _ImportHistoryState extends State<_ImportHistory> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
+                // The date at its own width and the counts in the rest, right
+                // aligned: halving the row wrapped "1 skipped" onto a second
+                // line where the reference's `space-between` fits one.
                 children: [
-                  Expanded(
-                    child: Text(
-                      '${_months[e.key.month - 1]} ${e.key.day}, ${e.key.year}',
-                      style: _procNote(context),
-                    ),
+                  Text(
+                    '${_months[e.key.month - 1]} ${e.key.day}, ${e.key.year}',
+                    style: _procNote(context),
                   ),
-                  Flexible(
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Text(_daySummary(e.value),
                         textAlign: TextAlign.right,
                         style: _procNote(context)),

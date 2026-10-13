@@ -551,7 +551,10 @@ void main() {
       'History',
       'Summary',
     ]) {
-      final tab = find.text(label);
+      // Offstage-inclusive: since the Priority row (F-99) the opening is
+      // taller than a phone's viewport, so the sticky rail starts below it and
+      // a default finder skips it. ensureVisible below brings it on.
+      final tab = find.text(label, skipOffstage: false);
       if (tab.evaluate().isEmpty) {
         fail('the reader draws no "$label" jump — reader.md §Continuous scroll '
             'lists six sections and this run found five');
@@ -733,7 +736,9 @@ void main() {
     // starts off-screen, so a bare tap lands on nothing, warns, and leaves the
     // Summary panel on screen. Ensure it is visible first, exactly as the
     // every-panel run does.
-    await tester.ensureVisible(find.text('Original'));
+    // Offstage-inclusive for the same reason: the rail starts below the
+    // opening since the Priority row (F-99).
+    await tester.ensureVisible(find.text('Original', skipOffstage: false));
     await tester.pump();
     await tester.tap(find.text('Original'), warnIfMissed: false);
     await pumpFor(tester, total: const Duration(seconds: 4));

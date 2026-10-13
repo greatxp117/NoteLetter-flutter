@@ -406,8 +406,12 @@ class SectionHeader extends StatelessWidget {
         textBaseline: TextBaseline.alphabetic,
         children: [
           Expanded(child: Eyebrow(eyebrow)),
+          // Expanded, not Flexible: the reference's `space-between` puts the
+          // note at the row's END. A loose Flexible shrank a one-line note to
+          // its text and left it mid-row ("0 of 1 imported", F-102's pair);
+          // only a note long enough to wrap ever reached the edge.
           if (note != null)
-            Flexible(
+            Expanded(
               child: Text(
                 note!,
                 textAlign: TextAlign.right,

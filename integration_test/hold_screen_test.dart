@@ -214,6 +214,24 @@ Future<void> leaveState(WidgetTester tester, String holdState) async {
   }
 }
 
+/// Bring a §19 rail jump on screen. Since the reader's Priority row (F-99)
+/// the opening is taller than a phone's viewport, so the sticky rail starts
+/// BELOW it — and a finder skips a sliver outside the viewport, so `find.text`
+/// saw no jump at all ("No element", the 2026-10-13 batch). Found offstage,
+/// then revealed by the WHOLE jump, not its label: the rail scrolls sideways,
+/// and revealing the Text put the label at the rail's leading edge and cut
+/// its glyph off (the 2026-10-07 speed-read frame).
+Future<void> _revealRailJump(WidgetTester tester, String label) async {
+  await tester.ensureVisible(find
+      .ancestor(
+          of: find.text(label, skipOffstage: false).first,
+          matching: find.byType(GestureDetector, skipOffstage: false))
+      .first);
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+}
+
 /// Press a segment of the reader's Priority row and wait for the server to
 /// accept it — the segment moves only then (write before you move).
 Future<void> _pressPriority(WidgetTester tester, String label) async {
@@ -414,7 +432,8 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // than no pair: a frame is evidence, and a mislabelled one is false
     // evidence nobody re-checks.
     case 'manuscript':
-      await tester.tap(find.text('Manuscript'));
+      await _revealRailJump(tester, 'Manuscript');
+      await tester.tap(find.text('Manuscript').first);
       await settle();
       // byType, not the panel's copy. The first version asserted
       // `textContaining('Manuscript · the extracted text')` and failed on a
@@ -445,12 +464,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       // its right edge, and a tap there hits nothing. Revealed by the WHOLE
       // jump, not its label: revealing the Text put the label at the rail's
       // leading edge and cut its glyph off (the 2026-10-07 speed-read frame).
-      await tester.ensureVisible(find
-          .ancestor(
-              of: find.text(label).first,
-              matching: find.byType(GestureDetector))
-          .first);
-      await settle();
+      await _revealRailJump(tester, label);
       await tester.tap(find.text(label).first);
       await settle();
       final panel = {
@@ -496,7 +510,8 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // the pattern makes, so the frame has to be the manuscript of a distilled
     // document rather than a screen of its own.
     case 'recipe':
-      await tester.tap(find.text('Manuscript'));
+      await _revealRailJump(tester, 'Manuscript');
+      await tester.tap(find.text('Manuscript').first);
       await settle();
       expect(find.byType(KitRecipeBody), findsOneWidget,
           reason: 'no recipe body — run tool/seed_recipe_and_sources.py first; '
