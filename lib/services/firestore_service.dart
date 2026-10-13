@@ -19,6 +19,7 @@ import '../models/support.dart';
 import '../models/tag.dart';
 import 'activity_merge.dart';
 import 'read_counters.dart';
+import 'row_decode.dart';
 import 'auth_service.dart';
 
 /// What a `doc_opened` write actually committed to the document's counters
@@ -45,6 +46,14 @@ bool isDeletingTag(Map<String, dynamic> data) => data['status'] == 'deleting';
 
 class FirestoreService {
   static FirestoreService _instance = FirestoreService._();
+
+  /// A snapshot's rows through [decodeRows]: one row that cannot be read is
+  /// dropped and logged, never the list's failure.
+  static List<T> _rows<T>(
+          String collection,
+          Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+          T Function(QueryDocumentSnapshot<Map<String, dynamic>> d) decode) =>
+      decodeRows(collection, docs, (d) => d.id, decode);
 
   /// The one every notifier and screen reads — 33 call sites, all of them
   /// `FirestoreService.instance.subscribeX()`.
@@ -96,11 +105,11 @@ class FirestoreService {
         .orderBy('created_at', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs.map((d) {
+        .map((snap) => _rows('documents', snap.docs, (d) {
               final data = Map<String, dynamic>.from(d.data());
               data.remove('embedding');
               return Document.fromJson(d.id, data);
-            }).toList());
+            }));
   }
 
   /// Pinned-for-the-next-letter sources (2.33.0). **Its own subscription, not a
@@ -119,14 +128,15 @@ class FirestoreService {
         .where('user_id', isEqualTo: uid)
         .orderBy('next_letter_requested_at')
         .snapshots()
-        .map((snap) => snap.docs
-            .where((d) => d.data()['next_letter_requested_at'] != null)
-            .map((d) {
+        .map((snap) => _rows(
+                'documents',
+                snap.docs.where(
+                    (d) => d.data()['next_letter_requested_at'] != null),
+                (d) {
               final data = Map<String, dynamic>.from(d.data());
               data.remove('embedding');
               return Document.fromJson(d.id, data);
-            })
-            .toList());
+            }));
   }
 
   // ── Study (2.34.0, ADR-033) ─────────────────────────────────────────────
@@ -140,9 +150,8 @@ class FirestoreService {
         .where('user_id', isEqualTo: uid)
         .orderBy('created_at', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => StudyProgram.fromJson(d.id, d.data()))
-            .toList());
+        .map((snap) => _rows('study_programs', snap.docs,
+            (d) => StudyProgram.fromJson(d.id, d.data())));
   }
 
   /// ONE session, live.
@@ -179,9 +188,8 @@ class FirestoreService {
         .orderBy('generated_at', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => StudySession.fromJson(d.id, d.data()))
-            .toList());
+        .map((snap) => _rows('study_sessions', snap.docs,
+            (d) => StudySession.fromJson(d.id, d.data())));
   }
 
   /// Realtime tags list. Strips `embedding` (INV-05).
@@ -193,18 +201,18 @@ class FirestoreService {
         .where('user_id', isEqualTo: uid)
         .orderBy('created_at', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            // A shelf being deleted in the background (4.101.0, ADR-136) is
-            // gone to the reader the moment they confirmed: the rail, the
-            // index, every picker and every source's shelf row. One filter
-            // here reaches all of them; a delete that fails puts the mark
-            // back, and the shelf reappears.
-            .where((d) => !isDeletingTag(d.data()))
-            .map((d) {
+        .map((snap) => _rows(
+                'tags',
+                // A shelf being deleted in the background (4.101.0, ADR-136)
+                // is gone to the reader the moment they confirmed: the rail,
+                // the index, every picker and every source's shelf row. One
+                // filter here reaches all of them; a delete that fails puts
+                // the mark back, and the shelf reappears.
+                snap.docs.where((d) => !isDeletingTag(d.data())), (d) {
               final data = Map<String, dynamic>.from(d.data());
               data.remove('embedding');
               return Tag.fromJson(d.id, data);
-            }).toList());
+            }));
   }
 
   /// Realtime cloud import jobs (INV-02, 1.2.4): `user_id ==`, `created_at
@@ -219,8 +227,8 @@ class FirestoreService {
         .orderBy('created_at', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => ImportJob.fromJson(d.id, d.data())).toList());
+        .map((snap) => _rows('cloud_import_jobs', snap.docs,
+            (d) => ImportJob.fromJson(d.id, d.data())));
   }
 
   /// For your review's held imports (4.100.0, `screens/review.md` §Data):
@@ -237,8 +245,8 @@ class FirestoreService {
         .orderBy('created_at', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => ImportJob.fromJson(d.id, d.data())).toList());
+        .map((snap) => _rows('cloud_import_jobs', snap.docs,
+            (d) => ImportJob.fromJson(d.id, d.data())));
   }
 
   /// For your review's sources (4.100.0): `status in [error, skipped, queued,
@@ -257,11 +265,11 @@ class FirestoreService {
         .orderBy('created_at', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs.map((d) {
+        .map((snap) => _rows('documents', snap.docs, (d) {
               final data = Map<String, dynamic>.from(d.data());
               data.remove('embedding');
               return Document.fromJson(d.id, data);
-            }).toList());
+            }));
   }
 
   /// The open background tasks (4.101.0, ADR-136) — in flight, waiting on the
@@ -279,9 +287,8 @@ class FirestoreService {
         .orderBy('created_at', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => BackgroundTask.fromJson(d.id, d.data()))
-            .toList());
+        .map((snap) => _rows('background_tasks', snap.docs,
+            (d) => BackgroundTask.fromJson(d.id, d.data())));
   }
 
   /// Realtime pending organization suggestions (1.2.0): `user_id ==`,
@@ -296,9 +303,8 @@ class FirestoreService {
         .where('status', isEqualTo: 'pending')
         .orderBy('created_at', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => OrganizationSuggestion.fromJson(d.id, d.data()))
-            .toList());
+        .map((snap) => _rows('organization_suggestions', snap.docs,
+            (d) => OrganizationSuggestion.fromJson(d.id, d.data())));
   }
 
   /// ONE suggestion, by id (4.92.0, ADR-126): how an approval this session
@@ -328,7 +334,7 @@ class FirestoreService {
         .where('user_id', isEqualTo: uid)
         .where('provider', isEqualTo: provider)
         .snapshots()
-        .map((snap) => snap.docs.map((d) {
+        .map((snap) => _rows('cloud_folders', snap.docs, (d) {
               final data = Map<String, dynamic>.from(d.data());
               final charter = (data['charter'] as Map?)?.cast<String, dynamic>();
               if (charter != null) {
@@ -336,7 +342,7 @@ class FirestoreService {
                 data['charter'] = charter;
               }
               return CloudFolder.fromJson(d.id, data);
-            }).toList());
+            }));
   }
 
   /// One-shot read of `/users/{uid}/settings/organization` (INV-02 — GET is not
@@ -397,7 +403,7 @@ class FirestoreService {
       .orderBy('created_at', descending: true)
       .limit(maxItems)
       .snapshots()
-      .map((snap) => snap.docs.map((d) {
+      .map((snap) => _rows('activity_events', snap.docs, (d) {
             final data = d.data();
             return ActivityItem(
               kind: 'event',
@@ -412,7 +418,7 @@ class FirestoreService {
               metadata: data['metadata'] as Map<String, dynamic>?,
               createdAt: tsMs(data['created_at']),
             );
-          }).toList());
+          }));
 
   /// The documents half — the fallback rows for documents that predate the
   /// events feed, and the source of every row an event's `doc_id` covers.
@@ -423,7 +429,7 @@ class FirestoreService {
           .orderBy('created_at', descending: true)
           .limit(maxItems)
           .snapshots()
-          .map((snap) => snap.docs.map((d) {
+          .map((snap) => _rows('documents', snap.docs, (d) {
                 final data = d.data();
                 final docStatus = data['status'] as String? ?? '';
                 return ActivityItem(
@@ -449,7 +455,7 @@ class FirestoreService {
                   },
                   createdAt: tsMs(data['created_at']),
                 );
-              }).toList());
+              }));
 
   /// Realtime notification channels (2.5.0, ADR-014): `/users/{uid}/
   /// notification_channels`, newest first. Subscribed (INV-02); writes go
@@ -463,9 +469,8 @@ class FirestoreService {
         .collection('notification_channels')
         .orderBy('created_at', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => NotificationChannel.fromJson(d.id, d.data()))
-            .toList());
+        .map((snap) => _rows('notification_channels', snap.docs,
+            (d) => NotificationChannel.fromJson(d.id, d.data())));
   }
 
   /// One-shot read of `/users/{uid}/settings/newsletter`, strips
@@ -523,7 +528,8 @@ class FirestoreService {
         .orderBy('generated_at', descending: true)
         .limit(limit)
         .get();
-    return snap.docs.map((d) => Newsletter.fromJson(d.id, d.data())).toList();
+    return _rows(
+        'newsletters', snap.docs, (d) => Newsletter.fromJson(d.id, d.data()));
   }
 
   /// The newest daily record that holds a LETTER (4.98.0, ADR-131; web
@@ -544,8 +550,8 @@ class FirestoreService {
           .orderBy('generated_at', descending: true);
       if (cursor != null) q = q.startAfterDocument(cursor);
       final snap = await q.limit(page).get();
-      final found = pickLatestLetter(
-          snap.docs.map((d) => Newsletter.fromJson(d.id, d.data())));
+      final found = pickLatestLetter(_rows('newsletters', snap.docs,
+          (d) => Newsletter.fromJson(d.id, d.data())));
       if (found != null) return found;
       if (snap.docs.length < page) return null;
       cursor = snap.docs.last;
@@ -589,12 +595,12 @@ class FirestoreService {
         .where('user_id', isEqualTo: uid)
         .orderBy('chunk_index')
         .get();
-    final chunks = chunksSnap.docs.map((c) {
+    final chunks = _rows('chunks', chunksSnap.docs, (c) {
       final cd = Map<String, dynamic>.from(c.data());
       cd.remove('embedding');
       cd['chunk_id'] = c.id;
       return Chunk.fromJson(cd);
-    }).toList();
+    });
 
     return (document, chunks);
   }
@@ -619,12 +625,12 @@ class FirestoreService {
         .where('chunk_index', isLessThanOrEqualTo: idx + 2)
         .orderBy('chunk_index')
         .get();
-    final chunks = ctxSnap.docs.map((c) {
+    final chunks = _rows('chunks', ctxSnap.docs, (c) {
       final cd = Map<String, dynamic>.from(c.data());
       cd.remove('embedding');
       cd['chunk_id'] = c.id;
       return Chunk.fromJson(cd);
-    }).toList();
+    });
 
     unawaited(logReadEvent('chunk_viewed', documentId, chunkId));
     return chunks;
@@ -650,11 +656,11 @@ class FirestoreService {
         .where('user_id', isEqualTo: uid)
         .orderBy('created_at', descending: true)
         .get();
-    return snap.docs.map((d) {
+    return _rows('tags', snap.docs, (d) {
       final data = Map<String, dynamic>.from(d.data());
       data.remove('embedding');
       return Tag.fromJson(d.id, data);
-    }).toList();
+    });
   }
 
   /// Reading history for one document (Reader → History panel): the
@@ -865,10 +871,11 @@ class FirestoreService {
         .collection('messages')
         .orderBy('created_at')
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => SupportMessage.fromJson(
-                d.id, Map<String, dynamic>.from(d.data())))
-            .toList());
+        .map((snap) => _rows(
+            'support_messages',
+            snap.docs,
+            (d) => SupportMessage.fromJson(
+                d.id, Map<String, dynamic>.from(d.data()))));
   }
 
   // ── Ask conversation history (4.53.0, ADR-090) ─────────────────────────────
@@ -888,10 +895,11 @@ class FirestoreService {
         .orderBy('updated_at', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) =>
-                AskThread.fromJson(d.id, Map<String, dynamic>.from(d.data())))
-            .toList());
+        .map((snap) => _rows(
+            'ask_threads',
+            snap.docs,
+            (d) =>
+                AskThread.fromJson(d.id, Map<String, dynamic>.from(d.data()))));
   }
 
   /// One conversation, oldest first. One ordering field, so no composite index.
@@ -903,9 +911,10 @@ class FirestoreService {
         .collection('messages')
         .orderBy('created_at')
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) =>
-                AskMessage.fromJson(d.id, Map<String, dynamic>.from(d.data())))
-            .toList());
+        .map((snap) => _rows(
+            'ask_messages',
+            snap.docs,
+            (d) =>
+                AskMessage.fromJson(d.id, Map<String, dynamic>.from(d.data()))));
   }
 }

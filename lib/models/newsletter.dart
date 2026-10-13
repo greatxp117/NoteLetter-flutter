@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import 'document.dart' show tsMs;
 
 /// `/newsletters/{newsletterId}` — read-only; never construct IDs, query by
@@ -130,7 +132,7 @@ class Newsletter {
       ),
       verseSource: json['verse_source'] as String?,
       verseEdition: json['verse_edition'] as String?,
-      bibleOnShelf: json['bible_on_shelf'] as bool? ?? false,
+      bibleOnShelf: _flagged(json, 'bible_on_shelf') == true,
       liturgicalDay: LiturgicalDay.fromJson(
         (json['liturgical_day'] as Map?)?.cast<String, dynamic>(),
       ),
@@ -267,11 +269,15 @@ class LetterReading {
   factory LetterReading.fromJson(Map<String, dynamic> json) => LetterReading(
     label: json['label'] as String? ?? '',
     ref: json['ref'] as String? ?? '',
-    lead: json['lead'] as bool? ?? false,
+    // Read as web reads them (`r.lead ? 'lead' : ''`, `r.parsed === false`):
+    // a value of another type is not a throw. `as bool?` was, and one stored
+    // reading whose `lead` was not a bool failed the whole letters read
+    // (TODO 2026-10-13). The backend writes only bools; a stray one is logged.
+    lead: _truthy(json, 'lead'),
     // Absent means the citation parsed — `parsed: false` is written only
     // when it did not. An `?? false` here would report every reading in
     // every letter written before the field as unreadable.
-    parsed: json['parsed'] as bool? ?? true,
+    parsed: _flagged(json, 'parsed') != false,
     passages:
         (json['passages'] as List?)
             ?.whereType<Map>()
@@ -387,3 +393,25 @@ String _stripTags(String s) {
   entities.forEach((k, v) => out = out.replaceAll(k, v));
   return _collapse(out);
 }
+
+/// [key]'s value, logged when it is neither absent nor a bool — a flag the
+/// backend writes only as a bool, so another type is a writer's slip worth a
+/// line, never a reason to lose the row.
+Object? _flagged(Map<String, dynamic> json, String key) {
+  final v = json[key];
+  if (v != null && v is! bool) {
+    debugPrint('newsletter: `$key` is ${v.runtimeType} ($v), not a bool');
+  }
+  return v;
+}
+
+/// JavaScript's truthiness, which is what the reference's `r.lead ? … : …`
+/// applies to the same stored value.
+bool _truthy(Map<String, dynamic> json, String key) =>
+    switch (_flagged(json, key)) {
+      null => false,
+      final bool b => b,
+      final num n => n != 0 && !n.isNaN,
+      final String s => s.isNotEmpty,
+      _ => true,
+    };
