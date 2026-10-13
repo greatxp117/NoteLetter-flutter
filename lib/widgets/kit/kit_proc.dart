@@ -17,7 +17,13 @@ class KitProcPill extends StatelessWidget {
   final String label;
   final KitProcTone tone;
 
-  const KitProcPill(this.label, {super.key, required this.tone});
+  /// The `work` tone's spinner. False for a figure drawn in the work tone
+  /// that is not work in flight — a suggestion's confidence (web
+  /// `<span className="proc-pill work">` with no `.proc-spinner`).
+  final bool spin;
+
+  const KitProcPill(this.label,
+      {super.key, required this.tone, this.spin = true});
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +44,7 @@ class KitProcPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (tone == KitProcTone.work) ...[
+          if (tone == KitProcTone.work && spin) ...[
             // `.proc-spinner`: 11px, a 1.5px ring in the chip border with its
             // head in accent text.
             SizedBox(
@@ -94,6 +100,15 @@ class KitProcCard extends StatelessWidget {
 
   /// The controls ahead of [pill] (`.proc-actions`).
   final List<Widget> actions;
+
+  /// A title with emphasis inside it, drawn in the title's own role: an
+  /// organization suggestion's "Move **taxes.pdf** → /Docs/Finance" (web
+  /// `SuggestionCard`, F-106). Wins over [title] when set.
+  final List<InlineSpan>? titleSpans;
+
+  /// Lines under the sub-line, inside the info column — a README suggestion's
+  /// proposed charter and what approving it does.
+  final List<Widget> infoExtra;
   final Widget foot;
 
   /// A failed row's edge takes the accent chip border (`.proc-row.failed`).
@@ -110,6 +125,8 @@ class KitProcCard extends StatelessWidget {
     this.mark,
     this.subtitleLeading,
     this.actions = const [],
+    this.titleSpans,
+    this.infoExtra = const [],
   });
 
   @override
@@ -129,14 +146,17 @@ class KitProcCard extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [...actions, pill],
           );
+    final titleStyle =
+        AppTheme.serif(fontSize: 15, fontWeight: FontWeight.w500, color: t.fg);
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTheme.serif(
-                fontSize: 15, fontWeight: FontWeight.w500, color: t.fg)),
+        if (titleSpans == null)
+          Text(title,
+              maxLines: 1, overflow: TextOverflow.ellipsis, style: titleStyle)
+        else
+          Text.rich(TextSpan(style: titleStyle, children: titleSpans),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 2),
         if (subtitleLeading == null)
           sub
@@ -146,6 +166,7 @@ class KitProcCard extends StatelessWidget {
             const SizedBox(width: 5),
             Flexible(child: sub),
           ]),
+        ...infoExtra,
         if (compact) ...[
           const SizedBox(height: 8),
           trailing,
@@ -380,14 +401,17 @@ class KitReviewRow extends StatelessWidget {
 /// count and a row of buttons until F-90 (6).
 class KitFolderCard extends StatelessWidget {
   final String title;
-  final String subtitle;
+
+  /// Null draws no sub-line — an approval's outcome card (web
+  /// `ApprovalOutcome`, `1fr auto`) is its title alone.
+  final String? subtitle;
   final List<Widget> trailing;
   final Widget? below;
 
   const KitFolderCard({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.trailing = const [],
     this.below,
   });
@@ -420,11 +444,14 @@ class KitFolderCard extends StatelessWidget {
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
                             color: t.fg)),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.mono(fontSize: 11, color: t.fgSubtle)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              AppTheme.mono(fontSize: 11, color: t.fgSubtle)),
+                    ],
                   ],
                 ),
               ),

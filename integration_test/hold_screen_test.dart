@@ -220,13 +220,19 @@ Future<void> leaveState(WidgetTester tester, String holdState) async {
 /// saw no jump at all ("No element", the 2026-10-13 batch). Found offstage,
 /// then revealed by the WHOLE jump, not its label: the rail scrolls sideways,
 /// and revealing the Text put the label at the rail's leading edge and cut
-/// its glyph off (the 2026-10-07 speed-read frame).
-Future<void> _revealRailJump(WidgetTester tester, String label) async {
-  await tester.ensureVisible(find
-      .ancestor(
-          of: find.text(label, skipOffstage: false).first,
-          matching: find.byType(GestureDetector, skipOffstage: false))
-      .first);
+/// its glyph off (the 2026-10-07 speed-read frame). [sideways] false reveals
+/// only the RAIL, vertically: a jump already in the rail's first view
+/// (Manuscript) must not slide the rail, or the frame starts it where the
+/// reference's never does (the 2026-10-13 manuscript frame lost "Summary").
+Future<void> _revealRailJump(WidgetTester tester, String label,
+    {bool sideways = true}) async {
+  await tester.ensureVisible(sideways
+      ? find
+          .ancestor(
+              of: find.text(label, skipOffstage: false).first,
+              matching: find.byType(GestureDetector, skipOffstage: false))
+          .first
+      : find.byType(KitSectionRail, skipOffstage: false).first);
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 200));
   }
@@ -432,7 +438,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // than no pair: a frame is evidence, and a mislabelled one is false
     // evidence nobody re-checks.
     case 'manuscript':
-      await _revealRailJump(tester, 'Manuscript');
+      await _revealRailJump(tester, 'Manuscript', sideways: false);
       await tester.tap(find.text('Manuscript').first);
       await settle();
       // byType, not the panel's copy. The first version asserted
@@ -510,7 +516,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // the pattern makes, so the frame has to be the manuscript of a distilled
     // document rather than a screen of its own.
     case 'recipe':
-      await _revealRailJump(tester, 'Manuscript');
+      await _revealRailJump(tester, 'Manuscript', sideways: false);
       await tester.tap(find.text('Manuscript').first);
       await settle();
       expect(find.byType(KitRecipeBody), findsOneWidget,

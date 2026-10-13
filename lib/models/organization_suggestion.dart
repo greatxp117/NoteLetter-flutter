@@ -63,6 +63,9 @@ class OrganizationSuggestion {
   }
 
   String get _fileName => payload['file_name'] as String? ?? 'this file';
+
+  /// The file a `move` names, as stored; null when the payload has none.
+  String? get fileName => payload['file_name'] as String?;
   String? get documentId => payload['document_id'] as String?;
   String? get toPath => payload['to_path'] as String?;
   String? get fromPath => payload['from_path'] as String?;

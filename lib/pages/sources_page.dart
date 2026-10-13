@@ -1368,7 +1368,8 @@ class _OrganizationSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final org = context.watch<OrgNotifier>();
     return SuggestionQueue(
-      eyebrow: 'Organization suggestions',
+      // The reference's own label (`SuggestionQueue`'s default, F-106).
+      eyebrow: 'Suggestions',
       suggestions: org.suggestions,
       error: org.suggestionsError,
     );

@@ -738,6 +738,77 @@ void main() {
           findsNothing);
     });
 
+    // F-106, web `SuggestionCard` + `SuggestionQueue`: a `.proc-row` card —
+    // the box, "Move **taxes.pdf** → /Docs/Finance" over "from {path} ·
+    // {reason}", the confidence as a work pill with no spinner — and the
+    // spec's batch select (≤20 a call) in the header.
+    testWidgets('a move card is a proc card, and the batch resolves together',
+        (tester) async {
+      const a = OrganizationSuggestion(
+        id: 's-a',
+        provider: 'google_drive',
+        type: 'move',
+        confidence: 0.6,
+        reason: 'Content matches the folder charter.',
+        status: 'pending',
+        payload: {
+          'file_name': 'taxes.pdf',
+          'from_path': '/Docs/Recipes',
+          'to_path': '/Docs/Finance',
+        },
+      );
+      const b = OrganizationSuggestion(
+        id: 's-b',
+        provider: 'notion',
+        type: 'move',
+        confidence: 0.9,
+        reason: 'A recipe.',
+        status: 'pending',
+        payload: {'file_name': 'Pasta', 'to_path': '/Recipes'},
+      );
+      final rec = _Recorder(
+          (_) => (200, {'approved': ['s-a', 's-b'], 'declined': [], 'skipped': []}));
+      ApiService.instance.httpClientAdapter = rec;
+      await pumpSources(
+          tester, _OrgStub(suggestions: Stream.value(const [a, b])));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(KitProcCard), findsWidgets);
+      expect(find.text('Move taxes.pdf → /Docs/Finance'), findsOneWidget);
+      expect(find.text('Copy Pasta → /Recipes'), findsOneWidget,
+          reason: 'a Notion move is a copy (ADR-005 §3)');
+      expect(find.text('from /Docs/Recipes · Content matches the folder charter.'),
+          findsOneWidget);
+      final pill = tester.widget<KitProcPill>(find.byWidgetPredicate(
+          (w) => w is KitProcPill && w.label == '60%'));
+      expect((pill.tone, pill.spin), (KitProcTone.work, false));
+      expect(find.textContaining('Approve 2'), findsNothing);
+
+      for (final box in find.byType(KitCheckbox).evaluate().toList()) {
+        await tester.ensureVisible(find.byWidget(box.widget));
+        await tester.tap(find.byWidget(box.widget));
+        await tester.pump();
+      }
+      expect(find.text('Approve 2'), findsOneWidget);
+      expect(find.text('Decline 2'), findsOneWidget);
+      await tester.ensureVisible(find.text('Approve 2'));
+      await tester.tap(find.text('Approve 2'));
+      // Bounded: each approval's outcome card spins its Applying pill, and a
+      // live spinner never settles.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final resolves = rec.sent
+          .where((o) => o.path.endsWith('/fn_resolve_organization_suggestions'))
+          .toList();
+      expect(resolves, hasLength(1), reason: 'one call for the batch');
+      expect((resolves.single.data as Map)['action'], 'approve');
+      expect((resolves.single.data as Map)['suggestion_ids'] as List,
+          unorderedEquals(['s-a', 's-b']));
+      expect(find.text('Approve 2'), findsNothing,
+          reason: 'the selection clears once the batch is accepted');
+    });
+
     testWidgets(
         'a readme card says it adopts; a failed approval stays with the '
         'worker\'s sentence', (tester) async {
@@ -767,7 +838,10 @@ void main() {
 
       await tester.ensureVisible(find.text('Approve'));
       await tester.tap(find.text('Approve'));
-      await tester.pumpAndSettle();
+      // Bounded: the outcome's Applying pill spins until the worker answers.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       expect(find.text('Adopt README edits as the charter'), findsOneWidget);
 
       one.add(card.withStatus('failed',

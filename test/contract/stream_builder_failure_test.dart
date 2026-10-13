@@ -193,9 +193,9 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(textLike('Organization suggestions'), findsOneWidget);
+      expect(textLike('Suggestions'), findsOneWidget);
       expect(find.textContaining('not ready on the server yet'), findsOneWidget);
-      expect(textLike('Organization suggestions · '), findsNothing);
+      expect(textLike('Suggestions · '), findsNothing);
     });
   });
 }
