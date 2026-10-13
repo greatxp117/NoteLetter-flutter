@@ -344,6 +344,18 @@ const _noBuilder = <String, String>{
       'there is no support console in this client (CHANGELOG 4.19.0)',
 };
 
+// Request keys another client sends and this one never does, by design. A
+// case whose body carries one pins THAT client's request, not this one's, so
+// driving it compares Flutter's builder to the extension's body and fails for
+// being right. Counted as a category, and declared here so a key this client
+// SHOULD send cannot hide behind it.
+const _otherClientsKeys = <String, Map<String, String>>{
+  'fn_ingest_url': {
+    'html': 'the page capture is the browser extension\'s (5.6.0, ADR-166): '
+        'only a browser holds the page as the reader saw it',
+  },
+};
+
 // A case with no `endpoint` at all asserts what the BACKEND stored, or that it
 // stored nothing — not what a client sent. A request-construction suite cannot
 // drive one by construction, so this is a category and never debt. It is
@@ -502,6 +514,13 @@ void main() {
         if (req['kind'] != null && method == null) {
           skipped['a backend prompt case, not a client request'] =
               (skipped['a backend prompt case, not a client request'] ?? 0) + 1;
+          continue;
+        }
+        final body = req['body'];
+        final foreign = _otherClientsKeys[endpoint];
+        if (foreign != null && body is Map && body.keys.any(foreign.containsKey)) {
+          skipped['a key only another client sends'] =
+              (skipped['a key only another client sends'] ?? 0) + 1;
           continue;
         }
         if (method == 'OPTIONS' || method == 'GET') {
