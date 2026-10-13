@@ -26,6 +26,7 @@ import 'package:flutter_app/pages/reader/history_panel.dart';
 import 'package:flutter_app/pages/reader/listen_panel.dart';
 import 'package:flutter_app/pages/reader/manuscript_panel.dart';
 import 'package:flutter_app/pages/reader/passage_mark.dart';
+import 'package:flutter_app/pages/reader/source_priority.dart';
 import 'package:flutter_app/pages/reader/speed_read_panel.dart';
 import 'package:flutter_app/pages/reader/summary_panel.dart';
 import 'package:flutter_app/pages/search/reading_pane.dart';
@@ -754,6 +755,58 @@ void main() {
     // the sentence a dead end.
     expect(find.byIcon(Icons.download_outlined), findsOneWidget);
     expect(find.byIcon(Icons.open_in_new), findsWidgets);
+  });
+
+  testWidgets("the reader sets a source's priority", (tester) async {
+    // reader.md §Source priority (4.118.0, ADR-155; ruled into the reader
+    // 2026-10-13, F-99). The widget test proves the row's rules over a seam;
+    // this proves the WRITE: a real fn_update_document through the shim, the
+    // stamp it leaves in Firestore, and the reset Default sends — and leaves
+    // the seed as it found it (no stamp, 0.5), so the frames after it draw
+    // Default.
+    const docId = 'seed-doc-pdf-complete';
+    final ref = FirebaseFirestore.instance.collection('documents').doc(docId);
+    final router = await pumpApp(tester);
+    router.go('/reader/$docId');
+    await pumpFor(tester, total: const Duration(seconds: 3));
+
+    final label = find.text('PRIORITY');
+    expect(label, findsOneWidget,
+        reason: 'the reader draws no Priority row under its Shelves row');
+    await tester.ensureVisible(label);
+    await tester.pump();
+    final track = find.descendant(
+        of: find.byType(SourcePriorityRow), matching: find.byType(KitSegmented));
+    String lit() {
+      final seg = tester.widget<KitSegmented>(track);
+      return seg.segments[seg.selected].label;
+    }
+
+    expect(lit(), 'Default', reason: 'the seed carries no stamp');
+    expect((await ref.get()).data()?['source_priority_set_at'], isNull);
+
+    await tester.tap(find.descendant(of: track, matching: find.text('High')));
+    for (var i = 0; i < 40 && lit() != 'High'; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(lit(), 'High', reason: 'the write was not accepted, or never moved');
+    expect(find.text('0.80'), findsOneWidget);
+    final high = (await ref.get()).data()!;
+    expect(high['source_priority'], 0.8);
+    expect(high['source_priority_set_at'], isNotNull,
+        reason: 'a number the reader sends is stamped (ADR-155)');
+
+    await tester.tap(find.descendant(of: track, matching: find.text('Default')));
+    for (var i = 0; i < 40 && lit() != 'Default'; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(lit(), 'Default');
+    expect(find.text('0.50'), findsOneWidget);
+    final reset = (await ref.get()).data()!;
+    expect(reset['source_priority'], 0.5);
+    expect(reset.containsKey('source_priority_set_at'), isFalse,
+        reason: 'Default (null) deletes the stamp');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('sources composes from the kit, in the contract order', (

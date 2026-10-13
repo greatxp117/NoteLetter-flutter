@@ -55,6 +55,13 @@ reads the header and judges no pair for it. Without this line the check called
 `shelf-backfill-review` STALE-PAIR forever after 4.102.0, and the only way to
 silence it was to rewrite a finished item's history.
 
+`retired-paths:` (optional, `;`-separated) is its twin for a FILE: a path a
+done item lists in `flutter:` that a later item deleted. `lint` requires every
+listed path to exist, and a done item is never edited, so without this line
+deleting dead code a finished item once touched (F-99 removed
+`lib/pages/library/document_detail_sheet.dart`, which F-43 lists) would fail
+the lint forever. A retired path must be GONE, and some item must list it.
+
 Lists split on `;`. A path tagged `(new)` need not exist yet. `spec:` paths are
 relative to NoteLetter-contracts/, `web:` to NoteLetter-web/, `flutter:` to this
 repo. The script never reorders items and never edits a `done` one — a new
@@ -315,6 +322,15 @@ def cmd_lint() -> int:
         if not any(shot in as_list(it.get("shots", "")) for it in items):
             problems.append(f"header: `{shot}` is retired but no item lists it "
                             f"in `shots:` — a retirement nothing needs is noise")
+    gone = set(as_list(header.get("retired-paths", "")))
+    for path in sorted(gone):
+        if (REPO / path).exists():
+            problems.append(f"header: `{path}` is a retired path but it exists — "
+                            f"retire only what an item deleted")
+        if not any(path in [e.split(" (")[0].strip() for e in as_list(it.get("flutter", ""))]
+                   for it in items):
+            problems.append(f"header: `{path}` is a retired path but no item lists it "
+                            f"in `flutter:` — a retirement nothing needs is noise")
     for it in items:
         # Only a DONE item may keep a retired hold (its history); an open one
         # would be asking for a frame of a state that does not exist.
@@ -339,6 +355,11 @@ def cmd_lint() -> int:
                 if NEW.search(entry):
                     continue
                 path = entry.split(" §")[0].split(" (")[0].strip()
+                if f == "flutter" and path in gone:
+                    if status_kind(it) != "done":
+                        problems.append(f"{it['id']}: flutter names `{path}`, a retired "
+                                        f"path — only a done item keeps its history")
+                    continue
                 if not (base / path).exists():
                     problems.append(f"{it['id']}: {f} path does not exist: {path}")
         for shot in as_list(it.get("shots", "")):

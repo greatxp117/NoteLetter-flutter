@@ -1772,17 +1772,18 @@ a new obligation on a finished screen is a new item.
   2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): ask, reader, reader-shelves, shelf-picker-search re-copied from web 985bb87 and looked at: Ask's rows MATCH; the reader's Priority row is booked on F-99.
 
 ## F-99 · Reader — the Priority row (web 9477c9c)
-- status: blocked: XAVIER: placement not ruled (web put it in the reader; Flutter has it on library rows)
+- status: in-progress
 - screen: reader
 - route: /reader/{id}
-- spec: spec/screens/reader.md
-- web: src/pages/ReaderView.jsx
-- flutter: lib/pages/reader_page.dart; lib/pages/sources/browse_section.dart
-- folds: none — web 9477c9c, contracts 66dea71 (UI-only, 2026-10-12)
-- device_test: none
-- shots: reader; reader-shelves; shelf-picker-search
+- spec: spec/screens/reader.md §Source priority; spec/screens/sources.md §Composition; spec/decisions/ADR-155-a-chosen-priority-is-stamped.md; spec/component-kit.md §6.8
+- web: src/pages/ReaderView.jsx; src/styles/app-source.css; src/api.js
+- flutter: lib/pages/reader/source_priority.dart; lib/pages/reader_page.dart; lib/models/document.dart; lib/widgets/kit/kit_text.dart; lib/pages/sources/browse_section.dart; test/kit/source_priority_test.dart; integration_test/device_run_test.dart; integration_test/hold_screen_test.dart; tool/queue.py
+- folds: none — web 9477c9c, contracts 66dea71 (UI-only, 2026-10-12); ruled 2026-10-13 (TODO "RULED 2026-10-13: the reader")
+- device_test: the reader sets a source's priority
+- shots: reader; reader-shelves; shelf-picker-search; reader-priority
 - extra_gates: none
 - notes: reader.md §Source priority: under the Shelves row a §6.8 Segmented control Default · Low · Normal · High, the stored number in mono, one quiet line; Default sends `sourcePriority: null`; the lit segment is read off `source_priority_set_at`, never the number (ADR-155); write before move. This client sets priority from the library rows' overflow (browse_section.dart ~704) and sources.md now says a finished source's settings live in the reader. Do not move the priority control until Xavier rules where it lives (coordinator, 2026-10-12).
+  2026-10-13: RULED — the reader (Low 0.2, High 0.8 stand). Built: `SourcePriorityRow` under the Shelves row (the mono caps label, the track, the stored figure in mono 12 `--fg-muted`, the `KitText.note` line; below 768 the figure rides beside the label and the track fills, as web below 680); `priorityChoice` lights off the stamp with Flutter's old slider bands; Default sends null; the pressed segment reads Saving… and the track holds; §14.2 under the row; the document commits through `withSourcePriority` only after the 200. `Document` reads `source_priority_set_at` (tsMs) and keeps `source_priority` null when absent (no figure is solved for). sources.md §Per-source affordances: a library row is the link and carries no other control — the `_RowMenu` overflow (Open · Priority & tags… · Remove) is gone, and with it every mount of `DocumentDetailSheet` (its slider wrote any number and could not send Default). The FILE stays until the backend lane drops `lib/pages/library` from failure_pattern_check's SCREENS table (signalled 2026-10-13 11:13Z): it is Flutter's last file there, and 5n fails a mapped path that does not exist. Then it is deleted, with `retired-paths:` in this file's header (new in tool/queue.py), since F-43 lists it. Device test drives the real write through the shim and back to Default; hold `priority-high` frames web's `reader-priority` and presses Default after.
 
 ## F-100 · Serif optical size — every serif role sets `opsz` as the reference does (measured from F-81 (7))
 - status: done 2026-10-12

@@ -23,6 +23,7 @@ import 'reader/reader_prefs.dart';
 import 'reader/reader_ui.dart';
 import 'reader/reading_cost.dart';
 import 'reader/source_freshness.dart';
+import 'reader/source_priority.dart';
 import 'reader/speed_read_panel.dart';
 import 'reader/summary_panel.dart';
 import 'tags/shelf_sheet.dart';
@@ -579,6 +580,15 @@ class _ReaderPageState extends State<ReaderPage> {
                     ),
                     _bylineRow(doc),
                     if (complete) _documentShelves(doc),
+                    // §Source priority (ADR-155): the number committed is the
+                    // one sent, and only once the server accepted it.
+                    if (complete)
+                      SourcePriorityRow(
+                        docId: widget.docId,
+                        doc: doc,
+                        onSaved: (v) => setState(() =>
+                            _document = _document?.withSourcePriority(v)),
+                      ),
                     SourceFreshness(docId: widget.docId, doc: doc),
                     const SizedBox(height: 14),
                     _statRow(doc, readCount),

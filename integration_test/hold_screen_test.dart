@@ -46,6 +46,7 @@ import 'package:flutter_app/pages/onboarding/wizard.dart';
 import 'package:flutter_app/pages/reader/history_panel.dart';
 import 'package:flutter_app/pages/reader/listen_panel.dart';
 import 'package:flutter_app/pages/reader/manuscript_panel.dart';
+import 'package:flutter_app/pages/reader/source_priority.dart';
 import 'package:flutter_app/pages/reader/speed_read_panel.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
@@ -199,6 +200,40 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
 
   await hold('LIGHT', ThemeMode.light);
   await hold('DARK', ThemeMode.dark);
+  await leaveState(tester, h.state);
+}
+
+/// Undo what [reachState] WROTE. A batch is one emulator boot, so a state that
+/// changes stored data (not only the screen) would otherwise draw itself under
+/// every later hold's name — the `reader` frame after `reader-priority` would
+/// show High lit.
+Future<void> leaveState(WidgetTester tester, String holdState) async {
+  switch (holdState) {
+    case 'priority-high':
+      await _pressPriority(tester, 'Default');
+  }
+}
+
+/// Press a segment of the reader's Priority row and wait for the server to
+/// accept it — the segment moves only then (write before you move).
+Future<void> _pressPriority(WidgetTester tester, String label) async {
+  final track = find.descendant(
+      of: find.byType(SourcePriorityRow), matching: find.byType(KitSegmented));
+  String lit() {
+    final seg = tester.widget<KitSegmented>(track);
+    return seg.segments[seg.selected].label;
+  }
+
+  await tester.ensureVisible(track);
+  await tester.pump(const Duration(milliseconds: 200));
+  if (lit() == label) return;
+  await tester.tap(find.descendant(of: track, matching: find.text(label)));
+  for (var i = 0; i < 40 && lit() != label; i++) {
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+  expect(lit(), label,
+      reason: 'the Priority write was not accepted — the frame would show the '
+          'row before the press');
 }
 
 /// Drive the screen into [holdState]. Bounded `pump` loops, never
@@ -762,6 +797,16 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // reader's Shelves row with its picker open, and searched for "st" (a
     // prefix match ranked, its run in 600, the create row naming the query),
     // as the reference's `reader-shelves` / `shelf-picker-search` frames are.
+    // reader.md §Source priority (F-99) — web's `reader-priority`: High
+    // chosen through a REAL fn_update_document (the shim), so the lit segment
+    // and the 0.80 beside it are the server's answer. [leaveState] presses
+    // Default after both frames: the seed carries no stamp.
+    case 'priority-high':
+      await _pressPriority(tester, 'High');
+      // The row back at the reference frame's place: the header above it.
+      await tester.drag(find.byType(CustomScrollView).first, const Offset(0, 2000));
+      await settle();
+      return;
     case 'shelf-picker':
     case 'shelf-picker-search':
       final plus = find.text('Shelf');

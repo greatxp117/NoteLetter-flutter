@@ -167,6 +167,15 @@ class KitText {
         color: color ?? Tokens.of(context).fgMuted,
       );
 
+  /// Sans 12.5/18 at `--fg-muted` — one quiet line under a control saying
+  /// what it does (`.doc-priority-note`, the reader's Priority row).
+  static TextStyle note(BuildContext context, {Color? color}) => TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 12.5,
+        height: 18 / 12.5,
+        color: color ?? Tokens.of(context).fgMuted,
+      );
+
   /// Sans 11 at `--fg-muted` — a count or hint beside a control.
   static TextStyle fine(BuildContext context,
           {Color? color, FontWeight? weight}) =>

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
@@ -16,7 +15,6 @@ import '../../state/tags_notifier.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
-import '../library/document_detail_sheet.dart';
 import '../reader/supersession_confirm.dart';
 import 'shelf_books.dart';
 import 'source_sheet.dart';
@@ -342,7 +340,13 @@ String _processingNote(List<Document> inFlight) {
   return '$active indexing now — $attention $needs attention';
 }
 
-/// A volume. The §4.1 row, with its per-source affordances hanging off the end.
+/// A volume. The §4.1 row, and **the link that opens it — nothing else**
+/// (`screens/sources.md` §Per-source affordances, rewritten 2026-10-12; ruled
+/// 2026-10-13). A finished source's priority, shelves and Delete live in the
+/// reader, the one screen about a single source (ADR-138 §Rationale). The
+/// overflow this row carried (Open · Priority & tags… · Remove) was the drift
+/// the spec named: a second place to set what the reader sets, through a
+/// slider that wrote any number and could not send Default (F-99).
 class _VolumeRow extends StatelessWidget {
   final Document doc;
   final List<Tag> shelves;
@@ -364,7 +368,6 @@ class _VolumeRow extends StatelessWidget {
         // (INV-03a); that writes chunk_viewed and touches no document counter.
         unread: doc.viewCount == 0,
         onTap: open,
-        trailing: _RowMenu(doc: doc),
       ),
     );
   }
@@ -698,63 +701,6 @@ String _stageLabel(Document doc) {
       return 'Error';
     case DocumentStatus.complete:
       return 'Done';
-  }
-}
-
-/// The per-source overflow: open, priority & tags, retry, cancel, delete.
-class _RowMenu extends StatelessWidget {
-  final Document doc;
-
-  const _RowMenu({required this.doc});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    final complete = doc.status == DocumentStatus.complete;
-    final failed = doc.status == DocumentStatus.error ||
-        doc.status == DocumentStatus.skipped;
-    final active = !complete && !failed;
-
-    return PopupMenuButton<String>(
-      tooltip: 'More',
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(),
-      icon: Icon(Icons.more_horiz, size: 17, color: t.fgMuted),
-      itemBuilder: (_) => [
-        if (complete)
-          const PopupMenuItem(value: 'open', child: Text('Open')),
-        const PopupMenuItem(value: 'details', child: Text('Priority & tags…')),
-        // Retry and Index-it-anyway are NOT here. A failure row has **one
-        // primary** and it is an accent-filled control on the row itself
-        // (4.47.0, ADR-085) — burying the row's single answer in an overflow
-        // menu is the same defect as rendering both at once, arrived at from
-        // the other side. `ProcessingRow` owns it.
-        if (active)
-          const PopupMenuItem(value: 'cancel', child: Text('Cancel')),
-        const PopupMenuItem(value: 'delete', child: Text('Remove')),
-      ],
-      onSelected: (action) => _run(context, action),
-    );
-  }
-
-  Future<void> _run(BuildContext context, String action) async {
-    switch (action) {
-      case 'open':
-        context.push('/reader/${doc.id}');
-      case 'details':
-        final saved = await DocumentDetailSheet.show(context, doc.id);
-        if (saved == true && context.mounted) {
-          AppToast.show(context, 'Saved.', type: ToastType.info);
-        }
-      // §18 (4.56.0, ADR-092). The ACTION runs inside the confirmation now, so
-      // its rejection renders in the panel the reader is looking at instead of
-      // a toast behind it — and the panel does not close on one, which is what
-      // stops a refused delete reading as a successful one.
-      case 'cancel':
-        await confirmCancel(context, doc);
-      case 'delete':
-        await confirmRemove(context, doc);
-    }
   }
 }
 

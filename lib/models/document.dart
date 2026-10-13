@@ -171,7 +171,18 @@ class Document {
   /// no control at all.
   final String? skipReason;
 
-  final double sourcePriority;
+  /// The stored weight (`source_priority`, 0.0–1.0). **Null when the
+  /// document has none** — never 0.5 solved for: the reader's Priority row
+  /// draws the stored number, and a figure for a field nobody wrote would be
+  /// one invented (reader.md §Source priority).
+  final double? sourcePriority;
+
+  /// `source_priority_set_at` (4.118.0, ADR-155) — present only once the
+  /// READER chose a priority; `fn_update_document {sourcePriority: null}`
+  /// deletes it. **Absent is the default, whatever [sourcePriority] holds**:
+  /// every creator writes 0.5 and no stamp, so which segment of the Priority
+  /// row is lit is read off this, never off the number.
+  final int? sourcePrioritySetAt;
 
   /// INV-03a — OPENED. Bumped by `doc_opened` and, since 4.0.0, by nothing
   /// else: expanding a search hit no longer clears a source's unread dot.
@@ -231,7 +242,8 @@ class Document {
     this.errorMessage,
     this.forceProcess = false,
     this.skipReason,
-    this.sourcePriority = 0.5,
+    this.sourcePriority,
+    this.sourcePrioritySetAt,
     this.viewCount = 0,
     this.lastViewedAt,
     this.contentForm,
@@ -282,6 +294,7 @@ class Document {
       forceProcess: forceProcess,
       skipReason: skipReason,
       sourcePriority: sourcePriority,
+      sourcePrioritySetAt: sourcePrioritySetAt,
       viewCount: viewCount,
       lastViewedAt: lastViewedAt,
       contentForm: contentForm,
@@ -333,6 +346,7 @@ class Document {
       forceProcess: forceProcess,
       skipReason: skipReason,
       sourcePriority: sourcePriority,
+      sourcePrioritySetAt: sourcePrioritySetAt,
       viewCount: viewCount,
       lastViewedAt: lastViewedAt,
       contentForm: contentForm,
@@ -383,6 +397,61 @@ class Document {
       forceProcess: forceProcess,
       skipReason: skipReason,
       sourcePriority: sourcePriority,
+      sourcePrioritySetAt: sourcePrioritySetAt,
+      viewCount: viewCount,
+      lastViewedAt: lastViewedAt,
+      contentForm: contentForm,
+      originalContentUrl: originalContentUrl,
+      recipe: recipe,
+      sourceIntegration: sourceIntegration,
+    );
+  }
+
+  /// Commit the priority an accepted `fn_update_document {sourcePriority}`
+  /// wrote (`screens/reader.md` §Source priority; 4.118.0, ADR-155).
+  ///
+  /// Narrow for the reason the three above are, and applied only once the
+  /// server accepted the write. `null` is the reset: the server stores 0.5 and
+  /// deletes the stamp. A number is stamped with the SERVER's time, which this
+  /// screen never draws — only whether there is one — so a stamp already read
+  /// is kept and a first one is marked now (as the reference's `onSaved`).
+  Document withSourcePriority(double? value) {
+    return Document(
+      id: id,
+      userId: userId,
+      title: title,
+      type: type,
+      status: status,
+      mimeType: mimeType,
+      sourceUrl: sourceUrl,
+      gcsPath: gcsPath,
+      createdAt: createdAt,
+      processedAt: processedAt,
+      chunkCount: chunkCount,
+      wordCount: wordCount,
+      summary: summary,
+      keyPoints: keyPoints,
+      themes: themes,
+      tagIds: tagIds,
+      thumbnailUrl: thumbnailUrl,
+      sourceAudioUrl: sourceAudioUrl,
+      durationSeconds: durationSeconds,
+      audioUrl: audioUrl,
+      sourceImageUrl: sourceImageUrl,
+      author: author,
+      publishDate: publishDate,
+      processingStage: processingStage,
+      processingStallsAt: processingStallsAt,
+      reviewDismissedAt: reviewDismissedAt,
+      finishedAt: finishedAt,
+      nextLetterRequestedAt: nextLetterRequestedAt,
+      errorMessage: errorMessage,
+      forceProcess: forceProcess,
+      skipReason: skipReason,
+      sourcePriority: value ?? 0.5,
+      sourcePrioritySetAt: value == null
+          ? null
+          : (sourcePrioritySetAt ?? DateTime.now().millisecondsSinceEpoch),
       viewCount: viewCount,
       lastViewedAt: lastViewedAt,
       contentForm: contentForm,
@@ -426,7 +495,8 @@ class Document {
       errorMessage: json['error_message'] as String?,
       forceProcess: json['force_process'] as bool? ?? false,
       skipReason: json['skip_reason'] as String?,
-      sourcePriority: (json['source_priority'] as num?)?.toDouble() ?? 0.5,
+      sourcePriority: (json['source_priority'] as num?)?.toDouble(),
+      sourcePrioritySetAt: tsMs(json['source_priority_set_at']),
       viewCount: json['view_count'] as int? ?? 0,
       lastViewedAt: tsMs(json['last_viewed_at']),
       contentForm: json['content_form'] as String?,
