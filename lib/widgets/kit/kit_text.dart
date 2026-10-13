@@ -81,15 +81,37 @@ class KitText {
   /// [color] is for the same italic voice set quieter — a remark about a state
   /// at `--fg-subtle` (`.rd-empty`, `.cohesive-note`, `.sc-vtext.none`, the
   /// search field's placeholder), never a second standfirst.
+  ///
+  /// [opsz] is for a role whose reference names its optical size
+  /// (`font-variation-settings: "opsz" 18`); the default is the size's own,
+  /// as the browser's `font-optical-sizing: auto` picks it.
   static TextStyle lede(BuildContext context,
-          {double fontSize = 18, double? height, Color? color}) =>
+          {double fontSize = 18, double? height, Color? color, double? opsz}) =>
       AppTheme.serif(
         fontSize: fontSize,
         height: (height ?? 30) / fontSize,
         fontWeight: FontWeight.w400,
         fontStyle: FontStyle.italic,
         color: color ?? Tokens.of(context).fgLede,
+        opsz: opsz,
       );
+
+  /// CSS's `ch` in [style]: the advance of `0`, at the reader's text scale.
+  ///
+  /// A measure the reference writes in `ch` follows its face, its optical
+  /// size and its size; a point constant written for one of them is wrong for
+  /// the next (§7's standfirst was 420 against web's 44ch, 366).
+  static double ch(BuildContext context, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: '0', style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final w = tp.width;
+    tp.dispose();
+    return w;
+  }
 
   /// `.meta` — sans 14/20 at `--fg-subtle`.
   static TextStyle meta(BuildContext context) => TextStyle(

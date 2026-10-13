@@ -153,6 +153,10 @@ class KitEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // `.empty-state-sub` names its optical size, "opsz" 18 (Study's keeps it);
+    // the quiet form's `inherit` leaves the browser's own, the size's.
+    final sub = KitText.lede(context,
+        fontSize: 16, height: _studyForm ? 25 : 24, opsz: quiet ? null : 18);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
@@ -198,20 +202,26 @@ class KitEmptyState extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.02 * 28,
                         color: t.fg,
+                        // `.empty-state-title`'s "opsz" 30; Study's `inherit`
+                        // leaves the size's own.
+                        opsz: _studyForm ? null : 30,
                       ).copyWith(shadows: AppShadows.letterpress),
               ),
               SizedBox(height: quiet ? 8 : 10),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Text(
-                  standfirst,
-                  textAlign: TextAlign.center,
-                  style: KitText.lede(context,
-                      fontSize: 16, height: _studyForm ? 25 : 24),
-                ),
+                // `max-width: 44ch` (`.empty-state-sub`), 48ch in the quiet
+                // form — in the standfirst's own face, so the cap is web's
+                // 366/406 here, not a constant (it was 420 for both).
+                constraints: BoxConstraints(
+                    maxWidth: (quiet ? 48 : 44) * KitText.ch(context, sub)),
+                child:
+                    Text(standfirst, textAlign: TextAlign.center, style: sub),
               ),
               if (suggestions.isNotEmpty && _movesOnly) ...[
-                const SizedBox(height: 26),
+                // `.st-empty .empty-state-sub`'s 24 over `.st-moves`' own 4:
+                // the state is a flex column, so the two margins add (28),
+                // where every other §7's rows sit the standfirst's 26 under.
+                const SizedBox(height: 24 + 4),
                 _MoveGroup(moves: suggestions.cast<KitNumberedMove>()),
               ] else if (suggestions.isNotEmpty) ...[
                 const SizedBox(height: 26),
@@ -232,7 +242,8 @@ class KitEmptyState extends StatelessWidget {
                 ),
               ],
               if (actions.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.s6),
+                // Under Study's moves, `.st-moves`' 26 bottom margin.
+                SizedBox(height: _studyForm ? 26 : AppSpacing.s6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -502,7 +513,8 @@ class KitNumberedMove extends StatelessWidget {
     this.last = false,
   });
 
-  /// The move without its own card — what [_MoveGroup] stacks.
+  /// The move without its own card (Study's group draws `.st-move`'s own type,
+  /// [_MoveGroup]).
   Widget content(BuildContext context) {
     final t = Tokens.of(context);
     final body = Column(
@@ -586,7 +598,13 @@ class KitNumberedMove extends StatelessWidget {
 
 
 /// `.st-moves` — the numbered moves as one `--surface` block, `--border` edge,
-/// `--r-md`, a 1px `--rule` between rows, each row `16px 18px`.
+/// `--r-md`, 2px between rows (its flex `gap`) and a 1px `--rule` atop each
+/// row after the first, each row `16px 18px`.
+///
+/// A row is `.st-move`'s own type, not [KitNumberedMove.content] (onboarding's
+/// ruled row is a different spelling): the numeral mono 10 / 0.14em at
+/// `--fg-subtle` on the body's 24 line, the title serif 17/23 "opsz" 18 two
+/// under it, the line sans 13/20 four under that.
 class _MoveGroup extends StatelessWidget {
   final List<KitNumberedMove> moves;
 
@@ -606,15 +624,46 @@ class _MoveGroup extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (var i = 0; i < moves.length; i++)
+          for (var i = 0; i < moves.length; i++) ...[
+            if (i > 0) const SizedBox(height: 2),
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
               decoration: i == 0
                   ? null
                   : BoxDecoration(
                       border: Border(top: BorderSide(color: t.rule))),
-              child: moves[i].content(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(moves[i].number,
+                      style: AppTheme.mono(
+                        fontSize: 10,
+                        height: 24 / 10,
+                        letterSpacing: 0.14 * 10,
+                        color: t.fgSubtle,
+                      )),
+                  const SizedBox(height: 2),
+                  Text(moves[i].title,
+                      style: AppTheme.serif(
+                        fontSize: 17,
+                        height: 23 / 17,
+                        fontWeight: FontWeight.w600,
+                        color: t.fg,
+                        opsz: 18,
+                      )),
+                  const SizedBox(height: 4),
+                  Text(moves[i].description,
+                      style: TextStyle(
+                        fontFamily: AppTheme.fontSans,
+                        fontSize: 13,
+                        height: 20 / 13,
+                        color: t.fgMuted,
+                      )),
+                ],
+              ),
             ),
+          ],
         ],
       ),
     );
