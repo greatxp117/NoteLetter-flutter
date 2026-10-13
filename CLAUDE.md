@@ -4,13 +4,14 @@ Flutter client. Part of the multi-repo workspace — read the umbrella
 `../CLAUDE.md` (especially "Traps that have bitten us") and
 `../NoteLetter-contracts/spec/overview.md` before any data-layer work.
 
-**Contract version: 4.4.0** (pin — advanced only with a green `/conformance`
+**Contract version: 5.3.1** (pin — advanced only with a green `/conformance`
 run; `test/contract/pin_check_test.dart` parses this exact line and fails while
 it differs from `../NoteLetter-contracts/VERSION`).
 
-Behind the reference on every version [`QUEUE.md`](QUEUE.md) folds; the pin is
-**held** until that queue is empty (`spec/clients/flutter.md` §Pin).
-`/flutter-next` works it, `/parity flutter` refreshes it; never narrate here.
+Current since F-18 (2026-10-13): the pin moves with each version's Flutter
+tandem, as web's does (`spec/clients/flutter.md` §Pin). [`QUEUE.md`](QUEUE.md)
+is the work queue; `/flutter-next` works it, `/parity flutter` refreshes it;
+never narrate here.
 Debug builds **refuse prod** — run through `tool/dev.sh`. Bundle id
 `xp.NoteLetter.Flutter` (`xp.NoteLetter` is the Swift app's).
 
@@ -50,7 +51,7 @@ asserts; a notifier building its own is untested.
 ```bash
 tool/dev.sh chrome|ios                        # emulator only, proven ours
 flutter analyze --no-fatal-infos --no-fatal-warnings
-flutter test test/contract test/kit -x pin    # pin excluded by policy
+flutter test test/contract test/kit           # pin included since F-18
 tool/shots_batch.sh <list> && tool/web_frames.sh <screen>…
 ```
 

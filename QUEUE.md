@@ -362,7 +362,7 @@ a new obligation on a finished screen is a new item.
   literal under `lib/pages/`; an exemption is a `kit-ok: <reason>` comment at the site.
 
 ## F-18 · Pin bump — 4.4.0 → VERSION
-- status: open
+- status: done 2026-10-13
 - screen: none
 - route: none
 - spec: spec/clients/flutter.md §Pin; CHANGELOG.md
@@ -1773,7 +1773,7 @@ a new obligation on a finished screen is a new item.
   2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): ask, reader, reader-shelves, shelf-picker-search re-copied from web 985bb87 and looked at: Ask's rows MATCH; the reader's Priority row is booked on F-99.
 
 ## F-99 · Reader — the Priority row (web 9477c9c)
-- status: in-progress
+- status: done 2026-10-13
 - screen: reader
 - route: /reader/{id}
 - spec: spec/screens/reader.md §Source priority; spec/screens/sources.md §Composition; spec/decisions/ADR-155-a-chosen-priority-is-stamped.md; spec/component-kit.md §6.8
@@ -1815,7 +1815,7 @@ a new obligation on a finished screen is a new item.
   2026-10-12 pairs (frame batch 2, over 1e2da8c..2d32f79, every pair looked at in both themes): sources, org-scan-wait, folder-contents, settings — the vendors' marks MATCH (the Drive mark in its colours in both headers; the white plates).
 
 ## F-102 · Sources — an import job row's sub-line names its provider, with the mark (web CloudImportPanel)
-- status: in-progress
+- status: done 2026-10-13
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md §Cloud import; spec/screens/sources.md §Trust & feedback; spec/component-kit.md §4.1; spec/component-kit.md §6.3
@@ -1831,7 +1831,7 @@ a new obligation on a finished screen is a new item.
   2026-10-13, read off the first frames: `SectionHeader`'s note was a loose Flexible, so a one-line note ("0 of 1 imported") shrank to its text and sat mid-row where web's `space-between` puts it at the end — Expanded now (only Sources, Study, For your review and onboarding pass a note; a wrapping note draws as before). History's day line halved the row and wrapped "1 skipped"; the date keeps its width now.
 
 ## F-103 · A held send or confirm — how it looks is not ruled (spec 0.5, web full on Ask and the picker, faded on Support)
-- status: in-progress
+- status: done 2026-10-13
 - screen: ask
 - route: /ask
 - spec: spec/component-kit.md §6.1; spec/decisions/ADR-145-a-wait-looks-like-a-wait.md; spec/screens/ask.md; spec/screens/sources.md
@@ -1871,7 +1871,7 @@ a new obligation on a finished screen is a new item.
 - notes: CHANGELOG 5.3.0 Flutter tandem (backend signal 11:52Z, contracts 3efed6e): `processing_stalls_at` is meaningful while status ∈ {queued, processing}; one comparison. `Document.isStalled` accepts `queued` (a `queued` with no stamp — a passage, a pre-5.3.0 row — is never stalled); `browse_section.dart`: the Stalled label and `fail` tone checked before the Queued label, the never-started sentence ("Indexing never started. Waiting will not help — Retry to start it.", ruled 2026-10-13; processing keeps its own), Retry as the primary, the row's 15 s tick while `queued` too; `firestore_service.dart` `subscribeAttentionDocuments` reads `queued`; `review_inbox.dart`'s clock ticks while a `queued` row is held. Tests: the row (Stalled · fail · the sentence · Retry · no Cancel; a fresh queued still waits; a stalled processing keeps its sentence) and the needs-decision set (stalled queued in; fresh or unstamped out). The three new api/documents fixture cases are requests this client's builders already construct. No pair: the seed holds no stamped `queued` row, so no frame changes; the frames re-shot over this code show the seed's own queued row still Queued.
 
 ## F-106 · Sources and For your review — an organization suggestion is a .proc-row card, with batch select (web SuggestionCard, SuggestionQueue)
-- status: in-progress
+- status: done 2026-10-13
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md §Suggestion review queue; spec/screens/review.md; spec/component-kit.md §4.1; spec/component-kit.md §6.3
