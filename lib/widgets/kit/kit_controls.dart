@@ -828,11 +828,20 @@ class _RenderActionFlow extends RenderBox
   Size _layout(double avail, {required bool dry}) {
     final kids = _kids;
     if (kids.isEmpty) return Size.zero;
+    // Each natural width rounded UP to the pixel. A real font's width is
+    // fractional, and the floors this layout took until 2026-10-14 (of a
+    // natural width, and of a share a hair wider than one) left a label a
+    // fraction of a pixel short: it ellipsised its last characters — on a
+    // held button, the countdown ("Send now · 0:…"). Whole naturals make a
+    // floored share at least the natural of any child it is given to.
     final natural = [
       for (final c in kids)
         (avail.isFinite
-                ? c.getMaxIntrinsicWidth(double.infinity).clamp(0.0, avail)
-                : c.getMaxIntrinsicWidth(double.infinity))
+                ? c
+                    .getMaxIntrinsicWidth(double.infinity)
+                    .ceilToDouble()
+                    .clamp(0.0, avail)
+                : c.getMaxIntrinsicWidth(double.infinity).ceilToDouble())
             .toDouble(),
     ];
     final lines = <List<int>>[];
@@ -863,7 +872,7 @@ class _RenderActionFlow extends RenderBox
           final over = free.where((i) => natural[i] > share).toList();
           if (over.isEmpty) {
             for (final i in free) {
-              frozen[i] = share;
+              frozen[i] = share.floorToDouble();
             }
             break;
           }
@@ -872,7 +881,7 @@ class _RenderActionFlow extends RenderBox
           }
         }
         for (final i in l) {
-          widths[i] = frozen[i]!.floorToDouble();
+          widths[i] = frozen[i]!;
         }
       }
     }

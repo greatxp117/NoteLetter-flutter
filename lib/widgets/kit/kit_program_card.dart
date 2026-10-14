@@ -180,8 +180,9 @@ class KitProgramCard extends StatelessWidget {
             ),
           ],
           if (notice != null) ...[
-            // `.st-notice` cancels the grid's row gap down to the kit's 12.
-            SizedBox(height: wide ? 12 : 16),
+            // `.st-notice`'s -16 cancels the grid's row gap: 28 − 16 = 12
+            // beside a side column, 16 − 16 = 0 under a folded one.
+            SizedBox(height: wide ? 12 : 0),
             notice!,
           ],
           if (hasHint) ...[
