@@ -346,8 +346,11 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                           runSpacing: 6,
                           children: [
                             for (final id in i.folderIds)
+                              // Ruled 2026-10-14 (Xavier): the tooltip is the
+                              // folder's name — the pill may cut it — and the
+                              // whole id when it has none.
                               Tooltip(
-                                message: id,
+                                message: i.folderNames[id] ?? id,
                                 child: KitTag(
                                   _chipLabel(id, i.folderNames),
                                   // A name runs to 200 characters where the

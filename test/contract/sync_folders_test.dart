@@ -261,6 +261,12 @@ void main() {
     await pumpPanel(tester, stored: const ['fld-reading-2026']);
     expect(find.text('fld-reading-20…'), findsOneWidget,
         reason: 'chosen before 5.9.0: no folder_names, so the cut id');
+    // Ruled 2026-10-14: with no name the tooltip is the WHOLE id, which the
+    // pill cuts at 14.
+    expect(
+        find.byWidgetPredicate(
+            (w) => w is Tooltip && w.message == 'fld-reading-2026'),
+        findsOneWidget);
   });
 
   testWidgets('a stored name is the chip, and a remove sends ids alone so the '
@@ -272,6 +278,14 @@ void main() {
         names: const {'fld-reading-2026': 'Reading'});
     expect(find.widgetWithText(KitTag, 'Reading'), findsOneWidget);
     expect(find.text('fld-reading-20…'), findsNothing);
+    // Ruled 2026-10-14: a named folder's tooltip is its name, not its id.
+    expect(
+        find.byWidgetPredicate((w) => w is Tooltip && w.message == 'Reading'),
+        findsOneWidget);
+    expect(
+        find.byWidgetPredicate(
+            (w) => w is Tooltip && w.message == 'fld-reading-2026'),
+        findsNothing);
     expect(remove('fld-reading-2026'), findsNothing,
         reason: 'the × is named by the folder\'s name, not its id');
     await tester.tap(remove('Reading'));
