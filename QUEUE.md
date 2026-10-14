@@ -1882,3 +1882,16 @@ a new obligation on a finished screen is a new item.
 - shots: folder-contents; import-activity; import-activity-failed
 - extra_gates: none
 - notes: The import-activity frames (F-102) were the first to show a pending suggestion, and its card was not web's: a §5.1 card titled by type ("Move a file") with a "60% SURE" status pill, the reason, then "Move \"taxes.pdf\" → /Docs/Finance", and no selection — the spec's "Approve/decline per card + batch select (≤20/call)" had no batch at all. Recomposed on KitProcCard: the selection box in the badge slot; the title the action with its subject in bold (`KitProcCard.titleSpans`, new: Move/Copy (Notion) **file** → to · Place in **to** · Adopt README edits · Reorganize this document); the sub-line `from {from_path} · {reason}`; a README card's proposed charter and its adoption sentence under it (`KitProcCard.infoExtra`, new); the confidence as a work-tone pill with no spinner (`KitProcPill.spin`, new); Approve ("Working…" while busy) — or *Review plan…*, which opens the reader, for `reorganize` (INV-13: approving never executes it) — and Decline under the row, at its end on a phone. The queue holds the batch: chosen boxes put "Approve N · Decline N" beside the count, one resolve at a time holds every control, ids go 20 a call, the selection clears on success, and a refusal is §14.2 under the list as web's notice. Sources' eyebrow reads *Suggestions* (was *Organization suggestions*). The approval OUTCOME rows are web's `ApprovalOutcome` too: a badge-less `.proc-row` (KitFolderCard, its sub-line optional now) — the title, the *Applying* work pill or *Clear*, the worker's sentence under it; they were §4.1 rows (no frame shows one).
+
+## F-107 · Pairs drawn through §7's file — ask, study and onboarding are judged against kit_empty.dart (5aa)
+- status: done 2026-10-14
+- screen: study
+- route: /study
+- spec: spec/component-kit.md §7
+- web: src/shared/EmptyState.jsx; src/styles/app-kit.css; src/styles/app-study.css; src/styles/app-onboarding-wizard.css
+- flutter: lib/widgets/kit/kit_empty.dart
+- folds: TODO "screenshot_pair_check misses study's pair, because its queue item does not list kit_empty.dart"
+- device_test: none
+- shots: ask; study; onboarding
+- extra_gates: harness/screenshot_pair_check.py
+- notes: STALE-PAIR reads a done item's `flutter:` files, and a pair is judged only against the files its items list. These three frames DRAW kit_empty.dart — Ask's and Study's §7 (KitEmptyState, KitSuggestion, Study's move group) and onboarding's KitMark and ruled KitNumberedMove — and no item naming them listed it, so 9521e0b moved Study's frame with the gate green; only support's and sources' items listed the file. This item adds the edge and nothing else (a done item is never edited). The class is the gate's: a pair drawn through a shared file its items do not list is invisible to it, and only a list kept by hand closes each one.
