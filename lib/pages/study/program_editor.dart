@@ -31,6 +31,7 @@ import '../../services/firestore_service.dart';
 import '../../state/schedule.dart';
 import '../../state/study_schedule.dart';
 import '../../widgets/kit/kit.dart';
+import '../../shared/passage_figure.dart';
 
 const _maxDocs = 10;
 
@@ -317,7 +318,7 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
                 title: d?.title ?? p.documentIds[i],
                 count: d == null
                     ? null
-                    : _counted(d.chunkCount ?? 0, 'passage'),
+                    : passagesLabel(d.chunkCount),
               );
             }(),
         ]),
@@ -368,7 +369,7 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
                 subtitle: (chosen[i].author ?? '').trim().isEmpty
                     ? null
                     : chosen[i].author!.trim(),
-                count: _counted(chosen[i].chunkCount ?? 0, 'passage'),
+                count: passagesLabel(chosen[i].chunkCount),
                 trailing: [
                   KitRowIconButton(Icons.arrow_upward,
                       label: 'Move earlier',
@@ -394,7 +395,7 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
             KitFormRow(
               kind: kitDocKind(d.type),
               title: d.title.isEmpty ? 'Untitled' : d.title,
-              subtitle: _counted(d.chunkCount ?? 0, 'passage'),
+              subtitle: passagesLabel(d.chunkCount),
               trailing: [
                 KitRowTextButton('Add',
                     onPressed: full

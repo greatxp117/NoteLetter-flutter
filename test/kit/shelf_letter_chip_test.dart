@@ -69,6 +69,41 @@ class _Settings extends SettingsNotifier {
   NewsletterSettings? get newsletter => value;
 }
 
+class _Uncounted extends _Reads {
+  @override
+  Stream<List<Document>> subscribeDocuments({int limit = 200}) =>
+      Stream.value([
+        Document(
+            id: 'd-u',
+            userId: 'u1',
+            title: 'Never counted',
+            type: 'pdf',
+            status: DocumentStatus.complete,
+            createdAt: 1757000000000,
+            tagIds: const ['lead']),
+      ]);
+}
+
+Future<void> _pumpWith(WidgetTester tester, Widget page, FirestoreService reads,
+    NewsletterSettings? settings) async {
+  FirestoreService.instance = reads;
+  final letters = NewsletterNotifier();
+  await letters.load();
+  await tester.pumpWidget(MultiProvider(
+    providers: [
+      ChangeNotifierProvider(create: (_) => DocumentsNotifier()),
+      ChangeNotifierProvider(create: (_) => TagsNotifier()),
+      ChangeNotifierProvider<NewsletterNotifier>.value(value: letters),
+      ChangeNotifierProvider<SettingsNotifier>(
+          create: (_) => _Settings(settings)),
+    ],
+    child: MaterialApp(theme: AppTheme.light, home: Scaffold(body: page)),
+  ));
+  for (var i = 0; i < 4; i++) {
+    await tester.pump();
+  }
+}
+
 Future<void> _pump(WidgetTester tester, Widget page,
     {NewsletterSettings? settings}) async {
   tester.view.physicalSize = const Size(1200, 3600);
@@ -201,6 +236,35 @@ void main() {
       LocalFlags.shelvesView.value = 'shelf';
       await _pump(tester, const LibraryPage());
       expect(_chip('LEAD'), findsNothing);
+    });
+  });
+
+  group('Home · a passage figure needs a count (ruled 2026-10-14)', () {
+    testWidgets('a source never counted keeps its count cell, empty, and its '
+        'subtitle drops the figure; a measured count draws', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'nl-onboard-dismissed': true,
+        LocalFlags.recentViewKey: 'list',
+      });
+      await _pump(tester, const LibraryPage(), settings: _on);
+      // _Reads' documents carry chunkCount 3; one is replaced below by the
+      // uncounted reads harness.
+      expect(find.byType(KitSourceRow), findsWidgets);
+      final rows = tester.widgetList<KitSourceRow>(find.byType(KitSourceRow));
+      for (final r in rows) {
+        expect(r.count, '3');
+        expect(r.subtitle, contains('3 passages'));
+      }
+      FirestoreService.instance = _Uncounted();
+      await tester.pumpWidget(const SizedBox());
+      await _pumpWith(tester, const LibraryPage(), _Uncounted(), _on);
+      final uncounted =
+          tester.widgetList<KitSourceRow>(find.byType(KitSourceRow));
+      expect(uncounted, isNotEmpty);
+      for (final r in uncounted) {
+        expect(r.count, '', reason: 'the cell stays, empty — never "0"');
+        expect(r.subtitle, isNot(contains('passage')));
+      }
     });
   });
 

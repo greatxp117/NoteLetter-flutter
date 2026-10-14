@@ -20,7 +20,8 @@ KitBook bookOf(Document d, List<Tag> shelves, {required bool dark}) {
     id: d.id,
     title: d.title,
     kind: kitDocKind(d.type),
-    passages: d.chunkCount ?? 0,
+    // Null stays null: a count never taken draws no figure (§States).
+    passages: d.chunkCount,
     words: d.wordCount,
     createdAt: d.createdAt,
     viewCount: d.viewCount,

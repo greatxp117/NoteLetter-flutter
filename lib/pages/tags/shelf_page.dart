@@ -14,6 +14,7 @@ import '../../widgets/kit/kit.dart';
 import 'shelf_parts.dart';
 import 'shelf_sheet.dart';
 import 'split_shelf_sheet.dart';
+import '../../shared/passage_figure.dart';
 
 /// **One shelf** (`/shelves/{id}`) — `screens/library.md` §Shelf color, §Shelf
 /// granularity and splitting.
@@ -400,8 +401,10 @@ class _ShelfPageState extends State<ShelfPage> {
                         builder: (context, open) => KitSourceRow(
                           leading: KitFileBadge(kitDocKind(d.type)),
                           title: d.title.isEmpty ? 'Untitled' : d.title,
-                          subtitle: plural(d.chunkCount ?? 0, 'passage', 'passages'),
-                          count: '${d.chunkCount ?? 0}',
+                          // §States: a count never taken draws no figure;
+                          // the count cell stays, empty.
+                          subtitle: passagesLabel(d.chunkCount),
+                          count: d.chunkCount == null ? '' : '${d.chunkCount}',
                           date: shortDate(d.createdAt),
                           onTap: open,
                         ),

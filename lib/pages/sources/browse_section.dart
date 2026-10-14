@@ -18,6 +18,8 @@ import '../../widgets/kit/kit.dart';
 import '../reader/supersession_confirm.dart';
 import 'shelf_books.dart';
 import 'source_sheet.dart';
+import '../../shared/passage_figure.dart';
+import '../../shared/stalled.dart';
 
 /// **Browse** — the volume list on Sources (`screens/sources.md` §Composition
 /// body 2), rebuilt against the kit (ADR-041, contract 4.5.2).
@@ -363,7 +365,8 @@ class _VolumeRow extends StatelessWidget {
         leading: KitFileBadge(kitDocKind(doc.type)),
         title: doc.title.isEmpty ? 'Untitled' : doc.title,
         subtitle: _shelfLabel(doc, shelves),
-        count: _plural(doc.chunkCount ?? 0, 'passage'),
+        // §States: a count never taken draws no figure (the cell stays).
+        count: passagesLabel(doc.chunkCount) ?? '',
         date: _rowDate(doc.createdAt),
         // Unread is view_count == 0 — "you have not opened this in the reader".
         // Expanding this source out of a search result does not clear it
@@ -523,9 +526,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
       _busy = true;
       _error = null;
     });
-    final activity = context.read<ActivityNotifier>();
     final doc = widget.doc;
-    final title = doc.title.isEmpty ? 'Untitled' : doc.title;
     // reader.md §Supersession confirm names "retry of an errored doc": it
     // re-derives the document, and an errored document CAN hold both facts —
     // one whose edit failed to re-embed keeps its passages (a `docHtml`
@@ -538,21 +539,10 @@ class _ProcessingRowState extends State<ProcessingRow> {
     // checked, and sends straight through on two definite noes. Inside the
     // confirm a refusal stays in the panel's §18 slot; with no confirm owed it
     // is §14.2 under the row, as before. The control is held until it resolves.
-    final res = await SupersessionConfirm.run(
-      context,
-      docId: doc.id,
-      title: force ? 'Index “$title” anyway?' : 'Retry “$title”?',
-      lead: force ? forceLead : retryLead,
-      confirmLabel: force ? 'Index it anyway' : 'Retry and replace',
-      action: () => force
-          ? activity.forceProcessDocument(doc.id)
-          : activity.retryDocument(doc.id),
-      studyCheck: widget.studyCheck,
-      editCheck: widget.editCheck,
-      // A forced retry is a retry: one cooldown for both controls (ADR-085),
-      // inside the confirm and on the row (4.107.0, ADR-140).
-      waitKey: WaitKey.documentRetry(doc.id),
-    );
+    final res = await runSourcePrimary(context, doc,
+        force: force,
+        studyCheck: widget.studyCheck,
+        editCheck: widget.editCheck);
     if (!mounted) return;
     // On 200 **no optimistic state is needed**: the document flips to `queued`
     // under the existing subscription and the row returns to its normal
@@ -566,13 +556,6 @@ class _ProcessingRowState extends State<ProcessingRow> {
     });
   }
 
-  /// The confirm's lead sentences, verbatim from the reference (web 71987f6).
-  static const retryLead =
-      'This source will be processed again from its original, and any '
-      'passages it has are replaced with a fresh extraction.';
-  static const forceLead =
-      'This source will be read again as text, and any passages it has are '
-      'replaced with a fresh extraction.';
 
   /// The document's retry cooldown (4.107.0, ADR-140) holds BOTH primaries —
   /// a forced retry is a retry — on this row wherever it is drawn (the
@@ -603,14 +586,13 @@ class _ProcessingRowState extends State<ProcessingRow> {
     // nothing already spent. Mirrors web's STALLED_PROC_MSG verbatim. The copy
     // follows the status (5.3.0, ADR-161; ruled 2026-10-13): a `queued` run
     // never started, so it has nothing to finish.
-    final stalledMsg = doc.status == DocumentStatus.queued
-        ? 'Indexing never started. Waiting will not help — Retry to start it.'
-        : 'Indexing stopped before it finished. Waiting will not help — Retry to start it again.';
+    final stalledMsg = stalledMessage(doc);
     // web DEFAULT_PROC_ERROR, for a failed row the backend left unexplained.
     const defaultMsg =
         'No readable text was found. Retry, or remove this source.';
     final primary = _primary(doc);
     final title = doc.title.isEmpty ? 'Untitled' : doc.title;
+    // "the passages when there are any" — none drawn for 0 or never counted.
     final passages = doc.chunkCount ?? 0;
     // Offered on EVERY row — failed, queued, uploading or mid-extraction — and
     // chosen by the document's shape, which is known at creation and does not
@@ -842,4 +824,44 @@ String _shelfLabel(Document doc, List<Tag> shelves) {
     if (doc.tagIds.contains(s.id)) return s.title;
   }
   return 'Unshelved';
+}
+
+/// The confirm's lead sentences, verbatim from the reference (web 71987f6).
+const sourceRetryLead =
+    'This source will be processed again from its original, and any '
+    'passages it has are replaced with a fresh extraction.';
+const sourceForceLead =
+    'This source will be read again as text, and any passages it has are '
+    'replaced with a fresh extraction.';
+
+/// **The Sources row's primary**, in one place, so every surface that offers
+/// it offers THE same action (activity.md §Where a row leads, ruled
+/// 2026-10-14: Activity's Retry "is the Sources row's own action, not a second
+/// spelling of it"): `fn_retry_document` — or `force: true` — through the
+/// supersession confirm (reader.md), on the document's one retry cooldown
+/// (ADR-085: a forced retry is a retry; 4.107.0, ADR-140). Inside the confirm
+/// a refusal stays in the panel's §18 slot; with no confirm owed the caller
+/// renders [SupersessionResult.message] in its own §14.2 slot, verbatim.
+Future<SupersessionResult> runSourcePrimary(
+  BuildContext context,
+  Document doc, {
+  required bool force,
+  Future<bool?> Function(String docId)? studyCheck,
+  Future<bool?> Function(String docId)? editCheck,
+}) {
+  final activity = context.read<ActivityNotifier>();
+  final title = doc.title.isEmpty ? 'Untitled' : doc.title;
+  return SupersessionConfirm.run(
+    context,
+    docId: doc.id,
+    title: force ? 'Index “$title” anyway?' : 'Retry “$title”?',
+    lead: force ? sourceForceLead : sourceRetryLead,
+    confirmLabel: force ? 'Index it anyway' : 'Retry and replace',
+    action: () => force
+        ? activity.forceProcessDocument(doc.id)
+        : activity.retryDocument(doc.id),
+    studyCheck: studyCheck,
+    editCheck: editCheck,
+    waitKey: WaitKey.documentRetry(doc.id),
+  );
 }

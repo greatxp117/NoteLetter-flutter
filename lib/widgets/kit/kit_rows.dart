@@ -8,6 +8,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
+import '../../shared/passage_figure.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
 import 'kit_shell.dart' show KitGlyph, KitQuill;
@@ -300,6 +301,13 @@ class KitTimelineRow extends StatefulWidget {
   final String time;
   final VoidCallback? onTap;
 
+  /// §4.2's optional part, **action** (2026-10-14; activity.md §Where a row
+  /// leads): one action beneath the detail line, in the body column — with
+  /// its §14.2 line under it. The row still leads where it led: a tap on the
+  /// action is the action's (the innermost gesture wins), and a tap anywhere
+  /// else on the row is the row's. Web `.act-acts` over `.act-row-cover`.
+  final Widget? action;
+
   /// A running event: adds the pulsing ring **and the running label**.
   /// Both are suppressed under `prefers-reduced-motion`; the label stays, it
   /// just stops animating — the fact that something is in progress is
@@ -316,6 +324,7 @@ class KitTimelineRow extends StatefulWidget {
     this.detail,
     required this.time,
     this.onTap,
+    this.action,
     this.live = false,
   });
 
@@ -482,6 +491,11 @@ class _KitTimelineRowState extends State<KitTimelineRow>
                               fontSize: 13,
                               color: t.fgMuted,
                             )),
+                      ],
+                      // `.act-acts { margin-top: 10px }`.
+                      if (widget.action != null) ...[
+                        const SizedBox(height: 10),
+                        widget.action!,
                       ],
                       // Below the compact width the time drops to its own line
                       // in column 2. The inset and the divider width do not

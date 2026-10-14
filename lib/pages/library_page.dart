@@ -8,6 +8,7 @@ import '../models/document.dart';
 import '../models/newsletter.dart';
 import '../models/tag.dart';
 import '../shared/local_flags.dart';
+import '../shared/passage_figure.dart';
 import '../shared/upload_types.dart';
 import '../state/documents_notifier.dart';
 import '../state/newsletter_notifier.dart';
@@ -322,9 +323,13 @@ class _LibraryHomeState extends State<_LibraryHome> {
                   builder: (context, open) => KitSourceRow(
                     leading: KitFileBadge(kitDocKind(d.type)),
                     title: d.title.isEmpty ? 'Untitled' : d.title,
-                    subtitle: '${_shelfLabel(d, shelves)} · '
-                        '${_plural(d.chunkCount ?? 0, 'passage')}',
-                    count: '${d.chunkCount ?? 0}',
+                    // §States: a count never taken draws no figure — the
+                    // subtitle drops it and the count cell stays, empty.
+                    subtitle: [
+                      _shelfLabel(d, shelves),
+                      ?passagesLabel(d.chunkCount),
+                    ].join(' · '),
+                    count: d.chunkCount == null ? '' : '${d.chunkCount}',
                     date: _rowDate(d.createdAt),
                     onTap: open,
                   ),

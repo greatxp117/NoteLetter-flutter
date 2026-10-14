@@ -177,9 +177,16 @@ class _TypePanel extends StatelessWidget {
   }
 }
 
-/// `.ms-type-seg` — a sunken track, 2 inside a 1px `--border`, `--r-sm`; each
-/// choice flexes equally, sans 12 `--fg-muted`; the chosen one is `--surface`
-/// with `--shadow-1` at `--fg`.
+/// §6.8 **Variant — compact** (named 2026-10-14, ruled by Xavier; web
+/// `.seg.seg-compact`, which was `.ms-type-seg`). The Aa popover's rows, and no
+/// other track: a track on a page is the standard one ([KitSegmented]). Every
+/// required part of §6.8 at its own smaller metrics — a sunken track that
+/// FILLS its column inside a 1px `--border`, padding 2, gap 2; segments
+/// `5 8`, sans 12/400, `--r-xs`, never wrapping their label; the chosen one
+/// raised onto `--surface` with `--shadow-1` at `--fg`; an unchosen one fills
+/// `--hover` (at `--fg`) under the pointer. And §6.8's Semantics: the track is
+/// a group named by its row's label, and each segment a button that says
+/// whether it is pressed.
 class _TypeTrack extends StatelessWidget {
   final KitTypeGroup group;
   const _TypeTrack({required this.group});
@@ -187,55 +194,94 @@ class _TypeTrack extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: t.surfaceSunken,
-        borderRadius: AppRadius.smR,
-        border: Border.all(color: t.border),
-      ),
-      child: Row(
-        children: [
-          for (var i = 0; i < group.options.length; i++) ...[
-            if (i > 0) const SizedBox(width: 2),
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: i == group.selected,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: group.label,
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: t.surfaceSunken,
+          borderRadius: AppRadius.smR,
+          border: Border.all(color: t.border),
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < group.options.length; i++) ...[
+              if (i > 0) const SizedBox(width: 2),
+              Expanded(
+                child: _TypeSegment(
+                  label: group.options[i],
+                  selected: i == group.selected,
                   onTap: () => group.onChanged(i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    curve: Curves.easeOut,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: i == group.selected
-                          ? t.surface
-                          : const Color(0x00000000),
-                      borderRadius: AppRadius.xsR,
-                      boxShadow:
-                          i == group.selected ? AppShadows.s1 : null,
-                    ),
-                    child: Text(
-                      group.options[i],
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.fade,
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontSans,
-                        fontSize: 12,
-                        color: i == group.selected ? t.fg : t.fgMuted,
-                      ),
-                    ),
-                  ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TypeSegment extends StatefulWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TypeSegment(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  State<_TypeSegment> createState() => _TypeSegmentState();
+}
+
+class _TypeSegmentState extends State<_TypeSegment> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final on = widget.selected;
+    return Semantics(
+      button: true,
+      selected: on,
+      enabled: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: on
+                  ? t.surface
+                  : _hover
+                      ? t.hover
+                      : const Color(0x00000000),
+              borderRadius: AppRadius.xsR,
+              boxShadow: on ? AppShadows.s1 : null,
+            ),
+            child: Text(
+              widget.label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: on || _hover ? t.fg : t.fgMuted,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

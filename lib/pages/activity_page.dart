@@ -1,13 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/activity_item.dart';
 import '../models/document.dart';
+import '../shared/cooldown.dart';
 import '../shared/local_flags.dart';
+import '../shared/stalled.dart';
 import '../state/activity_notifier.dart';
 import '../state/documents_notifier.dart';
 import '../widgets/kit/kit.dart';
+import 'reader/supersession_confirm.dart';
+import 'sources/browse_section.dart' show runSourcePrimary;
 
 /// **Activity** (`spec/screens/activity.md`) — the live pipeline feed, and the
 /// screen that defines the canonical merge every client implements identically.
@@ -36,6 +42,29 @@ class ActivityPage extends StatefulWidget {
 
 class _ActivityPageState extends State<ActivityPage> {
   String _filter = 'all';
+
+  /// A stalled row crosses its threshold with NO Firestore write behind it, so
+  /// nothing would redraw it (sources.md §Stalled rows: a client must run a
+  /// clock). One clock for the screen, running only while a document is
+  /// `queued` or `processing` (web ActivityView, 15 s).
+  Timer? _tick;
+
+  void _syncTick(bool watching) {
+    if (watching && _tick == null) {
+      _tick = Timer.periodic(const Duration(seconds: 15), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!watching) {
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -66,8 +95,24 @@ class _ActivityPageState extends State<ActivityPage> {
         });
 
         final docsById = {for (final d in docs.documents) d.id: d};
+        final now = DateTime.now();
+        final watching = docs.documents.any((d) =>
+            d.status == DocumentStatus.queued ||
+            d.status == DocumentStatus.processing);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _syncTick(watching);
+        });
+        // Retry on a failed document's NEWEST failure row only (the feed is
+        // newest first), so a document that failed twice offers one.
+        final offered = <String>{};
         final rows = [
-          for (final item in activity.items) _ActivityRow.from(item, docsById),
+          for (final item in activity.items)
+            () {
+              final row = _ActivityRow.from(item, docsById, now);
+              final failedId = _failedDocIdOf(item);
+              if (failedId == null || !offered.add(failedId)) return row;
+              return row.acting(failedId, docsById[failedId]);
+            }(),
         ];
 
         final counts = <String, int>{'all': rows.length};
@@ -162,6 +207,13 @@ class _ActivityPageState extends State<ActivityPage> {
                                 detail: r.detail,
                                 time: r.time,
                                 live: r.live,
+                                action: r.actsDocId == null
+                                    ? null
+                                    : _RowRetry(
+                                        key: ValueKey('retry-${r.actsDocId}'),
+                                        docId: r.actsDocId!,
+                                        doc: r.retryDoc,
+                                      ),
                                 onTap: r.target == null
                                     ? null
                                     : () => _open(context, r.target!),
@@ -361,6 +413,86 @@ _Kind _kindFor(String type) =>
     _kinds[type] ??
     (family: 'other', chip: _humanizeType(type), icon: Icons.help_outline);
 
+/// The rows that report a document's failure (activity.md §Where a row
+/// leads): its failure events, keyed on `metadata.doc_id`, and a document row
+/// in `error`.
+const _docFailureEvents = {'doc_processing_failed', 'doc_indexing_failed'};
+
+String? _failedDocIdOf(ActivityItem item) {
+  if (item.kind == 'document') {
+    return item.status == 'error' ? item.id : null;
+  }
+  if (!_docFailureEvents.contains(item.type)) return null;
+  final id = item.metadata?['doc_id'];
+  return id is String && id.isNotEmpty ? id : null;
+}
+
+/// The row's Retry — **the Sources row's own action** ([runSourcePrimary]):
+/// the same `fn_retry_document`, the same supersession confirm, the same
+/// cooldown and held control, the same accent primary. Its refusal is §14.2
+/// with the endpoint's sentence verbatim, and it stays said after the Retry
+/// goes (the document moved on, 409, or was deleted, 404). On success nothing
+/// is optimistic: the document leaves `error` under the subscription and the
+/// Retry goes with it.
+class _RowRetry extends StatefulWidget {
+  final String docId;
+
+  /// The document while it is `error`; null draws no Retry (the refusal, if
+  /// one was said, stays).
+  final Document? doc;
+
+  const _RowRetry({super.key, required this.docId, required this.doc});
+
+  @override
+  State<_RowRetry> createState() => _RowRetryState();
+}
+
+class _RowRetryState extends State<_RowRetry> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _retry(Document doc) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final res = await runSourcePrimary(context, doc, force: false);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = res.outcome == SupersessionOutcome.refused && !res.waits
+          ? res.message
+          : null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => KitWait(
+        waitKey: WaitKey.documentRetry(widget.docId),
+        builder: (context, wait) {
+          final doc = widget.doc;
+          final slot = kitRefusalSlot(wait, _error, dense: true);
+          if (doc == null && slot == null) return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (doc != null)
+                KitButton.primary('Retry',
+                    icon: Icons.refresh,
+                    wait: _busy ? 0 : wait.left,
+                    onPressed: _busy ? null : () => _retry(doc)),
+              if (slot != null) ...[
+                if (doc != null) const SizedBox(height: 6),
+                slot,
+              ],
+            ],
+          );
+        },
+      );
+}
+
 class _Target {
   final String route; // 'reader' | 'sources' | 'letters' | 'support' | 'study'
   final String? docId;
@@ -382,6 +514,17 @@ class _ActivityRow {
   final bool live;
   final _Target? target;
 
+  /// The document this row offers Retry for — set on the NEWEST failure row
+  /// of a document only (activity.md §Where a row leads, ruled 2026-10-14),
+  /// whatever its status now, so a refusal already said stays said once the
+  /// Retry goes (a 409 because it moved on, a 404 because it was deleted).
+  /// The page fills it after mapping (it needs the whole feed).
+  final String? actsDocId;
+
+  /// That document while it is `error` in the documents subscription — and
+  /// only then is there a Retry.
+  final Document? retryDoc;
+
   const _ActivityRow({
     required this.icon,
     required this.tone,
@@ -394,7 +537,25 @@ class _ActivityRow {
     required this.bucket,
     required this.live,
     required this.target,
+    this.actsDocId,
+    this.retryDoc,
   });
+
+  _ActivityRow acting(String docId, Document? doc) => _ActivityRow(
+        icon: icon,
+        tone: tone,
+        family: family,
+        chip: chip,
+        subject: subject,
+        detail: detail,
+        badgeKind: badgeKind,
+        time: time,
+        bucket: bucket,
+        live: live,
+        target: target,
+        actsDocId: docId,
+        retryDoc: doc != null && doc.status == DocumentStatus.error ? doc : null,
+      );
 
   /// The web reference's `mapActivity` + `targetOf`, one for one.
   ///
@@ -403,15 +564,32 @@ class _ActivityRow {
   /// else is live. An **event** item takes its type's entry, and an unknown
   /// type degrades to `added` rather than rendering a raw token — `type` is an
   /// open vocabulary (organization events alone add five members).
-  factory _ActivityRow.from(ActivityItem item, Map<String, Document> docsById) {
+  factory _ActivityRow.from(
+      ActivityItem item, Map<String, Document> docsById, DateTime now) {
     _Kind kind;
     String subject;
     String? detail;
     String? badgeKind;
     var live = false;
+    // A stalled run is drawn Stalled, as the Sources row and For your review
+    // draw it (activity.md §The row, ruled by Xavier 2026-10-14) — it was
+    // "Processing" with the pulsing node: progress drawn on a run that has
+    // ended or will never start. The stall moment is read from the documents
+    // subscription this screen already holds (the merged document item does
+    // not carry `processing_stalls_at`), and [now] is the page's one clock.
+    final stalledDoc =
+        item.kind == 'document' ? docsById[item.id] : null;
+    final stalled = stalledDoc != null && stalledDoc.isStalled(now);
 
     if (item.kind == 'document') {
-      if (item.status == 'complete') {
+      if (stalled) {
+        kind = (
+          family: 'processing',
+          chip: 'Stalled',
+          icon: Icons.warning_amber_rounded
+        );
+        detail = stalledMessage(stalledDoc);
+      } else if (item.status == 'complete') {
         kind = (family: 'processing', chip: 'Indexed', icon: Icons.check);
       } else if (item.status == 'error' || item.status == 'skipped') {
         kind = (
@@ -453,9 +631,10 @@ class _ActivityRow {
       tone: _toneFor(
         kind.family,
         // A document row has no `level` of its own — its severity is its
-        // status, the way the merge already derives it.
+        // status, the way the merge already derives it; a stalled run's node
+        // is `critical`.
         item.kind == 'document'
-            ? (item.status == 'error'
+            ? (stalled || item.status == 'error'
                 ? 'error'
                 : item.status == 'skipped'
                     ? 'warning'

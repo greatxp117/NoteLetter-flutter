@@ -17,6 +17,7 @@ import '../../widgets/kit/kit.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../services/error_text.dart';
+import '../../theme/app_spacing.dart';
 
 class PinnedSources extends StatefulWidget {
   const PinnedSources({super.key, required this.settings});
@@ -152,9 +153,28 @@ class _PinnedSourcesState extends State<PinnedSources> {
                       // interface uses for "dismiss this notice" is the wrong
                       // affordance for the only undo a pin has, and a label is
                       // also what lets it say "Unpinning…" while in flight.
-                      TextButton(
-                        onPressed: _busy == doc.id ? null : () => _unpin(doc),
-                        child: Text(_busy == doc.id ? 'Unpinning…' : 'Unpin'),
+                      //
+                      // HELD while its write is in flight (kit §6.1, ruled
+                      // by Xavier 2026-10-14): steady at the held opacity like
+                      // every other held control — not Material's disabled
+                      // grey, a second way to draw a held control (web pulsed
+                      // it; this client greyed it). It ignores taps, and the
+                      // row leaves only when the subscription says so.
+                      Semantics(
+                        enabled: _busy != doc.id,
+                        child: IgnorePointer(
+                          ignoring: _busy == doc.id,
+                          child: Opacity(
+                            opacity: _busy == doc.id
+                                ? AppSpacing.heldOpacity
+                                : 1,
+                            child: TextButton(
+                              onPressed: () => _unpin(doc),
+                              child: Text(
+                                  _busy == doc.id ? 'Unpinning…' : 'Unpin'),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),

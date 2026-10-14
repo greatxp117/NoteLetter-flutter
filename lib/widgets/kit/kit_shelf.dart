@@ -20,7 +20,12 @@ class KitBook {
 
   /// §6.4.1 kind ([kitDocKind]) — picks the cloth and the spine's mark.
   final String kind;
-  final int passages;
+
+  /// `chunk_count` — null when it was never taken, and then the book draws
+  /// no passage figure anywhere: no Passages stat, nothing in its note or its
+  /// card (library.md §States, ruled 2026-10-14). A total over books adds the
+  /// counts that exist.
+  final int? passages;
 
   /// `word_count`, where the document carries one; the spine's width.
   final int? words;
@@ -39,7 +44,7 @@ class KitBook {
     required this.id,
     required this.title,
     required this.kind,
-    this.passages = 0,
+    this.passages,
     this.words,
     this.createdAt,
     this.viewCount = 0,
@@ -137,7 +142,8 @@ int _shelfHash(String s) {
 /// thickness where nothing counted it.
 int _bookWords(KitBook b) {
   if ((b.words ?? 0) > 0) return b.words!;
-  return b.passages > 0 ? (b.passages * 850) : 6000;
+  final p = b.passages ?? 0;
+  return p > 0 ? (p * 850) : 6000;
 }
 
 /// `spineWidth` — 16–64px on a log scale from 1,500 to 320,000 words.
@@ -518,7 +524,7 @@ class KitBookDetail extends StatelessWidget {
           children: [
             stat(_fmtWords(book.words).replaceAll(RegExp(r' words?$'), ''),
                 'Words'),
-            stat('${book.passages}', 'Passages'),
+            if (book.passages != null) stat('${book.passages}', 'Passages'),
             stat(book.shelf ?? 'Unshelved', 'Shelf'),
             stat(_fmtDay(book.createdAt), 'Added'),
             stat(
@@ -532,8 +538,8 @@ class KitBookDetail extends StatelessWidget {
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 460),
           child: Text(
-            '${book.passages} passage${book.passages == 1 ? '' : 's'} '
-            'indexed and searchable. Open it to '
+            '${book.passages == null ? '' : '${passagesLabel(book.passages)} '
+                'indexed and searchable. '}Open it to '
             'read, or pull a single passage into your letter.',
             style: KitText.lede(context, fontSize: 15, height: 23),
           ),
@@ -664,7 +670,8 @@ class KitShelfUnit extends StatelessWidget {
     for (final b in books) {
       if (b.id == openId) open = b;
     }
-    final passages = books.fold<int>(0, (n, b) => n + b.passages);
+    // A total adds the counts that exist (§States: the rule is one source's).
+    final passages = books.fold<int>(0, (n, b) => n + (b.passages ?? 0));
     final dark = t.brightness == Brightness.dark;
 
     Widget? head;
@@ -876,7 +883,7 @@ class _KitShelfViewState extends State<KitShelfView> {
         (x, y) => x._title.toLowerCase().compareTo(y._title.toLowerCase()),
       );
     } else if (widget.sort == 'passages') {
-      a.sort((x, y) => y.passages.compareTo(x.passages));
+      a.sort((x, y) => (y.passages ?? 0).compareTo(x.passages ?? 0));
     }
     return a;
   }
@@ -1071,14 +1078,16 @@ class _KitSourceCardState extends State<KitSourceCard> {
                           ),
                         ),
                       ),
+                      if (b.passages != null) ...[
                       const SizedBox(width: 10),
                       Text(
-                        '${b.passages} passage${b.passages == 1 ? '' : 's'}',
+                        passagesLabel(b.passages)!,
                         style: AppTheme.mono(
                           fontSize: 10.5,
                           color: t.accentText,
                         ),
                       ),
+                      ],
                     ],
                   ),
                 ),
