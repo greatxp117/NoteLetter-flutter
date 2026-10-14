@@ -39,7 +39,7 @@ void main() {
     Widget bar() => KitControlBar(
           filters: const [KitFilterChip('All sources', selected: true)],
           trailing: [
-            KitSegmented(segments: const [
+            KitSegmented(groupLabel: 'Group', segments: const [
               KitSegment('Passages'),
               KitSegment('Cohesive'),
             ], selected: 0, onChanged: (_) {}),

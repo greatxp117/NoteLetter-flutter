@@ -289,6 +289,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
 
                     _Label('Frequency'),
                     KitSegmented(
+                      groupLabel: 'Frequency',
                       segments: [
                         for (final f in _frequencies) KitSegment(_title(f)),
                       ],
@@ -604,6 +605,7 @@ class _RuleRow extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 88),
               child: Eyebrow(cloudTypeLabel(type).toUpperCase())),
           KitSegmented(
+            groupLabel: cloudTypeLabel(type),
             segments: const [
               KitSegment('Import'),
               KitSegment('Ask over…'),

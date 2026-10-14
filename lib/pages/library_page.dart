@@ -175,8 +175,9 @@ class _LibraryHomeState extends State<_LibraryHome> {
   String? _shelfOpenId;
 
   Widget _toggle(List<({String id, String label, IconData icon})> views,
-          ValueNotifier<String> which) =>
+          ValueNotifier<String> which, String name) =>
       KitSegmented(
+        groupLabel: name,
         segments: [for (final v in views) KitSegment.icon(v.icon, v.label)],
         selected: math.max(0, views.indexWhere((v) => v.id == which.value)),
         onChanged: (i) => LocalFlags.setView(which, views[i].id),
@@ -296,7 +297,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
         // ── Recently read ────────────────────────────────────────────────
         SectionHeader(
           'Recently read · ${_plural(total, 'source')}',
-          tools: _toggle(_recentViews, LocalFlags.recentView),
+          tools: _toggle(_recentViews, LocalFlags.recentView, 'View'),
           actionLabel: 'View all →',
           onAction: () => context.go('/sources'),
         ),
@@ -331,7 +332,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
         // ── Shelves ──────────────────────────────────────────────────────
         SectionHeader(
           'Shelves · ${shelves.length}',
-          tools: _toggle(_shelvesViews, LocalFlags.shelvesView),
+          tools: _toggle(_shelvesViews, LocalFlags.shelvesView, 'Shelf layout'),
           actionLabel: 'New shelf +',
           onAction: () => context.go('/shelves'),
         ),

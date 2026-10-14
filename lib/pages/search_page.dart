@@ -364,6 +364,7 @@ class _SearchPageState extends State<SearchPage> {
                         // Cohesive — the breadth beside it. The count line
                         // stays trailing.
                         KitSegmented(
+                          groupLabel: 'Result mode',
                           segments: const [
                             KitSegment('Passages'),
                             KitSegment('Cohesive'),
@@ -373,6 +374,7 @@ class _SearchPageState extends State<SearchPage> {
                         ),
                         if (_cohesive)
                           KitSegmented(
+                            groupLabel: 'Breadth',
                             segments: [
                               for (final b in _breadths)
                                 KitSegment(b.$2),

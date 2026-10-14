@@ -311,6 +311,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               _ => 'Shown in the app',
             },
             below: KitSegmentedMulti(
+              groupLabel: 'Levels',
               expand: true,
               segments: [for (final l in _levels) KitSegment(_levelLabel[l]!)],
               selected: {
@@ -360,6 +361,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         KitFieldGroup(
           label: 'Type',
           child: KitSegmented(
+            groupLabel: 'Type',
             expand: true,
             segments: [for (final ty in _types) KitSegment(_typeLabel[ty]!)],
             selected: _types.indexOf(_type),
@@ -386,6 +388,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         KitFieldGroup(
           label: 'Notify me about',
           child: KitSegmentedMulti(
+            groupLabel: 'Levels',
             expand: true,
             segments: [for (final l in _levels) KitSegment(_levelLabel[l]!)],
             selected: {

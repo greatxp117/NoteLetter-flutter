@@ -370,6 +370,7 @@ class _ShelfPageState extends State<ShelfPage> {
                 trailing: [
                   const KitControlLabel('Order by'),
                   KitSegmented(
+                    groupLabel: 'Order by',
                     segments: _sorts,
                     selected: _sort,
                     onChanged: (i) => setState(() => _sort = i),
@@ -461,6 +462,7 @@ class _ShelfPageState extends State<ShelfPage> {
               children: [
                 const KitControlLabel('How prominently'),
                 KitSegmented(
+                  groupLabel: 'How prominently',
                   key: const ValueKey('shelf-letter-weight'),
                   segments: _weights,
                   selected: weight,

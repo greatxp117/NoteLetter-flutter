@@ -418,6 +418,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
         KitFieldGroup(
           label: 'How often',
           child: KitSegmented(
+            groupLabel: 'How often',
             segments: [for (final f in _frequencies) KitSegment(f.$2)],
             selected: _frequencies
                 .indexWhere((f) => f.$1 == _frequency)

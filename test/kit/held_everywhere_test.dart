@@ -45,12 +45,12 @@ void main() {
       (tester) async {
     const segs = [KitSegment('Low'), KitSegment('Normal'), KitSegment('High')];
     await tester.pumpWidget(_app(
-        KitSegmented(segments: segs, selected: 1, onChanged: (_) {})));
+        KitSegmented(groupLabel: 'Group', segments: segs, selected: 1, onChanged: (_) {})));
     expect(find.descendant(
             of: find.byType(KitSegmented), matching: find.byType(Opacity)),
         findsNothing);
     await tester.pumpWidget(
-        _app(const KitSegmented(segments: segs, selected: 1)));
+        _app(const KitSegmented(groupLabel: 'Group', segments: segs, selected: 1)));
     final held = tester.widgetList<Opacity>(find.descendant(
         of: find.byType(KitSegmented), matching: find.byType(Opacity)));
     expect(held.length, segs.length, reason: 'the selected one included');

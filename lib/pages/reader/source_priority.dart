@@ -123,6 +123,7 @@ class _SourcePriorityRowState extends State<SourcePriorityRow> {
       container: true,
       label: 'Priority',
       child: KitSegmented(
+        groupLabel: 'Priority',
         segments: [
           for (final c in priorityChoices)
             KitSegment(_busy == c.id ? 'Saving…' : c.label),

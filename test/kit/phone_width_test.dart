@@ -111,7 +111,7 @@ void main() {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (final d in styleDimensions)
-                    KitSegmented(
+                    KitSegmented(groupLabel: 'Group', 
                       segments: [for (final o in d.options) KitSegment(o.label)],
                       selected: 0,
                       onChanged: (_) {},
@@ -170,7 +170,7 @@ void main() {
             ],
             trailing: [
               const KitControlLabel('Order by'),
-              KitSegmented(
+              KitSegmented(groupLabel: 'Group', 
                 segments: [for (final s in sorts) KitSegment(s)],
                 selected: 0,
                 onChanged: (_) {},
@@ -209,7 +209,7 @@ void main() {
                 KitFilterChip(k, selected: k == 'All sources', onPressed: () {}),
             ],
             trailing: [
-              KitSegmented(
+              KitSegmented(groupLabel: 'Group', 
                 segments: const [KitSegment('Passages'), KitSegment('Cohesive')],
                 selected: 0,
                 onChanged: (_) {},

@@ -23,7 +23,7 @@ void main() {
           alignment: Alignment.topLeft,
           child: SizedBox(
             width: width,
-            child: KitSegmentedMulti(
+            child: KitSegmentedMulti(groupLabel: 'Group', 
               segments: [for (final l in levels) KitSegment(l)],
               selected: const {0, 1},
               onToggle: (_) {},

@@ -593,7 +593,7 @@ void main() {
             KitFieldGroup(
               label: 'Type',
               first: true,
-              child: KitSegmented(
+              child: KitSegmented(groupLabel: 'Group', 
                 expand: true,
                 segments: const [KitSegment('On-screen'), KitSegment('Email')],
                 selected: 0,
@@ -611,7 +611,7 @@ void main() {
             KitFieldGroup(
               label: 'Label',
               note: 'optional',
-              child: KitSegmentedMulti(
+              child: KitSegmentedMulti(groupLabel: 'Group', 
                 segments: const [
                   KitSegment('Errors'),
                   KitSegment('Warnings'),
@@ -756,7 +756,7 @@ void main() {
               icon: Icons.mail_outline,
               title: 'Work inbox',
               description: 'seed@noteletter.test',
-              below: KitSegmentedMulti(
+              below: KitSegmentedMulti(groupLabel: 'Group', 
                 expand: true,
                 segments: const [KitSegment('Errors'), KitSegment('Info')],
                 selected: const {0},

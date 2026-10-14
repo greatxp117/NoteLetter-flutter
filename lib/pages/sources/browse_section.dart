@@ -176,6 +176,7 @@ class _BrowseSectionState extends State<BrowseSection> {
               trailing: [
                 const KitControlLabel('Order by'),
                 KitSegmented(
+                  groupLabel: 'Order by',
                   segments: [
                     for (final label in _sorts.values) KitSegment(label),
                   ],
@@ -186,6 +187,7 @@ class _BrowseSectionState extends State<BrowseSection> {
                 // `.view-toggle` — list, cards or shelf, kept per viewer
                 // (`nl-sources-view`); the shelf is the reference's default.
                 KitSegmented(
+                  groupLabel: 'View',
                   segments: [
                     for (final v in _views) KitSegment.icon(v.icon, v.label),
                   ],

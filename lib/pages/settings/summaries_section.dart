@@ -212,6 +212,7 @@ class _SummariesSectionState extends State<SummariesSection> {
           KitRowNote(dim.label),
           const SizedBox(height: 5),
           KitSegmented(
+            groupLabel: dim.label,
             segments: [for (final o in dim.options) KitSegment(o.label)],
             selected: dim.options.indexWhere((o) => o.id == choices[dim.id]),
             onChanged: _busy

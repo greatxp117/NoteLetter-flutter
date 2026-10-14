@@ -376,6 +376,7 @@ class LetterStep extends StatelessWidget {
             label: 'How often',
             first: true,
             child: KitSegmented(
+              groupLabel: 'How often',
               segments: [
                 for (final f in frequencies) KitSegment(f.$2),
               ],

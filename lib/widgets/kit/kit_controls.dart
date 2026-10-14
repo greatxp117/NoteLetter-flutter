@@ -1284,10 +1284,16 @@ class KitSegmented extends StatelessWidget {
   /// does below 680px, and what a phone always wants.
   final bool expand;
 
+  /// The track's NAME, the label beside it ("Order by", "How often", "View"):
+  /// web's `role="group" aria-label` (d35e334). Required, so no track is
+  /// announced as a nameless row of buttons — eight of web's sixteen were.
+  final String groupLabel;
+
   const KitSegmented({
     super.key,
     required this.segments,
     required this.selected,
+    required this.groupLabel,
     this.onChanged,
     this.expand = false,
   });
@@ -1318,6 +1324,7 @@ class KitSegmented extends StatelessWidget {
         fill: fill,
         isOn: (i) => i == selected,
         onTap: onChanged,
+        groupLabel: groupLabel,
       );
 }
 
@@ -1336,10 +1343,14 @@ class KitSegmentedMulti extends StatelessWidget {
   final ValueChanged<int>? onToggle;
   final bool expand;
 
+  /// See [KitSegmented.groupLabel].
+  final String groupLabel;
+
   const KitSegmentedMulti({
     super.key,
     required this.segments,
     required this.selected,
+    required this.groupLabel,
     this.onToggle,
     this.expand = false,
   });
@@ -1355,6 +1366,7 @@ class KitSegmentedMulti extends StatelessWidget {
             fill: (expand || compact) && constraints.hasBoundedWidth,
             isOn: selected.contains,
             onTap: onToggle,
+            groupLabel: groupLabel,
           );
         },
       );
@@ -1362,6 +1374,26 @@ class KitSegmentedMulti extends StatelessWidget {
 
 /// The §6.8 track, drawn once for both arities.
 Widget _segTrack(
+  BuildContext context, {
+  required List<KitSegment> segments,
+  required bool fill,
+  required bool Function(int) isOn,
+  required ValueChanged<int>? onTap,
+  required String groupLabel,
+}) =>
+    // §6.8 is a named group of toggle buttons, never a tablist (web d35e334):
+    // the track carries its name, and every segment says whether it is the
+    // one pressed — a segment that said only its label told a screen reader
+    // "Recent, button. Title, button." and nothing about the order in use.
+    Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: groupLabel,
+      child: _segTrackBody(context,
+          segments: segments, fill: fill, isOn: isOn, onTap: onTap),
+    );
+
+Widget _segTrackBody(
   BuildContext context, {
   required List<KitSegment> segments,
   required bool fill,
@@ -1403,7 +1435,13 @@ Widget _segTrack(
         ),
       );
     }
-    return MouseRegion(
+    return Semantics(
+      button: true,
+      selected: on,
+      enabled: onTap != null,
+      label: s.label,
+      excludeSemantics: true,
+      child: MouseRegion(
       cursor: cursor,
       child: GestureDetector(
         onTap: onTap == null ? null : () => onTap(i),
@@ -1446,6 +1484,7 @@ Widget _segTrack(
           ),
         ),
       ),
+    ),
     );
   }
 

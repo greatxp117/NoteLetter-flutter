@@ -205,6 +205,7 @@ class _SourcesSectionState extends State<SourcesSection> {
                 wideControl: true,
                 trailing: [
                   KitSegmented(
+                    groupLabel: 'Default reorganize mode',
                     segments: const [KitSegment('Split'), KitSegment('Copy')],
                     selected: mode == 'copy' ? 1 : 0,
                     onChanged: (i) {
