@@ -14,8 +14,15 @@
 # re-shoot). Signed-out routes go last in the list: a hold signs in for itself,
 # but a signed-out one signs the session out.
 #
-# Prints `OK <screen>` or `FAIL <screen>` per line. Not a gate: it asserts only
-# that a state was reached. Look at the frames afterwards.
+# Prints `OK <screen>`, `FLAG <screen>` or `FAIL <screen>` per line. Not a
+# gate: it asserts only that a state was reached. Look at the frames afterwards.
+#
+# Each theme is shot until two consecutive shots agree (`tool/frame_check.py
+# settled`), and a settled frame with nothing in its content band
+# (`frame_check.py blank`) is shot again. A frame still moving or still empty
+# when the hold's window runs out is kept and FLAGGED, never reported OK: on
+# 2026-10-14 three of 18 first catches were a WebView before its first paint or
+# a frame mid-transition, and every line said OK.
 set -e
 . "$(dirname "$0")/_emu_defines.sh"
 
@@ -42,6 +49,12 @@ holds="$(printf '%s\n' "$body" | tr '\n' ';')"
 screens="$(printf '%s\n' "$body" | cut -d'|' -f1)"
 
 cd "$REPO"
+# The per-frame check must be able to run, or every frame would pass it by
+# not being asked (a missing PIL reads exactly like a settled frame).
+python3 tool/frame_check.py selftest >/dev/null 2>&1 || {
+  echo "tool: tool/frame_check.py selftest failed — refusing to shoot frames nothing can check" >&2
+  exit 1
+}
 mkdir -p screenshots
 log="$(mktemp -t nl-shots-batch)"
 echo "tool: $(echo "$screens" | wc -l | tr -d ' ') holds on $udid (log $log)"
@@ -60,15 +73,40 @@ wait_mark() {
     n=$((n+1)); [ "$n" -gt 1500 ] && return 1
     sleep 1
   done
-  sleep 2   # let the last frame paint
+  # The hold keeps its state ~12s after the marker (hold_screen_test.dart), so
+  # the retakes fit inside it: 1.5s, then up to five more at ~1.5s apart.
+  sleep 1.5
   base="$(mktemp -t nl-frame)"
-  xcrun simctl io "$udid" screenshot "$base.png" >/dev/null 2>&1
-  mv "$base.png" "screenshots/$2.flutter.$3.png"; rm -f "$base"
+  xcrun simctl io "$udid" screenshot "$base.a.png" >/dev/null 2>&1
+  FRAME_VERDICT=UNSETTLED
+  tries=0
+  while [ "$tries" -lt 5 ]; do
+    sleep 1
+    xcrun simctl io "$udid" screenshot "$base.b.png" >/dev/null 2>&1
+    if python3 "$REPO/tool/frame_check.py" settled "$base.a.png" "$base.b.png" >/dev/null; then
+      if python3 "$REPO/tool/frame_check.py" blank "$base.b.png" >/dev/null; then
+        FRAME_VERDICT=BLANK
+      else
+        FRAME_VERDICT=OK
+        break
+      fi
+    else
+      FRAME_VERDICT=UNSETTLED
+    fi
+    mv "$base.b.png" "$base.a.png"
+    tries=$((tries+1))
+  done
+  if [ -f "$base.b.png" ]; then mv "$base.b.png" "$base.a.png"; fi
+  mv "$base.a.png" "screenshots/$2.flutter.$3.png"; rm -f "$base"
 }
 
 for s in $screens; do
-  if wait_mark LIGHT "$s" light && wait_mark DARK "$s" dark; then
-    echo "OK   $s"
+  if wait_mark LIGHT "$s" light && { light="$FRAME_VERDICT"; wait_mark DARK "$s" dark; }; then
+    if [ "$light" = OK ] && [ "$FRAME_VERDICT" = OK ]; then
+      echo "OK   $s"
+    else
+      echo "FLAG $s :: light $light, dark $FRAME_VERDICT — kept, but look at it (BLANK: nothing below the chrome; UNSETTLED: still moving) and re-shoot if it is wrong"
+    fi
   else
     echo "FAIL $s :: $(grep -F "HOLD:FAIL[$s]" "$log" | head -1 | cut -c1-300)"
   fi
