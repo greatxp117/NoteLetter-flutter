@@ -84,7 +84,10 @@ class WelcomeStep extends StatelessWidget {
                 'it close — searchable, and quietly distilled into a letter '
                 'you’ll actually read. Four steps and it’s yours.',
           ),
-          for (var i = 0; i < _moves.length; i++)
+          for (var i = 0; i < _moves.length; i++) ...[
+            // `.ob-moves { gap: 2px }`: the rows are 2 apart, each closed by
+            // its own rule. (Its 6 top margin collapses into the head's 30.)
+            if (i > 0) const SizedBox(height: 2),
             KitNumberedMove(
               number: _moves[i].number,
               icon: _moves[i].icon,
@@ -93,6 +96,7 @@ class WelcomeStep extends StatelessWidget {
               ruled: true,
               last: i == _moves.length - 1,
             ),
+          ],
         ],
       );
 }

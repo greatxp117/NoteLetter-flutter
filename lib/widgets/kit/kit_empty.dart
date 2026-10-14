@@ -515,29 +515,40 @@ class KitNumberedMove extends StatelessWidget {
     this.last = false,
   });
 
-  /// The move without its own card (Study's group draws `.st-move`'s own type,
-  /// [_MoveGroup]).
+  /// The move without its own card, in onboarding's `.ob-move` type (Study's
+  /// group draws `.st-move`'s own, [_MoveGroup]): the numeral mono 11 /
+  /// 0.1em at `--fg-subtle` on the body's 24 line, 4 above the title; the
+  /// title serif 18/24 600; the line sans 13.5 / 1.45 at `--fg-muted`, 3
+  /// under it. It drew 11/0.12em at `--fg-muted`, 17/22, 4 and 13/19 until
+  /// 2026-10-14 — a third spelling of the move, web's neither.
   Widget content(BuildContext context) {
     final t = Tokens.of(context);
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(number, style: KitText.capsLabel(context, letterSpacing: 0.12)),
+        Text(number,
+            style: AppTheme.mono(
+              fontSize: 11,
+              height: 24 / 11,
+              fontWeight: FontWeight.w400,
+              letterSpacing: 0.1 * 11,
+              color: t.fgSubtle,
+            )),
         const SizedBox(height: 4),
         Text(title,
             style: AppTheme.serif(
-              fontSize: 17,
-              height: 22 / 17,
+              fontSize: 18,
+              height: 24 / 18,
               fontWeight: FontWeight.w600,
               color: t.fg,
             )),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(description,
             style: TextStyle(
               fontFamily: AppTheme.fontSans,
-              fontSize: 13,
-              height: 19 / 13,
+              fontSize: 13.5,
+              height: 1.45,
               color: t.fgMuted,
             )),
       ],
