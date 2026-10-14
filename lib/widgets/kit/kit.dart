@@ -23,6 +23,7 @@ export 'kit_confirm.dart';
 export 'kit_controls.dart';
 export 'kit_empty.dart';
 export 'kit_failure.dart';
+export 'kit_form.dart';
 export 'kit_frame.dart';
 export 'kit_ground.dart';
 export 'kit_headers.dart';

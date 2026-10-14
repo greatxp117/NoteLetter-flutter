@@ -507,6 +507,9 @@ enum KitBadgeSize {
   /// 30×38 — on a source card (`.src-card .filebadge`).
   card(30, 38, 9),
 
+  /// 28×34 — in a form's list (`.st-row .filebadge`, the program editor).
+  form(28, 34, 9),
+
   /// 32×40 — on a processing card (`.proc-row .filebadge`).
   proc(32, 40, 9),
 
@@ -1698,6 +1701,12 @@ class KitTextField extends StatefulWidget {
   final int? maxLength;
   final bool autofocus;
 
+  /// `.rl-input` — the field cut INTO the page: `--surface-sunken`, 38 high,
+  /// 11 inline padding, the glyph 15 and 9 before the value. The readings
+  /// letter's and the program editor's forms; every other field is laid on
+  /// the page at `--surface`.
+  final bool sunken;
+
   const KitTextField({
     super.key,
     required this.controller,
@@ -1711,6 +1720,7 @@ class KitTextField extends StatefulWidget {
     this.maxLength,
     this.autofocus = false,
     this.face = KitFieldFace.mono,
+    this.sunken = false,
   });
 
   @override
@@ -1758,16 +1768,29 @@ class _KitTextFieldState extends State<KitTextField> {
             letterSpacing: 0,
             color: color,
           ),
+        // `.rl-input input`
+        KitFieldFace.ui => TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 13.5,
+            letterSpacing: 0,
+            color: color,
+          ),
       };
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final ring = widget.face != KitFieldFace.mono && _focus.hasFocus;
+    final sunken = widget.sunken;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: sunken
+          ? const EdgeInsets.symmetric(horizontal: 11)
+          : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      constraints:
+          sunken ? const BoxConstraints(minHeight: 38) : const BoxConstraints(),
+      alignment: sunken ? Alignment.centerLeft : null,
       decoration: BoxDecoration(
-        color: t.surface,
+        color: sunken ? t.surfaceSunken : t.surface,
         borderRadius: AppRadius.smR,
         border: Border.all(color: ring ? t.accent : t.border),
         boxShadow: ring
@@ -1777,8 +1800,8 @@ class _KitTextFieldState extends State<KitTextField> {
       child: Row(
         children: [
           if (widget.icon != null) ...[
-            Icon(widget.icon, size: 16, color: t.fgMuted),
-            const SizedBox(width: 10),
+            Icon(widget.icon, size: sunken ? 15 : 16, color: t.fgMuted),
+            SizedBox(width: sunken ? 9 : 10),
           ],
           Expanded(
             child: TextField(
@@ -1834,6 +1857,10 @@ enum KitFieldFace {
 
   /// Geist 13/1.45 (`.sf-desc`) — a sentence: a shelf's description.
   sans,
+
+  /// Geist 13.5 (`.rl-input input`) — a value in the long forms that share
+  /// the readings letter's field: the program editor's name, time and email.
+  ui,
 }
 
 /// A labelled field group (`.cfg-group` + `.cfg-label`): a mono caps label,
@@ -2055,6 +2082,9 @@ class KitSelect<T> extends StatelessWidget {
   /// NAME, and passes [KitFieldFace.serif].
   final KitFieldFace? face;
 
+  /// `.rl-input` — see [KitTextField.sunken].
+  final bool sunken;
+
   const KitSelect({
     super.key,
     required this.value,
@@ -2063,23 +2093,29 @@ class KitSelect<T> extends StatelessWidget {
     this.onChanged,
     this.icon,
     this.face,
+    this.sunken = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: sunken
+          ? const EdgeInsets.symmetric(horizontal: 11)
+          : const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      constraints:
+          sunken ? const BoxConstraints(minHeight: 38) : const BoxConstraints(),
+      alignment: sunken ? Alignment.centerLeft : null,
       decoration: BoxDecoration(
-        color: t.surface,
+        color: sunken ? t.surfaceSunken : t.surface,
         borderRadius: AppRadius.smR,
         border: Border.all(color: t.border),
       ),
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 16, color: t.fgMuted),
-            const SizedBox(width: 10),
+            Icon(icon, size: sunken ? 15 : 16, color: t.fgMuted),
+            SizedBox(width: sunken ? 9 : 10),
           ],
           Expanded(
             child: DropdownButtonHideUnderline(
@@ -2095,7 +2131,7 @@ class KitSelect<T> extends StatelessWidget {
                         ? AppTheme.mono(fontSize: 15, color: t.fg)
                         : TextStyle(
                             fontFamily: AppTheme.fontSans,
-                            fontSize: 14,
+                            fontSize: face == KitFieldFace.ui ? 13.5 : 14,
                             color: t.fg,
                           ),
                 items: [
@@ -2184,9 +2220,13 @@ class KitCheckRow extends StatelessWidget {
   }
 }
 
-/// The reference's `.stepper`: `−` · the number in the mono face · `+` · a
-/// unit line in the description role. The bounds are the caller's — the
-/// control never invents a range.
+/// The reference's `.stepper` (app-responsive.css): `−` · the number · `+` · a
+/// unit line. The buttons are 34×34 at `--r-sm` with a sans 18 glyph, the
+/// number serif 28/500 at "opsz" 28 in a 28 minimum width, the unit sans 13 at
+/// `--fg-muted`, 12 between parts. It drew a 32 pill and the number in mono 15
+/// until 2026-10-14 (found composing the program editor's session caps; no
+/// frame had shown one). The bounds are the caller's — the control never
+/// invents a range.
 class KitStepper extends StatelessWidget {
   final int value;
   final int min;
@@ -2216,18 +2256,19 @@ class KitStepper extends StatelessWidget {
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            width: 32,
-            height: 32,
+            width: 34,
+            height: 34,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: t.surface,
-              borderRadius: AppRadius.controlR(32),
+              borderRadius: AppRadius.smR,
               border: Border.all(color: t.border),
             ),
             child: Text(glyph,
                 style: TextStyle(
                   fontFamily: AppTheme.fontSans,
-                  fontSize: 16,
+                  fontSize: 18,
+                  height: 1,
                   color: t.fg,
                 )),
           ),
@@ -2243,18 +2284,27 @@ class KitStepper extends StatelessWidget {
     final canUp = onChanged != null && value < max;
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 10,
+      spacing: 12,
       runSpacing: 6,
       children: [
         _button(context, '−', canDown ? () => onChanged!(value - 1) : null),
-        Text('$value', style: AppTheme.mono(fontSize: 15, color: t.fg)),
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 28),
+          child: Text('$value',
+              textAlign: TextAlign.center,
+              style: AppTheme.serif(
+                fontSize: 28,
+                fontWeight: FontWeight.w500,
+                color: t.fg,
+                opsz: 28,
+              )),
+        ),
         _button(context, '+', canUp ? () => onChanged!(value + 1) : null),
         if (unit != null)
           Text(unit!,
               style: TextStyle(
                 fontFamily: AppTheme.fontSans,
                 fontSize: 13,
-                height: 1.45,
                 color: t.fgMuted,
               )),
       ],

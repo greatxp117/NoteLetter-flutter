@@ -7,7 +7,10 @@
 ///   RE-extraction keeps them) and be in a study program. Both sent
 ///   `fn_retry_document` on the first tap.
 /// * Starting a study unit closed its §18 panel on `null` and called
-///   afterwards, so a refusal landed outside the panel (§18 rule 1).
+///   afterwards, so a refusal landed outside the panel (§18 rule 1). Since
+///   2026-10-14 the confirm step is web's: the unit FORM, which states what
+///   will happen (`confirm_required.json`: "not a §18 panel") — and the rule
+///   it was held to stands: the form stays open with the refusal in it.
 library;
 
 import 'dart:convert';
@@ -182,7 +185,7 @@ void main() {
     });
   });
 
-  group('Start a new unit: the panel holds until the call resolves', () {
+  group('Start a new unit: the form holds until the call resolves', () {
     const program = StudyProgram(
         id: 'p1',
         title: 'Files',
@@ -191,43 +194,42 @@ void main() {
         status: 'active',
         unitNumber: 2);
 
-    testWidgets('a refusal is in the §18 slot; success closes, then refreshes',
-        (tester) async {
+    testWidgets('opening the form sends nothing; a refusal stays in it; '
+        'success closes it', (tester) async {
       var status = 409;
       final rec = _Router(() => status == 409
           ? (409, {'error': 'A unit started less than a minute ago.'})
           : (200, {'ok': true}));
       ApiService.instance.httpClientAdapter = rec;
-      var refreshed = 0;
       await tester.pumpWidget(MaterialApp(
         theme: AppTheme.light,
-        home: Scaffold(
-          body: UnitPanel(
-              program: program,
-              docs: const [],
-              onDone: () async => refreshed++),
+        home: const Scaffold(
+          body: SingleChildScrollView(
+            child: UnitPanel(program: program, docs: []),
+          ),
         ),
       ));
       await tester.tap(find.text('Start a new unit'));
       await tester.pumpAndSettle();
-      expect(rec.sent, isEmpty);
+      expect(rec.sent, isEmpty, reason: 'the form is the confirm step');
+      expect(find.textContaining('unit 3 starts from here'), findsOneWidget);
 
-      final confirm = _inPanel(find.widgetWithText(KitButton, 'Start the unit'));
-      await tester.tap(confirm);
+      final start = find.widgetWithText(KitButton, 'Start unit 3');
+      await tester.tap(start);
       await tester.pumpAndSettle();
       expect(rec.sent.single.path, endsWith('/fn_study_advance_unit'));
-      expect(_inPanel(find.textContaining('less than a minute ago')),
-          findsOneWidget,
-          reason: '§18 rule 1: the panel did not close before the call');
-      expect(refreshed, 0);
+      expect(find.widgetWithText(KitFailureInline,
+              'A unit started less than a minute ago.'),
+          findsOneWidget);
+      expect(start, findsOneWidget,
+          reason: 'the form did not close on the refusal');
 
       status = 200;
-      await tester.tap(confirm);
+      await tester.tap(start);
       await tester.pumpAndSettle();
-      expect(find.byType(KitConfirm), findsNothing);
-      expect(refreshed, 1);
-      expect(find.text('Unit 3 started.'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 5));
+      expect(rec.sent.length, 2);
+      expect(find.widgetWithText(KitButton, 'Start unit 3'), findsNothing);
+      expect(find.byType(KitFailureInline), findsNothing);
     });
   });
 }

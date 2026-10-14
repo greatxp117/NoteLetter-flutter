@@ -121,6 +121,14 @@ class StudyProgram {
     return k == 'reading' ? 'reading' : 'notes';
   }
 
+  /// The kind the reader ANSWERED for [documentId], or null when they have not
+  /// — which [kindFor] reads as `notes` (nothing withheld), and the editor
+  /// says as "Not answered yet" (web `SourceKindPanel`).
+  String? storedKindFor(String documentId) {
+    final k = (sources[documentId] as Map?)?['kind'] as String?;
+    return (k == null || k.isEmpty) ? null : k;
+  }
+
   int? positionFor(String documentId) =>
       (sources[documentId] as Map?)?['position'] as int?;
 

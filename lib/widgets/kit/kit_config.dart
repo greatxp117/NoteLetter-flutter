@@ -210,19 +210,24 @@ class KitConfigField extends StatelessWidget {
   final Widget? trailing;
   final String? note;
 
+  /// Space above the field: 15 in the readings letter's stack; 0 where a
+  /// grid places it (`.st-fields`, the program editor).
+  final double top;
+
   const KitConfigField({
     super.key,
     required this.label,
     this.child,
     this.trailing,
     this.note,
+    this.top = 15,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: 15),
+      padding: EdgeInsets.only(top: top),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
