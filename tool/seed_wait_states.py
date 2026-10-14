@@ -18,12 +18,19 @@ the same refusals:
   sync-wait         the Drive integration's `last_manual_sync_at` → now
                     (fn_request_cloud_sync: 300s)
 
+Each stamp is written AHEAD of now (the 60s windows by ten minutes, the 300s
+ones by two): the app is built and launched between this script and the
+press, and a 60s window stamped "now" had lapsed by the time study-wait
+pressed (2026-10-14 — the request was accepted, the frame never existed).
+`_cooldown_left` clamps a stamp ahead of its clock to the window, so the held
+label still counts down from at most 1:00 / 5:00, as web's does.
+
 What it changed is saved in .dart_tool/seed_wait_states.json and `--remove`
 puts it back (a field that was absent is deleted again). Writes through the
 emulator REST with `Bearer owner`, which bypasses rules.
 """
-import json, os, sys, time, urllib.error, urllib.parse, urllib.request
-from datetime import datetime, timezone
+import json, os, sys, urllib.error, urllib.parse, urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HOST = os.environ.get("FIRESTORE_EMULATOR_HOST", "localhost:8580")
@@ -46,9 +53,9 @@ def call(url, method, body=None):
         raise
 
 
-def now_ts():
-    return {"timestampValue": datetime.now(timezone.utc)
-            .strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"}
+def now_ts(ahead_s=0):
+    at = datetime.now(timezone.utc) + timedelta(seconds=ahead_s)
+    return {"timestampValue": at.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"}
 
 
 def read_field(path, field):
@@ -76,10 +83,10 @@ def newest_letter():
     return rows[0]["name"].split("/documents/")[1]
 
 
-STAMPS = lambda letter: [  # noqa: E731
-    (letter, "generated_at"),
-    ("documents/seed-doc-error", "last_retry_at"),
-    (f"users/{UID}/integrations/google_drive", "last_manual_sync_at"),
+STAMPS = lambda letter: [  # noqa: E731  (path, field, seconds ahead)
+    (letter, "generated_at", 600),
+    ("documents/seed-doc-error", "last_retry_at", 120),
+    (f"users/{UID}/integrations/google_drive", "last_manual_sync_at", 120),
 ]
 
 if "--remove" in sys.argv:
@@ -94,9 +101,9 @@ if "--remove" in sys.argv:
 
 letter = newest_letter()
 saved = []
-for path, field in STAMPS(letter):
+for path, field, ahead in STAMPS(letter):
     saved.append([path, field, read_field(path, field)])
-    set_field(path, field, now_ts())
+    set_field(path, field, now_ts(ahead))
 STATE.parent.mkdir(exist_ok=True)
 STATE.write_text(json.dumps({"fields": saved}))
 
@@ -106,7 +113,7 @@ S = lambda v: {"stringValue": v}                    # noqa: E731
 I = lambda v: {"integerValue": str(v)}              # noqa: E731
 session = {
     "user_id": S(UID), "program_id": S(PROG), "program_title": S("Cooking fundamentals"),
-    "generated_at": now_ts(), "trigger": S("manual"), "status": S("sent"),
+    "generated_at": now_ts(600), "trigger": S("manual"), "status": S("sent"),
     "items": {"arrayValue": {}}, "responses": {"mapValue": {"fields": {}}},
     "new_count": I(0), "review_count": I(0), "due_remaining": I(0), "ramp_count": I(0),
 }

@@ -542,14 +542,17 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       };
       final Finder control;
       if (holdState == 'retry-wait') {
-        // The seed's failed scan (seed-doc-error) — its own row's Retry.
+        // The seed's failed DOCX (seed-doc-error, "corrupt.docx") — the
+        // document the seed stamps — and its own row's Retry: another failed
+        // row's Retry is ACCEPTED (2026-10-14, the first run pressed the
+        // overlay's scan and retried it).
         final row = find.ancestor(
-            of: find.text('scan-2026-07-02.png', skipOffstage: false),
+            of: find.text('corrupt.docx', skipOffstage: false),
             matching: find.byType(KitProcCard, skipOffstage: false));
         for (var i = 0; i < 60 && row.evaluate().isEmpty; i++) {
           await tester.pump(const Duration(milliseconds: 200));
         }
-        expect(row, findsOneWidget, reason: 'no row for the seed failed scan');
+        expect(row, findsOneWidget, reason: 'no row for seed-doc-error');
         control = find.descendant(
             of: row, matching: find.text(label, skipOffstage: false));
       } else {
