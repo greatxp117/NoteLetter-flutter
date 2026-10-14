@@ -19,6 +19,7 @@ import 'package:flutter_app/models/tag.dart';
 import 'package:flutter_app/pages/tags_page.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/documents_notifier.dart';
+import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 
@@ -52,6 +53,11 @@ class _Tags extends TagsNotifier {
   @override
   List<Tag> get tags =>
       [Tag.fromJson('s1', {'user_id': 'u1', 'title': 'Psalms'})];
+}
+
+class _Settings extends SettingsNotifier {
+  @override
+  Future<void> loadAll() async {}
 }
 
 class _Docs extends DocumentsNotifier {
@@ -97,6 +103,8 @@ Future<(_Capture, GoRouter)> _create(WidgetTester tester,
     providers: [
       ChangeNotifierProvider<TagsNotifier>(create: (_) => _Tags()),
       ChangeNotifierProvider<DocumentsNotifier>(create: (_) => _Docs()),
+      // The index reads whether the letter is on (the letter chip).
+      ChangeNotifierProvider<SettingsNotifier>(create: (_) => _Settings()),
     ],
     child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
   ));

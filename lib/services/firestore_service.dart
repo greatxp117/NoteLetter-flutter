@@ -477,10 +477,11 @@ class FirestoreService {
   /// `purposeEmbedding` (INV-05).
   Future<NewsletterSettings> getNewsletterSettings() async {
     final uid = _uid;
-    if (uid == null) return const NewsletterSettings();
+    // No document is a letter never scheduled: OFF, as web reads it.
+    if (uid == null) return const NewsletterSettings(enabled: false);
     final snap =
         await _db.collection('users').doc(uid).collection('settings').doc('newsletter').get();
-    if (!snap.exists) return const NewsletterSettings();
+    if (!snap.exists) return const NewsletterSettings(enabled: false);
     final data = Map<String, dynamic>.from(snap.data()!);
     data.remove('purposeEmbedding');
     return NewsletterSettings.fromJson(data);

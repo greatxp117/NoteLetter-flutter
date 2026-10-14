@@ -503,6 +503,41 @@ class KitStatusPill extends StatelessWidget {
   }
 }
 
+/// The letter chip (Xavier's ruling 2026-10-14; screens/library.md §The
+/// letter chip, kit §21's optional part): a §6.3 Status pill on a shelf whose
+/// `letter_mode` CHANGES the letter — *Lead* on the connected/positive tone,
+/// *Muted* on idle. The tone belongs to the state, never to the label (§6.3).
+enum KitLetterChip {
+  lead('Lead', positive: true),
+  muted('Muted', positive: false);
+
+  const KitLetterChip(this.label, {required this.positive});
+  final String label;
+  final bool positive;
+
+  /// The rule, in one place. [letterMode] as stored (`lead | mixed | muted`;
+  /// absent or unknown reads `mixed`); [letterOn] is `settings/newsletter`
+  /// holding `enabled: true` — absent is off, and a read that has not
+  /// answered or failed is off too.
+  ///
+  /// - `mixed`, absent, unknown → none: the build reads only `lead` and
+  ///   `muted` (ADR-122 §3), and every untouched shelf is `mixed`, so a chip
+  ///   there would sit on every shelf and say nothing;
+  /// - letter off → none anywhere: a mode that changes a letter nobody is
+  ///   sent changes nothing.
+  static KitLetterChip? forShelf(String? letterMode, {required bool letterOn}) {
+    if (!letterOn) return null;
+    return switch (letterMode) {
+      'lead' => KitLetterChip.lead,
+      'muted' => KitLetterChip.muted,
+      _ => null,
+    };
+  }
+
+  /// The pill itself — §6.3's own, no glyph (§6.3 gives these tones none).
+  Widget pill() => KitStatusPill(label, positive: positive);
+}
+
 /// §6.4 — the document plate. Portrait, tinted per type, mono 9 caps.
 enum KitBadgeSize {
   /// 26×32 — inline, in a timeline row.

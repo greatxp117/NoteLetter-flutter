@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/document.dart';
 import '../models/tag.dart';
 import '../state/documents_notifier.dart';
+import '../state/settings_notifier.dart';
 import '../state/tags_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
@@ -53,6 +54,9 @@ class _ShelvesPageState extends State<ShelvesPage> {
       if (!mounted) return;
       context.read<TagsNotifier>().start();
       context.read<DocumentsNotifier>().start();
+      // The letter chip reads whether the daily letter is on — the same
+      // one-shot settings read Home makes; not a subscription.
+      context.read<SettingsNotifier>().loadAll();
     });
   }
 
@@ -171,6 +175,10 @@ class _ShelvesPageState extends State<ShelvesPage> {
         _ => null,
       },
       onTap: () => context.go('/shelves/${shelf.id}'),
+      // §The letter chip, in the card's foot: Lead / Muted only, none while
+      // the letter is off.
+      letterChip: KitLetterChip.forShelf(shelf.letterMode,
+          letterOn: context.watch<SettingsNotifier>().letterOn),
     );
   }
 }

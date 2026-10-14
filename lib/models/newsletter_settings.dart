@@ -50,7 +50,11 @@ class NewsletterSettings {
 
   factory NewsletterSettings.fromJson(Map<String, dynamic> json) {
     return NewsletterSettings(
-      enabled: json['enabled'] as bool? ?? true,
+      // Absent is OFF (screens/library.md §The letter chip: "absent is off,
+      // as on Letter settings"; web reads `Boolean(data.enabled)` — the
+      // orchestrator requires `enabled`). This read said `?? true`, so a doc
+      // without the key — or no doc at all — drew the letter as ON.
+      enabled: json['enabled'] == true,
       emailAddress: json['emailAddress'] as String? ?? '',
       deliveryTime: json['deliveryTime'] as String? ?? '07:00',
       timezone: json['timezone'] as String? ?? 'America/New_York',

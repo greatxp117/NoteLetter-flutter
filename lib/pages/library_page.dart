@@ -199,6 +199,9 @@ class _LibraryHomeState extends State<_LibraryHome> {
     final recent = complete.take(12).toList();
     final recentView = LocalFlags.recentView.value;
     final shelvesView = LocalFlags.shelvesView.value;
+    // §The letter chip: whether the daily letter is on, read once here — not
+    // inside the ledges' LayoutBuilder, which builds during layout.
+    final letterOn = context.watch<SettingsNotifier>().letterOn;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -369,6 +372,10 @@ class _LibraryHomeState extends State<_LibraryHome> {
                         onOpen: (id) => setState(() => _shelfOpenId = id),
                         dot: AppColors.shelfColor(s.color, dark: Tokens.of(context).isDark) ?? // pair-ok: a shelf's stored colour is a fixed data token
                             Tokens.of(context).fgSubtle,
+                        // §The letter chip: on the named head, Lead / Muted
+                        // only, and none while the letter is off.
+                        letterChip: KitLetterChip.forShelf(s.letterMode,
+                            letterOn: letterOn),
                       ),
                     ),
                 ],

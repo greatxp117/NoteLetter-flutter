@@ -13,6 +13,12 @@ class SettingsNotifier extends ChangeNotifier {
   String? _error;
 
   NewsletterSettings? get newsletter => _newsletter;
+
+  /// The daily letter is ON: `settings/newsletter` holds `enabled: true`.
+  /// Absent is off, and so is a read that has not answered or that failed —
+  /// the letter chip is a claim about the letter, and an unread setting
+  /// supports no claim (screens/library.md §The letter chip).
+  bool get letterOn => newsletter?.enabled == true;
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   String? get error => _error;

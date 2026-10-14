@@ -596,6 +596,11 @@ class KitShelfCard extends StatelessWidget {
 
   final VoidCallback? onTap;
 
+  /// The letter chip in the card's foot (`.shelf-card-foot`, ruled
+  /// 2026-10-14) — the Shelves INDEX's cards only. Home's shelf cards never
+  /// carry it (screens/library.md §The letter chip); their host passes null.
+  final KitLetterChip? letterChip;
+
   const KitShelfCard({
     super.key,
     required this.title,
@@ -606,6 +611,7 @@ class KitShelfCard extends StatelessWidget {
     this.badge,
     this.colorToken,
     this.onTap,
+    this.letterChip,
   });
 
   @override
@@ -736,6 +742,13 @@ class KitShelfCard extends StatelessWidget {
                         fontStyle: FontStyle.italic,
                         color: t.fgSubtle,
                       )),
+                if (letterChip != null) ...[
+                  // `.shelf-card-body` gap 9 + `.shelf-card-foot` margin 4;
+                  // a volume line already carries 3 of it below itself.
+                  SizedBox(
+                      height: moreCount > 0 || volumeTitles.isEmpty ? 13 : 10),
+                  letterChip!.pill(),
+                ],
               ],
             ),
           ),

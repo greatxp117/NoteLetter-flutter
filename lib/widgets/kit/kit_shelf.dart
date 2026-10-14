@@ -639,6 +639,12 @@ class KitShelfUnit extends StatelessWidget {
   /// count (`.shelf-head-named`) and every spine's band takes this colour.
   final Color? dot;
 
+  /// §21's optional part (ruled 2026-10-14): the letter chip at a NAMED
+  /// head's trailing edge, never shrinking — the count gives way first, by
+  /// ellipsis. An eyebrow head never carries one (its group is a kind, not a
+  /// shelf); the host decides with [KitLetterChip.forShelf].
+  final KitLetterChip? letterChip;
+
   const KitShelfUnit({
     super.key,
     required this.label,
@@ -647,6 +653,7 @@ class KitShelfUnit extends StatelessWidget {
     required this.onOpen,
     this.bare = false,
     this.dot,
+    this.letterChip,
   });
 
   @override
@@ -686,7 +693,10 @@ class KitShelfUnit extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 9),
-          Flexible(
+          // With a letter chip the count takes the rest of the line, so the
+          // chip lands at the trailing edge (`margin-left: auto`) and the
+          // count is what gives way, by ellipsis.
+          (letterChip == null ? Flexible.new : Expanded.new)(
             child: Text(
               '${books.length} ${books.length == 1 ? 'volume' : 'volumes'} · '
               '$passages passage${passages == 1 ? '' : 's'}',
@@ -699,6 +709,10 @@ class KitShelfUnit extends StatelessWidget {
               ),
             ),
           ),
+          if (letterChip != null) ...[
+            const SizedBox(width: 9),
+            letterChip!.pill(),
+          ],
         ],
       );
     } else if (!bare) {
