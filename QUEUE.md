@@ -1973,3 +1973,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: 16ad9ed + e5f2bad (as web 5876fb4 builds it: the picker seeded with the stored names, a listed name clipped at 200, a long name ellipsised in its pill via KitTag `clip`). Seen on a device through the look-only hold `sync-folders-saved` (99114d0): a folder saved from the picker through the dev shim's real fn_sync_settings drew as "Docs" beside the seed's unnamed "gd-root-docs". Web has no frame of it. Not followed: web's chip title is the name; the spec says the whole id — this client keeps the id (reported).
+
+## F-114 · Library — the letter chip on Home's named shelves and the Shelves index cards; the folder chip's tooltip (Xavier's rulings 2026-10-14)
+- status: in-progress
+- screen: library-letter-chips
+- route: /
+- spec: spec/screens/library.md §The letter chip; spec/component-kit.md §21; spec/component-kit.md §6.3; spec/screens/sources.md §Sync settings panel
+- web: src/shared/ShelfLetterChip.jsx; src/pages/LibraryHome.jsx; src/pages/ShelvesView.jsx; src/styles/app-shelves.css; scripts/theme-shots.mjs
+- flutter: lib/widgets/kit/kit_controls.dart; lib/widgets/kit/kit_shelf.dart; lib/widgets/kit/kit_cards.dart; lib/pages/library_page.dart; lib/pages/tags_page.dart; lib/state/settings_notifier.dart; lib/models/newsletter_settings.dart; lib/services/firestore_service.dart; lib/pages/sources/sync_settings_panel.dart; test/kit/shelf_letter_chip_test.dart; test/contract/sync_folders_test.dart; tool/seed_letter_chips.py
+- folds: CHANGELOG none (UI-only, contracts a302239); TODO "the folder chip's tooltip, name or id"
+- device_test: signs in and reaches the library
+- shots: library-letter-chips; library-letter-cards; library-letter-off; shelves-letter-chips; shelves-letter-off
+- extra_gates: harness/screenshot_pair_check.py
+- notes: f1fd8ed (KitLetterChip: lead → "Lead" §6.3 positive, muted → "Muted" §6.3 idle, mixed/absent/unknown none; none unless settings/newsletter holds enabled: true — absent, unread and failed are off; Home's named KitShelfUnit head at its trailing edge, the Shelves index card's foot, never Home's cards) and 82e1f35 (the folder chip's tooltip is its name, the whole id without one). f1fd8ed also stops reading an absent `enabled` (and no settings document) as ON — web reads `Boolean(data.enabled)`. Holds 8f1446d over tool/seed_letter_chips.py, web 91026a9's data.
