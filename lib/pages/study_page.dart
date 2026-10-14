@@ -25,7 +25,6 @@ import '../shared/cooldown.dart';
 import '../shared/dates.dart';
 import '../state/study_schedule.dart';
 import '../theme/app_spacing.dart';
-import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 import '../services/error_text.dart';
 
@@ -264,118 +263,50 @@ class _ProgramCard extends StatelessWidget {
     final p = program;
     final on = p.enabled;
     final low = runwayNotice(p);
-    // The cooldown's sentence is the kit's calm caption (§6.1, 4.108.0); the
-    // program's own note keeps its row-note face.
-    final waitNote = wait.sentence;
-    final note = this.note;
-
-    return KitCard(
-      padding: const EdgeInsets.all(AppSpacing.s4 + 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(p.title, style: KitText.h4(context)),
-              ),
-              const SizedBox(width: AppSpacing.s2),
-              // Open vocabulary: an unknown status renders in the same neutral
-              // shell, humanised, never as the raw token.
-              KitStatusPill(studyStatusLabel(p.status),
-                  positive: p.status == 'active'),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s3),
-          // A measured figure and a meter backed by it — the design's
-          // simulated progress bar is not a signal.
-          Text(
-            '${p.introducedCount} of ${p.unitCount} passages introduced',
-            style: KitText.meta(context),
-          ),
-          const SizedBox(height: 6),
-          _Meter(n: p.introducedCount, of: p.unitCount),
-          const SizedBox(height: AppSpacing.s3),
-          Text('${on ? '' : 'Was: '}${programScheduleSentence(p)}',
-              style: KitText.meta(context)),
-          if (!on) ...[
-            const SizedBox(height: 4),
-            KitRowNote(
-                'Off is a pause — the schedule and everything it has '
-                'introduced are kept, and “Study now” still works.'),
-          ],
-          if (low != null)
-            // §12 — measured, not dismissible, and the action is the one
-            // `low_material_reason` names.
-            KitNotice(
-              icon: Icons.error_outline,
+    return KitProgramCard(
+      title: p.title,
+      status: p.status,
+      statusLabel: studyStatusLabel(p.status),
+      introduced: p.introducedCount,
+      units: p.unitCount,
+      schedule: '${on ? '' : 'Was: '}${programScheduleSentence(p)}',
+      on: on,
+      offNote: 'Off is a pause — the schedule and everything it has '
+          'introduced are kept, and “Study now” still works.',
+      switchLabel: busy == 'toggle' ? '…' : (on ? 'ON' : 'OFF'),
+      switchControl: KitSwitch(
+        value: on,
+        tooltip: on ? 'Pause this program' : studyActivationHint,
+        onChanged: busy != null ? null : (_) => onToggle(),
+      ),
+      actions: [
+        KitButton(busy == 'study' ? 'Requesting…' : 'Study now',
+            wait: busy == 'study' ? 0 : wait.left,
+            onPressed: busy != null ? null : onStudy),
+        KitButton('Settings',
+            icon: Icons.tune,
+            variant: KitButtonVariant.ghost,
+            onPressed: onEdit),
+      ],
+      // §12 — measured, not dismissible, the action the one
+      // `low_material_reason` names; the glyph is the pattern's own.
+      notice: low == null
+          ? null
+          : KitNotice(
               text: low.text,
               actionLabel: low.cta,
               onAction: low.action == 'new' ? onNew : onEdit,
             ),
-          if (error != null) ...[
-            const SizedBox(height: AppSpacing.s3),
-            KitFailureInline(error!),
-          ] else if (waitNote != null) ...[
-            const SizedBox(height: AppSpacing.s3),
-            KitWaitNote(waitNote),
-          ] else if (note != null) ...[
-            const SizedBox(height: AppSpacing.s3),
-            KitRowNote(note),
-          ] else if (!on) ...[
-            const SizedBox(height: AppSpacing.s3),
-            // Said BEFORE the switch is touched (ADR-031's obligation).
-            KitRowNote(studyActivationHint),
-          ],
-          const SizedBox(height: AppSpacing.s4),
-          Wrap(
-            spacing: AppSpacing.s2,
-            runSpacing: AppSpacing.s2,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              KitButton(busy == 'study' ? 'Requesting…' : 'Study now',
-                  wait: busy == 'study' ? 0 : wait.left,
-                  onPressed: busy != null ? null : onStudy),
-              KitButton('Settings',
-                  icon: Icons.tune,
-                  variant: KitButtonVariant.ghost,
-                  onPressed: onEdit),
-              KitSwitch(
-                value: on,
-                tooltip: on ? 'Pause this program' : studyActivationHint,
-                onChanged: busy != null ? null : (_) => onToggle(),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Progress, and nothing else: `introduced_count` of `unit_count`, both stored.
-class _Meter extends StatelessWidget {
-  final int n;
-  final int of;
-
-  const _Meter({required this.n, required this.of});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    final fraction = of > 0 ? (n / of).clamp(0.0, 1.0) : 0.0;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        height: 4,
-        color: t.surfaceSunken,
-        child: FractionallySizedBox(
-          alignment: Alignment.centerLeft,
-          widthFactor: fraction,
-          child: Container(color: t.accent),
-        ),
-      ),
+      // Web's `shown`: the failure (§14.2), else the cooldown's sentence as
+      // the kit's calm caption (§6.1, 4.108.0), else the program's own note,
+      // else — off — what turning it on does, said BEFORE the switch is
+      // touched (ADR-031).
+      hint: error != null
+          ? KitFailureInline(error!)
+          : wait.sentence != null
+              ? KitWaitNote(wait.sentence!)
+              : null,
+      hintText: note ?? (on ? null : studyActivationHint),
     );
   }
 }

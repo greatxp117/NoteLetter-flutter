@@ -33,6 +33,7 @@ export 'kit_notice.dart';
 export 'kit_overlay.dart';
 export 'kit_provider_logo.dart';
 export 'kit_popover.dart';
+export 'kit_program_card.dart';
 export 'kit_rail.dart';
 export 'kit_reading.dart';
 export 'kit_recipe.dart';
