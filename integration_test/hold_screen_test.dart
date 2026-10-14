@@ -211,6 +211,18 @@ Future<void> leaveState(WidgetTester tester, String holdState) async {
   switch (holdState) {
     case 'priority-high':
       await _pressPriority(tester, 'Default');
+    case 'summary-reset-confirm':
+      // The panel is cancelled — nothing it offers is sent — and the stored
+      // style the hold wrote is taken away, as web's `fsRestoreSummaryPrompt`
+      // puts back what it read (the seed holds none).
+      final keep = find.text('Keep my style');
+      if (keep.evaluate().isNotEmpty) {
+        await tester.tap(keep.first);
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+      }
+      await Api.instance.updateSummarySettings(null);
   }
 }
 
@@ -601,6 +613,30 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // has to have ANSWERED. Without it the row draws the title `Plan` and no
     // figures (ADR-109) — correct behaviour, and a photograph of the loading
     // state under the name of the row.
+    // settings.md 4.108.0 — Reset to default is destructive and confirms
+    // first: web's `summary-reset-confirm`, the §18 panel over a stored custom
+    // style. The style is WRITTEN (through fn_summary_settings, the way the
+    // reader would save it), the reset is pressed, and the panel is held; it
+    // is cancelled and the style removed in [leaveState].
+    case 'summary-reset-confirm':
+      await Api.instance.updateSummarySettings(
+          'Summarize as a field note: what the source claims, in two plain '
+          'sentences.');
+      final reset = find.text('Reset to default', skipOffstage: false);
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (reset.evaluate().isNotEmpty) break;
+      }
+      expect(reset, findsWidgets,
+          reason: 'no Reset to default — the stored style did not reach '
+              'Settings, so this frame would be the default style');
+      await tester.ensureVisible(reset.first);
+      await settle();
+      await tester.tap(reset.first);
+      await settle();
+      expect(find.byType(KitConfirm), findsOneWidget,
+          reason: 'Reset to default sent nothing and opened no §18 panel');
+      return;
     case 'settings-plan':
       await settle();
       expect(find.textContaining(RegExp(r'\d+ of \d+ sources')), findsOneWidget,
