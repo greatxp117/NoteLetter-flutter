@@ -31,10 +31,10 @@
               "client_type": 3
             },
             {
-              "client_id": "402841655223-v2n3mj3q80kli2gtmevavgmmq4p6a63k.apps.googleusercontent.com",
+              "client_id": "402841655223-erqksuts5eds2i9ncecthnvalnvedqhg.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "xp.NoteLetter"
+                "bundle_id": "xp.NoteLetter.Flutter"
               }
             }
           ]
