@@ -523,6 +523,56 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           reason: 'the control is not waiting — was last_summary_regen_at '
               'stamped ahead? This frame would be the idle panel');
       return;
+    // §6.1 Waiting (4.107.0, ADR-140) — web's four held cooldowns
+    // (theme-shots `letter-send-wait`, `study-wait`, `retry-wait`,
+    // `sync-wait`, 7ef365c). `tool/seed_wait_states.py` stamps each endpoint's
+    // own cooldown field first; the hold presses the control, and the frame is
+    // of something only if the SERVER refused it — the held label counting
+    // down (` · m:ss`) is that refusal's own number.
+    case 'letter-send-wait':
+    case 'study-wait':
+    case 'retry-wait':
+    case 'sync-wait':
+      final label = switch (holdState) {
+        'letter-send-wait' => 'Send now',
+        'study-wait' => 'Study now',
+        'retry-wait' => 'Retry',
+        _ => 'Sync now',
+      };
+      final Finder control;
+      if (holdState == 'retry-wait') {
+        // The seed's failed scan (seed-doc-error) — its own row's Retry.
+        final row = find.ancestor(
+            of: find.text('scan-2026-07-02.png', skipOffstage: false),
+            matching: find.byType(KitProcCard, skipOffstage: false));
+        for (var i = 0; i < 60 && row.evaluate().isEmpty; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+        expect(row, findsOneWidget, reason: 'no row for the seed failed scan');
+        control = find.descendant(
+            of: row, matching: find.text(label, skipOffstage: false));
+      } else {
+        control = find.text(label, skipOffstage: false);
+        for (var i = 0; i < 60 && control.evaluate().isEmpty; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+      }
+      expect(control, findsWidgets, reason: 'no $label control');
+      await Scrollable.ensureVisible(tester.element(control.first),
+          alignment: 0.45, duration: Duration.zero);
+      await settle();
+      await tester.tap(control.first);
+      final waiting = find.textContaining(RegExp('^$label · \\d+:\\d\\d\$'));
+      for (var i = 0; i < 75 && waiting.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(waiting, findsOneWidget,
+          reason: '$label is not waiting — run tool/seed_wait_states.py '
+              'first; this frame would be the control at rest');
+      await Scrollable.ensureVisible(tester.element(waiting.first),
+          alignment: 0.45, duration: Duration.zero);
+      await settle();
+      return;
     // reader.md §Recipe body — the §5.4 body swap. Same route, same header,
     // same Manuscript panel: only the BODY differs, which is the whole claim
     // the pattern makes, so the frame has to be the manuscript of a distilled
