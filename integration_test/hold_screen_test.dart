@@ -210,6 +210,10 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
 /// show High lit.
 Future<void> leaveState(WidgetTester tester, String holdState) async {
   switch (holdState) {
+    case 'letter-cards':
+      // The card segment is the reader's stored choice; give the shelf
+      // segment back, or every later Home frame draws the cards.
+      await LocalFlags.setView(LocalFlags.shelvesView, 'shelf');
     case 'priority-high':
       await _pressPriority(tester, 'Default');
     case 'summary-reset-confirm':
@@ -1027,6 +1031,31 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       return;
     // library.md — Recently read and Shelves, below the fold at rest, with
     // their list / shelf toggles (F-54). Shot for looking only.
+    // library.md §The letter chip (ruled 2026-10-14) — web 91026a9's
+    // `library-letter-chips` / `library-letter-off` (the Shelves section's
+    // shelf segment, Stories' head at the top) and `library-letter-cards`
+    // (the card segment, its section header at the top).
+    // `tool/seed_letter_chips.py [--off]` writes the data first.
+    case 'letter-chips':
+    case 'letter-cards':
+      final cards = holdState == 'letter-cards';
+      await LocalFlags.setView(LocalFlags.shelvesView, cards ? 'card' : 'shelf');
+      await settle();
+      final target = cards
+          ? find.textContaining(RegExp(r'^shelves · \d', caseSensitive: false),
+              skipOffstage: false)
+          : find.ancestor(
+              of: find.text('Stories', skipOffstage: false),
+              matching: find.byType(KitShelfUnit, skipOffstage: false));
+      for (var i = 0; i < 60 && target.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(target, findsWidgets,
+          reason: cards ? 'no Shelves section' : 'no Stories shelf unit');
+      await Scrollable.ensureVisible(tester.element(target.first),
+          alignment: 0.0, duration: Duration.zero);
+      await settle();
+      return;
     case 'library-shelves':
       await settle();
       final recentHead = find.textContaining(
