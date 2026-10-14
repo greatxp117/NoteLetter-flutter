@@ -72,11 +72,15 @@ const _listing = {
   'provider': 'google_drive',
 };
 
-Map<String, dynamic> _integration(List<String> ids) => {
+Map<String, dynamic> _integration(
+  List<String> ids, [
+  Map? names,
+]) => {
   'provider': 'google_drive',
   'token_valid': true,
   'sync_config': {
     'folder_ids': ids,
+    if (names != null) 'folder_names': names,
     'include_types': ['pdf'],
   },
 };
@@ -106,12 +110,14 @@ void main() {
   Future<CloudNotifier> pumpPanel(
     WidgetTester tester, {
     List<String> stored = const [],
+    Map<String, String> names = const {},
   }) async {
     final c = QuietCloud();
     final seed = CloudIntegration(
       provider: 'google_drive',
       tokenValid: true,
       folderIds: stored,
+      folderNames: names,
       includeTypes: const ['pdf'],
     );
     tester.view.physicalSize = const Size(1200, 2400);
@@ -198,7 +204,12 @@ void main() {
       _server(
         (body) => (
           200,
-          {'integration': _integration(List<String>.from(body['folder_ids']))},
+          {
+            'integration': _integration(
+              List<String>.from(body['folder_ids']),
+              body['folder_names'] as Map?,
+            ),
+          },
         ),
       ),
     );
@@ -226,18 +237,70 @@ void main() {
     expect(body, {
       'provider': 'google_drive',
       'folder_ids': ['fld-b', 'fld-reading-2026'],
-    }, reason: 'a partial body with only the changed key, the list whole');
+      // 5.9.0: what each chosen folder is called, as the picker listed it.
+      'folder_names': {'fld-b': 'Taxes', 'fld-reading-2026': 'Reading'},
+    }, reason: 'a partial body with only the changed keys, the list whole');
     expect(
-      find.text('fld-reading-20…'),
+      find.widgetWithText(KitTag, 'Reading'),
       findsOneWidget,
-      reason: 'the chip is the returned integration\'s id, cut at 14',
+      reason: 'the chip is the returned integration\'s folder_names[id]',
     );
+    expect(find.text('fld-reading-20…'), findsNothing);
     expect(find.text('2/20'), findsOneWidget);
     expect(
       find.byType(SyncFolderPicker),
       findsNothing,
       reason: 'a saved choice closes the picker',
     );
+  });
+
+  testWidgets('a chip with no stored name is the cut id (5.9.0)',
+      (tester) async {
+    final r = _Recorder(_server(_refuse));
+    ApiService.instance.httpClientAdapter = r;
+    await pumpPanel(tester, stored: const ['fld-reading-2026']);
+    expect(find.text('fld-reading-20…'), findsOneWidget,
+        reason: 'chosen before 5.9.0: no folder_names, so the cut id');
+  });
+
+  testWidgets('a stored name is the chip, and a remove sends ids alone so the '
+      'server keeps the names it holds (5.9.0)', (tester) async {
+    final r = _Recorder(_server(_refuse));
+    ApiService.instance.httpClientAdapter = r;
+    await pumpPanel(tester,
+        stored: const ['fld-reading-2026'],
+        names: const {'fld-reading-2026': 'Reading'});
+    expect(find.widgetWithText(KitTag, 'Reading'), findsOneWidget);
+    expect(find.text('fld-reading-20…'), findsNothing);
+    expect(remove('fld-reading-2026'), findsNothing,
+        reason: 'the × is named by the folder\'s name, not its id');
+    await tester.tap(remove('Reading'));
+    await tester.pumpAndSettle();
+    expect(r.to('/fn_sync_settings').last.data,
+        {'provider': 'google_drive', 'folder_ids': <String>[]});
+  });
+
+  test('an import names the folders it was given, by what the listing '
+      'called them, and forgets an unticked one (5.9.0)', () async {
+    final r = _Recorder(_server((_) => (202, {
+          'queued_folders': 1,
+          'queued_files': 0,
+        })));
+    ApiService.instance.httpClientAdapter = r;
+    final c = QuietCloud();
+    await c.openPicker('google_drive');
+    expect(c.toggleFolder('fld-b'), isNull);
+    expect(c.toggleFolder('fld-reading-2026'), isNull);
+    expect(c.toggleFolder('fld-reading-2026'), isNull); // unticked again
+    final (_, isError) = await c.importSelection();
+    expect(isError, isFalse);
+    expect(r.to('/fn_import_from_cloud').single.data, {
+      'provider': 'google_drive',
+      'folder_ids': ['fld-b'],
+      'file_ids': <String>[],
+      'folder_names': {'fld-b': 'Taxes'},
+    });
+    c.dispose();
   });
 
   testWidgets('a refused save moves nothing and keeps the draft', (
@@ -326,7 +389,7 @@ void main() {
             child: SyncFolderPicker(
               provider: 'google_drive',
               initial: full,
-              onConfirm: (_) async => null,
+              onConfirm: (_, __) async => null,
               onCancel: () {},
               list: (_) async => _listing,
             ),
@@ -355,7 +418,7 @@ void main() {
           body: SyncFolderPicker(
             provider: 'notion',
             initial: const [],
-            onConfirm: (_) async => null,
+            onConfirm: (_, __) async => null,
             onCancel: () {},
             list: (_) async =>
                 throw const ApiException(502, 'Notion did not answer.'),
@@ -383,7 +446,7 @@ void main() {
           body: SyncFolderPicker(
             provider: 'notion',
             initial: const [],
-            onConfirm: (_) async => null,
+            onConfirm: (_, __) async => null,
             onCancel: () {},
             list: (_) async => {'items': <Object>[]},
           ),
@@ -408,7 +471,7 @@ void main() {
     WidgetTester tester, {
     List<String> initial = const [],
     bool allowEmpty = true,
-    required Future<String?> Function(List<String>) onConfirm,
+    required Future<String?> Function(List<String>, Map<String, String>) onConfirm,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -433,7 +496,7 @@ void main() {
   testWidgets('the flat panel: Root crumb, counter on its row, unboxed rows', (
     tester,
   ) async {
-    await pumpPicker(tester, onConfirm: (_) async => null);
+    await pumpPicker(tester, onConfirm: (_, __) async => null);
     expect(find.byType(CloudPickerPanel), findsOneWidget);
     expect(find.text('Root'), findsOneWidget, reason: 'a .set-link, not caps');
     expect(find.text('ROOT'), findsNothing);
@@ -460,7 +523,7 @@ void main() {
     await pumpPicker(
       tester,
       initial: const ['fld-b'],
-      onConfirm: (ids) async {
+      onConfirm: (ids, _) async {
         sent = ids;
         return null;
       },
@@ -477,7 +540,7 @@ void main() {
   testWidgets('with nothing saved and nothing ticked there is nothing to do', (
     tester,
   ) async {
-    await pumpPicker(tester, onConfirm: (_) async => null);
+    await pumpPicker(tester, onConfirm: (_, __) async => null);
     expect(
       tester
           .widget<KitButton>(find.widgetWithText(KitButton, 'Sync 0 folders'))
@@ -492,7 +555,7 @@ void main() {
     await pumpPicker(
       tester,
       initial: const ['fld-b'],
-      onConfirm: (_) async => throw StateError('no envelope'),
+      onConfirm: (_, __) async => throw StateError('no envelope'),
     );
     await tester.tap(find.text('Sync 1 folder'));
     await tester.pumpAndSettle();

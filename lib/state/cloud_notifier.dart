@@ -52,6 +52,11 @@ class CloudNotifier extends ChangeNotifier {
   bool _loadingMore = false;
   String? _browseError;
   final Set<String> _selectedFolders = {};
+
+  /// What each chosen folder is called, as the listing showed it when it was
+  /// ticked (5.9.0, `folder_names`) — kept here because the listing moves on
+  /// as the reader browses.
+  final Map<String, String> _selectedFolderNames = {};
   final Set<String> _selectedFiles = {};
 
   List<CloudIntegration> get integrations => List.unmodifiable(_integrations);
@@ -468,6 +473,7 @@ class CloudNotifier extends ChangeNotifier {
       ..clear()
       ..add(const CloudCrumb('root', 'Root'));
     _selectedFolders.clear();
+    _selectedFolderNames.clear();
     _selectedFiles.clear();
     await _fetchListing('root');
   }
@@ -479,6 +485,7 @@ class CloudNotifier extends ChangeNotifier {
     _listing = null;
     _browseError = null;
     _selectedFolders.clear();
+    _selectedFolderNames.clear();
     _selectedFiles.clear();
     _notify();
   }
@@ -549,12 +556,18 @@ class CloudNotifier extends ChangeNotifier {
   String? toggleFolder(String id) {
     if (_selectedFolders.contains(id)) {
       _selectedFolders.remove(id);
+      _selectedFolderNames.remove(id);
     } else {
       if (_selectedFolders.length >= kMaxImportFolders) {
         return '$kMaxImportFolders-folder limit reached — import these first, '
             'then pick more.';
       }
       _selectedFolders.add(id);
+      final name = _listing?.items
+          .where((f) => f.id == id)
+          .firstOrNull
+          ?.name;
+      if (name != null && name.isNotEmpty) _selectedFolderNames[id] = name;
     }
     _notify();
     return null;
@@ -592,6 +605,10 @@ class CloudNotifier extends ChangeNotifier {
         provider,
         folderIds: _selectedFolders.toList(),
         fileIds: _selectedFiles.toList(),
+        folderNames: {
+          for (final id in _selectedFolders)
+            if (_selectedFolderNames[id] case final n?) id: n,
+        },
       );
       Analytics.track('capture_completed', {'surface': 'cloud'});
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
@@ -660,6 +677,7 @@ class CloudNotifier extends ChangeNotifier {
     List<String>? includeTypes,
     List<String>? excludePatterns,
     Map<String, dynamic>? reviewRules,
+    Map<String, String>? folderNames,
   }) async {
     try {
       final data = await Api.instance.syncSettings(
@@ -671,6 +689,7 @@ class CloudNotifier extends ChangeNotifier {
         includeTypes: includeTypes,
         excludePatterns: excludePatterns,
         reviewRules: reviewRules,
+        folderNames: folderNames,
       );
       final updated =
           CloudIntegration.fromJson(data['integration'] as Map<String, dynamic>);

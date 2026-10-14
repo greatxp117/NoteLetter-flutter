@@ -31,7 +31,11 @@ class SyncFolderPicker extends StatefulWidget {
   final int cap;
 
   /// Saves the whole list; answers null on success or the sentence to show.
-  final Future<String?> Function(List<String> ids) onConfirm;
+  /// The chosen ids, and what each one this picker SAW is called (5.9.0,
+  /// `folder_names`): a folder kept from before and never browsed here is
+  /// absent from [names], and the server keeps the name it already has.
+  final Future<String?> Function(List<String> ids, Map<String, String> names)
+      onConfirm;
   final VoidCallback onCancel;
 
   /// Whether an empty list may be saved when folders were saved before —
@@ -71,6 +75,9 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
   List<CloudFile> _items = const [];
   String? _pageToken;
   late final Set<String> _selected = {...widget.initial};
+
+  /// Every folder this picker has listed, by id → its name.
+  final Map<String, String> _names = {};
   bool _loading = false;
   bool _saving = false;
   String? _error;
@@ -115,6 +122,9 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
       setState(() {
         final folders = page.items.where((f) => f.isFolder);
         _items = append ? [..._items, ...folders] : folders.toList();
+        for (final f in folders) {
+          _names[f.id] = f.name;
+        }
         _pageToken = page.nextPageToken;
       });
     } on ApiException catch (e) {
@@ -168,7 +178,10 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
     });
     final String? err;
     try {
-      err = await widget.onConfirm(_selected.toList());
+      err = await widget.onConfirm(_selected.toList(), {
+        for (final id in _selected)
+          if (_names[id] case final n? when n.isNotEmpty) id: n,
+      });
     } catch (_) {
       // §18: the failure slot is required — a refusal with no sentence must
       // still leave one, or the button simply re-enables.

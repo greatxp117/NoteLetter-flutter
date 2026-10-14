@@ -162,11 +162,12 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   /// [_save], a refusal is returned to the picker that asked rather than
   /// drawn at the foot of the panel — the picker is where the reader is
   /// looking, and it holds the draft they would correct.
-  Future<String?> _saveFolders(List<String> ids) async {
+  Future<String?> _saveFolders(List<String> ids, Map<String, String> names) async {
     setState(() => _saving = true);
-    final err = await context
-        .read<CloudNotifier>()
-        .syncSettings(widget.providerId, folderIds: ids);
+    final err = await context.read<CloudNotifier>().syncSettings(
+        widget.providerId,
+        folderIds: ids,
+        folderNames: names);
     if (!mounted) return err;
     setState(() {
       _saving = false;
@@ -184,10 +185,10 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
           if (f != id) f
       ]));
 
-  /// A folder id as a chip label. The integration stores ids, not names —
-  /// the reference draws the id, cut at 14.
-  static String _chipLabel(String id) =>
-      id.length > 14 ? '${id.substring(0, 14)}…' : id;
+  /// A folder as a chip label: its stored name (5.9.0, `folder_names`), else
+  /// the id cut at 14 — a folder chosen before names were stored has none.
+  static String _chipLabel(String id, Map<String, String> names) =>
+      names[id] ?? (id.length > 14 ? '${id.substring(0, 14)}…' : id);
 
   /// The UTC hour [utcHour] as a wall-clock time here. The server compares
   /// the plain UTC hour; the reader thinks in their own.
@@ -348,8 +349,10 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                               Tooltip(
                                 message: id,
                                 child: KitTag(
-                                  _chipLabel(id),
-                                  removeLabel: 'Remove folder $id',
+                                  _chipLabel(id, i.folderNames),
+                                  // "Remove folder {name or id}" (5.9.0).
+                                  removeLabel:
+                                      'Remove folder ${i.folderNames[id] ?? id}',
                                   onRemove: () => _removeFolder(id),
                                 ),
                               ),

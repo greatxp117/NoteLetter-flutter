@@ -225,7 +225,8 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       folderIds: _strs(b['folder_ids']),
       fileIds: _strs(b['file_ids']),
       includeTypes: _strs(b['include_types']),
-      excludePatterns: _strs(b['exclude_patterns'])),
+      excludePatterns: _strs(b['exclude_patterns']),
+      folderNames: (b['folder_names'] as Map?)?.cast<String, String>()),
   'fn_retry_import_job': (b) => Api.instance.retryImportJob(b['job_id']),
   'fn_request_cloud_sync': (b) => Api.instance.requestCloudSync(b['provider']),
   'fn_sync_settings': (b) => Api.instance.syncSettings(b['provider'],
@@ -235,7 +236,8 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       folderIds: _strs(b['folder_ids']),
       includeTypes: _strs(b['include_types']),
       excludePatterns: _strs(b['exclude_patterns']),
-      reviewRules: (b['review_rules'] as Map?)?.cast<String, dynamic>()),
+      reviewRules: (b['review_rules'] as Map?)?.cast<String, dynamic>(),
+      folderNames: (b['folder_names'] as Map?)?.cast<String, String>()),
   'fn_update_from_source': (b) =>
       Api.instance.updateFromSource(b['document_id']),
   'fn_organization_settings': (b) =>

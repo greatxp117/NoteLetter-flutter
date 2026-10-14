@@ -553,12 +553,17 @@ class Api {
 
   /// Kick off an import. `folder_ids`/`file_ids` are always present (default
   /// empty, mirroring web); `include_types`/`exclude_patterns` only when given.
+  /// [folderNames] (5.9.0): what each folder in [folderIds] is called, as the
+  /// picker showed it, stored at `sync_config.folder_names` so the import row
+  /// and the sync settings draw a name rather than a provider id. Only ids in
+  /// [folderIds] may be named (400 otherwise); sent only when given.
   Future<Map<String, dynamic>> importFromCloud(
     String provider, {
     List<String>? folderIds,
     List<String>? fileIds,
     List<String>? includeTypes,
     List<String>? excludePatterns,
+    Map<String, String>? folderNames,
   }) {
     final body = <String, dynamic>{
       'provider': provider,
@@ -567,6 +572,9 @@ class Api {
     };
     if (includeTypes != null) body['include_types'] = includeTypes;
     if (excludePatterns != null) body['exclude_patterns'] = excludePatterns;
+    if (folderNames != null && folderNames.isNotEmpty) {
+      body['folder_names'] = folderNames;
+    }
     return _http.post('/fn_import_from_cloud', data: body);
   }
 
@@ -598,6 +606,7 @@ class Api {
     List<String>? includeTypes,
     List<String>? excludePatterns,
     Map<String, dynamic>? reviewRules,
+    Map<String, String>? folderNames,
   }) {
     final body = <String, dynamic>{'provider': provider};
     if (autoSyncEnabled != null) body['auto_sync_enabled'] = autoSyncEnabled;
@@ -607,6 +616,11 @@ class Api {
     if (includeTypes != null) body['include_types'] = includeTypes;
     if (excludePatterns != null) body['exclude_patterns'] = excludePatterns;
     if (reviewRules != null) body['review_rules'] = reviewRules;
+    // 5.9.0: names for this request's folder_ids (or, with none, the ids
+    // already stored — a rename sent alone). A kept folder keeps its name.
+    if (folderNames != null && folderNames.isNotEmpty) {
+      body['folder_names'] = folderNames;
+    }
     return _http.post('/fn_sync_settings', data: body);
   }
 

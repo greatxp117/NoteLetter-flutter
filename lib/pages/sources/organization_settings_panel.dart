@@ -179,7 +179,8 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
               initial: roots,
               cap: 10,
               allowEmpty: roots.isNotEmpty,
-              onConfirm: (ids) async {
+              // `fn_set_organized_folders` takes ids only.
+              onConfirm: (ids, _) async {
                 final err = await context
                     .read<OrgNotifier>()
                     .setOrganizedFolders(provider, ids);

@@ -32,6 +32,11 @@ class CloudIntegration {
   final String syncFrequency;
   final int? syncPreferredHour;
   final List<String> folderIds;
+
+  /// `sync_config.folder_names` (5.9.0): what each folder in [folderIds] is
+  /// called, as the picker showed it when it was chosen. A folder chosen
+  /// before 5.9.0 has none, and its chip falls back to the cut id.
+  final Map<String, String> folderNames;
   final List<String> includeTypes;
   final List<String> excludePatterns;
 
@@ -79,6 +84,7 @@ class CloudIntegration {
     this.syncFrequency = 'daily',
     this.syncPreferredHour,
     this.folderIds = const [],
+    this.folderNames = const {},
     this.includeTypes = const [],
     this.excludePatterns = const [],
     this.reviewRules = const {},
@@ -108,6 +114,12 @@ class CloudIntegration {
           ? json['sync_preferred_hour'] as int
           : int.tryParse('${json['sync_preferred_hour'] ?? ''}'),
       folderIds: (syncConfig['folder_ids'] as List?)?.cast<String>() ?? const [],
+      folderNames: {
+        for (final e in ((syncConfig['folder_names'] as Map?) ?? const {})
+            .entries)
+          if (e.value is String && (e.value as String).isNotEmpty)
+            '${e.key}': e.value as String,
+      },
       includeTypes:
           (syncConfig['include_types'] as List?)?.cast<String>() ?? const [],
       excludePatterns:
