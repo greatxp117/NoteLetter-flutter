@@ -1986,3 +1986,16 @@ a new obligation on a finished screen is a new item.
 - shots: library-letter-chips; library-letter-cards; library-letter-off; shelves-letter-chips; shelves-letter-off
 - extra_gates: harness/screenshot_pair_check.py
 - notes: f1fd8ed (KitLetterChip: lead → "Lead" §6.3 positive, muted → "Muted" §6.3 idle, mixed/absent/unknown none; none unless settings/newsletter holds enabled: true — absent, unread and failed are off; Home's named KitShelfUnit head at its trailing edge, the Shelves index card's foot, never Home's cards) and 82e1f35 (the folder chip's tooltip is its name, the whole id without one). f1fd8ed also stops reading an absent `enabled` (and no settings document) as ON — web reads `Boolean(data.enabled)`. Holds 8f1446d over tool/seed_letter_chips.py, web 91026a9's data.
+
+## F-115 · Five rulings of 2026-10-14 (web follow-up 3): no passage figure without a count, the compact track, a steady held Unpin, Stalled and Retry on Activity
+- status: in-progress
+- screen: activity-retry-error
+- route: /activity
+- spec: spec/screens/library.md §States; spec/component-kit.md §6.8; spec/component-kit.md §4.2; spec/screens/letters.md; spec/screens/activity.md §The row; spec/screens/activity.md §Where a row leads
+- web: src/shared/passageFigure.js; src/shared/stalled.js; src/pages/ActivityView.jsx; src/pages/letters/PinnedSources.jsx; src/styles/app-responsive.css; scripts/theme-shots.mjs
+- flutter: lib/shared/passage_figure.dart; lib/shared/stalled.dart; lib/pages/activity_page.dart; lib/pages/letters/pinned_sources.dart; lib/pages/library_page.dart; lib/pages/sources/browse_section.dart; lib/pages/sources/shelf_books.dart; lib/pages/tags/shelf_page.dart; lib/pages/study/program_editor.dart; lib/widgets/kit/kit_reading.dart; lib/widgets/kit/kit_rows.dart; lib/widgets/kit/kit_shelf.dart; test/kit/rulings_2026_10_14_test.dart; tool/seed_followup3.py
+- folds: TODO F3 (Activity Retry); TODO "a complete source with no count"; TODO ".ms-type-seg / .ob-seg"; TODO ".pinned-unpin pulse"
+- device_test: signs in and reaches the library
+- shots: library-uncounted; sources-uncounted; reader-type; onboarding-letter; letters-unpin-held; activity-stalled; activity-retry-error; activity
+- extra_gates: harness/screenshot_pair_check.py
+- notes: d243862 (the five rulings, contracts b39e72a, web 088099c). Holds and tool/seed_followup3.py (uncounted | pinned | stalled, one at a time, --remove) frame web 7f85b50's seven states; `activity` is re-paired because the seed's failed document now carries Retry. In progress until those pairs and the device run land.

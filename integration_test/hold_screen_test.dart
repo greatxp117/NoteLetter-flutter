@@ -210,6 +210,12 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
 /// show High lit.
 Future<void> leaveState(WidgetTester tester, String holdState) async {
   switch (holdState) {
+    case 'recent-list':
+      await LocalFlags.setView(LocalFlags.recentView, 'shelf');
+    case 'sources-cards':
+      await LocalFlags.setView(LocalFlags.sourcesView, 'shelf');
+    case 'unpin-held':
+      ApiService.instance.resetTestSeams();
     case 'letter-cards':
       // The card segment is the reader's stored choice; give the shelf
       // segment back, or every later Home frame draws the cards.
@@ -1056,6 +1062,120 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           alignment: 0.0, duration: Duration.zero);
       await settle();
       return;
+    // Web follow-up 3's rulings (2026-10-14; contracts b39e72a, web 7f85b50).
+    // `tool/seed_followup3.py uncounted|pinned|stalled` writes the state each
+    // needs first, one at a time, and `--remove` puts it back.
+    //
+    // 1 · library-uncounted: Home's Recently read as its LIST, the uncounted
+    // source's count cell empty. sources-uncounted: Sources' card view.
+    case 'recent-list':
+    case 'sources-cards':
+      final list = holdState == 'recent-list';
+      await LocalFlags.setView(
+          list ? LocalFlags.recentView : LocalFlags.sourcesView,
+          list ? 'list' : 'cards');
+      await settle();
+      final at = list
+          ? find.textContaining(RegExp(r'^recently read', caseSensitive: false),
+              skipOffstage: false)
+          : find.byType(KitSourceCard, skipOffstage: false);
+      for (var i = 0; i < 60 && at.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(at, findsWidgets,
+          reason: list ? 'no Recently read list' : 'no source cards');
+      await Scrollable.ensureVisible(tester.element(at.first),
+          alignment: list ? 0.0 : 0.05, duration: Duration.zero);
+      await settle();
+      return;
+    // 2 · reader-type: the Aa popover open over the manuscript — §6.8's
+    // compact variant.
+    case 'reader-type':
+      await _revealRailJump(tester, 'Manuscript', sideways: false);
+      await tester.tap(find.text('Manuscript').first);
+      await settle();
+      final aa = find.widgetWithText(KitButton, 'Aa', skipOffstage: false);
+      expect(aa, findsOneWidget, reason: 'no Aa control on the manuscript');
+      await Scrollable.ensureVisible(tester.element(aa),
+          alignment: 0.2, duration: Duration.zero);
+      await settle();
+      await tester.tap(aa);
+      await settle();
+      expect(find.byType(OverlayPortal), findsWidgets);
+      return;
+    // ...and onboarding-letter: setup's fourth step, How often the standard
+    // sized track.
+    case 'onboarding-letter':
+      await tester.tap(find.widgetWithText(KitButton, 'Run setup'));
+      await settle();
+      await tester.tap(find.text('Begin'));
+      await settle();
+      for (var i = 0; i < 3; i++) {
+        await tester.tap(find.text('Continue'));
+        await settle();
+      }
+      expect(find.text('How often'), findsWidgets,
+          reason: 'setup did not reach its letter step');
+      return;
+    // 3 · letters-unpin-held: the pinned source's Unpin while its write is in
+    // flight — the write held open by an adapter that never answers, as web
+    // routes it; [leaveState] gives the real one back.
+    case 'unpin-held':
+      final unpin = find.text('Unpin', skipOffstage: false);
+      for (var i = 0; i < 60 && unpin.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(unpin, findsOneWidget,
+          reason: 'no pinned source — run tool/seed_followup3.py pinned first');
+      await Scrollable.ensureVisible(tester.element(unpin),
+          alignment: 0.4, duration: Duration.zero);
+      await settle();
+      ApiService.instance.httpClientAdapter = _NeverAnswers('/fn_update_document');
+      await tester.tap(unpin);
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text('Unpinning…'), findsOneWidget);
+      return;
+    // 4 · activity-stalled: the stalled queued document drawn Stalled.
+    case 'activity-stalled':
+      final chip = find.text('STALLED', skipOffstage: false);
+      for (var i = 0; i < 75 && chip.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(chip, findsWidgets,
+          reason: 'no Stalled row — run tool/seed_followup3.py stalled first');
+      await Scrollable.ensureVisible(tester.element(chip.first),
+          alignment: 0.3, duration: Duration.zero);
+      await settle();
+      return;
+    // 5 · activity-retry-error: the newest failure row's Retry, refused with
+    // a REAL 404 — the request goes out naming a document that does not
+    // exist, as web rewrites it, so "Not found" is the backend's own.
+    case 'activity-retry-error':
+      final retry = find.widgetWithText(KitButton, 'Retry', skipOffstage: false);
+      for (var i = 0; i < 75 && retry.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(retry, findsWidgets, reason: 'no Retry on a failed document row');
+      await Scrollable.ensureVisible(tester.element(retry.first),
+          alignment: 0.4, duration: Duration.zero);
+      await settle();
+      ApiService.instance.httpClientAdapter = _RewriteRetryDoc();
+      await tester.tap(retry.first);
+      for (var i = 0; i < 50; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        final confirm = find.text('Retry and replace');
+        if (confirm.evaluate().isNotEmpty) {
+          await tester.tap(confirm.last);
+        }
+        if (find.byType(KitFailureInline).evaluate().isNotEmpty) break;
+      }
+      ApiService.instance.resetTestSeams();
+      expect(find.byType(KitFailureInline), findsWidgets,
+          reason: 'no refusal rendered — this frame would be the Retry');
+      await settle();
+      return;
     case 'library-shelves':
       await settle();
       final recentHead = find.textContaining(
@@ -1237,6 +1357,46 @@ class _FailOneReading implements HttpClientAdapter {
 /// Forwards every request to the real transport, with `fn_update_tag`'s
 /// `letter_mode` swapped for a value outside the closed set — so the refusal
 /// in the `shelf-letter-error` frame is the backend's, not one this test wrote.
+/// A request to [path] that never answers — the in-flight state web routes
+/// with `page.route(…, () => {})`. Every other request goes through.
+class _NeverAnswers implements HttpClientAdapter {
+  _NeverAnswers(this.path);
+  final String path;
+  final _inner = IOHttpClientAdapter();
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) {
+    if (options.path.endsWith(path)) return Completer<ResponseBody>().future;
+    return _inner.fetch(options, requestStream, cancelFuture);
+  }
+
+  @override
+  void close({bool force = false}) => _inner.close(force: force);
+}
+
+/// fn_retry_document sent for a document that does not exist, so the 404 and
+/// its sentence are the backend's own (web's activity-retry-error).
+class _RewriteRetryDoc implements HttpClientAdapter {
+  final _inner = IOHttpClientAdapter();
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) {
+    if (!options.path.endsWith('/fn_retry_document') || options.data is! Map) {
+      return _inner.fetch(options, requestStream, cancelFuture);
+    }
+    final body = utf8.encode(jsonEncode(
+        {...(options.data as Map), 'docId': 'shot-no-such-document'}));
+    options.headers['content-length'] = body.length.toString();
+    return _inner.fetch(
+        options, Stream.value(Uint8List.fromList(body)), cancelFuture);
+  }
+
+  @override
+  void close({bool force = false}) => _inner.close(force: force);
+}
+
 class _RewriteLetterMode implements HttpClientAdapter {
   final _inner = IOHttpClientAdapter();
 
