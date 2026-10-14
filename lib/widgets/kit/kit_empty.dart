@@ -308,7 +308,9 @@ class _KitSuggestionState extends State<KitSuggestion> {
               Expanded(
                 child: Text(
                   widget.label,
-                  style: KitText.lede(context, fontSize: 16, height: 22),
+                  // `.empty-state-row span`: 16/22, "opsz" 18.
+                  style: KitText.lede(context,
+                      fontSize: 16, height: 22, opsz: 18),
                 ),
               ),
             ],

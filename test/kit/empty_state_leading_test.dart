@@ -190,6 +190,8 @@ void main() {
     expect(opsz(s), named('.empty-state-sub'));
     expect(opsz(_style(tester, 'Nothing waiting')),
         named('.empty-state-title'));
+    expect(opsz(_style(tester, 'Add a source')),
+        named('.empty-state-row span'));
     expect(_cap(tester, line), closeTo(subCap * _ch(s), 0.001));
 
     await tester.pumpWidget(_app(const KitEmptyState(
