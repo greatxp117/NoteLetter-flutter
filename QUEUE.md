@@ -1895,3 +1895,29 @@ a new obligation on a finished screen is a new item.
 - shots: ask; study; onboarding
 - extra_gates: harness/screenshot_pair_check.py
 - notes: STALE-PAIR reads a done item's `flutter:` files, and a pair is judged only against the files its items list. These three frames DRAW kit_empty.dart — Ask's and Study's §7 (KitEmptyState, KitSuggestion, Study's move group) and onboarding's KitMark and ruled KitNumberedMove — and no item naming them listed it, so 9521e0b moved Study's frame with the gate green; only support's and sources' items listed the file. This item adds the edge and nothing else (a done item is never edited). The class is the gate's: a pair drawn through a shared file its items do not list is invisible to it, and only a list kept by hand closes each one.
+
+## F-108 · Study — the program editor composed from the kit, as web's ProgramEditor (study-new, study-edit)
+- status: done 2026-10-14
+- screen: study-new
+- route: /study/new
+- spec: spec/screens/study.md §Create / edit a program; spec/screens/study.md §Syllabus; spec/component-kit.md §4.1; spec/component-kit.md §18
+- web: src/pages/study/ProgramEditor.jsx; src/styles/app-study.css; src/styles/app-scripture.css; src/styles/app-responsive.css
+- flutter: lib/pages/study/program_editor.dart; lib/widgets/kit/kit_form.dart; lib/models/study.dart; test/kit/program_editor_test.dart; test/kit/stepper_test.dart; tool/seed_study_program.py
+- folds: TODO "The program editor (/study/new, /study/:id) is plain Material, against web's card-and-row layout, and no pair covers it"
+- device_test: none
+- shots: study-new; study-edit
+- extra_gates: harness/screenshot_pair_check.py; harness/confirm_check.py
+- notes: Built in ba5fd86 (kit_form.dart; KitStepper to web's .stepper; sunken fields). Frames 2026-10-14 over web 7ef365c's study-new/study-edit: the sections, rows, sunken fields and foot MATCH web's phone frames. One difference booked against WEB, not here: web's `.st-picker-h .ct` has no rule (`.ct` is styled only inside `.st-sec-h`), so its "0 of 10 chosen" renders in the body sans 16 at --fg; this client draws it as `.st-sec-h .ct` (mono 11, --fg-subtle).
+
+## F-109 · Settings — the summary style's reset confirm is framed (summary-reset-confirm), and its body follows the theme
+- status: done 2026-10-14
+- screen: summary-reset-confirm
+- route: /settings
+- spec: spec/screens/settings.md §Summaries; spec/component-kit.md §18
+- web: src/pages/SettingsView.jsx; scripts/theme-shots.mjs
+- flutter: lib/pages/settings/summaries_section.dart; lib/widgets/kit/kit_confirm.dart; integration_test/hold_screen_test.dart
+- folds: TODO "Flutter frames owed for web-4's third pass" — the reset confirm
+- device_test: none
+- shots: summary-reset-confirm
+- extra_gates: harness/screenshot_pair_check.py
+- notes: The hold (f2fd1ce) writes the custom style through fn_summary_settings, presses Reset to default and holds the §18 panel; leaveState cancels it and removes the style. Its first frame found a defect: the panel's body was built in the SECTION's context, so its --fg-subtle was resolved once, in whichever theme was active when it opened — the light frame drew the dark theme's grey on white and read blank. It is a Builder now, resolved in the panel (the other three bodyWidget sites already were). The panel sits centred on a phone where web's sits under the header — every §18 panel on this client does (booked, not changed here).
