@@ -1921,3 +1921,55 @@ a new obligation on a finished screen is a new item.
 - shots: summary-reset-confirm
 - extra_gates: harness/screenshot_pair_check.py
 - notes: The hold (f2fd1ce) writes the custom style through fn_summary_settings, presses Reset to default and holds the §18 panel; leaveState cancels it and removes the style. Its first frame found a defect: the panel's body was built in the SECTION's context, so its --fg-subtle was resolved once, in whichever theme was active when it opened — the light frame drew the dark theme's grey on white and read blank. It is a Builder now, resolved in the panel (the other three bodyWidget sites already were). The panel sits centred on a phone where web's sits under the header — every §18 panel on this client does (booked, not changed here).
+
+## F-110 · The four held cooldowns are framed (letter-send-wait, study-wait, retry-wait, sync-wait)
+- status: done 2026-10-14
+- screen: letter-send-wait
+- route: /letters
+- spec: spec/component-kit.md §6.1; spec/screens/letters.md; spec/screens/study.md; spec/screens/sources.md
+- web: scripts/theme-shots.mjs; src/pages/LettersView.jsx; src/pages/StudyView.jsx; src/pages/SourcesBrowse.jsx
+- flutter: integration_test/hold_screen_test.dart; tool/seed_wait_states.py; lib/pages/letters_page.dart; lib/pages/study_page.dart; lib/pages/sources_page.dart; lib/pages/sources/browse_section.dart; lib/widgets/kit/kit_wait.dart; lib/widgets/kit/kit_controls.dart; lib/widgets/kit/kit_program_card.dart; lib/widgets/kit/kit_proc.dart
+- folds: TODO "Flutter frames owed for web-4's third pass" — "Study now · 0:42", "Send now · 0:42", "Retry · 4:00", "Sync now · m:ss"
+- device_test: none
+- shots: letter-send-wait; study-wait; retry-wait; sync-wait
+- extra_gates: harness/screenshot_pair_check.py
+- notes: Web frames all four since 7ef365c. The holds (7c927f2, 91af131) press the control into the server's own 429 — tool/seed_wait_states.py stamps each cooldown field first, AHEAD of now (the app is built between the seed and the press, and a 60s window stamped "now" had lapsed: the first study-wait press was accepted), and retry-wait presses seed-doc-error's Retry ("corrupt.docx"), not the overlay scan's — and requires the held label counting down. Each frame carries the held label and the server's sentence, as web's do; the number differs (web shoots at the refusal, this client after the settle check). The frames found two defects, fixed before these were taken: the Letters card ellipsised its own countdown ("Send now · 0:…", F-112) and the study card's composition (F-111).
+
+## F-111 · Study — a program card is web's .st-prog (study-wait)
+- status: done 2026-10-14
+- screen: study-wait
+- route: /study
+- spec: spec/screens/study.md §Composition; spec/component-kit.md §12; spec/component-kit.md §6.1
+- web: src/pages/StudyView.jsx; src/styles/app-study.css; src/shared/Notice.jsx
+- flutter: lib/pages/study_page.dart; lib/widgets/kit/kit_program_card.dart; lib/widgets/kit/kit_notice.dart; test/kit/study_card_test.dart
+- folds: none (found by this item's own frame)
+- device_test: none
+- shots: study-wait; study
+- extra_gates: harness/screenshot_pair_check.py
+- notes: Found by the study-wait frame beside web's PHONE frame: every earlier study pair was read against web's desktop frame, where the controls sit in a side column and their order cannot be seen. Built in 68a3c0d (KitProgramCard, KitStudyChip, KitStudyMeter): the controls before the notice, the notice in KitNotice's own glyph (the page had passed Icons.error_outline over it), the hint under a rule with its alert glyph, the chip wrapping with the title, the mono figure, a 2-high --seal meter on --rule, ON/OFF beside the switch, an off program on --bg. The `study` frame is the seed's empty state (no program); the card is framed by study-wait. study-wait MATCHES web's phone frame.
+
+## F-112 · KitActionFlow — a grown row cut a held label's countdown (letters, letter-send-wait)
+- status: done 2026-10-14
+- screen: letters
+- route: /letters
+- spec: spec/component-kit.md §6.1
+- web: src/styles/app-responsive.css; src/pages/LettersView.jsx
+- flutter: lib/widgets/kit/kit_controls.dart; test/kit/action_flow_wait_test.dart
+- folds: none (found by the letter-send-wait frame)
+- device_test: none
+- shots: letters; letter-send-wait; letter-reader
+- extra_gates: harness/screenshot_pair_check.py
+- notes: ae12688. The flow floored a child's natural width (and a share a hair over one), and a real font's width is fractional, so "Send now · 0:42" (158.3) got 158 and ellipsised its countdown. Naturals are rounded up to the pixel before the lines are planned; shares are still floored. The test loads the app's real faces (the test font's glyphs are whole pixels and cannot show it) and sweeps 280–380 by quarter pixels.
+
+## F-113 · Sources — 5.9.0: a synced folder is sent with its name and its chip draws it
+- status: done 2026-10-14
+- screen: sources
+- route: /sources
+- spec: spec/api/cloud-storage.md §fn_import_from_cloud; spec/api/cloud-storage.md §fn_sync_settings; spec/screens/sources.md §Sync settings panel
+- web: src/api.js; src/pages/sources/CloudFilePicker.jsx; src/pages/sources/SyncSettingsPanel.jsx; src/styles/app-kit.css
+- flutter: lib/services/api.dart; lib/models/cloud_integration.dart; lib/pages/sources/sync_folder_picker.dart; lib/pages/sources/sync_settings_panel.dart; lib/state/cloud_notifier.dart; test/contract/sync_folders_test.dart
+- folds: CHANGELOG 5.9.0 Flutter tandem
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: 16ad9ed + e5f2bad (as web 5876fb4 builds it: the picker seeded with the stored names, a listed name clipped at 200, a long name ellipsised in its pill via KitTag `clip`). Seen on a device through the look-only hold `sync-folders-saved` (99114d0): a folder saved from the picker through the dev shim's real fn_sync_settings drew as "Docs" beside the seed's unnamed "gd-root-docs". Web has no frame of it. Not followed: web's chip title is the name; the spec says the whole id — this client keeps the id (reported).
