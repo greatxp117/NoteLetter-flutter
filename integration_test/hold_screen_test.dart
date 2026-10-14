@@ -35,6 +35,7 @@ import 'package:flutter_app/app_providers.dart';
 import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/router.dart';
 import 'package:flutter_app/shared/local_flags.dart';
+import 'package:flutter_app/pages/sources/sync_folder_picker.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
@@ -1122,6 +1123,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // (the connect card is fixed since 2026-10-08), then its folder picker.
     // Needs the shim under NL_DEV_FAKES=1 for the Drive tree.
     case 'sync-folders':
+    case 'sync-folders-saved':
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 200));
         if (find.text('Sync settings').evaluate().isNotEmpty) break;
@@ -1141,6 +1143,31 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       await Scrollable.ensureVisible(
           tester.element(find.textContaining('folders selected')),
           alignment: 0.2);
+      await settle();
+      if (holdState == 'sync-folders') return;
+      // 5.9.0 (look-only; web has no frame): tick the first folder not yet
+      // chosen, save, and hold the panel's chips — the saved folder drawn by
+      // the name the picker listed it under, sent as `folder_names` and read
+      // back from the RETURNED integration, not by its provider id.
+      final unticked = find.byWidgetPredicate(
+          (w) => w is KitCheckbox && w.value == false && w.onChanged != null);
+      expect(unticked, findsWidgets, reason: 'no folder left to choose');
+      await tester.tap(unticked.first);
+      await settle();
+      final save = find.textContaining(RegExp(r'^Sync \d+ folders?$'));
+      expect(save, findsOneWidget, reason: 'no Sync N folders button');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      for (var i = 0; i < 50; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.byType(SyncFolderPicker).evaluate().isEmpty) break;
+      }
+      expect(find.byType(SyncFolderPicker), findsNothing,
+          reason: 'the save was not answered — the picker is still open');
+      final chips = find.byType(KitTag);
+      expect(chips, findsWidgets, reason: 'no folder chip after the save');
+      await Scrollable.ensureVisible(tester.element(chips.first),
+          alignment: 0.35, duration: Duration.zero);
       await settle();
       return;
     default:
