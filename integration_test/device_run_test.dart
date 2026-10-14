@@ -2178,7 +2178,10 @@ void main() {
 
       expect(find.text('Study now'), findsOneWidget);
       expect(find.byType(KitSwitch), findsOneWidget);
-      expect(find.byType(KitStatusPill), findsWidgets);
+      // The card is web's `.st-prog` (68a3c0d): its status is `.st-chip`
+      // (KitStudyChip), not the generic §6.2 pill.
+      expect(find.byType(KitProgramCard), findsOneWidget);
+      expect(find.byType(KitStudyChip), findsOneWidget);
       expect(find.byType(Card), findsNothing);
       expect(find.byType(ListTile), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
