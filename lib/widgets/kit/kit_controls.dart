@@ -367,6 +367,12 @@ class KitTag extends StatelessWidget {
   /// about WHICH member it removes.
   final String? removeLabel;
 
+  /// The label may be longer than the row the pill sits in (web `.tag-label`
+  /// under a `max-width: 100%` pill): the pill stops at its parent's width and
+  /// the label ends in an ellipsis. Only where the parent bounds the width —
+  /// a Wrap or a column — never in an unbounded horizontal run.
+  final bool clip;
+
   const KitTag(
     this.label, {
     super.key,
@@ -375,6 +381,7 @@ class KitTag extends StatelessWidget {
     this.onTap,
     this.onRemove,
     this.removeLabel,
+    this.clip = false,
   });
 
   @override
@@ -427,15 +434,21 @@ class KitTag extends StatelessWidget {
             ),
             const SizedBox(width: 6),
           ],
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: AppTheme.fontSans,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: dot != null && variant == KitTagVariant.shelf ? fg : fg,
-            ),
-          ),
+          () {
+            final text = Text(
+              label,
+              maxLines: clip ? 1 : null,
+              softWrap: clip ? false : null,
+              overflow: clip ? TextOverflow.ellipsis : null,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: dot != null && variant == KitTagVariant.shelf ? fg : fg,
+              ),
+            );
+            return clip ? Flexible(child: text) : text;
+          }(),
           if (onRemove != null) ...[
             const SizedBox(width: 4),
             Semantics(

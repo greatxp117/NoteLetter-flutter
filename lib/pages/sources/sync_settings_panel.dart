@@ -350,6 +350,11 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                                 message: id,
                                 child: KitTag(
                                   _chipLabel(id, i.folderNames),
+                                  // A name runs to 200 characters where the
+                                  // cut id was 14: the pill stops at its row
+                                  // and the name ends in an ellipsis (web
+                                  // `.tag-source` max-width + `.tag-label`).
+                                  clip: true,
                                   // "Remove folder {name or id}" (5.9.0).
                                   removeLabel:
                                       'Remove folder ${i.folderNames[id] ?? id}',
@@ -375,6 +380,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                       SyncFolderPicker(
                         provider: widget.providerId,
                         initial: i.folderIds,
+                        initialNames: i.folderNames,
                         cap: _folderCap,
                         allowEmpty: true,
                         onConfirm: _saveFolders,

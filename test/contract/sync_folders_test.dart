@@ -303,6 +303,68 @@ void main() {
     c.dispose();
   });
 
+  testWidgets('a long name is clipped in the pill, not run off the row; the '
+      'picker re-sends a kept folder\'s stored name (5.9.0)', (tester) async {
+    final long = 'A folder name far longer than any phone row ' * 4; // 180
+    final r = _Recorder(_server((body) => (
+          200,
+          {
+            'integration': _integration(
+              List<String>.from(body['folder_ids']),
+              body['folder_names'] as Map?,
+            ),
+          },
+        )));
+    ApiService.instance.httpClientAdapter = r;
+    // 600, not a phone's 390: the test font draws every glyph 1em wide, so
+    // the picker's own crumb row (Root + "1/20 folders selected") runs out of
+    // a 390 row here that it does not on a device. The name is ~2,000 test
+    // pixels either way.
+    tester.view.physicalSize = const Size(600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final c = QuietCloud();
+    await tester.pumpWidget(ChangeNotifierProvider<CloudNotifier>.value(
+      value: c,
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: Consumer<CloudNotifier>(
+              builder: (_, cloud, __) => SyncSettingsPanel(
+                providerId: 'google_drive',
+                integration: cloud.integrationFor('google_drive') ??
+                    CloudIntegration(
+                      provider: 'google_drive',
+                      tokenValid: true,
+                      folderIds: const ['fld-kept'],
+                      folderNames: {'fld-kept': long},
+                      includeTypes: const ['pdf'],
+                    ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.byIcon(Icons.expand_more));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull,
+        reason: 'a 180-character name overflowed its pill');
+    final pill = tester.getSize(find.byType(KitTag));
+    expect(pill.width, lessThanOrEqualTo(600));
+    await tester.tap(find.text('Change folders…'));
+    await tester.pumpAndSettle();
+    await tester.tap(check('fld-b'));
+    await tester.pump();
+    await tester.tap(find.text('Sync 2 folders'));
+    await tester.pumpAndSettle();
+    expect((r.to('/fn_sync_settings').single.data as Map)['folder_names'], {
+      'fld-kept': long,
+      'fld-b': 'Taxes',
+    }, reason: 'web seeds the picker with the stored names');
+  });
+
   testWidgets('a refused save moves nothing and keeps the draft', (
     tester,
   ) async {

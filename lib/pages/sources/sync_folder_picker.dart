@@ -31,11 +31,14 @@ class SyncFolderPicker extends StatefulWidget {
   final int cap;
 
   /// Saves the whole list; answers null on success or the sentence to show.
-  /// The chosen ids, and what each one this picker SAW is called (5.9.0,
-  /// `folder_names`): a folder kept from before and never browsed here is
-  /// absent from [names], and the server keeps the name it already has.
+  /// The chosen ids, and what each is called (5.9.0, `folder_names`): the
+  /// name this picker listed it under, else the one already stored for it
+  /// ([initialNames]), as web's CloudFilePicker hands them.
   final Future<String?> Function(List<String> ids, Map<String, String> names)
       onConfirm;
+
+  /// The names already stored for [initial] (`sync_config.folder_names`).
+  final Map<String, String> initialNames;
   final VoidCallback onCancel;
 
   /// Whether an empty list may be saved when folders were saved before —
@@ -58,6 +61,7 @@ class SyncFolderPicker extends StatefulWidget {
     required this.provider,
     required this.initial,
     required this.onConfirm,
+    this.initialNames = const {},
     required this.onCancel,
     this.cap = 20,
     this.allowEmpty = false,
@@ -76,8 +80,11 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
   String? _pageToken;
   late final Set<String> _selected = {...widget.initial};
 
-  /// Every folder this picker has listed, by id → its name.
-  final Map<String, String> _names = {};
+  /// Every folder this picker has listed, by id → its name, over the names
+  /// already stored. The backend refuses a name over 200 characters, and one
+  /// long folder name must not refuse the whole save, so a name is clipped
+  /// there (web slices the same 200).
+  late final Map<String, String> _names = {...widget.initialNames};
   bool _loading = false;
   bool _saving = false;
   String? _error;
@@ -123,7 +130,10 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
         final folders = page.items.where((f) => f.isFolder);
         _items = append ? [..._items, ...folders] : folders.toList();
         for (final f in folders) {
-          _names[f.id] = f.name;
+          if (f.name.isNotEmpty) {
+            _names[f.id] =
+                f.name.length > 200 ? f.name.substring(0, 200) : f.name;
+          }
         }
         _pageToken = page.nextPageToken;
       });

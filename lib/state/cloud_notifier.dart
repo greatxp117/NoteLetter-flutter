@@ -567,7 +567,11 @@ class CloudNotifier extends ChangeNotifier {
           .where((f) => f.id == id)
           .firstOrNull
           ?.name;
-      if (name != null && name.isNotEmpty) _selectedFolderNames[id] = name;
+      if (name != null && name.isNotEmpty) {
+        // ≤200, as the backend allows and web's picker clips.
+        _selectedFolderNames[id] =
+            name.length > 200 ? name.substring(0, 200) : name;
+      }
     }
     _notify();
     return null;
