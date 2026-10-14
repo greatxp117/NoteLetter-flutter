@@ -110,19 +110,25 @@ class _SummariesSectionState extends State<SummariesSection> {
     await KitConfirm.show(
       context,
       title: 'Discard your custom style?',
-      bodyWidget: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-              'Your summary style, as written, is deleted and the default '
-              'takes its place for sources you add from now on. Nothing else '
-              'keeps a copy of it.',
-              style: KitText.meta(context)),
-          const SizedBox(height: 8),
-          Text('Summaries already written keep their text.',
-              style: KitText.meta(context)),
-        ],
+      // Built in the PANEL's context, not this section's: a style resolved
+      // here is frozen at the moment the panel opened, so a theme that changes
+      // while it is open (the frame batch's light pass) drew the dark theme's
+      // --fg-subtle on the light surface — the body blank in light.
+      bodyWidget: Builder(
+        builder: (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                'Your summary style, as written, is deleted and the default '
+                'takes its place for sources you add from now on. Nothing '
+                'else keeps a copy of it.',
+                style: KitText.meta(context)),
+            const SizedBox(height: 8),
+            Text('Summaries already written keep their text.',
+                style: KitText.meta(context)),
+          ],
+        ),
       ),
       confirmLabel: 'Reset to default',
       cancelLabel: 'Keep my style',

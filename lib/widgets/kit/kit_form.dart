@@ -364,7 +364,7 @@ class KitChoiceChip extends StatelessWidget {
 }
 
 /// `.st-fixed` — a standing condition said beside its control (the sources are
-/// fixed; only finished documents can be studied): an alert glyph 14 at
+/// fixed; only finished documents can be studied): the alert triangle 14 at
 /// `--fg-subtle`, then the sentence in the note role. 12 above.
 class KitFixedNote extends StatelessWidget {
   final String text;
@@ -381,7 +381,9 @@ class KitFixedNote extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 1),
-            child: KitGlyph(Icons.error_outline, size: 14, color: t.fgSubtle),
+            // Web's IcoAlert, the triangle — the app's alert glyph everywhere.
+            child: KitGlyph(Icons.warning_amber_rounded,
+                size: 14, color: t.fgSubtle),
           ),
           const SizedBox(width: 9),
           Expanded(child: Text(text, style: KitText.note(context))),
