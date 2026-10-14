@@ -589,6 +589,15 @@ class KitShelfCard extends StatelessWidget {
   /// Volumes beyond [volumeTitles] — `+3 more`. Zero renders nothing.
   final int moreCount;
 
+  /// Whether the card lists its volumes at all. The Shelves INDEX does
+  /// (`.shelf-card-vols`); Home's shelf cards are a dot, a name and a count
+  /// and nothing more (screens/library.md §Composition, *Shelves*, card
+  /// segment). With the list off there is no *Empty shelf* line either: on
+  /// Home it said "Empty shelf" under every shelf, volumes or not, because
+  /// Home passed no titles (found by the library-letter-cards frame,
+  /// 2026-10-14).
+  final bool listsVolumes;
+
   /// `auto` for an auto-created shelf, `split` for one split from another.
   /// **A label and nothing more** (ADR-025): provenance never rolls counts up
   /// to a parent and never nests one shelf under another.
@@ -608,6 +617,7 @@ class KitShelfCard extends StatelessWidget {
     required this.volumes,
     this.volumeTitles = const [],
     this.moreCount = 0,
+    this.listsVolumes = true,
     this.badge,
     this.colorToken,
     this.onTap,
@@ -702,14 +712,15 @@ class KitShelfCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 9),
+                // `.shelf-card-meta` — mono 11 / 0.02em, and it WRAPS: a
+                // half-width card on a phone cut "2 passages" to "2 passag…".
                 Text(
                   meta,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.mono(fontSize: 11, color: t.fgSubtle),
+                  style: AppTheme.mono(
+                      fontSize: 11, letterSpacing: 0.22, color: t.fgSubtle),
                 ),
-                const SizedBox(height: 9),
-                if (volumeTitles.isEmpty)
+                if (listsVolumes) const SizedBox(height: 9),
+                if (listsVolumes && volumeTitles.isEmpty)
                   // `.scv-empty` — SANS italic 12 at --fg-subtle (F-81 (3)).
                   Text('Empty shelf',
                       style: TextStyle(
@@ -719,7 +730,7 @@ class KitShelfCard extends StatelessWidget {
                         fontStyle: FontStyle.italic,
                         color: t.fgSubtle,
                       ))
-                else
+                else if (listsVolumes)
                   for (final v in volumeTitles)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 3),
@@ -734,7 +745,7 @@ class KitShelfCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                if (moreCount > 0)
+                if (listsVolumes && moreCount > 0)
                   Text('+$moreCount more',
                       style: AppTheme.serif(
                         fontSize: 12,

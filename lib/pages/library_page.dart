@@ -398,6 +398,9 @@ class _LibraryHomeState extends State<_LibraryHome> {
                     volumes: vols.length,
                     meta: '${_plural(vols.length, 'volume')}'
                         '${passages > 0 ? ' · ${_plural(passages, 'passage')}' : ''}',
+                    // A dot, a name and a count: Home's cards list no
+                    // volumes, and so never say "Empty shelf".
+                    listsVolumes: false,
                     // The shelf's OWN page, now that it has one: the card
                     // named a shelf and opened the index until F-08.
                     onTap: () => context.go('/shelves/${s.id}'),

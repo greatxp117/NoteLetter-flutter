@@ -179,6 +179,14 @@ void main() {
       expect(find.byType(KitShelfCard), findsNWidgets(3));
       expect(_chip('LEAD'), findsNothing);
       expect(_chip('MUTED'), findsNothing);
+      // A dot, a name and a count: Home's cards list no volumes, so none of
+      // them says "Empty shelf" — every one of these shelves holds a volume
+      // (the library-letter-cards frame found all three saying it).
+      expect(find.text('Empty shelf'), findsNothing);
+      expect(
+          find.descendant(
+              of: find.byType(KitShelfCard), matching: find.text('On Leading')),
+          findsNothing);
     });
 
     testWidgets('no chip while the letter is off', (tester) async {
