@@ -1075,17 +1075,20 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           list ? LocalFlags.recentView : LocalFlags.sourcesView,
           list ? 'list' : 'cards');
       await settle();
+      // The uncounted source's own card (web shoots the whole card grid).
       final at = list
           ? find.textContaining(RegExp(r'^recently read', caseSensitive: false),
               skipOffstage: false)
-          : find.byType(KitSourceCard, skipOffstage: false);
+          : find.ancestor(
+              of: find.text('Quarterly Tax Summary', skipOffstage: false),
+              matching: find.byType(KitSourceCard, skipOffstage: false));
       for (var i = 0; i < 60 && at.evaluate().isEmpty; i++) {
         await tester.pump(const Duration(milliseconds: 200));
       }
       expect(at, findsWidgets,
           reason: list ? 'no Recently read list' : 'no source cards');
       await Scrollable.ensureVisible(tester.element(at.first),
-          alignment: list ? 0.0 : 0.05, duration: Duration.zero);
+          alignment: list ? 0.0 : 0.3, duration: Duration.zero);
       await settle();
       return;
     // 2 · reader-type: the Aa popover open over the manuscript — §6.8's
@@ -1114,7 +1117,11 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
         await tester.tap(find.text('Continue'));
         await settle();
       }
-      expect(find.text('How often'), findsWidgets,
+      // By the track's own group name: the field's label is drawn in caps.
+      expect(
+          find.byWidgetPredicate(
+              (w) => w is KitSegmented && w.groupLabel == 'How often'),
+          findsOneWidget,
           reason: 'setup did not reach its letter step');
       return;
     // 3 · letters-unpin-held: the pinned source's Unpin while its write is in

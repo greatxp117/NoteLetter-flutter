@@ -205,18 +205,22 @@ class _TypeTrack extends StatelessWidget {
           borderRadius: AppRadius.smR,
           border: Border.all(color: t.border),
         ),
-        child: Row(
+        // `.seg button { flex: 1 }` over each label's own width: the
+        // segments share the track equally, except that none is ever
+        // narrower than its label — equal Expanded shares cut "Medium" to
+        // "Mediur" in the 268 popover (found by the reader-type frame,
+        // 2026-10-14). KitActionFlow's grow is exactly that rule.
+        child: KitActionFlow(
+          grow: true,
+          spacing: 2,
+          runSpacing: 2,
           children: [
-            for (var i = 0; i < group.options.length; i++) ...[
-              if (i > 0) const SizedBox(width: 2),
-              Expanded(
-                child: _TypeSegment(
-                  label: group.options[i],
-                  selected: i == group.selected,
-                  onTap: () => group.onChanged(i),
-                ),
+            for (var i = 0; i < group.options.length; i++)
+              _TypeSegment(
+                label: group.options[i],
+                selected: i == group.selected,
+                onTap: () => group.onChanged(i),
               ),
-            ],
           ],
         ),
       ),
