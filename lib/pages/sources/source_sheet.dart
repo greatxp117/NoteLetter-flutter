@@ -204,6 +204,9 @@ class _SourceBodyState extends State<_SourceBody> {
         typeLabel: widget.doc.type.toUpperCase(),
         onDownload: _launch,
         onOpen: _launch,
+        stitchedFrames: widget.doc.stitch?.frameCount,
+        knownWidth: widget.doc.stitch?.width,
+        knownHeight: widget.doc.stitch?.height,
       ),
     );
   }

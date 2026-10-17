@@ -222,6 +222,12 @@ class Document {
   /// provider (data-model.md). Drives the Reader source-freshness check (1.4.0).
   final Map<String, dynamic>? sourceIntegration;
 
+  /// 5.10.0 (ADR-170) — present only while this is a **stitched scroll**: an
+  /// image set whose pages were one continuous scroll, joined into one picture
+  /// by the run that re-typed it `image`. Null on every other document, and on
+  /// a set a later run put back. §15.1 rule 4 reads it before the bytes land.
+  final DocumentStitch? stitch;
+
   const Document({
     required this.id,
     required this.userId,
@@ -262,6 +268,7 @@ class Document {
     this.originalContentUrl,
     this.recipe,
     this.sourceIntegration,
+    this.stitch,
   });
 
   /// Apply an `fn_regenerate_summary` response (4.3.0, ADR-040).
@@ -313,6 +320,7 @@ class Document {
       originalContentUrl: originalContentUrl,
       recipe: recipe,
       sourceIntegration: sourceIntegration,
+      stitch: stitch,
     );
   }
 
@@ -365,6 +373,7 @@ class Document {
       originalContentUrl: originalContentUrl,
       recipe: recipe,
       sourceIntegration: sourceIntegration,
+      stitch: stitch,
     );
   }
 
@@ -416,6 +425,7 @@ class Document {
       originalContentUrl: originalContentUrl,
       recipe: recipe,
       sourceIntegration: sourceIntegration,
+      stitch: stitch,
     );
   }
 
@@ -470,6 +480,7 @@ class Document {
       originalContentUrl: originalContentUrl,
       recipe: recipe,
       sourceIntegration: sourceIntegration,
+      stitch: stitch,
     );
   }
 
@@ -521,6 +532,35 @@ class Document {
           ? null
           : Recipe.fromJson((json['recipe'] as Map).cast<String, dynamic>()),
       sourceIntegration: (json['source_integration'] as Map?)?.cast<String, dynamic>(),
+      stitch: DocumentStitch.fromJson(json['stitch']),
+    );
+  }
+}
+
+/// `documents.stitch` (5.10.0, ADR-170; data-model.md) — the record of a
+/// stitched scroll. Only what a client draws is read: the frame count for the
+/// caption, the picture's size so §15.1 rule 4 can draw it tall before the
+/// bytes arrive. `joins` and `order` are the backend's account of the stitch.
+class DocumentStitch {
+  final int frameCount;
+  final int? width;
+  final int? height;
+
+  const DocumentStitch({required this.frameCount, this.width, this.height});
+
+  /// More than twice as tall as wide — the §15.1 rule 4 threshold.
+  bool get tall => width != null && height != null && height! > 2 * width!;
+
+  /// Null for an absent, null or malformed record: a caption saying "Joined
+  /// from 0 screenshots" is worse than no caption.
+  static DocumentStitch? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final n = (raw['frame_count'] as num?)?.toInt();
+    if (n == null || n < 2) return null;
+    return DocumentStitch(
+      frameCount: n,
+      width: (raw['width'] as num?)?.toInt(),
+      height: (raw['height'] as num?)?.toInt(),
     );
   }
 }

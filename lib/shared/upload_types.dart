@@ -189,3 +189,10 @@ String? uploadRejection({
 
   return '“$name” isn’t a supported file type. $uploadAcceptHelp.';
 }
+
+/// The one sentence every set-making surface carries, verbatim (5.10.0,
+/// ADR-170; spec/screens/sources.md §Endpoints used). The server decides from
+/// the pixels whether a set is one scroll and joins it into one picture; this
+/// is the only place a reader learns that can happen before it does. Change
+/// it in the spec first — web's `SCROLL_HINT` and iOS carry the same words.
+const kScrollHint = 'Screenshots of one long scroll are joined into one picture.';

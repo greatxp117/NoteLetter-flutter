@@ -305,6 +305,16 @@ class KitSourceFileView extends StatelessWidget {
   /// Names the type in the fallback sentence (`A DOCX can't be displayed…`).
   final String typeLabel;
 
+  /// A stitched scroll's frame count (5.10.0, ADR-170; `documents.stitch`):
+  /// the stage is captioned "Joined from N screenshots of one scroll." — the
+  /// one place the picture is explained. Null for every other document.
+  final int? stitchedFrames;
+
+  /// The picture's size when the document already says it (`stitch.width` /
+  /// `stitch.height`), so §15.1 rule 4 can draw it tall before the bytes land.
+  final int? knownWidth;
+  final int? knownHeight;
+
   const KitSourceFileView({
     super.key,
     required this.title,
@@ -313,6 +323,9 @@ class KitSourceFileView extends StatelessWidget {
     this.onDownload,
     this.onOpen,
     this.typeLabel = 'file',
+    this.stitchedFrames,
+    this.knownWidth,
+    this.knownHeight,
   });
 
   @override
@@ -359,6 +372,18 @@ class KitSourceFileView extends StatelessWidget {
               ],
             ),
           ),
+          if (stage == KitStage.image && stitchedFrames != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: t.rule)),
+              ),
+              child: Text(
+                'Joined from $stitchedFrames screenshots of one scroll.',
+                style: KitText.small(context, height: 18),
+              ),
+            ),
           _stage(context, t),
         ],
       ),
@@ -368,25 +393,8 @@ class KitSourceFileView extends StatelessWidget {
   Widget _stage(BuildContext context, Tokens t) {
     switch (stage) {
       case KitStage.image:
-        return Container(
-          width: double.infinity,
-          color: t.surfaceSunken,
-          padding: const EdgeInsets.all(AppSpacing.s4),
-          // `.orig-imagefile`: the image is its own page on the stage —
-          // `--r-sm` corners and `--shadow-2`, not a bare rectangle.
-          child: Center(
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                borderRadius: AppRadius.smR,
-                boxShadow: AppShadows.s2,
-              ),
-              child: ClipRRect(
-                borderRadius: AppRadius.smR,
-                child: Image.network(url, fit: BoxFit.contain),
-              ),
-            ),
-          ),
-        );
+        return _KitImageStage(
+            url: url, knownWidth: knownWidth, knownHeight: knownHeight);
       case KitStage.video:
         // No player is embedded here, and the matte is not drawn over nothing:
         // the frame says what it holds and the toolbar opens it. A black box
@@ -410,6 +418,111 @@ class KitSourceFileView extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.s4),
         child: KitProcNote(text, padding: EdgeInsets.zero),
       );
+}
+
+/// The §15.1 image stage. An ordinary picture is fitted inside the stage, as
+/// it always was. A TALL one — more than twice as tall as wide; a stitched
+/// scroll is 5-20x — is READ, not fitted (§15.1 rule 4, 5.10.0, ADR-170): at
+/// the stage's width, never past its own pixels, in a stage that scrolls
+/// (web's `.pdf-stage` caps at 720 and scrolls; so does this). Fitted, a 1:15
+/// picture is a sliver nobody can read.
+///
+/// Decoded at the width it is DRAWN at (`cacheWidth`): a 1290x40000 PNG is
+/// 200 MB of pixels at full size, and `Image.network` decodes at full size
+/// unless told otherwise. Tallness comes from the document's own record when
+/// it has one, and otherwise from the image once it resolves.
+class _KitImageStage extends StatefulWidget {
+  final String url;
+  final int? knownWidth;
+  final int? knownHeight;
+
+  const _KitImageStage({required this.url, this.knownWidth, this.knownHeight});
+
+  @override
+  State<_KitImageStage> createState() => _KitImageStageState();
+}
+
+class _KitImageStageState extends State<_KitImageStage> {
+  static const double _maxStage = 720;
+  Size? _natural;
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+
+  bool get _knownTall =>
+      widget.knownWidth != null &&
+      widget.knownHeight != null &&
+      widget.knownHeight! > 2 * widget.knownWidth!;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Measured only when the record says nothing: a stitched document already
+    // knows its size, and a second network decode to learn it would be waste.
+    if (_stream == null && !_knownTall) {
+      _stream = NetworkImage(widget.url)
+          .resolve(createLocalImageConfiguration(context));
+      _listener = ImageStreamListener((info, _) {
+        if (!mounted) return;
+        setState(() => _natural = Size(
+            info.image.width.toDouble(), info.image.height.toDouble()));
+      }, onError: (_, __) {});
+      _stream!.addListener(_listener!);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_listener != null) _stream?.removeListener(_listener!);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final tall = _knownTall ||
+        (_natural != null && _natural!.height > 2 * _natural!.width);
+    // `.orig-imagefile`: the image is its own page on the stage — `--r-sm`
+    // corners and `--shadow-2`, not a bare rectangle.
+    Widget framed(Widget img) => DecoratedBox(
+          decoration: const BoxDecoration(
+            borderRadius: AppRadius.smR,
+            boxShadow: AppShadows.s2,
+          ),
+          child: ClipRRect(borderRadius: AppRadius.smR, child: img),
+        );
+    if (!tall) {
+      return Container(
+        width: double.infinity,
+        color: t.surfaceSunken,
+        padding: const EdgeInsets.all(AppSpacing.s4),
+        child: Center(child: framed(Image.network(widget.url, fit: BoxFit.contain))),
+      );
+    }
+    return Container(
+      width: double.infinity,
+      color: t.surfaceSunken,
+      constraints: const BoxConstraints(maxHeight: _maxStage),
+      child: LayoutBuilder(builder: (context, box) {
+        final own = (widget.knownWidth ?? _natural?.width)?.toDouble();
+        final avail = box.maxWidth - 2 * AppSpacing.s4;
+        final w = own == null ? avail : (own < avail ? own : avail);
+        // Device pixels, but no more than 2x: past that the picture is sharper
+        // than a phone shows and costs half again the memory.
+        final dpr = MediaQuery.devicePixelRatioOf(context).clamp(1.0, 2.0);
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.s4),
+          child: Center(
+            child: framed(Image.network(
+              widget.url,
+              width: w,
+              fit: BoxFit.fitWidth,
+              cacheWidth: (w * dpr).round(),
+            )),
+          ),
+        );
+      }),
+    );
+  }
 }
 
 /// Component kit §15.2 · Source set gallery (4.38.0, ADR-076) — an

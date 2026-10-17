@@ -645,6 +645,33 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           reason: 'the §15 sheet did not open on its viewer');
       await settle();
       return;
+    // component-kit §15.1 rule 4 (5.10.0, ADR-170; F-117) — theme-shots
+    // `source-stitched`: a stitched scroll mid-indexing, its row's View file
+    // opening the §15 sheet on a TALL picture — at the stage's width, the stage
+    // scrolling, captioned "Joined from 6 screenshots of one scroll." Run
+    // `tool/seed_overlay_sources.py --stitched` first, and with `--remove` after.
+    case 'source-stitched':
+      await settle();
+      final row = find.ancestor(
+          of: find.text('A long thread, six screenshots'),
+          matching: find.byType(KitProcCard));
+      expect(row, findsOneWidget,
+          reason: 'run tool/seed_overlay_sources.py --stitched first');
+      final view = find.descendant(of: row, matching: find.text('View file'));
+      await tester.ensureVisible(view);
+      await settle();
+      await tester.tap(view);
+      final caption = find.text('Joined from 6 screenshots of one scroll.');
+      for (var i = 0; i < 60 && caption.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(caption, findsOneWidget,
+          reason: 'the §15 sheet did not open on the stitched picture');
+      // The picture's bytes: a bounded pump, never pumpAndSettle.
+      for (var i = 0; i < 15; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      return;
     // search.md — a route alone renders the §7 idle offer, so the query is
     // typed. The reference's own shot types `budget` and waits: the seed's
     // chunks are the corpus and it hits the PDF. The frame has to be of

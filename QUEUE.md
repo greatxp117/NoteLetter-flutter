@@ -2012,3 +2012,16 @@ a new obligation on a finished screen is a new item.
 - shots: activity-stalled; activity-retry-error
 - extra_gates: harness/screenshot_pair_check.py
 - notes: 1d561c1 (contracts 6eb5761, web 2a61e3a): Retry while the document is `error` OR stalled, on the newest row per document. activity-retry-error's 404 now reads "This source no longer exists." (5.9.1, contracts f37033b), drawn verbatim — no code. Web references 522f68b / e75978b.
+
+## F-117 · Source file view — 5.10.0/5.10.1: a stitched scroll is read tall and captioned; the hint under Add an image set (ADR-170)
+- status: done 2026-10-17
+- screen: source-stitched
+- route: /sources
+- spec: spec/component-kit.md §15.1; spec/screens/sources.md §Endpoints used; spec/screens/reader.md §Original; spec/decisions/ADR-170-a-scroll-is-one-picture.md
+- web: src/shared/SourceFile.jsx; src/styles/app-source.css; src/shared/ImageSetChoice.jsx; scripts/theme-shots.mjs
+- flutter: lib/widgets/kit/kit_overlay.dart; lib/models/document.dart; lib/pages/reader/original_panel.dart; lib/pages/sources/source_sheet.dart; lib/widgets/file_uploader.dart; tool/seed_overlay_sources.py; integration_test/hold_screen_test.dart; test/kit/scroll_stitch_test.dart (new)
+- folds: 5.10.0; 5.10.1
+- device_test: signs in and reaches the library
+- shots: source-stitched
+- extra_gates: harness/screenshot_pair_check.py
+- notes: An image set whose pages are one continuous scroll is re-typed `image` with a `stitch` record by the run that joins them (backend 5d0a3ac, live). §15.1 rule 4: an image more than 2x as tall as wide renders at the stage's width (never past its own pixels) in a stage that scrolls, DECODED DOWNSAMPLED to the drawn width (cacheWidth — a 1290x40000 PNG is 200 MB of pixels at full size); caption "Joined from N screenshots of one scroll." from stitch.frame_count. The hint sentence "Screenshots of one long scroll are joined into one picture." (verbatim) under Add an image set. Flutter keeps its own set entry — the web One/Separate question is web's (sources.md). Web references d2e66bf, frames source-stitched.web.*.

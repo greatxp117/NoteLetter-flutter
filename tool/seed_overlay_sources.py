@@ -13,7 +13,13 @@ shot: left in the seed, the processing tray would carry two more rows and the
 `sources` pair would count eight where the reference counts six.
 
     FIRESTORE_EMULATOR_HOST=localhost:8580 STORAGE_EMULATOR_HOST=http://localhost:9699 \\
-      python3 tool/seed_overlay_sources.py [--remove]
+      python3 tool/seed_overlay_sources.py [--stitched] [--remove]
+
+`--stitched` (5.10.0, ADR-170; F-117) writes ONLY the reference's third §15
+frame, `source-stitched`: an image set whose six pages were one scroll,
+re-typed `image` with its `stitch` record, mid-indexing so the tray holds it,
+its picture an 8:1 PNG drawn like web's `scrollPng`. Alone, so the two frames
+above keep the tray they were compared on.
 
 Writes through the emulator REST with `Bearer owner`, which bypasses rules — a
 client cannot write /documents directly (INV-04).
@@ -31,6 +37,8 @@ FILE_PATH = f"raw/{UID}/docx/{FILE_DOC}.docx"
 SET_DOC = "shot-pending-set"
 SET_PATHS = [f"raw/{UID}/image_sets/{SET_DOC}/{i}_{n}"
              for i, n in enumerate(["front.jpg", "middle.png", "back.jpg"])]
+STITCH_DOC = "shot-stitched"
+STITCH_PATH = f"raw/{UID}/image_sets/{STITCH_DOC}/stitched.png"
 
 
 def call(url, method, data=None, headers=None):
@@ -87,6 +95,93 @@ D = lambda v: {"doubleValue": v}                    # noqa: E731
 N = {"nullValue": None}
 A = lambda vs: {"arrayValue": {"values": vs}}       # noqa: E731
 TS = {"timestampValue": "2026-10-12T10:00:00Z"}
+
+def scroll_png(w, h):
+    """web theme-shots `scrollPng`: white paper, seeded lines of "type", a
+    status bar at the top and a tab bar at the foot — the same generator, so
+    the two frames draw the same picture."""
+    px = [[(255, 255, 255)] * w for _ in range(h)]
+    seed = [7]
+
+    def rnd():
+        seed[0] = (seed[0] * 1103515245 + 12345) & 0x7FFFFFFF
+        return seed[0] / 0x7FFFFFFF
+
+    def fill(x0, y0, fw, fh, c):
+        for y in range(y0, min(h, y0 + fh)):
+            row = px[y]
+            for x in range(x0, min(w, x0 + fw)):
+                row[x] = c
+
+    ink = []
+    y = 70
+    while y < h - 80:
+        if rnd() < 0.15:
+            y += 22
+            continue
+        end = 24 + int((w - 48) * (0.55 + 0.45 * rnd()))
+        x = 24
+        while x < end:
+            gw = 3 + int(rnd() * 7)
+            ink.append((x, y, min(gw, end - x), 11))
+            x += gw + 2 + (6 if rnd() < 0.2 else 0)
+        y += 24
+    fill(0, 0, w, 44, (246, 246, 248))
+    fill(0, h - 64, w, 64, (246, 246, 248))
+    for (x, yy, gw, gh) in ink:
+        fill(x, yy, gw, gh, (34, 34, 40))
+    rows = b"".join(b"\x00" + bytes(v for p in r for v in p) for r in px)
+
+    def chunk(tag, data):
+        c = tag + data
+        return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows))
+            + chunk(b"IEND", b""))
+
+
+if "--stitched" in sys.argv:
+    if "--remove" in sys.argv:
+        del_doc(STITCH_DOC)
+        del_object(STITCH_PATH)
+        print(f"removed {STITCH_DOC}")
+        sys.exit(0)
+    put_object(STITCH_PATH, scroll_png(390, 3120), "image/png")
+    put_doc(STITCH_DOC, {
+        "user_id": S(UID),
+        "title": S("A long thread, six screenshots"),
+        "type": S("image"),
+        "mime_type": S("image_set"),
+        "status": S("processing"),
+        "processing_stage": S("embedding"),
+        "gcs_path": S(STITCH_PATH),
+        "gcs_paths": A([S(f"raw/{UID}/image_sets/{STITCH_DOC}/{i}_IMG_{2040 + i}.PNG")
+                        for i in range(6)]),
+        "image_count": I(6),
+        "stitch": {"mapValue": {"fields": {
+            "frame_count": I(6), "order": S("given"),
+            "width": I(390), "height": I(3120),
+            "joins": A([{"mapValue": {"fields": {
+                "overlap_px": I(260), "matched": {"booleanValue": True}}}}
+                for _ in range(5)]),
+        }}},
+        "source_url": N,
+        "created_at": TS,
+        "processed_at": N,
+        "chunk_count": N,
+        "word_count": N,
+        "summary": N,
+        "error_message": N,
+        "tag_ids": A([]),
+        "images": A([]),
+        "source_priority": D(0.5),
+        "retry_count": I(0),
+        "view_count": I(0),
+    })
+    print(f"seeded {STITCH_DOC} (a stitched scroll, mid-indexing)")
+    sys.exit(0)
 
 if "--remove" in sys.argv:
     del_doc(FILE_DOC)

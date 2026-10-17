@@ -220,6 +220,11 @@ class _OriginalPanelState extends State<OriginalPanel> {
       typeLabel: doc.type.toUpperCase(),
       onDownload: _launch,
       onOpen: _launch,
+      // A stitched scroll (5.10.0, ADR-170): drawn tall and captioned (§15.1
+      // rule 4) — the only place the picture appears; the Manuscript is text.
+      stitchedFrames: doc.stitch?.frameCount,
+      knownWidth: doc.stitch?.width,
+      knownHeight: doc.stitch?.height,
     );
   }
 

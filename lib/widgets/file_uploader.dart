@@ -224,6 +224,13 @@ class FileUploaderState extends State<FileUploader> {
                 onPressed: () => _pickImageSet(notifier),
               ),
             ),
+            // Verbatim on every set-making surface (sources.md §Endpoints
+            // used, 5.10.0, ADR-170): the server joins a scroll from the
+            // pixels, and this line is the only place a reader learns it can.
+            Padding(
+              padding: const EdgeInsets.only(left: 4, top: 2),
+              child: Text(kScrollHint, style: KitText.note(context)),
+            ),
 
             // §14.2 — the rejection this client made itself, in the place the
             // reader is looking. Dense: it sits under a control group.
