@@ -19,7 +19,9 @@ shot: left in the seed, the processing tray would carry two more rows and the
 frame, `source-stitched`: an image set whose six pages were one scroll,
 re-typed `image` with its `stitch` record, mid-indexing so the tray holds it,
 its picture an 8:1 PNG drawn like web's `scrollPng`. Alone, so the two frames
-above keep the tray they were compared on.
+above keep the tray they were compared on. `--stitched --complete` writes the
+same document FINISHED, with one passage, for a surface that opens it in the
+reader (iOS draws §15.1 only in the reader's Original panel).
 
 Writes through the emulator REST with `Bearer owner`, which bypasses rules — a
 client cannot write /documents directly (INV-04).
@@ -145,17 +147,20 @@ def scroll_png(w, h):
 if "--stitched" in sys.argv:
     if "--remove" in sys.argv:
         del_doc(STITCH_DOC)
+        call(f"{BASE}/chunks/{STITCH_DOC}-c0", "DELETE", None,
+             {"Authorization": "Bearer owner"})
         del_object(STITCH_PATH)
         print(f"removed {STITCH_DOC}")
         sys.exit(0)
+    complete = "--complete" in sys.argv
     put_object(STITCH_PATH, scroll_png(390, 3120), "image/png")
     put_doc(STITCH_DOC, {
         "user_id": S(UID),
         "title": S("A long thread, six screenshots"),
         "type": S("image"),
         "mime_type": S("image_set"),
-        "status": S("processing"),
-        "processing_stage": S("embedding"),
+        "status": S("complete" if complete else "processing"),
+        "processing_stage": N if complete else S("embedding"),
         "gcs_path": S(STITCH_PATH),
         "gcs_paths": A([S(f"raw/{UID}/image_sets/{STITCH_DOC}/{i}_IMG_{2040 + i}.PNG")
                         for i in range(6)]),
@@ -170,8 +175,8 @@ if "--stitched" in sys.argv:
         "source_url": N,
         "created_at": TS,
         "processed_at": N,
-        "chunk_count": N,
-        "word_count": N,
+        "chunk_count": I(1) if complete else N,
+        "word_count": I(24) if complete else N,
         "summary": N,
         "error_message": N,
         "tag_ids": A([]),
@@ -180,7 +185,16 @@ if "--stitched" in sys.argv:
         "retry_count": I(0),
         "view_count": I(0),
     })
-    print(f"seeded {STITCH_DOC} (a stitched scroll, mid-indexing)")
+    if complete:
+        text = ("A thread read once, top to bottom: every reply in order, the "
+                "repeated status bar gone, nothing read twice.")
+        call(f"{BASE}/chunks/{STITCH_DOC}-c0", "PATCH", json.dumps({"fields": {
+            "user_id": S(UID), "document_id": S(STITCH_DOC), "chunk_index": I(0),
+            "text": S(text), "html": S(f"<p>{text}</p>"), "source_type": S("image"),
+            "tag_ids": A([]), "view_count": I(0), "created_at": TS,
+        }}).encode(), {"Authorization": "Bearer owner", "Content-Type": "application/json"})
+    print(f"seeded {STITCH_DOC} (a stitched scroll, "
+          f"{'complete' if complete else 'mid-indexing'})")
     sys.exit(0)
 
 if "--remove" in sys.argv:
