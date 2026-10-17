@@ -1999,3 +1999,16 @@ a new obligation on a finished screen is a new item.
 - shots: library-uncounted; sources-uncounted; reader-type; onboarding-letter; letters-unpin-held; activity-stalled; activity-retry-error; activity
 - extra_gates: harness/screenshot_pair_check.py
 - notes: d243862 (the five rulings, contracts b39e72a, web 088099c). Holds and tool/seed_followup3.py (uncounted | pinned | stalled, one at a time, --remove) frame web 7f85b50's seven states; `activity` is re-paired because the seed's failed document now carries Retry. In progress until those pairs and the device run land.
+
+## F-116 · Activity — a stalled document's row carries Retry too (Xavier's ruling, 2026-10-17)
+- status: done 2026-10-16
+- screen: activity-stalled
+- route: /activity
+- spec: spec/screens/activity.md §Where a row leads
+- web: src/shared/stalled.js; src/pages/ActivityView.jsx; scripts/theme-shots.mjs
+- flutter: lib/pages/activity_page.dart; test/kit/rulings_2026_10_14_test.dart
+- folds: TODO "Retry on Activity's stalled row" (web follow-up 3 FOUND)
+- device_test: signs in and reaches the library
+- shots: activity-stalled; activity-retry-error
+- extra_gates: harness/screenshot_pair_check.py
+- notes: 1d561c1 (contracts 6eb5761, web 2a61e3a): Retry while the document is `error` OR stalled, on the newest row per document. activity-retry-error's 404 now reads "This source no longer exists." (5.9.1, contracts f37033b), drawn verbatim — no code. Web references 522f68b / e75978b.
