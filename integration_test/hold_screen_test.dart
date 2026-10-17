@@ -1210,6 +1210,25 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           reason: 'no refusal rendered — this frame would be the Retry');
       await settle();
       return;
+    // reader.md §Source freshness (5.12.0, ADR-172; F-118) — web's
+    // reader-original-update: the Original section, its "Imported from
+    // {Provider}" line and Update from {Provider} beneath the intro, before
+    // the file. The seed PDF came from Google Drive.
+    case 'original-update':
+      await _revealRailJump(tester, 'Original', sideways: true);
+      await tester.tap(find.text('Original').first);
+      await settle();
+      final update = find.textContaining(RegExp(r'^Update from '),
+          skipOffstage: false);
+      for (var i = 0; i < 60 && update.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(update, findsOneWidget,
+          reason: 'no Update from {Provider} in the Original section');
+      await Scrollable.ensureVisible(tester.element(update),
+          alignment: 0.3, duration: Duration.zero);
+      await settle();
+      return;
     case 'library-shelves':
       await settle();
       final recentHead = find.textContaining(
@@ -1308,7 +1327,14 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // route reaches: the Drive sync panel opened from its "Import from" header
     // (the connect card is fixed since 2026-10-08), then its folder picker.
     // Needs the shim under NL_DEV_FAKES=1 for the Drive tree.
+    //
+    // `sync-folders` is web's frame since 5.12.0 (F-118): the panel's Sync
+    // folders group — its chips and Change folders… — not the picker, because
+    // the panel is now taller than a screen and web crops to the group.
+    // `sync-auto-update` is the auto-sync group with 5.12.0's second switch,
+    // "Update changed files automatically", and its caption (ADR-172).
     case 'sync-folders':
+    case 'sync-auto-update':
     case 'sync-folders-saved':
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 200));
@@ -1317,6 +1343,24 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       await tester.ensureVisible(find.text('Sync settings').first);
       await tester.tap(find.text('Sync settings').first);
       await settle();
+      if (holdState != 'sync-folders-saved') {
+        final at = holdState == 'sync-auto-update'
+            ? find.text('Update changed files automatically',
+                skipOffstage: false)
+            : find.textContaining(RegExp(r'^(Choose|Change) folders…$'),
+                skipOffstage: false);
+        for (var i = 0; i < 40 && at.evaluate().isEmpty; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+        expect(at, findsWidgets,
+            reason: holdState == 'sync-auto-update'
+                ? 'no Update changed files automatically row'
+                : 'no Sync folders group');
+        await Scrollable.ensureVisible(tester.element(at.first),
+            alignment: 0.5, duration: Duration.zero);
+        await settle();
+        return;
+      }
       final choose = find.textContaining(RegExp(r'^(Choose|Change) folders…$'));
       await tester.ensureVisible(choose.first);
       await tester.tap(choose.first);
@@ -1330,7 +1374,6 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           tester.element(find.textContaining('folders selected')),
           alignment: 0.2);
       await settle();
-      if (holdState == 'sync-folders') return;
       // 5.9.0 (look-only; web has no frame): tick the first folder not yet
       // chosen, save, and hold the panel's chips — the saved folder drawn by
       // the name the picker listed it under, sent as `folder_names` and read
