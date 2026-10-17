@@ -75,8 +75,9 @@ class _SourceFreshnessState extends State<SourceFreshness> {
   }
 
   /// reader.md §Supersession confirm: through the §18 confirm when a passage
-  /// was edited or the document is in a study program (or either could not
-  /// be checked); a refusal inside it stays in the panel. With no confirm
+  /// was edited (or that could not be checked) — since 5.12.0 an update keeps
+  /// the study schedule, so membership no longer asks (ADR-172); a refusal
+  /// inside it stays in the panel. With no confirm
   /// owed, a refusal is §14.2 in the banner, as before. Write before you
   /// move: the banner flips to queued only once the call has succeeded.
   Future<void> _update() async {
@@ -90,6 +91,8 @@ class _SourceFreshnessState extends State<SourceFreshness> {
       title: SupersessionConfirm.updateTitle,
       lead: SupersessionConfirm.updateLead(_freshness?['provider'] as String?),
       confirmLabel: SupersessionConfirm.updateConfirmLabel,
+      study: SupersessionConfirm.updateStudy,
+      editedBy: SupersessionConfirm.updateEditedBy(_freshness?['provider'] as String?),
       action: () async {
         try {
           await Api.instance.updateFromSource(widget.docId);

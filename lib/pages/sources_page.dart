@@ -1198,6 +1198,8 @@ class _JobRowState extends State<_JobRow> {
       title: SupersessionConfirm.updateTitle,
       lead: SupersessionConfirm.updateLead(widget.job.provider),
       confirmLabel: SupersessionConfirm.updateConfirmLabel,
+      study: SupersessionConfirm.updateStudy,
+      editedBy: SupersessionConfirm.updateEditedBy(widget.job.provider),
       action: () => cloud.updateFromSource(docId),
       waitKey: _updateKey,
     );

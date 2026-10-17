@@ -90,14 +90,15 @@ class SupersessionConfirm {
     required String lead,
     required bool? edited,
     required bool? inStudy,
+    String editedBy = 'a fresh extraction',
   }) =>
       [
         lead,
         if (edited == true)
-          'Your edits to these passages will be replaced by a fresh extraction.',
+          'Your edits to these passages will be replaced by $editedBy.',
         if (edited == null)
           'We could not check whether these passages were edited. If they '
-              'were, your edits will be replaced by a fresh extraction.',
+              'were, your edits will be replaced by $editedBy.',
         if (inStudy == true)
           'This source is in a study program — its schedule for this source '
               'will restart.',
@@ -124,10 +125,14 @@ class SupersessionConfirm {
     Future<bool?> Function(String docId)? studyCheck,
     Future<bool?> Function(String docId)? editCheck,
     String? waitKey,
+    bool study = true,
+    String? editedBy,
   }) async {
+    // An operation that keeps the study schedule does not ask about it
+    // (Update from source since 5.12.0, ADR-172).
     final (edited, inStudy) = await (
       (editCheck ?? (id) => anyEdited(id, chunks: chunks))(docId),
-      (studyCheck ?? inStudyProgram)(docId),
+      study ? (studyCheck ?? inStudyProgram)(docId) : Future<bool?>.value(false),
     ).wait;
     if (!owed(edited: edited, inStudy: inStudy)) {
       final err = await action();
@@ -149,7 +154,11 @@ class SupersessionConfirm {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final line
-                in lines(lead: lead, edited: edited, inStudy: inStudy))
+                in lines(
+                    lead: lead,
+                    edited: edited,
+                    inStudy: inStudy,
+                    editedBy: editedBy ?? 'a fresh extraction'))
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Text(line, style: KitText.meta(ctx)),
@@ -166,15 +175,23 @@ class SupersessionConfirm {
         ok == true ? SupersessionOutcome.done : SupersessionOutcome.kept);
   }
 
-  /// Update from source's own wording — one spelling for the reader banner
-  /// and the Sources row.
+  /// Update from source's own wording — one spelling for the reader banner,
+  /// the Original section's action and the Sources row. Since 5.12.0
+  /// (ADR-172) an update keeps every passage that did not change, with its
+  /// study schedule, so study membership no longer makes the confirm owed
+  /// ([updateStudy]) and the copy says what it now does.
   static const updateTitle = 'Update from the source?';
   static const updateConfirmLabel = 'Update from source';
+  static const updateStudy = false;
   /// [provider] is the integration id (`google_drive`, …).
   static String updateLead(String? provider) =>
-      'This source will be re-imported from '
-      '${_providerName[provider] ?? 'its original'} and its passages '
-      'replaced with a fresh extraction.';
+      'This source will be updated from '
+      '${_providerName[provider] ?? 'its original'}. Passages that changed '
+      'there are replaced; the rest are kept as they are.';
+  static String updateEditedBy(String? provider) =>
+      'the version in ${_providerName[provider] ?? 'the original'}';
+  static String providerName(String? provider) =>
+      _providerName[provider] ?? '$provider';
 
   static const _providerName = {
     'google_drive': 'Google Drive',

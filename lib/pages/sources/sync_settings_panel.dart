@@ -287,6 +287,30 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                         'will sync until you pick sync folders below.',
                         padding: EdgeInsets.only(top: 6),
                       ),
+                    // sources.md §Sync settings panel (5.12.0, ADR-172).
+                    // Drawn from the returned integration only.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('Update changed files automatically',
+                              style: KitText.body(context)),
+                        ),
+                        Switch(
+                          value: i.autoUpdate,
+                          activeThumbColor: t.accent,
+                          onChanged: (v) => _save((c) => c.syncSettings(
+                              widget.providerId,
+                              autoUpdate: v)),
+                        ),
+                      ],
+                    ),
+                    KitProcNote(
+                      'When a file changes in ${_providerLabel()}, its source '
+                      'here is updated once it has gone 30 minutes without an '
+                      'edit. Off: use Update from ${_providerLabel()} in the '
+                      'reader.',
+                      padding: const EdgeInsets.only(top: 6),
+                    ),
 
                     _Label('Frequency'),
                     KitSegmented(

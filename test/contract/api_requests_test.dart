@@ -237,7 +237,8 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       includeTypes: _strs(b['include_types']),
       excludePatterns: _strs(b['exclude_patterns']),
       reviewRules: (b['review_rules'] as Map?)?.cast<String, dynamic>(),
-      folderNames: (b['folder_names'] as Map?)?.cast<String, String>()),
+      folderNames: (b['folder_names'] as Map?)?.cast<String, String>(),
+      autoUpdate: b['auto_update']),
   'fn_update_from_source': (b) =>
       Api.instance.updateFromSource(b['document_id']),
   'fn_organization_settings': (b) =>

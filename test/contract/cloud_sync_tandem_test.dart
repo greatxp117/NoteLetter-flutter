@@ -452,10 +452,11 @@ void main() {
       expect(fail, findsOneWidget, reason: '§14.2, on the row, not a toast');
     });
 
-    // reader.md §Supersession confirm: Update from source re-derives the
-    // document, so the row owes the §18 confirm when a passage was edited or
-    // the document is in a study program — and says so when it could not
-    // check. The case above is the no-confirm path (two definite noes).
+    // reader.md §Supersession confirm: Update from source replaces what
+    // changed, so the row owes the §18 confirm when a passage was edited — and
+    // says so when it could not check. Since 5.12.0 (ADR-172) it keeps every
+    // unchanged passage and its study schedule, so study membership is no
+    // longer asked about. The case above is the no-confirm path.
     group('Update from source: the §Supersession confirm', () {
       final kept = [
         ImportJob(
@@ -486,8 +487,9 @@ void main() {
       }
 
       testWidgets(
-          'an edited passage and a program: both named, danger confirm, a '
-          'refusal stays in the panel, success closes it', (tester) async {
+          'an edited passage (and a program): the edits named, the schedule '
+          'not, danger confirm, a refusal stays in the panel, success closes '
+          'it', (tester) async {
         var status = 409;
         final rec = _Recorder((_) => status == 409
             ? (409, {
@@ -522,12 +524,15 @@ void main() {
         expect(find.text('Update from the source?'), findsOneWidget,
             reason: 'the confirm is owed before anything is sent');
         expect(rec.sent, isEmpty, reason: 'nothing leaves before the confirm');
-        expect(find.textContaining('re-imported from Google Drive'),
+        expect(find.textContaining('updated from Google Drive'),
             findsOneWidget);
-        expect(find.textContaining('Your edits to these passages'),
+        expect(
+            find.textContaining('Your edits to these passages will be replaced '
+                'by the version in Google Drive'),
             findsOneWidget);
         expect(find.textContaining('This source is in a study program'),
-            findsOneWidget);
+            findsNothing,
+            reason: 'an update keeps the schedule (5.12.0, ADR-172)');
         final confirm = find.descendant(
             of: find.byType(KitConfirm),
             matching: find.widgetWithText(KitButton, 'Update from source'));
@@ -554,8 +559,8 @@ void main() {
       });
 
       testWidgets(
-          'reads that failed say "could not check"; Keep sends nothing',
-          (tester) async {
+          'an edit read that failed says "could not check"; the program read is '
+          'not made; Keep sends nothing', (tester) async {
         final rec = _Recorder((_) => (202, {'queued': true}));
         ApiService.instance.httpClientAdapter = rec;
         await openRow(
@@ -570,7 +575,8 @@ void main() {
         expect(find.textContaining('could not check whether these passages'),
             findsOneWidget);
         expect(find.textContaining('could not check whether this source is in'),
-            findsOneWidget);
+            findsNothing,
+            reason: 'Update from source does not ask about the schedule');
         await tester.tap(find.text('Keep it as it is'));
         await tester.pumpAndSettle();
         expect(rec.sent, isEmpty);

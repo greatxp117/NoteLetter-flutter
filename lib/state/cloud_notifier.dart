@@ -682,6 +682,7 @@ class CloudNotifier extends ChangeNotifier {
     List<String>? excludePatterns,
     Map<String, dynamic>? reviewRules,
     Map<String, String>? folderNames,
+    bool? autoUpdate,
   }) async {
     try {
       final data = await Api.instance.syncSettings(
@@ -694,6 +695,7 @@ class CloudNotifier extends ChangeNotifier {
         excludePatterns: excludePatterns,
         reviewRules: reviewRules,
         folderNames: folderNames,
+        autoUpdate: autoUpdate,
       );
       final updated =
           CloudIntegration.fromJson(data['integration'] as Map<String, dynamic>);

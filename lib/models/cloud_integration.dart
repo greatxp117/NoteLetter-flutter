@@ -53,6 +53,10 @@ class CloudIntegration {
   /// not a measure of it — no provider reports a page count — so it is never
   /// rendered as "long", "pages", or a page estimate.
   final Map<String, ReviewRule> reviewRules;
+
+  /// `sync_config.auto_update` (5.12.0, ADR-172): whether a scheduled sync
+  /// updates a changed file's document in place. Absent reads as true.
+  final bool autoUpdate;
   final int? lastSyncAt;
   final int? lastManualSyncAt;
 
@@ -88,6 +92,7 @@ class CloudIntegration {
     this.includeTypes = const [],
     this.excludePatterns = const [],
     this.reviewRules = const {},
+    this.autoUpdate = true,
     this.lastSyncAt,
     this.lastManualSyncAt,
     this.status = 'connected',
@@ -130,6 +135,7 @@ class CloudIntegration {
             .entries)
           if (ReviewRule.fromJson(e.value) case final r?) e.key: r,
       },
+      autoUpdate: syncConfig['auto_update'] != false,
       lastSyncAt: _tsMs(json['last_sync_at']),
       lastManualSyncAt: _tsMs(json['last_manual_sync_at']),
       // Missing status = connected (pre-1.3.0 docs).

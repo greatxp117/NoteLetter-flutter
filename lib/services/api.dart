@@ -607,6 +607,7 @@ class Api {
     List<String>? excludePatterns,
     Map<String, dynamic>? reviewRules,
     Map<String, String>? folderNames,
+    bool? autoUpdate,
   }) {
     final body = <String, dynamic>{'provider': provider};
     if (autoSyncEnabled != null) body['auto_sync_enabled'] = autoSyncEnabled;
@@ -621,6 +622,9 @@ class Api {
     if (folderNames != null && folderNames.isNotEmpty) {
       body['folder_names'] = folderNames;
     }
+    // 5.12.0 (ADR-172): whether a scheduled sync updates a changed file's
+    // document in place. Absent on the stored config reads as true.
+    if (autoUpdate != null) body['auto_update'] = autoUpdate;
     return _http.post('/fn_sync_settings', data: body);
   }
 

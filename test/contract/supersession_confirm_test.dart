@@ -4,7 +4,9 @@
 /// operation that re-derives content, the client MUST confirm when a passage
 /// was edited or the document is in a study program, naming both
 /// consequences; it is a §18 Confirmation, danger variant. Both surfaces used
-/// to send the request on the first tap.
+/// to send the request on the first tap. **Update from source is narrower
+/// since 5.12.0 (ADR-172):** it keeps every unchanged passage and its study
+/// schedule, so only an edited passage (or an unreadable edit fact) asks.
 library;
 
 import 'dart:convert';
@@ -122,7 +124,18 @@ void main() {
   test('the sentences: the lead, then each consequence or "could not check"',
       () {
     final lead = SupersessionConfirm.updateLead('google_drive');
-    expect(lead, contains('re-imported from Google Drive'));
+    expect(lead, 'This source will be updated from Google Drive. Passages that '
+        'changed there are replaced; the rest are kept as they are.');
+    expect(SupersessionConfirm.updateStudy, isFalse);
+    expect(
+        SupersessionConfirm.lines(
+                lead: lead,
+                edited: true,
+                inStudy: false,
+                editedBy: SupersessionConfirm.updateEditedBy('google_drive'))
+            .join(' '),
+        contains('Your edits to these passages will be replaced by the version '
+            'in Google Drive.'));
     expect(SupersessionConfirm.lines(lead: lead, edited: false, inStudy: false),
         [lead]);
     final all = SupersessionConfirm.lines(
@@ -149,9 +162,33 @@ void main() {
   });
 
   testWidgets(
-      'the banner, in a study program: the §18 confirm first, a refusal in the '
+      'the banner, in a study program: no confirm — an update keeps the '
+      'schedule (5.12.0, ADR-172)', (tester) async {
+    FirestoreService.instance = _Reads(
+      programs: Stream.value([
+        const StudyProgram(
+            id: 'p1',
+            title: 'Files',
+            documentIds: ['doc-1'],
+            enabled: true,
+            status: 'active'),
+      ]),
+    );
+    final rec = _Router(() => (202, {'queued': true}));
+    ApiService.instance.httpClientAdapter = rec;
+    await _pumpBanner(tester);
+    await tester.tap(find.text('Update from source'));
+    await tester.pumpAndSettle();
+    expect(find.byType(KitConfirm), findsNothing);
+    expect(rec.updates.single.data, {'document_id': 'doc-1'});
+    expect(find.textContaining('Update queued'), findsOneWidget);
+  });
+
+  testWidgets(
+      'the banner, an edited passage: the §18 confirm first, a refusal in the '
       'panel, the banner flips only on success', (tester) async {
     FirestoreService.instance = _Reads(
+      edited: true,
       programs: Stream.value([
         const StudyProgram(
             id: 'p1',
@@ -172,11 +209,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Update from the source?'), findsOneWidget);
     expect(rec.updates, isEmpty, reason: 'nothing leaves before the confirm');
-    expect(find.textContaining('re-imported from Dropbox'), findsOneWidget);
-    expect(find.textContaining('This source is in a study program'),
+    expect(find.textContaining('updated from Dropbox'), findsOneWidget);
+    expect(find.textContaining('replaced by the version in Dropbox'),
         findsOneWidget);
-    expect(find.textContaining('Your edits'), findsNothing,
-        reason: 'no passage was edited, so the confirm does not say so');
+    expect(find.textContaining('This source is in a study program'),
+        findsNothing,
+        reason: 'an update keeps the schedule, so the confirm does not say so');
 
     final confirm = find.descendant(
         of: find.byType(KitConfirm),

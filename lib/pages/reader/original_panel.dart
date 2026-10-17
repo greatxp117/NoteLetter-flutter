@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
+import 'update_from_source_bar.dart';
 import '../../services/error_text.dart';
 
 /// Reader → Original panel: the document's own source, and the extraction
@@ -160,6 +161,9 @@ class _OriginalPanelState extends State<OriginalPanel> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ui.intro('Original · $kind',
           'The source exactly as it arrived. NoteLetter keeps the original alongside the text it extracted.'),
+      // reader.md §Source freshness, 5.12.0 (ADR-172): beneath the intro,
+      // before the file.
+      UpdateFromSourceBar(docId: widget.docId, doc: doc),
       _sourceBody(),
       _fullOriginal(),
     ]);

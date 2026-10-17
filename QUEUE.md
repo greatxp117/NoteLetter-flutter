@@ -2025,3 +2025,16 @@ a new obligation on a finished screen is a new item.
 - shots: source-stitched
 - extra_gates: harness/screenshot_pair_check.py
 - notes: An image set whose pages are one continuous scroll is re-typed `image` with a `stitch` record by the run that joins them (backend 5d0a3ac, live). §15.1 rule 4: an image more than 2x as tall as wide renders at the stage's width (never past its own pixels) in a stage that scrolls, DECODED DOWNSAMPLED to the drawn width (cacheWidth — a 1290x40000 PNG is 200 MB of pixels at full size); caption "Joined from N screenshots of one scroll." from stitch.frame_count. The hint sentence "Screenshots of one long scroll are joined into one picture." (verbatim) under Add an image set. Flutter keeps its own set entry — the web One/Separate question is web's (sources.md). Web references d2e66bf, frames source-stitched.web.*.
+
+## F-118 · Update in place (5.12.0, ADR-172): the auto_update switch, Update from {Provider} in the Original section, the narrower Update-from-source confirm
+- status: in-progress
+- screen: reader-original-update
+- route: /reader
+- spec: spec/screens/sources.md §Sync settings panel; spec/screens/reader.md §Source freshness; spec/screens/reader.md §Supersession confirm; spec/decisions/ADR-172-a-changed-file-updates-its-document.md
+- web: src/pages/reader/UpdateFromSourceBar.jsx; src/pages/reader/OriginalPanel.jsx; src/pages/sources/SyncSettingsPanel.jsx; src/shared/SupersessionConfirm.jsx; src/api.js; scripts/theme-shots.mjs
+- flutter: lib/pages/reader/update_from_source_bar.dart; lib/pages/reader/original_panel.dart; lib/pages/reader/supersession_confirm.dart; lib/pages/reader/source_freshness.dart; lib/pages/sources_page.dart; lib/pages/sources/sync_settings_panel.dart; lib/models/cloud_integration.dart; lib/services/api.dart; lib/state/cloud_notifier.dart; lib/build_info.dart; test/contract/update_in_place_test.dart; test/contract/supersession_confirm_test.dart; test/contract/cloud_sync_tandem_test.dart; test/contract/api_requests_test.dart
+- folds: 5.12.0
+- device_test: signs in and reaches the library
+- shots: reader-original-update; sync-auto-update; sync-folders
+- extra_gates: harness/screenshot_pair_check.py
+- notes: Code, tests and pin landed by session update-in-place (b635ca54) with Tier 1 green (1523/1523 incl. pin). OWED: the three shot pairs (web references reader-original-update / sync-auto-update new, sync-folders re-shot — the web panel is now taller than a laptop screen, so that frame crops to the chip group) and the device run. The Original-section button is beneath the panel intro, before the file; the switch row sits under the auto-sync row with its caption. Update from source no longer reads study membership (SupersessionConfirm.updateStudy = false).
