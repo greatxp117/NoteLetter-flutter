@@ -1975,7 +1975,7 @@ a new obligation on a finished screen is a new item.
 - notes: 16ad9ed + e5f2bad (as web 5876fb4 builds it: the picker seeded with the stored names, a listed name clipped at 200, a long name ellipsised in its pill via KitTag `clip`). Seen on a device through the look-only hold `sync-folders-saved` (99114d0): a folder saved from the picker through the dev shim's real fn_sync_settings drew as "Docs" beside the seed's unnamed "gd-root-docs". Web has no frame of it. Not followed: web's chip title is the name; the spec says the whole id — this client keeps the id (reported).
 
 ## F-114 · Library — the letter chip on Home's named shelves and the Shelves index cards; the folder chip's tooltip (Xavier's rulings 2026-10-14)
-- status: in-progress
+- status: done 2026-10-14
 - screen: library-letter-chips
 - route: /
 - spec: spec/screens/library.md §The letter chip; spec/component-kit.md §21; spec/component-kit.md §6.3; spec/screens/sources.md §Sync settings panel
@@ -1988,7 +1988,7 @@ a new obligation on a finished screen is a new item.
 - notes: f1fd8ed (KitLetterChip: lead → "Lead" §6.3 positive, muted → "Muted" §6.3 idle, mixed/absent/unknown none; none unless settings/newsletter holds enabled: true — absent, unread and failed are off; Home's named KitShelfUnit head at its trailing edge, the Shelves index card's foot, never Home's cards) and 82e1f35 (the folder chip's tooltip is its name, the whole id without one). f1fd8ed also stops reading an absent `enabled` (and no settings document) as ON — web reads `Boolean(data.enabled)`. Holds 8f1446d over tool/seed_letter_chips.py, web 91026a9's data.
 
 ## F-115 · Five rulings of 2026-10-14 (web follow-up 3): no passage figure without a count, the compact track, a steady held Unpin, Stalled and Retry on Activity
-- status: in-progress
+- status: done 2026-10-14
 - screen: activity-retry-error
 - route: /activity
 - spec: spec/screens/library.md §States; spec/component-kit.md §6.8; spec/component-kit.md §4.2; spec/screens/letters.md; spec/screens/activity.md §The row; spec/screens/activity.md §Where a row leads
