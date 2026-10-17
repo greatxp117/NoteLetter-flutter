@@ -2027,14 +2027,28 @@ a new obligation on a finished screen is a new item.
 - notes: An image set whose pages are one continuous scroll is re-typed `image` with a `stitch` record by the run that joins them (backend 5d0a3ac, live). §15.1 rule 4: an image more than 2x as tall as wide renders at the stage's width (never past its own pixels) in a stage that scrolls, DECODED DOWNSAMPLED to the drawn width (cacheWidth — a 1290x40000 PNG is 200 MB of pixels at full size); caption "Joined from N screenshots of one scroll." from stitch.frame_count. The hint sentence "Screenshots of one long scroll are joined into one picture." (verbatim) under Add an image set. Flutter keeps its own set entry — the web One/Separate question is web's (sources.md). Web references d2e66bf, frames source-stitched.web.*.
 
 ## F-118 · Update in place (5.12.0, ADR-172): the auto_update switch, Update from {Provider} in the Original section, the narrower Update-from-source confirm
-- status: in-progress
+- status: done 2026-10-17
 - screen: reader-original-update
 - route: /reader
 - spec: spec/screens/sources.md §Sync settings panel; spec/screens/reader.md §Source freshness; spec/screens/reader.md §Supersession confirm; spec/decisions/ADR-172-a-changed-file-updates-its-document.md
 - web: src/pages/reader/UpdateFromSourceBar.jsx; src/pages/reader/OriginalPanel.jsx; src/pages/sources/SyncSettingsPanel.jsx; src/shared/SupersessionConfirm.jsx; src/api.js; scripts/theme-shots.mjs
-- flutter: lib/pages/reader/update_from_source_bar.dart; lib/pages/reader/original_panel.dart; lib/pages/reader/supersession_confirm.dart; lib/pages/reader/source_freshness.dart; lib/pages/sources_page.dart; lib/pages/sources/sync_settings_panel.dart; lib/models/cloud_integration.dart; lib/services/api.dart; lib/state/cloud_notifier.dart; lib/build_info.dart; test/contract/update_in_place_test.dart; test/contract/supersession_confirm_test.dart; test/contract/cloud_sync_tandem_test.dart; test/contract/api_requests_test.dart
+- flutter: lib/pages/reader/update_from_source_bar.dart; lib/pages/reader/original_panel.dart; lib/pages/reader/supersession_confirm.dart; lib/pages/reader/source_freshness.dart; lib/pages/sources_page.dart; lib/pages/sources/sync_settings_panel.dart; lib/models/cloud_integration.dart; lib/services/api.dart; lib/state/cloud_notifier.dart; test/contract/update_in_place_test.dart; test/contract/supersession_confirm_test.dart; test/contract/cloud_sync_tandem_test.dart; test/contract/api_requests_test.dart
 - folds: 5.12.0
 - device_test: signs in and reaches the library
 - shots: reader-original-update; sync-auto-update; sync-folders
 - extra_gates: harness/screenshot_pair_check.py
-- notes: Code, tests and pin landed by session update-in-place (b635ca54) with Tier 1 green (1523/1523 incl. pin). OWED: the three shot pairs (web references reader-original-update / sync-auto-update new, sync-folders re-shot — the web panel is now taller than a laptop screen, so that frame crops to the chip group) and the device run. The Original-section button is beneath the panel intro, before the file; the switch row sits under the auto-sync row with its caption. Update from source no longer reads study membership (SupersessionConfirm.updateStudy = false).
+- notes: Code, tests and pin landed by session update-in-place (b635ca54) with Tier 1 green (1523/1523 incl. pin). Pairs and device run proven 2026-10-17 by the flutter lane: the three pairs (web references reader-original-update / sync-auto-update new, sync-folders re-shot — the web panel is now taller than a laptop screen, so that frame crops to the chip group), with the 37 pairs a37f0e1 staled, every frame looked at in both themes; the whole device run 26/26 on a fresh boot. The original-update hold now scrolls only when the button is below the fold: pulled to 0.3 it framed Original under a lit Listen. `lib/build_info.dart` is off this list: it is the pin, which moves every version, and a `lib/` path here re-dated these three pairs at each pin bump (5aa reads `lib/`). Seen in these frames and booked as F-119, not fixed here: the auto-sync switch reads "Automatic sync" where spec and web say "Sync new files automatically". The Original-section button is beneath the panel intro, before the file; the switch row sits under the auto-sync row with its caption. Update from source no longer reads study membership (SupersessionConfirm.updateStudy = false).
+
+## F-119 · Sync settings panel — the auto-sync switch's name, its last-sync line, and both switches from the kit (sources.md §Sync settings panel)
+- status: open
+- screen: sync-auto-update
+- route: /sources
+- spec: spec/screens/sources.md §Sync settings panel; spec/component-kit.md
+- web: src/pages/sources/SyncSettingsPanel.jsx
+- flutter: lib/pages/sources/sync_settings_panel.dart; lib/models/cloud_integration.dart
+- folds: none
+- device_test: signs in and reaches the library
+- shots: sync-auto-update; sync-folders
+- extra_gates: harness/screenshot_pair_check.py
+- notes: Seen by the flutter lane looking at F-118's frames, 2026-10-17; not fixed there. Three drifts in the panel's auto-sync group. (1) Since 5.12.0 the spec names the first switch "Sync new files automatically", and web has said so since 1.4.0. Flutter draws "Automatic sync" (sync_settings_panel.dart). (2) The spec says to show `last_sync_at` as "Last synced …", and web draws "Last synced Jul 3, 1:00 AM". Flutter's group header draws `lastSyncLabel`, "Synced 106d ago" (cloud_integration.dart). That getter also feeds the connect card and the collapsed line, so check those against web before changing it. (3) Both switches are a bare Material `Switch` (an accent thumb on a pale track), while letter settings, notifications and study draw `KitSwitch`. Before starting, size the re-shoot: a change to sync_settings_panel.dart re-dates every done item that lists it (F-13, F-47, F-48, F-69, F-86, F-103, F-113 and others, per 5aa).
+- placed: after F-118
