@@ -336,6 +336,37 @@ void main() {
       expect(_retry(), findsNothing);
     });
 
+    // Ruled by Xavier 2026-10-17 (contracts 6eb5761): a stalled document's
+    // row carries Retry too — what fn_retry_document accepts without force.
+    testWidgets('a row drawn Stalled carries Retry (2026-10-17)',
+        (tester) async {
+      final past = DateTime.now().millisecondsSinceEpoch - 60000;
+      await _pumpActivity(tester, [_docItem('q1', 'queued')],
+          [_doc('q1', 'queued', stallsAt: past)]);
+      expect(find.text('STALLED'), findsOneWidget);
+      expect(_retry(), findsOneWidget);
+    });
+
+    testWidgets('a failure row whose document has since stalled carries it, '
+        'once', (tester) async {
+      final past = DateTime.now().millisecondsSinceEpoch - 60000;
+      await _pumpActivity(tester, [
+        _failEvent('e2', 'd1', at: 1757000002000),
+        _failEvent('e1', 'd1', at: 1757000001000),
+      ], [
+        _doc('d1', 'processing', stallsAt: past),
+      ]);
+      expect(_retry(), findsOneWidget);
+    });
+
+    testWidgets('a queued document that has not stalled carries none',
+        (tester) async {
+      final future = DateTime.now().millisecondsSinceEpoch + 3600000;
+      await _pumpActivity(tester, [_docItem('q1', 'queued')],
+          [_doc('q1', 'queued', stallsAt: future)]);
+      expect(_retry(), findsNothing);
+    });
+
     testWidgets('a refusal is the endpoint\'s sentence, verbatim',
         (tester) async {
       ApiService.instance.tokenProvider = () async => 't';

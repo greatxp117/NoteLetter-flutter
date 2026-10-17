@@ -109,9 +109,9 @@ class _ActivityPageState extends State<ActivityPage> {
           for (final item in activity.items)
             () {
               final row = _ActivityRow.from(item, docsById, now);
-              final failedId = _failedDocIdOf(item);
+              final failedId = _failedDocIdOf(item, docsById, now);
               if (failedId == null || !offered.add(failedId)) return row;
-              return row.acting(failedId, docsById[failedId]);
+              return row.acting(failedId, docsById[failedId], now);
             }(),
         ];
 
@@ -415,12 +415,16 @@ _Kind _kindFor(String type) =>
 
 /// The rows that report a document's failure (activity.md §Where a row
 /// leads): its failure events, keyed on `metadata.doc_id`, and a document row
-/// in `error`.
+/// in `error` — or, since Xavier's ruling of 2026-10-17, a document row drawn
+/// STALLED (the same stall test, on the screen's clock).
 const _docFailureEvents = {'doc_processing_failed', 'doc_indexing_failed'};
 
-String? _failedDocIdOf(ActivityItem item) {
+String? _failedDocIdOf(
+    ActivityItem item, Map<String, Document> docsById, DateTime now) {
   if (item.kind == 'document') {
-    return item.status == 'error' ? item.id : null;
+    if (item.status == 'error') return item.id;
+    final doc = docsById[item.id];
+    return doc != null && doc.isStalled(now) ? item.id : null;
   }
   if (!_docFailureEvents.contains(item.type)) return null;
   final id = item.metadata?['doc_id'];
@@ -437,8 +441,8 @@ String? _failedDocIdOf(ActivityItem item) {
 class _RowRetry extends StatefulWidget {
   final String docId;
 
-  /// The document while it is `error`; null draws no Retry (the refusal, if
-  /// one was said, stays).
+  /// The document while it is `error` or stalled; null draws no Retry (the
+  /// refusal, if one was said, stays).
   final Document? doc;
 
   const _RowRetry({super.key, required this.docId, required this.doc});
@@ -521,8 +525,9 @@ class _ActivityRow {
   /// The page fills it after mapping (it needs the whole feed).
   final String? actsDocId;
 
-  /// That document while it is `error` in the documents subscription — and
-  /// only then is there a Retry.
+  /// That document while it is retryable in the documents subscription —
+  /// `error`, or stalled (ruled 2026-10-17: what `fn_retry_document` accepts
+  /// without `force`) — and only then is there a Retry.
   final Document? retryDoc;
 
   const _ActivityRow({
@@ -541,7 +546,8 @@ class _ActivityRow {
     this.retryDoc,
   });
 
-  _ActivityRow acting(String docId, Document? doc) => _ActivityRow(
+  _ActivityRow acting(String docId, Document? doc, DateTime now) =>
+      _ActivityRow(
         icon: icon,
         tone: tone,
         family: family,
@@ -554,7 +560,10 @@ class _ActivityRow {
         live: live,
         target: target,
         actsDocId: docId,
-        retryDoc: doc != null && doc.status == DocumentStatus.error ? doc : null,
+        retryDoc: doc != null &&
+                (doc.status == DocumentStatus.error || doc.isStalled(now))
+            ? doc
+            : null,
       );
 
   /// The web reference's `mapActivity` + `targetOf`, one for one.
