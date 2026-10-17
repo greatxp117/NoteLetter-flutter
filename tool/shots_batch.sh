@@ -57,10 +57,14 @@ python3 tool/frame_check.py selftest >/dev/null 2>&1 || {
 }
 mkdir -p screenshots
 log="$(mktemp -t nl-shots-batch)"
+# How long each theme is held after its marker (hold_screen_test.dart
+# `batchHoldSeconds`). Raise it on a loaded machine: HOLD_SECONDS=30.
+hold_s="${HOLD_SECONDS:-12}"
 echo "tool: $(echo "$screens" | wc -l | tr -d ' ') holds on $udid (log $log)"
 # shellcheck disable=SC2086
 flutter test integration_test/hold_screen_test.dart -d "$udid" --timeout none \
-  $EMU_DEFINES --dart-define=HOLD_LIST="$holds" >"$log" 2>&1 &
+  $EMU_DEFINES --dart-define=HOLD_LIST="$holds" \
+  --dart-define=HOLD_SECONDS="$hold_s" >"$log" 2>&1 &
 pid=$!
 
 # Wait for `HOLD:<THEME>[<screen>]`; 0 when it appeared, 1 when the hold said
@@ -73,8 +77,11 @@ wait_mark() {
     n=$((n+1)); [ "$n" -gt 1500 ] && return 1
     sleep 1
   done
-  # The hold keeps its state ~12s after the marker (hold_screen_test.dart), so
-  # the retakes fit inside it: 1.5s, then up to five more at ~1.5s apart.
+  # The hold keeps its state $hold_s seconds after the marker, so the retakes
+  # fit inside it: 1.5s, then up to five more at ~1.5s apart. On a loaded
+  # machine they did not: a frame kept after the window is the NEXT hold's
+  # state, settled, and was said OK (2026-10-17). Kept, and said LATE.
+  t0=$(date +%s)
   sleep 1.5
   base="$(mktemp -t nl-frame)"
   xcrun simctl io "$udid" screenshot "$base.a.png" >/dev/null 2>&1
@@ -97,6 +104,7 @@ wait_mark() {
     tries=$((tries+1))
   done
   if [ -f "$base.b.png" ]; then mv "$base.b.png" "$base.a.png"; fi
+  if [ $(( $(date +%s) - t0 )) -ge "$hold_s" ]; then FRAME_VERDICT=LATE; fi
   mv "$base.a.png" "screenshots/$2.flutter.$3.png"; rm -f "$base"
 }
 
@@ -105,7 +113,7 @@ for s in $screens; do
     if [ "$light" = OK ] && [ "$FRAME_VERDICT" = OK ]; then
       echo "OK   $s"
     else
-      echo "FLAG $s :: light $light, dark $FRAME_VERDICT — kept, but look at it (BLANK: nothing below the chrome; UNSETTLED: still moving) and re-shoot if it is wrong"
+      echo "FLAG $s :: light $light, dark $FRAME_VERDICT — kept, but look at it (BLANK: nothing below the chrome; UNSETTLED: still moving; LATE: taken after the hold window, likely the next state — re-shoot with a larger HOLD_SECONDS) and re-shoot if it is wrong"
     fi
   else
     echo "FAIL $s :: $(grep -F "HOLD:FAIL[$s]" "$log" | head -1 | cut -c1-300)"

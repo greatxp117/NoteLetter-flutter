@@ -71,6 +71,13 @@ const holdState = String.fromEnvironment('HOLD_STATE');
 /// that cannot reach its state says `HOLD:FAIL[<screen>]` before it fails.
 const holdList = String.fromEnvironment('HOLD_LIST');
 
+/// How long a BATCH hold keeps each theme after its marker, in seconds
+/// (`HOLD_SECONDS=30 tool/shots_batch.sh …`). Twelve is enough on a quiet
+/// machine. At load 200–340 (2026-10-17) the driver's screenshot-and-settle
+/// loop outran it: 8 of 40 holds kept a LATER state under their name (the next
+/// theme, the next hold, the home screen), settled, and 7 of them said OK.
+const batchHoldSeconds = int.fromEnvironment('HOLD_SECONDS', defaultValue: 12);
+
 typedef _Hold = ({String screen, String route, String state});
 
 List<_Hold> _holds() {
@@ -192,9 +199,9 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
       await tester.pump(const Duration(milliseconds: 200));
     }
     debugPrint('HOLD:$label$mark');
-    // A batch holds ~12s (its driver shoots within seconds of the marker);
-    // a single hold keeps the 30s a hand capture was given.
-    for (var i = 0; i < (mark.isEmpty ? 150 : 60); i++) {
+    // A batch holds [batchHoldSeconds] (its driver shoots within seconds of
+    // the marker); a single hold keeps the 30s a hand capture was given.
+    for (var i = 0; i < (mark.isEmpty ? 150 : batchHoldSeconds * 5); i++) {
       await tester.pump(const Duration(milliseconds: 200));
     }
   }
@@ -1225,8 +1232,12 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       }
       expect(update, findsOneWidget,
           reason: 'no Update from {Provider} in the Original section');
+      // Scroll only if the button is below the fold. The rail marks the
+      // section at the top of the page, so pulling the button to 0.3 moved
+      // Original down and framed it under a lit *Listen* (2026-10-17).
       await Scrollable.ensureVisible(tester.element(update),
-          alignment: 0.3, duration: Duration.zero);
+          duration: Duration.zero,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd);
       await settle();
       return;
     case 'library-shelves':
