@@ -16,7 +16,7 @@ class BuildInfo {
 
   /// The contract this client is pinned to. Advance with the CLAUDE.md pin,
   /// never on its own.
-  static const String contractPin = '5.9.2';
+  static const String contractPin = '5.10.1';
 
   static const String platform = 'flutter';
 
