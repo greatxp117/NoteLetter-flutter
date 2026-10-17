@@ -162,13 +162,108 @@ void main() {
       final row = find.ancestor(
           of: find.text('Update changed files automatically'),
           matching: find.byType(Row));
-      final sw = find.descendant(of: row.first, matching: find.byType(Switch));
-      expect(tester.widget<Switch>(sw).value, isTrue);
+      final sw =
+          find.descendant(of: row.first, matching: find.byType(KitSwitch));
+      expect(tester.widget<KitSwitch>(sw).value, isTrue);
       await tester.tap(sw);
       await tester.pumpAndSettle();
       expect(rec.sent.single.path, endsWith('/fn_sync_settings'));
       expect(rec.sent.single.data,
           {'provider': 'google_drive', 'auto_update': false});
+    });
+  });
+
+  // F-119: the auto-sync group as the spec names it and web draws it — the
+  // first switch "Sync new files automatically" (sources.md since 5.12.0;
+  // Flutter said "Automatic sync"), the group's last sync as "Last synced …"
+  // (it said "Synced 106d ago"), and both switches the kit's.
+  group('the auto-sync group (sources.md §Sync settings panel)', () {
+    test('the last sync is "Last synced {Mon} {d}, {h}:{mm} {AM|PM}", web\'s '
+        '(the time held to its AM/PM by a no-break space)',
+        () {
+      int at(int h, int m) => DateTime(2026, 7, 3, h, m).millisecondsSinceEpoch;
+      expect(lastSyncedLine(at(1, 0)), 'Last synced Jul 3, 1:00\u00a0AM');
+      expect(lastSyncedLine(at(0, 5)), 'Last synced Jul 3, 12:05\u00a0AM');
+      expect(lastSyncedLine(at(12, 0)), 'Last synced Jul 3, 12:00\u00a0PM');
+      expect(lastSyncedLine(at(23, 59)), 'Last synced Jul 3, 11:59\u00a0PM');
+      expect(lastSyncedLine(null), 'Never synced automatically');
+      expect(lastSyncedLine(0), 'Never synced automatically');
+    });
+
+    test('the connect card\'s relative label is left as it was', () {
+      final ms = DateTime.now()
+          .subtract(const Duration(days: 3))
+          .millisecondsSinceEpoch;
+      final i = CloudIntegration.fromJson(
+          {..._integration(), 'last_sync_at': ms});
+      expect(i.lastSyncLabel, 'Synced 3d ago');
+    });
+
+    testWidgets(
+        'embedded: AUTO-SYNC beside "Last synced …", two named rows, two '
+        'kit switches and no Material one', (tester) async {
+      final ms = DateTime(2026, 7, 3, 1, 0).millisecondsSinceEpoch;
+      await tester.pumpWidget(ChangeNotifierProvider<CloudNotifier>.value(
+        value: QuietCloud(),
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SyncSettingsPanel(
+                  providerId: 'google_drive',
+                  embedded: true,
+                  integration: CloudIntegration.fromJson(
+                      {..._integration(), 'last_sync_at': ms})),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      expect(find.text('Last synced Jul 3, 1:00\u00a0AM'), findsOneWidget);
+      expect(find.textContaining('Synced 1'), findsNothing);
+      expect(find.text('Sync new files automatically'), findsOneWidget);
+      expect(find.text('Automatic sync'), findsNothing);
+      expect(find.byType(Switch), findsNothing);
+      for (final name in [
+        'Sync new files automatically',
+        'Update changed files automatically',
+      ]) {
+        final row = find.ancestor(of: find.text(name), matching: find.byType(Row));
+        expect(
+            find.descendant(of: row.first, matching: find.byType(KitSwitch)),
+            findsOneWidget,
+            reason: name);
+      }
+    });
+
+    testWidgets('the first switch sends auto_sync_enabled alone',
+        (tester) async {
+      final rec = _Recorder((o) => (200, {'integration': _integration()}));
+      ApiService.instance.httpClientAdapter = rec;
+      await tester.pumpWidget(ChangeNotifierProvider<CloudNotifier>.value(
+        value: QuietCloud(),
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SyncSettingsPanel(
+                  providerId: 'google_drive',
+                  embedded: true,
+                  integration: CloudIntegration.fromJson(_integration())),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      final row = find.ancestor(
+          of: find.text('Sync new files automatically'),
+          matching: find.byType(Row));
+      await tester.tap(
+          find.descendant(of: row.first, matching: find.byType(KitSwitch)));
+      await tester.pumpAndSettle();
+      expect(rec.sent.single.path, endsWith('/fn_sync_settings'));
+      expect(rec.sent.single.data,
+          {'provider': 'google_drive', 'auto_sync_enabled': false});
     });
   });
 

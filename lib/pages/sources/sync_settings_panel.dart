@@ -25,6 +25,24 @@ import 'sync_folder_picker.dart';
 /// 4.120.0 (ADR-157): a folder sync may take books. Web: `CLOUD_TYPE_KEYS`.
 const cloudFileTypes = ['pdf', 'docx', 'pptx', 'epub'];
 
+/// The panel's last-sync line (`screens/sources.md` §Sync settings panel:
+/// "Show `last_sync_at` ("Last synced …") when present"), web's `fmtLastSync`
+/// to the minute in the reader's clock: `Last synced Jul 3, 1:00 AM`. Its OWN
+/// line, not [CloudIntegration.lastSyncLabel]: that relative "Synced 106d ago"
+/// is also the connect card's subtitle, and the card is not this panel's to
+/// move (F-119).
+String lastSyncedLine(int? ms) {
+  if (ms == null || ms == 0) return 'Never synced automatically';
+  final d = DateTime.fromMillisecondsSinceEpoch(ms);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
+      'Sep', 'Oct', 'Nov', 'Dec'];
+  final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  final m = d.minute.toString().padLeft(2, '0');
+  // A no-break space holds the time to its AM/PM if the line ever wraps.
+  return 'Last synced ${months[d.month - 1]} ${d.day}, $h:$m\u00a0'
+      '${d.hour < 12 ? 'AM' : 'PM'}';
+}
+
 class SyncSettingsPanel extends StatefulWidget {
   final String providerId;
   final CloudIntegration integration;
@@ -216,9 +234,13 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                const Expanded(child: Eyebrow('Auto-sync')),
-                Flexible(
-                  child: Text(i.lastSyncLabel,
+                // The label keeps its width and the line takes the rest: an
+                // Expanded label left the line too little room and broke
+                // "1:00 AM" across two lines.
+                const Eyebrow('Auto-sync'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(lastSyncedLine(i.lastSyncAt),
                       textAlign: TextAlign.right,
                       style: KitText.meta(context)),
                 ),
@@ -239,8 +261,10 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                         const SizedBox(height: 4),
                         Text(
                           i.autoSyncEnabled
-                              ? 'Auto-sync ${i.syncFrequency} · ${i.lastSyncLabel}'
-                              : 'Auto-sync off · ${i.lastSyncLabel}',
+                              ? 'Auto-sync ${i.syncFrequency} · '
+                                  '${lastSyncedLine(i.lastSyncAt)}'
+                              : 'Auto-sync off · '
+                                  '${lastSyncedLine(i.lastSyncAt)}',
                           style: KitText.meta(context),
                         ),
                       ],
@@ -262,21 +286,32 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text('Automatic sync',
-                              style: KitText.body(context)),
-                        ),
-                        Switch(
-                          value: i.autoSyncEnabled,
-                          activeThumbColor: t.accent,
-                          onChanged: (v) => _save((c) => c.syncSettings(
-                              widget.providerId,
-                              autoSyncEnabled: v)),
-                        ),
-                      ],
+                    const SizedBox(height: 5),
+                    // The reference's `.src-toggle` rows: a `--rule` above
+                    // each (the group label is the first child, so neither row
+                    // is `:first-child`), the name, then the kit's switch
+                    // (§6.1) — a Material Switch drew an accent thumb on a
+                    // pale track here, unlike every other switch.
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      decoration: BoxDecoration(
+                          border: Border(top: BorderSide(color: t.rule))),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text('Sync new files automatically',
+                                style: KitText.body(context)),
+                          ),
+                          const SizedBox(width: 10),
+                          KitSwitch(
+                            value: i.autoSyncEnabled,
+                            tooltip: 'Sync new files automatically',
+                            onChanged: (v) => _save((c) => c.syncSettings(
+                                widget.providerId,
+                                autoSyncEnabled: v)),
+                          ),
+                        ],
+                      ),
                     ),
                     // An inert state, said out loud: auto-sync with no folder
                     // scope will never move a file, and silence there looks
@@ -289,20 +324,26 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                       ),
                     // sources.md §Sync settings panel (5.12.0, ADR-172).
                     // Drawn from the returned integration only.
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text('Update changed files automatically',
-                              style: KitText.body(context)),
-                        ),
-                        Switch(
-                          value: i.autoUpdate,
-                          activeThumbColor: t.accent,
-                          onChanged: (v) => _save((c) => c.syncSettings(
-                              widget.providerId,
-                              autoUpdate: v)),
-                        ),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      decoration: BoxDecoration(
+                          border: Border(top: BorderSide(color: t.rule))),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text('Update changed files automatically',
+                                style: KitText.body(context)),
+                          ),
+                          const SizedBox(width: 10),
+                          KitSwitch(
+                            value: i.autoUpdate,
+                            tooltip: 'Update changed files automatically',
+                            onChanged: (v) => _save((c) => c.syncSettings(
+                                widget.providerId,
+                                autoUpdate: v)),
+                          ),
+                        ],
+                      ),
                     ),
                     KitProcNote(
                       'When a file changes in ${_providerLabel()}, its source '
