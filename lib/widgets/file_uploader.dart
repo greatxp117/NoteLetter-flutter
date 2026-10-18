@@ -1,9 +1,11 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:mime/mime.dart';
 import '../models/upload_file.dart';
+import '../services/resumable_upload.dart';
 import '../state/upload_notifier.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
@@ -69,7 +71,11 @@ class FileUploaderState extends State<FileUploader> {
   Future<void> _pickFiles(UploadNotifier notifier) async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
-      withData: true,
+      // F-121: on a device the file is read from its path a slice at a time
+      // as it uploads, never pulled whole into memory first — a long
+      // recording could exhaust the app before its first byte left. The web
+      // has no paths, so a web pick carries its bytes.
+      withData: kIsWeb,
       // The contracted set (4.10.0, ADR-046), not `FileType.any`. Advisory
       // only — a share sheet and a paste bypass it entirely — which is why
       // every file still goes through `uploadRejection` below.
@@ -81,7 +87,8 @@ class FileUploaderState extends State<FileUploader> {
 
     for (final file in result.files) {
       final bytes = file.bytes;
-      if (bytes == null) continue;
+      final path = kIsWeb ? null : file.path;
+      if (bytes == null && path == null) continue;
       final mimeType = lookupMimeType(file.name) ?? 'application/octet-stream';
       // The same words the server would use, without the round trip — and a
       // `null` is not an accept, it is "worth sending". The server still
@@ -99,7 +106,10 @@ class FileUploaderState extends State<FileUploader> {
       // and `lastWhere(name)` reported the later row's status for both — a
       // failed upload read as complete because a later one of the same name
       // succeeded.
-      notifier.addFile(file.name, file.size, bytes, mimeType).then((rowId) {
+      notifier
+          .addFile(file.name, file.size, bytes, mimeType,
+              source: path == null ? null : ChunkSource.file(path, file.size))
+          .then((rowId) {
         if (!mounted) return;
         final match = notifier.files.firstWhere(
           (f) => f.id == rowId,

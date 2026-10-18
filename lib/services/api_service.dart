@@ -1,6 +1,8 @@
 import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
+
+import 'resumable_upload.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'auth_service.dart';
 import 'endpoint_budgets.dart';
@@ -165,7 +167,13 @@ class ApiService {
     _client.httpClientAdapter = _defaultAdapter;
     _rawClient.httpClientAdapter = _defaultRawAdapter;
     tokenProvider = _defaultTokenProvider;
+    uploadSleep = null;
   }
+
+  /// The resumable upload's backoff, replaced in tests so a retried chunk does
+  /// not wait real seconds.
+  @visibleForTesting
+  Future<void> Function(Duration)? uploadSleep;
 
   // Separate client for GCS direct uploads — no auth header, no base URL.
   final Dio _rawClient = Dio(BaseOptions(
@@ -325,6 +333,34 @@ class ApiService {
         e.response?.statusCode ?? 0,
         'Storage upload failed. Please try again.',
       );
+    }
+  }
+
+  /// A single file into its document, through the GCS resumable session that
+  /// `fn_create_upload_session` opened (INV-08, ADR-050; F-121). Every
+  /// single-file upload takes it, as on web — never the bare PUT, and with no
+  /// fallback to it. [onProgress] counts only bytes the session COMMITTED.
+  Future<void> putResumable({
+    required String resumableUrl,
+    required String docId,
+    required String filename,
+    required String mimeType,
+    required ChunkSource source,
+    void Function(double fraction)? onProgress,
+  }) async {
+    try {
+      await uploadResumable(
+        dio: _rawClient,
+        resumableUrl: resumableUrl,
+        docId: docId,
+        filename: filename,
+        mimeType: mimeType,
+        source: source,
+        onProgress: onProgress,
+        sleep: uploadSleep,
+      );
+    } on ResumableUploadException catch (e) {
+      throw ApiException(e.statusCode, e.message);
     }
   }
 

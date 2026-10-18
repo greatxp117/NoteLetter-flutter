@@ -74,11 +74,17 @@ class _RouteAdapter implements HttpClientAdapter {
 /// The GCS direct PUT (INV-08). Always accepts — the failure under test is the
 /// session call, and a bare PUT that went to the real network is the reason
 /// this seam had to exist at all.
+/// Storage that accepts: the resumable session opens (F-121) and the status
+/// query answers that the object is whole.
 class _OkPutAdapter implements HttpClientAdapter {
   @override
   Future<ResponseBody> fetch(RequestOptions options,
           Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async =>
-      ResponseBody.fromString('', 200);
+      options.method == 'POST'
+          ? ResponseBody.fromString('', 200, headers: {
+              'location': ['https://storage.test/session']
+            })
+          : ResponseBody.fromString('', 200);
 
   @override
   void close({bool force = false}) {}
@@ -128,7 +134,11 @@ void main() {
     // First session call is refused; the second succeeds and its PUT lands.
     ApiService.instance.httpClientAdapter = _RouteAdapter([
       (500, {'error': 'Storage is unavailable right now.'}),
-      (200, {'docId': 'doc-b', 'uploadUrl': 'https://storage.test/put'}),
+      (200, {
+        'docId': 'doc-b',
+        'uploadUrl': 'https://storage.test/put',
+        'resumableUrl': 'https://storage.test/start',
+      }),
     ]);
     ApiService.instance.rawClientAdapter = _OkPutAdapter();
 

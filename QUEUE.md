@@ -2065,3 +2065,42 @@ a new obligation on a finished screen is a new item.
 - shots: support; ask-thread; activity; settings; reader-history; shelves-letter-chips
 - extra_gates: harness/screenshot_pair_check.py
 - notes: Xavier, 2026-10-17: the footer goes at the bottom of each screen's scroll, out of the way but present. The shell (SupportShell) composes it once and hands it down through KitShellFooter. The kit's primary scroll (KitPage, KitScrollView, KitLoadingPage, and the reader's KitShellFooterSliver) renders it last, in a body that fills the pane, so short content keeps it at the pane's bottom edge. Any other scroller is .secondary(reason:) or marked `// scroll-secondary:`. Ask and Support reserve their measured dock plus its 44px scrim, so the footer rests above the composer and the dock stays docked. All 65 authenticated pairs were re-shot 2026-10-18 and looked at in both themes. Web's 5.19.0 frames were not released when these were shot (web 5.17.0 at f7a0a0f): re-copy with tool/web_frames.sh once web pushes its frames, and look again at every pair whose web frame moved (5aa says STALE-WEB-FRAME). 5.18.0 is pin-only.
+
+## F-121 · Resumable upload for large files (F-c): chunked Content-Range PUTs to resumableUrl instead of one bare PUT of the whole file in memory
+- status: in-progress
+- screen: sources
+- route: /sources
+- spec: spec/api/uploads.md; spec/invariants.md §INV-08; spec/decisions/ADR-050-large-uploads-are-resumable-sessions.md
+- web: src/api.js
+- flutter: lib/state/upload_notifier.dart; lib/services/api_service.dart; lib/services/resumable_upload.dart (new); test/contract/resumable_upload_test.dart (new)
+- folds: none
+- device_test: sources composes from the kit, in the contract order
+- shots: none
+- extra_gates: none
+- notes: From the iOS inventory (reports/ios.md, 2026-10-18): Swift sent video/* through the resumable session (UploadViewModel.swift:26, ResumableUpload.swift); Flutter reads the whole file into memory and sends one bare PUT (upload_notifier.dart:169-175), so a long recording can fail or run out of memory. Port web api.js's resumable path: start the session at resumableUrl, PUT chunks with Content-Range, resume from the server's Range on a dropped chunk. Which sizes and kinds take it: web's rule, not a new one. About a day. Do it with or before the share extension's video branch.
+
+## F-122 · Share extension on iOS (F-a): a native Share target that files a link, an image set or one file into the library, signed in through the app's own keychain group
+- status: open
+- screen: share-extension
+- route: none
+- spec: spec/api/ingest.md; spec/api/uploads.md; spec/features/scroll-stitch.md; spec/features/audio-ingestion-and-closed-upload-set.md; spec/decisions/ADR-151-a-playlist-link-is-detected-as-a-playlist.md; spec/decisions/ADR-120-a-bare-address-is-a-link.md
+- web: none
+- flutter: ios/Share/ShareViewController.swift (new); ios/Share/Info.plist (new); ios/Share/Share.entitlements (new); ios/Runner/Runner.entitlements (new); ios/Runner/AppDelegate.swift; ios/Podfile; ios/Runner.xcodeproj/project.pbxproj; tool/add_share_target.rb (new); lib/services/share_config_channel.dart (new)
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Ruled first by Xavier (iOS retired 2026-10-17; fresh App Group and keychain group 2026-10-18). Port of NoteLetterShare, read-only from NoteLetter/: accepts one web link (never file://), 1-20 photos as one image set (the card carries sources.md's scroll-stitch sentence), or one file of the closed upload set; no selected text. iOS: target xp.NoteLetter.Flutter.Share (team 3SA8A2JP3T, -allowProvisioningUpdates, no vendor console); App Group group.xp.NoteLetter.Flutter and keychain group 3SA8A2JP3T.xp.NoteLetter.Flutter.shared on Runner and the extension; a Podfile target with FirebaseAuth; Runner's own GoogleService-Info.plist (the iOS API key has no bundle restriction, checked read-only 2026-10-18); useUserAccessGroup in AppDelegate before FlutterFire touches Auth, which signs every existing Flutter user out ONCE. Debug: the app writes its emulator config into the group's defaults and the extension reads it, so a Debug extension refuses prod as the app does. Swift to port: ShareViewController + ShareView (~400 lines) and what they compile (~1,500: APIClient, UploadClient, ResumableUpload, UploadTypes, URLContentType, PlaylistAnswer, EndpointBudgets, EmulatorConfig, KitFailure, KitWait, Theme, Typography, Spacing, FontLoader, AppCard, buttons). Lessons (TODO): a Files item is a FILE, never a link; the activation rule is the narrowed add943d one, verbatim (BETWEEN silently dropped the whole rule). SPEC GAP: the sheet's own copy exists only in Swift (Sign in required + its line; Couldn't read what you shared; Can't add this file; Nothing to share + This kind of content isn't supported yet.; Add to NoteLetter; Files as: {kind}; N photos selected; Title (optional); Upload Photos; Upload File; Uploaded N photo(s).; Uploaded {name}.; the It couldn't be read — {reason} prefix). Ported verbatim and reported; the spec should own them. Proof: a simulator device run driving the extension from Safari, Files and Photos (port of DeviceRun/ShareActivationTests), activation-rule tests in both directions, Tier 1, head_build_check. Real iPhone: the coordinator's. About 3 days.
+
+## F-123 · Share on Android (F-a): SEND and SEND_MULTIPLE into a Dart share screen on upload_notifier
+- status: open
+- screen: share-extension
+- route: /share
+- spec: spec/api/ingest.md; spec/api/uploads.md; spec/features/scroll-stitch.md
+- web: none
+- flutter: android/app/src/main/AndroidManifest.xml; lib/pages/share_page.dart (new); lib/router.dart; lib/state/upload_notifier.dart; pubspec.yaml; test/contract/share_page_test.dart (new)
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Intent filters for a text/plain link, image/* (one and many, up to 20 as one image set) and the closed upload set's MIME types; a share-intent plugin (receive_sharing_intent or share_handler); a /share screen composed from the kit, same states and copy as the iOS extension (same SPEC GAP). BLOCKED for proof on this Mac: no Android SDK or emulator is installed (sdkmanager only), so the Android half can be written and widget-tested but not built or run until an SDK is installed (several GB; disk 12 GB free). About 1-2 days.

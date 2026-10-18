@@ -3,12 +3,15 @@ import '../models/upload_file.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/resumable_upload.dart';
 import '../services/analytics.dart';
 import '../shared/playlist.dart';
 
 class UploadNotifier extends ChangeNotifier {
   final List<UploadFile> _files = [];
-  final Map<String, Uint8List> _pendingBytes = {};
+  /// What each single-file row still has to send, read a slice at a time
+  /// (F-121) — never the whole file held in memory to be sent in one PUT.
+  final Map<String, ChunkSource> _pending = {};
   int _seq = 0;
 
   List<UploadFile> get files => List.unmodifiable(_files);
@@ -21,12 +24,20 @@ class UploadNotifier extends ChangeNotifier {
   /// Returns the **row id**, so the caller can find its own row again. Two
   /// drops of the same filename are two rows, and a name is not an identity:
   /// looking one up by name reported the later row's status for both.
+  ///
+  /// [bytes] when the bytes are already in hand (a web pick, a test), or
+  /// [source] to read them from disk a slice at a time — one is required.
   Future<String> addFile(
     String name,
     int size,
-    Uint8List bytes,
-    String mimeType,
-  ) async {
+    Uint8List? bytes,
+    String mimeType, {
+    ChunkSource? source,
+  }) async {
+    final from = source ?? (bytes == null ? null : ChunkSource.bytes(bytes));
+    if (from == null) {
+      throw ArgumentError('addFile needs bytes or a source');
+    }
     final file = UploadFile(
       id: _newId(),
       name: name,
@@ -34,7 +45,7 @@ class UploadNotifier extends ChangeNotifier {
       mimeType: mimeType,
     );
     _files.add(file);
-    _pendingBytes[file.id] = bytes;
+    _pending[file.id] = from;
     notifyListeners();
     await _uploadFile(file);
     return file.id;
@@ -142,7 +153,7 @@ class UploadNotifier extends ChangeNotifier {
 
   void removeFile(String id) {
     _files.removeWhere((f) => f.id == id);
-    _pendingBytes.remove(id);
+    _pending.remove(id);
     notifyListeners();
   }
 
@@ -155,8 +166,8 @@ class UploadNotifier extends ChangeNotifier {
   }
 
   Future<void> _uploadFile(UploadFile file) async {
-    final bytes = _pendingBytes[file.id];
-    if (bytes == null) return;
+    final source = _pending[file.id];
+    if (source == null) return;
 
     // `surface` is WHERE a capture came from, and it is the whole payload: no
     // filename, no mime type, no size. Started and completed are two events on
@@ -169,10 +180,20 @@ class UploadNotifier extends ChangeNotifier {
           .createUploadSession(file.name, file.mimeType, file.size);
 
       final docId = session['docId'] as String;
-      final uploadUrl = session['uploadUrl'] as String;
       _patch(file.id, docId: docId, progress: 0.25);
 
-      await ApiService.instance.putBytes(uploadUrl, bytes, file.mimeType);
+      // F-121 (INV-08, ADR-050): through the resumable session, as on web —
+      // chunked, resumed from what the session committed, and never the bare
+      // PUT of the whole file in memory that a long recording could not
+      // survive. The bar moves only with committed bytes.
+      await ApiService.instance.putResumable(
+        resumableUrl: (session['resumableUrl'] as String?) ?? '',
+        docId: docId,
+        filename: file.name,
+        mimeType: file.mimeType,
+        source: source,
+        onProgress: (f) => _patch(file.id, progress: 0.25 + 0.75 * f),
+      );
 
       _patch(file.id, status: UploadStatus.completed, progress: 1.0);
       Analytics.track('capture_completed', {'surface': 'upload'});
@@ -185,7 +206,7 @@ class UploadNotifier extends ChangeNotifier {
       _patch(file.id, status: UploadStatus.error,
           errorMessage: 'Upload failed. Please try again.');
     } finally {
-      _pendingBytes.remove(file.id);
+      _pending.remove(file.id);
     }
   }
 
