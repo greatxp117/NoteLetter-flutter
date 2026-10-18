@@ -275,8 +275,34 @@ put_doc("chunks/shot-image-set-chunk-0", {
 })
 
 # ── The canonical pdf document's bytes, so §15.1 has an object to show ───────
+#
+# A REAL one-page PDF (F-124). The stand-in was 52 bytes of header and comment,
+# which a browser's viewer draws as a blank page but a renderer that opens the
+# document (PDFKit, through pdfx) rightly refuses — so the page this client now
+# draws could never be photographed or proved.
+def _one_page_pdf(line: str) -> bytes:
+    stream = f"BT /F1 20 Tf 72 700 Td ({line}) Tj ET".encode()
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        b"/Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out, offsets = b"%PDF-1.4\n", []
+    for i, o in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+    out += b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
+        len(objs) + 1, xref)
+    return out
+
 put_object("raw/seed-user-1/pdf/seed-doc-pdf-complete_taxes.pdf",
-           b"%PDF-1.4\n% a stand-in for the quarterly tax summary\n",
+           _one_page_pdf("Quarterly Tax Summary - a stand-in"),
            "application/pdf")
 
 # ── A FAILED document that still has its bytes (F-13, `source-file-stage`) ───

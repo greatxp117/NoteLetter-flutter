@@ -31,6 +31,7 @@ export 'kit_letter.dart';
 export 'kit_markers.dart';
 export 'kit_notice.dart';
 export 'kit_overlay.dart';
+export 'kit_pdf_stage.dart';
 export 'kit_provider_logo.dart';
 export 'kit_popover.dart';
 export 'kit_program_card.dart';

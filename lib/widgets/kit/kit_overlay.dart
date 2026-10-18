@@ -1,6 +1,6 @@
 import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart' show ValueListenable, kIsWeb;
 import 'package:flutter/material.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
@@ -8,6 +8,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
+import 'kit_pdf_stage.dart';
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 
@@ -257,7 +258,7 @@ class KitSetMember {
 /// What a client can draw of a stored object. Everything else is **named** and
 /// pointed at the toolbar — a stage that renders nothing reads as a broken
 /// viewer, which is the dead end DOCX used to hit (§15.1 rule 1).
-enum KitStage { image, video, audio, none }
+enum KitStage { image, video, audio, pdf, none }
 
 KitStage kitStageFor({String? type, String? mimeType}) {
   final m = mimeType ?? '';
@@ -267,10 +268,9 @@ KitStage kitStageFor({String? type, String? mimeType}) {
   // that anything in it was indexed.
   if (type == 'video' || m.startsWith('video/')) return KitStage.video;
   if (type == 'audio' || m.startsWith('audio/')) return KitStage.audio;
-  // A PDF is `KitStage.none` on this client and that is not a gap in the
-  // vocabulary: the web frames one, and nothing here embeds a PDF renderer, so
-  // the honest answer is the sentence plus the toolbar rather than an empty
-  // frame that looks like a viewer which failed.
+  // A PDF is drawn (F-124), page by page, as web's `.pdf-stage` frames it. The
+  // Flutter WEB build has no renderer here and keeps the sentence.
+  if (!kIsWeb && (type == 'pdf' || m == 'application/pdf')) return KitStage.pdf;
   return KitStage.none;
 }
 
@@ -302,6 +302,11 @@ class KitSourceFileView extends StatelessWidget {
   final ValueChanged<String>? onDownload;
   final ValueChanged<String>? onOpen;
 
+  /// Shares the original file out (F-124) — a device capability web lacks,
+  /// recorded in CLAUDE.md's deviations. Null on the web build. Given the
+  /// toolbar's own context, so a share sheet can anchor to the control.
+  final void Function(BuildContext anchor, String url)? onShare;
+
   /// Names the type in the fallback sentence (`A DOCX can't be displayed…`).
   final String typeLabel;
 
@@ -322,6 +327,7 @@ class KitSourceFileView extends StatelessWidget {
     required this.stage,
     this.onDownload,
     this.onOpen,
+    this.onShare,
     this.typeLabel = 'file',
     this.stitchedFrames,
     this.knownWidth,
@@ -369,6 +375,14 @@ class KitSourceFileView extends StatelessWidget {
                     tooltip: 'Open in a new tab',
                     onPressed: () => onOpen!(url),
                   ),
+                if (onShare != null)
+                  Builder(
+                    builder: (anchor) => KitIconButton(
+                      Icons.ios_share,
+                      tooltip: 'Share original',
+                      onPressed: () => onShare!(anchor, url),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -405,6 +419,8 @@ class KitSourceFileView extends StatelessWidget {
         return _sentence(context, t,
             'An audio file opens in the system player — open or download it '
             'above. The Listen panel plays the same recording in place.');
+      case KitStage.pdf:
+        return KitPdfStage(url: url);
       case KitStage.none:
         return _sentence(context, t,
             'A $typeLabel can’t be displayed here — open or download '

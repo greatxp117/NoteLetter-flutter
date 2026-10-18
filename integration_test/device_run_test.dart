@@ -752,14 +752,26 @@ void main() {
           'emulator — run tool/seed_recipe_and_sources.py; that is a real '
           'state, and not this one',
     );
-    // A PDF is the branch that CANNOT be drawn here, and §15.1 rule 1 is that
-    // what the client cannot draw is said rather than omitted: a stage that
-    // renders nothing reads as a broken viewer.
-    expect(find.textContaining('can’t be displayed here'), findsOneWidget);
-    // The toolbar is what the sentence points AT, so its absence would make
-    // the sentence a dead end.
+    // F-124: the PDF is DRAWN — its pages rendered by the platform (PDFKit
+    // here) from the bytes the signed URL serves, not rule 1's sentence. The
+    // first page's image is the proof: a stage that opened the document and
+    // drew nothing would show the sheet and no picture.
+    final page1 = find.byKey(const ValueKey('kit-pdf-page-1'));
+    for (var i = 0; i < 40; i++) {
+      final drawn = find.descendant(of: page1, matching: find.byType(Image));
+      if (drawn.evaluate().isNotEmpty) break;
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.textContaining('can’t be displayed here'), findsNothing,
+        reason: 'the PDF fell back to rule 1 — the platform could not open it');
+    expect(page1, findsOneWidget, reason: 'no first page on the stage');
+    expect(find.descendant(of: page1, matching: find.byType(Image)),
+        findsOneWidget,
+        reason: 'the first page was never rendered');
+    // The toolbar: download, open, and — on a device — share the file out.
     expect(find.byIcon(Icons.download_outlined), findsOneWidget);
     expect(find.byIcon(Icons.open_in_new), findsWidgets);
+    expect(find.byTooltip('Share original'), findsOneWidget);
   });
 
   testWidgets("the reader sets a source's priority", (tester) async {

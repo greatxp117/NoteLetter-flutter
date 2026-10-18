@@ -4,6 +4,8 @@ import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_spacing.dart';
+import '../../shared/share_original.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import 'update_from_source_bar.dart';
@@ -99,6 +101,19 @@ class _OriginalPanelState extends State<OriginalPanel> {
         _error = describeSdkError(e);
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _share(BuildContext anchor, String url) async {
+    final d = widget.doc;
+    final failed = await shareOriginal(
+      anchor,
+      url: url,
+      fileName: shareFileName(title: d.title, type: d.type, gcsPath: d.gcsPath),
+      mimeType: d.mimeType,
+    );
+    if (failed != null && mounted) {
+      AppToast.show(context, failed, type: ToastType.error);
     }
   }
 
@@ -224,6 +239,9 @@ class _OriginalPanelState extends State<OriginalPanel> {
       typeLabel: doc.type.toUpperCase(),
       onDownload: _launch,
       onOpen: _launch,
+      // F-124: the file itself, out through the system share sheet — a
+      // device capability web lacks (CLAUDE.md's deviations).
+      onShare: canShareOriginal ? (anchor, url) => _share(anchor, url) : null,
       // A stitched scroll (5.10.0, ADR-170): drawn tall and captioned (§15.1
       // rule 4) — the only place the picture appears; the Manuscript is text.
       stitchedFrames: doc.stitch?.frameCount,

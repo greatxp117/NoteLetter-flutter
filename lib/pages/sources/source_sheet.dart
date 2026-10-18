@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../shared/share_original.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 
 /// **Seeing the source** (`screens/sources.md` §Document processing, 4.37.0,
@@ -138,6 +140,19 @@ class _SourceBodyState extends State<_SourceBody> {
     }
   }
 
+  Future<void> _share(BuildContext anchor, String url) async {
+    final d = widget.doc;
+    final failed = await shareOriginal(
+      anchor,
+      url: url,
+      fileName: shareFileName(title: d.title, type: d.type, gcsPath: d.gcsPath),
+      mimeType: d.mimeType,
+    );
+    if (failed != null && mounted) {
+      AppToast.show(context, failed, type: ToastType.error);
+    }
+  }
+
   Future<void> _launch(String url) =>
       launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 
@@ -204,6 +219,9 @@ class _SourceBodyState extends State<_SourceBody> {
         typeLabel: widget.doc.type.toUpperCase(),
         onDownload: _launch,
         onOpen: _launch,
+        // F-124: the file itself, out through the system share sheet — a
+        // device capability web lacks (CLAUDE.md's deviations).
+        onShare: canShareOriginal ? (anchor, url) => _share(anchor, url) : null,
         stitchedFrames: widget.doc.stitch?.frameCount,
         knownWidth: widget.doc.stitch?.width,
         knownHeight: widget.doc.stitch?.height,

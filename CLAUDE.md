@@ -74,7 +74,7 @@ proportions hold:
 - touch copy, no keys bound: speed read hints only *Hold to pause & rest*
   (F-77 (8)); the drop zone says *tap* (F-79)
 - Sources' *Add an image set* row: a device capability web lacks
-- §15.1 draws no PDF (no renderer is embedded): the stage names it (F-82)
+- §15.1's toolbar adds *Share original* on a device, as web cannot (F-124)
 
 ## Rules that are easy to break here
 

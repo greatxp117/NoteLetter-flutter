@@ -74,15 +74,13 @@ call(f"{ROOT}/newsletters/{DOC}", "PATCH", {"fields": {
         "id": S("ot-18"), "name": S(DAY), "keys": A([S("ot-18")]),
     }),
     # `lead` is a BOOL on every letter the backend writes (main.py
-    # `"lead": bool(r.get("lead"))`). Web's shot writes each reading's opening
-    # line there — a string, truthy, so all three draw as lead rows on web —
-    # and this client's model reads the field typed, so a string made the
-    # whole newsletters subscription fail ("Your letters could not be read").
-    # True for all three: the shape the backend writes, drawn as the
-    # reference draws it.
+    # `"lead": bool(r.get("lead"))`), and the lectionary build marks it on the
+    # Gospel alone (`build_lectionary.py`). True on the Gospel only, as web's
+    # shot writes it since 2026-10-13 (it wrote a truthy sentence on all three
+    # until then, and this seed copied the all-three; web 5.21.1 pointed it out).
     "readings": A([M({
         "label": S(["First reading", "Psalm", "Gospel"][i]),
-        "ref": S(ref), "lead": B(True),
+        "ref": S(ref), "lead": B(i == 2),
         "passages": A([]), "match_total": I(0),
     }) for i, ref in enumerate(REFS)]),
     "passages_sent": I(3), "passages_found": I(5),

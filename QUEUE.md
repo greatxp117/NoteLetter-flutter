@@ -2104,3 +2104,29 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: Intent filters for a text/plain link, image/* (one and many, up to 20 as one image set) and the closed upload set's MIME types; a share-intent plugin (receive_sharing_intent or share_handler); a /share screen composed from the kit, same states and copy as the iOS extension (same SPEC GAP). BLOCKED for proof on this Mac: no Android SDK or emulator is installed (sdkmanager only), so the Android half can be written and widget-tested but not built or run until an SDK is installed (several GB; disk 12 GB free). About 1-2 days.
+
+## F-124 · Original draws a PDF, and a device shares the original file out (F-d)
+- status: in-progress
+- screen: reader-original-update
+- route: /reader
+- spec: spec/component-kit.md §15.1; spec/screens/reader.md §Original
+- web: src/shared/SourceFile.jsx; src/styles/app-source.css
+- flutter: lib/widgets/kit/kit_overlay.dart; lib/widgets/kit/kit_pdf_stage.dart (new); lib/pages/reader/original_panel.dart; lib/pages/sources/source_sheet.dart; lib/shared/share_original.dart (new); pubspec.yaml; test/kit/pdf_stage_test.dart (new); CLAUDE.md
+- folds: none
+- device_test: the reader opens the source file
+- shots: reader-original-update; source-file; source-file-stage; source-stitched
+- extra_gates: harness/screenshot_pair_check.py
+- notes: From the iOS inventory (reports/ios.md §4): Swift drew a PDF inline (PDFKit) and shared the original (ShareLink); Flutter named the PDF and drew nothing (CLAUDE.md's §15.1 deviation, F-82). (1) §15.1's stage draws a PDF as web's .pdf-stage does: pages on white sheets in a stage that scrolls, capped at 720, padding 18 on a phone. Rendered by pdfx (PDFKit on iOS, PdfRenderer on Android), page by page as they scroll in; the Flutter web build keeps the sentence. A PDF that cannot be opened falls back to rule 1's sentence. (2) The toolbar gains Share on iOS and Android, a device capability web lacks (recorded with 'Add an image set' in CLAUDE.md's deviations): the file itself, downloaded to a temp file under its own name, through share_plus, not the 15-minute signed URL Swift shared. Size: about a day of code. The re-shoot is about 23 pairs, because kit_overlay.dart and pubspec.yaml are listed by many done items; only four change on screen. Frames wait for the coordinator's Release build signal; the device run does not.
+
+## F-125 · Camera-roll sweep (F-b, INV-14): SIZED, five slices; waits for the coordinator's go-ahead
+- status: blocked: sized; waiting on the coordinator's go-ahead (ruled 2026-10-18: size, propose slices, stop)
+- screen: settings
+- route: /settings
+- spec: spec/features/camera-roll-sweep.md; spec/screens/settings.md §Camera-roll sweep card; spec/screens/sources.md §Camera-roll sweep; spec/invariants.md §INV-14; spec/api/uploads.md
+- web: none
+- flutter: lib/services/api.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: harness/endpoint_reach_check.py
+- notes: Port of the Swift sweep: CameraSweep/* (~1,000 lines) plus CameraSweepSettingsView and SweepReviewSection (~375), its tests (CameraSweepFailureTests, SweepTrayTests). S1 native bridge, iOS (~2 d): a method channel in Runner carrying AssetIdentity.swift, AssetPrefilter.swift and PhotoLibraryAccess.swift VERBATIM. That gives the key byte-identical (sha256 of v1|ms|WxH|originalFilename, PHAssetResource), Vision .fast over a 1024 thumbnail with no network at 80 characters, .limited refused, newest-first enumeration of representative stills, and a rendered JPEG. S2 ledger and service, Dart (~2-3 d): the tri-state ledger (ingested, no-text@version, deferred-not-local) in Flutter's own App Group (group.xp.NoteLetter.Flutter), starting fresh; the 200-per-pass newest-first backfill with a cursor; review vs automatic, the first backfill always through the tray; Api.createCaptureSession (fixtures api/uploads capture-session-*) and its bare PUT; the duplicate rules (null uploadUrl means landed, a present one means re-PUT; no `duplicate` STOPS the sweep). This closes endpoint_reach.json's owed fn_create_capture_session. S3 screens (~2 d): the Settings sweep card and the Sources review tray, from the kit. Copy is the spec's; where only Swift had it, it is a SPEC GAP to report. Web has no sweep, so these pairs have no web reference frame — a ruling is needed before frames. S4 background (~2-3 d): BGProcessingTask xp.NoteLetter.Flutter.camerasweep.refresh (Info.plist permitted identifier, the processing background mode, workmanager), and background URLSession uploads that survive suspension. S5 Android: MediaStore, ML Kit and WorkManager. Blocked with F-123 (no SDK). SIMULATOR proves: permissions (full, denied; limited only partly), enumeration, Vision on images with text, the rendered JPEG, the key against Swift's material function (vector tests), capture-session create, dedupe and stop against the emulator, the tray and settings, and a BG task simulated via _simulateLaunchForTaskWithIdentifier. NOT locally: the PUT landing (the shim's signed URL is a download URL), iCloud-only deferral, the real roll's precision, real BG scheduling. REAL PHONE (the coordinator's): byte-identical keys, proven when a photo the Swift app already swept answers `duplicate: true` on approve (Review mode, so nothing uploads unasked); iCloud deferral; the live precision gate; background runs. About 1.5-2 weeks for S1-S4.
