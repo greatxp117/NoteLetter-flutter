@@ -45,6 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- F-125 S1: the camera-roll sweep. The Swift app's sentence, verbatim
+	     (NoteLetter/NoteLetter/Info.plist); no spec owns it yet. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NoteLetter looks through your photos on this device for screenshots, documents and handwritten notes, and adds only those to your library. Photos without readable text are never uploaded.</string>
 	<!-- INV-25(a), the mobile half. The Analytics SDK collects on its own the
 	     moment Firebase initialises — first_open, session_start, user_engagement
 	     — with no call site anywhere, so an emulator build would post development

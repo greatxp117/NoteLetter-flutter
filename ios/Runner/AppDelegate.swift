@@ -34,6 +34,13 @@ import FirebaseAuth
 
     GeneratedPluginRegistrant.register(with: self)
 
+    // F-125 S1: the camera-roll sweep's native bridge (ios/Runner/CameraSweep).
+    // Registering asks for nothing: the photo prompt fires only when the Dart
+    // side calls `requestAccess`, on the user turning the sweep on (spec §1).
+    if let registrar = self.registrar(forPlugin: "NoteLetterCameraSweep") {
+      CameraSweepChannel.register(with: registrar.messenger())
+    }
+
     // DEBUG only: where the share extension should send a debug build's
     // traffic. A debug app on the emulator writes the emulator's address into
     // the App Group; a debug app on prod clears it, and the debug extension
