@@ -16,6 +16,7 @@
 /// `/contract-change` if it is a new pattern), never a local `TextStyle`.
 library;
 
+export 'kit_capture.dart';
 export 'kit_cards.dart';
 export 'kit_composer.dart';
 export 'kit_config.dart';

@@ -51,6 +51,9 @@ import 'package:flutter_app/pages/reader/source_priority.dart';
 import 'package:flutter_app/pages/reader/speed_read_panel.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
+import 'package:flutter_app/state/camera_sweep_host.dart';
+import 'package:flutter_app/services/camera_sweep_bridge.dart';
+import 'package:flutter_app/services/sweep_ledger.dart';
 
 const seedEmail = 'seed@noteletter.test';
 const seedPassword = 'seed-password-1';
@@ -217,6 +220,18 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
 /// show High lit.
 Future<void> leaveState(WidgetTester tester, String holdState) async {
   switch (holdState) {
+    case 'sweep-tray':
+    case 'sweep-tray-failed':
+    case 'sweep-settings':
+    case 'sweep-status':
+      // OFF and empty: no later hold, and no device run, starts a pass.
+      final host = _sweepHost(tester);
+      await host.disable();
+      host.service?.clearTray();
+      final store = AppGroupLedgerStore();
+      for (final k in SweepLedger.keys) {
+        await store.write(k, null);
+      }
     case 'recent-list':
       await LocalFlags.setView(LocalFlags.recentView, 'shelf');
     case 'sources-cards':
@@ -302,6 +317,16 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
 
   switch (holdState) {
     case '':
+      return;
+    // The camera-roll sweep (F-125 S3) — `tool/sweep_tray_test.sh frames`
+    // adds the three pages and sets full photo access first. Its frames pair
+    // with the retired iOS app's (`NoteLetter/screenshots/sweep-tray*.ios.*`):
+    // web has no sweep.
+    case 'sweep-tray':
+    case 'sweep-tray-failed':
+    case 'sweep-settings':
+    case 'sweep-status':
+      await _reachSweep(tester, holdState);
       return;
     // The landing below its fold (F-68) — for LOOKING only: the reference's
     // frames are the page top, so these are never checked in.
@@ -1503,4 +1528,101 @@ class _RewriteLetterMode implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) => _inner.close(force: force);
+}
+
+
+// ── The camera-roll sweep's holds (F-125 S3) ─────────────────────────────────
+
+CameraSweepHost _sweepHost(WidgetTester tester) => Provider.of<CameraSweepHost>(
+    tester.element(find.byType(NoteLetterApp)),
+    listen: false);
+
+/// The frames' pages are dated 2026-10-10..12 (tool/sweep_test_photos.py
+/// --pages); the device test's photos are older, so this window holds only
+/// the pages.
+final _pagesSince = DateTime.utc(2026, 10, 10);
+
+Future<void> _reachSweep(WidgetTester tester, String state) async {
+  Future<void> pumpFor(int ms) async {
+    for (var i = 0; i < ms ~/ 200; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+  }
+
+  final host = _sweepHost(tester);
+  await host.ready;
+  final bridge = host.bridge!;
+  if (await bridge.access() != SweepAccess.granted) {
+    throw StateError('no full photo access — run through '
+        'tool/sweep_tray_test.sh frames');
+  }
+  await host.setBackfillStart(_pagesSince);
+
+  // The book page is ALREADY IN NoteLetter, its bytes landed: what a photo
+  // the Swift app swept looks like. Filed through the session, completed
+  // through the emulator's REST (owner bearer), as the pipeline would.
+  final page = await bridge.fetchImages(since: _pagesSince);
+  final book = page.assets.firstWhere((a) => a.originalFilename == 'sweep-page-book.jpg');
+  final opened = await Api.instance.createCaptureSession(
+    assetKey: book.assetKey,
+    filename: 'sweep-page-book.jpg',
+    mimeType: 'image/jpeg',
+    size: 1000,
+    capturedAt: DateTime.utc(2026, 10, 10, 9),
+  );
+  final rest = Dio(BaseOptions(
+    baseUrl: 'http://${ApiService.emulatorHost}:${ApiService.firestorePort}'
+        '/v1/projects/${DefaultFirebaseOptions.currentPlatform.projectId}'
+        '/databases/(default)/documents',
+    headers: {'Authorization': 'Bearer owner'},
+  ));
+  await rest.patch('/documents/${opened['docId']}',
+      queryParameters: {'updateMask.fieldPaths': 'status'},
+      data: {
+        'fields': {'status': {'stringValue': 'complete'}},
+      });
+
+  await host.enable();
+  final svc = host.service!;
+  for (var i = 0; i < 300 && (svc.isSweeping || svc.candidates.isEmpty); i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  if (svc.candidates.isEmpty) throw StateError('the pass found no candidates');
+  if (state == 'sweep-settings' || state == 'sweep-status') {
+    for (var i = 0; i < 50 && host.inRange == null; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await pumpFor(1000);
+    if (state == 'sweep-status') {
+      // The lower half: Catch up's figure, Status and Start over.
+      await Scrollable.ensureVisible(
+          tester.element(find.text('Photos in range').first),
+          alignment: 0.1, duration: Duration.zero);
+      await pumpFor(1000);
+    }
+    return;
+  }
+  if (!svc.candidates.any((a) => svc.alreadyIn(a.localIdentifier))) {
+    throw StateError('no card is already in — this frame would not show it');
+  }
+  if (state == 'sweep-tray-failed') {
+    final fresh = svc.candidates.firstWhere((a) => !svc.alreadyIn(a.localIdentifier));
+    final add = find.descendant(
+        of: find.byKey(ValueKey(fresh.localIdentifier)),
+        matching: find.byTooltip('Add this photo'));
+    await tester.ensureVisible(add);
+    await pumpFor(400);
+    await tester.tap(add);
+    for (var i = 0; i < 150 && svc.candidateErrors.isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    if (svc.candidateErrors.isEmpty) throw StateError('the add was not refused');
+  }
+  await pumpFor(600);
+  // The tray at the top of the frame, as the iOS frames have it: on Sources
+  // it closes "Add to your library", below the drop zone.
+  final head = find.textContaining('FROM YOUR CAMERA ROLL');
+  await Scrollable.ensureVisible(tester.element(head.first),
+      alignment: 0.0, duration: Duration.zero);
+  await pumpFor(2000);
 }

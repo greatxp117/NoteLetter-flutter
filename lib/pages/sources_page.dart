@@ -24,6 +24,7 @@ import 'sources/import_review_queue.dart';
 import 'sources/suggestion_queue.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/sources_info_sheet.dart';
+import 'sources/sweep_tray.dart';
 import 'sources/sync_settings_panel.dart';
 import 'reader/supersession_confirm.dart';
 
@@ -320,6 +321,12 @@ class _SourcesPageState extends State<SourcesPage> {
               // §Document processing, directly under the zone and the link
               // row — where a dropped source lands.
               const ProcessingSection(),
+              // From your camera roll (F-125 S3; screens/sources.md
+              // §Camera-roll sweep): photos the sweep found, waiting on the
+              // reader — the end of "Add to your library", so a photo approved
+              // here lands in the processing rows just above it. The drop zone
+              // still opens the screen.
+              const SweepTraySection(),
 
               // ── Connect a service ──────────────────────────────────────
               const SectionHeader('Connect a service'),

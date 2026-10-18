@@ -102,6 +102,11 @@ const Map<String, String> screenNames = <String, String>{
   '/sources': 'sources',
   '/settings': 'settings',
   '/settings/notifications': 'notification-settings',
+  // The camera-roll sweep's settings (F-125 S3). The reference has no sweep,
+  // so its route vocabulary (`shell/useRoute.js`) has no token, and
+  // `screen_name` is that closed set: silent until analytics-events.md names
+  // one, rather than a token web does not have.
+  '/settings/camera-roll': '',
   // Settings opened at its Sources section (ruled 2026-10-09) — the
   // reference's `settings-sources` route token.
   '/settings/sources': 'settings-sources',

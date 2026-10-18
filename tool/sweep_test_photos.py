@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """The camera-roll sweep bridge's test photos (F-125 S1).
 
-    python3 tool/sweep_test_photos.py <out dir>
+    python3 tool/sweep_test_photos.py <out dir>            # the four below
+    python3 tool/sweep_test_photos.py <out dir> --live     # sweep-live.jpg only
+    python3 tool/sweep_test_photos.py <out dir> --pages    # the three pages only
 
 Writes four JPEGs for `tool/sweep_bridge_test.sh` to add to the simulator's
 library with `xcrun simctl addmedia`, each with a fixed EXIF capture time (so
@@ -13,6 +15,12 @@ the newest-first order is known and a re-import keeps its date):
   Café crème — 日本語 ノート.jpg
                        the dense paragraph again, under a non-ASCII
                        name: the key must carry the filename's bytes  -> candidate
+
+`--live` writes one more dense photo, `sweep-live.jpg` (2026-10-05), which
+`tool/sweep_tray_test.sh` adds WHILE the app runs, to prove the library's
+change observer (F-125 S3). `--pages` writes three portrait pages
+(2026-10-10..12) like the ones in the retired iOS app's tray frames — a book
+page, a lecture slide and a recipe card — for the tray's frames.
 
 Text is drawn large and black on white: this proves the bridge reports the
 check's verdict, not the check's precision on a real camera roll (that gate
@@ -30,6 +38,26 @@ DENSE = (
     "should call it a candidate."
 )
 SPARSE = "Lunch at noon"
+
+LIVE = [("sweep-live.jpg", "2026:10:05 09:00:00", "dense")]
+
+# (title, body) of the pages the iOS app's tray frames show.
+PAGES = {
+    "page-book": ("Book page — chapter one",
+                  "It was a bright cold day in April, and the clocks were striking "
+                  "thirteen. The hallway smelt of boiled cabbage and old rag mats."),
+    "page-slide": ("Lecture slide — attention",
+                   "Attention is all you need: queries, keys and values. Each token "
+                   "attends to every other token, scaled by the root of the dimension."),
+    "page-recipe": ("Recipe card — cornbread",
+                    "Heat the skillet in the oven first. Two cups cornmeal, one cup "
+                    "buttermilk, two eggs, a pinch of salt, bake twenty minutes."),
+}
+PAGE_PHOTOS = [
+    ("sweep-page-recipe.jpg", "2026:10:12 09:00:00", "page-recipe"),
+    ("sweep-page-slide.jpg", "2026:10:11 09:00:00", "page-slide"),
+    ("sweep-page-book.jpg", "2026:10:10 09:00:00", "page-book"),
+]
 
 # name -> (capture time, kind). Newest first is the order the bridge returns.
 PHOTOS = [
@@ -61,6 +89,17 @@ def wrap(draw, text, f, width):
 
 
 def render(kind):
+    if kind in PAGES:
+        title, body = PAGES[kind]
+        img = Image.new("RGB", (1200, 1600), (250, 247, 240))
+        d = ImageDraw.Draw(img)
+        d.text((90, 110), title, fill=(40, 36, 32), font=font(54))
+        f = font(46)
+        y = 230
+        for line in wrap(d, body, f, 1020):
+            d.text((90, y), line, fill=(40, 36, 32), font=f)
+            y += 66
+        return img
     img = Image.new("RGB", (1600, 1200), "white")
     d = ImageDraw.Draw(img)
     if kind == "dense":
@@ -79,8 +118,10 @@ def render(kind):
 
 def main():
     out = sys.argv[1]
+    which = sys.argv[2] if len(sys.argv) > 2 else ""
+    photos = {"--live": LIVE, "--pages": PAGE_PHOTOS}.get(which, PHOTOS)
     os.makedirs(out, exist_ok=True)
-    for name, when, kind in PHOTOS:
+    for name, when, kind in photos:
         img = render(kind)
         exif = Image.Exif()
         exif[0x0132] = when                      # DateTime

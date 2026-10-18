@@ -4,7 +4,7 @@ Flutter client. Part of the multi-repo workspace — read the umbrella
 `../CLAUDE.md` (especially "Traps that have bitten us") and
 `../NoteLetter-contracts/spec/overview.md` before any data-layer work.
 
-**Contract version: 5.22.0** (pin — advanced only with a green `/conformance`
+**Contract version: 5.23.0** (pin — advanced only with a green `/conformance`
 run; `test/contract/pin_check_test.dart` parses this exact line and fails while
 it differs from `../NoteLetter-contracts/VERSION`).
 
@@ -73,8 +73,8 @@ proportions hold:
 - §16's anchor also opens on **tap**: a coarse pointer has neither trigger
 - touch copy, no keys bound: speed read hints only *Hold to pause & rest*
   (F-77 (8)); the drop zone says *tap* (F-79)
-- Sources' *Add an image set* row: a device capability web lacks
-- §15.1's toolbar adds *Share original* on a device, as web cannot (F-124)
+- device capabilities web lacks: Sources' *Add an image set* row, §15.1's
+  *Share original* (F-124), the camera-roll tray and its settings (F-125)
 
 ## Rules that are easy to break here
 

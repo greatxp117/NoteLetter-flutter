@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 
 import 'api.dart';
 import 'api_service.dart';
@@ -25,8 +26,11 @@ import 'sweep_ledger.dart';
 /// session, no PUT. It says what a pass WOULD do, asking Firestore (a read)
 /// whether each candidate is already filed.
 ///
-/// Not here yet: the screens (S3), the background task and background
-/// uploads (S4). The PUT is foreground and awaited until S4.
+/// The screens are S3's (`lib/pages/settings/camera_sweep_page.dart`,
+/// `lib/pages/sources/sweep_tray.dart`), and so is what starts a pass in the
+/// foreground (`lib/state/camera_sweep_host.dart`). Not here yet: the
+/// background task and background uploads (S4). The PUT is foreground and
+/// awaited until S4.
 class CameraSweepService extends ChangeNotifier {
   CameraSweepService({
     required this.bridge,
@@ -84,6 +88,20 @@ class CameraSweepService extends ChangeNotifier {
 
   final Map<String, String> _candidateErrors = {};
 
+  final Map<String, CaptureMatch> _filed = {};
+
+  /// A tray card whose photo is ALREADY IN NoteLetter (screens/sources.md
+  /// §Camera-roll sweep, 5.23.0): a document carries its asset key and its
+  /// bytes landed — any status but `pending_upload` and `error`. Asked once,
+  /// when the candidate enters the tray ([SweepEndpoints.findCapture]). It is
+  /// what a phone moved from the Swift app shows for a photo that app already
+  /// swept, before anything is approved. Add still works: the session answers
+  /// `duplicate: true` with no upload link, and nothing uploads (spec §6).
+  bool alreadyIn(String localIdentifier) {
+    final m = _filed[localIdentifier];
+    return m != null && !const {'pending_upload', 'error'}.contains(m.status);
+  }
+
   /// Why a candidate could not be added, by `localIdentifier`. The card stays
   /// in the tray, carrying the sentence, until a later attempt settles it.
   Map<String, String> get candidateErrors => Map.unmodifiable(_candidateErrors);
@@ -114,7 +132,21 @@ class CameraSweepService extends ChangeNotifier {
     } else {
       _candidates.removeWhere((c) => c.localIdentifier == localIdentifier);
       _candidateErrors.remove(localIdentifier);
+      _filed.remove(localIdentifier);
     }
+    notifyListeners();
+  }
+
+  /// Forgets the tray and every sentence on it — the account it was found
+  /// for signed out. Nothing was sent for a card, so nothing is lost: the
+  /// next pass finds the same photos again.
+  void clearTray() {
+    _candidates.clear();
+    _candidateErrors.clear();
+    _filed.clear();
+    _errorMessage = null;
+    _errorStoppedSweep = false;
+    _accessRefused = null;
     notifyListeners();
   }
 
@@ -216,6 +248,15 @@ class CameraSweepService extends ChangeNotifier {
   }
 
   Future<void> _examine(SweepAsset asset, SweepPass pass) async {
+    // Already waiting on the user: its verdict cannot have changed, so the
+    // text check is not run again. It still counts toward the cap, as in
+    // Swift — a tray of 200 is the first backfill's bound. (Swift re-ran
+    // Vision on every card each pass; S3 runs a pass on every library change,
+    // and a phone syncing iCloud changes its library constantly.)
+    if (_candidates.any((c) => c.localIdentifier == asset.localIdentifier)) {
+      pass.held++;
+      return;
+    }
     final exam = await bridge.examine(asset.localIdentifier);
     _examined++;
     switch (exam.verdict) {
@@ -231,10 +272,10 @@ class CameraSweepService extends ChangeNotifier {
         if (_toTray) {
           // The first backfill always goes through review, whatever mode the
           // user picked, because it is the pass that surfaces everything at
-          // once (spec §3).
-          if (!_candidates.any((c) => c.localIdentifier == asset.localIdentifier)) {
-            _candidates.add(asset);
-          }
+          // once (spec §3). Whether its photo is already in NoteLetter is
+          // asked first, so the card arrives saying so.
+          await _lookUp(asset);
+          _candidates.add(asset);
           pass.toTray++;
         } else {
           final sentence = await _ingest(asset);
@@ -253,6 +294,18 @@ class CameraSweepService extends ChangeNotifier {
   }
 
   bool get _toTray => ledger.mode == SweepMode.review || !ledger.backfillComplete;
+
+  /// One read per candidate entering the tray: `user_id` + the asset key.
+  /// A read that fails says nothing about the card — never "new".
+  Future<void> _lookUp(SweepAsset asset) async {
+    try {
+      final match = await endpoints.findCapture(asset.assetKey);
+      if (match != null) _filed[asset.localIdentifier] = match;
+    } catch (e) {
+      debugPrint('camera sweep: could not ask whether ${asset.assetKey} is '
+          'already filed — $e');
+    }
+  }
 
   // ── Review actions ─────────────────────────────────────────────────────────
 
@@ -279,6 +332,7 @@ class CameraSweepService extends ChangeNotifier {
     await ledger.record(LedgerVerdict.dismissed, asset.localIdentifier);
     _candidates.removeWhere((c) => c.localIdentifier == asset.localIdentifier);
     _candidateErrors.remove(asset.localIdentifier);
+    _filed.remove(asset.localIdentifier);
     notifyListeners();
   }
 
@@ -342,6 +396,10 @@ class CameraSweepService extends ChangeNotifier {
       return e.message;
     } on FormatException catch (e) {
       return e.message;
+    } on PlatformException catch (e) {
+      // The bridge could not render the photo (deleted since the pass found
+      // it, or a write failed): its own words, as an envelope's are.
+      return e.message ?? e.code;
     }
   }
 
@@ -608,6 +666,9 @@ class SweepPass extends SweepTally {
   int noText = 0;
   int deferred = 0;
   int toTray = 0;
+
+  /// Already in the tray from an earlier pass: counted, not examined again.
+  int held = 0;
   int ingested = 0;
 
   /// Automatic mode's refusals, by `localIdentifier`.
@@ -616,7 +677,7 @@ class SweepPass extends SweepTally {
   @override
   String toString() => 'SweepPass(handled $handled, settled $settled, '
       'nonRepresentative $nonRepresentative, noText $noText, deferred $deferred, '
-      'toTray $toTray, ingested $ingested, failed ${failed.length}'
+      'toTray $toTray, held $held, ingested $ingested, failed ${failed.length}'
       '${refused == null ? '' : ', refused ${refused!.access.name}'})';
 }
 

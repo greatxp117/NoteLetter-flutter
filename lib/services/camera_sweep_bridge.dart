@@ -13,19 +13,25 @@ import 'package:flutter/services.dart';
 ///   network off, a candidate at 80 characters or more, or any screenshot;
 /// - **enumeration**: images only, newest first.
 ///
-/// This is the bridge and nothing above it: no ledger, no screens, no
-/// background task, no uploads (S2–S4).
+/// This is the bridge and nothing above it: the ledger and the service are
+/// S2's, the screens S3's (which added [thumbnail], [openSettings] and
+/// [libraryChanges]), the background task S4's.
 ///
 /// **Only full library access runs.** With partial (`limited`) or no access,
 /// every library method throws [SweepAccessRefused] instead of answering, and
 /// its [SweepAccessRefused.sentence] says why.
 class CameraSweepBridge {
-  CameraSweepBridge({MethodChannel? channel})
-      : _channel = channel ?? const MethodChannel(channelName);
+  CameraSweepBridge({MethodChannel? channel, EventChannel? changes})
+      : _channel = channel ?? const MethodChannel(channelName),
+        _changes = changes ?? const EventChannel(changesName);
 
   static const channelName = 'xp.noteletter/camera_sweep';
 
+  /// One event per photo-library change while listened to (S3).
+  static const changesName = 'xp.noteletter/camera_sweep/changes';
+
   final MethodChannel _channel;
+  final EventChannel _changes;
 
   /// The backfill's page size in the Swift service (`backfillBatchLimit`).
   static const defaultPageSize = 200;
@@ -88,6 +94,45 @@ class CameraSweepBridge {
         ));
     return raw == null ? null : SweepRendered.fromWire(_map(raw));
   }
+
+  /// A review card's picture: the asset drawn at [width]×[height] pixels, as
+  /// JPEG bytes, with the network OFF — null when the
+  /// photo is not on this device (an iCloud original is never fetched just to
+  /// be looked at).
+  Future<Uint8List?> thumbnail(String localIdentifier,
+      {int width = 216, int height = 280}) async {
+    final raw = await _guard(() => _channel.invokeMethod<Object?>(
+          'thumbnail',
+          <String, Object?>{
+            'localIdentifier': localIdentifier,
+            'width': width,
+            'height': height,
+          },
+        ));
+    if (raw == null) return null;
+    if (raw is Uint8List) return raw;
+    throw FormatException('camera sweep: thumbnail is ${raw.runtimeType}');
+  }
+
+  /// Opens this app's page in the system settings, where photo access is
+  /// changed — the action both refusals carry (feature spec §1). true when
+  /// the system opened it.
+  Future<bool> openSettings() async =>
+      await _channel.invokeMethod<bool>('openSettings') ?? false;
+
+  /// The library changed: a photo taken, deleted or edited, by any app. Only
+  /// with FULL access; with less, listening fails with [SweepAccessRefused].
+  /// The native side registers with Photos while this is listened to.
+  Stream<void> libraryChanges() => _changes
+      .receiveBroadcastStream()
+      .map<void>((_) {})
+      .handleError((Object e) {
+        if (e is PlatformException) {
+          final refused = SweepAccessRefused.fromCode(e.code);
+          if (refused != null) throw refused;
+        }
+        throw e;
+      });
 
   static Future<Object?> _guard(Future<Object?> Function() call) async {
     try {

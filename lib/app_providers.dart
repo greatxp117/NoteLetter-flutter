@@ -15,6 +15,7 @@ import 'package:provider/single_child_widget.dart';
 
 import 'state/activity_notifier.dart';
 import 'state/auth_notifier.dart';
+import 'state/camera_sweep_host.dart';
 import 'state/chat_notifier.dart';
 import 'state/cloud_notifier.dart';
 import 'state/documents_notifier.dart';
@@ -63,6 +64,13 @@ List<SingleChildWidget> appProviders(AuthNotifier auth, {ThemeNotifier? theme}) 
       // reads this.
       ChangeNotifierProvider<SupportNotifier>(
         create: (_) => SupportNotifier(),
+      ),
+      // The camera-roll sweep's foreground runner (F-125 S3). NOT lazy: a pass
+      // runs at launch when the sweep is on, whether or not a screen that
+      // reads it is ever opened. Inert on every platform without the bridge.
+      ChangeNotifierProvider<CameraSweepHost>(
+        create: (_) => CameraSweepHost.forApp(auth),
+        lazy: false,
       ),
       if (theme != null)
         ChangeNotifierProvider<ThemeNotifier>.value(value: theme)

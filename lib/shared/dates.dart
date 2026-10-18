@@ -33,3 +33,7 @@ String longDate(int? ms) {
   final d = DateTime.fromMillisecondsSinceEpoch(ms);
   return '${_weekdays[d.weekday - 1]}, ${_monthsLong[d.month - 1]} ${d.day}';
 }
+
+/// `Jul 20, 2026` — a date the reader picked, where the year matters (the
+/// camera-roll sweep's "Go back to").
+String dayDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';

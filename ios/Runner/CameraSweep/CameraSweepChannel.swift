@@ -1,10 +1,12 @@
 import Flutter
 import Foundation
 import Photos
+import UIKit
 
 /// F-125 S1: the camera-roll sweep's native bridge (INV-14,
-/// `spec/features/camera-roll-sweep.md`). Nothing above it yet: no ledger, no
-/// screens, no background task, no uploads — those are S2-S4.
+/// `spec/features/camera-roll-sweep.md`). S3 added what its screens need: a
+/// card's thumbnail, the "Open Settings" action, and the library's change
+/// events. No background task here; that is S4.
 ///
 /// Everything the sweep decides on the device is the retired Swift app's own
 /// code, ported verbatim beside this file: the asset key (`AssetIdentity`,
@@ -22,9 +24,20 @@ import Photos
 enum CameraSweepChannel {
     static let name = "xp.noteletter/camera_sweep"
 
+    /// F-125 S3: one event per photo-library change, while the Dart side
+    /// listens. What runs the sweep again when a photo is taken with the app
+    /// open (Swift `CameraSweepService: PHPhotoLibraryChangeObserver`).
+    static let changesName = "xp.noteletter/camera_sweep/changes"
+
+    /// The stream handler is held here: an event channel keeps only a weak
+    /// reference to it.
+    private static let changes = LibraryChanges()
+
     static func register(with messenger: FlutterBinaryMessenger) {
         let channel = FlutterMethodChannel(name: name, binaryMessenger: messenger)
         channel.setMethodCallHandler { call, result in handle(call, result) }
+        FlutterEventChannel(name: changesName, binaryMessenger: messenger)
+            .setStreamHandler(changes)
     }
 
     // MARK: - Pure rules (RunnerTests/CameraSweepBridgeTests)
@@ -94,7 +107,15 @@ enum CameraSweepChannel {
                 await MainActor.run { result(wire(access)) }
             }
 
-        case "fetchImages", "examine", "renderedJpeg":
+        case "openSettings":
+            // Both refusals carry this action (feature spec §1): this app's own
+            // page in the system settings, where photo access is changed.
+            guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                return result(false)
+            }
+            UIApplication.shared.open(url) { opened in result(opened) }
+
+        case "fetchImages", "examine", "renderedJpeg", "thumbnail":
             let access = PhotoLibraryAccess.current
             if let code = refusal(for: access) {
                 return result(FlutterError(
@@ -103,6 +124,7 @@ enum CameraSweepChannel {
             switch call.method {
             case "fetchImages":  fetchImages(args, result)
             case "examine":      examine(args, result)
+            case "thumbnail":    thumbnail(args, result)
             default:             renderedJpeg(args, result)
             }
 
@@ -196,5 +218,62 @@ enum CameraSweepChannel {
                 }
             }
         }
+    }
+
+    /// A review card's picture (Swift `SweepReviewSection.CandidateCard`): the
+    /// asset at the card's size, as JPEG bytes. Network OFF, as in Swift — a
+    /// card never downloads an iCloud original just to be looked at — so an
+    /// asset that is not on the device answers nil and the card draws its
+    /// ground. One answer only (`.highQualityFormat`), where Swift's
+    /// opportunistic request skipped the degraded one by hand.
+    private static func thumbnail(_ args: [String: Any], _ result: @escaping FlutterResult) {
+        guard let asset = asset(args, result) else { return }
+        let width = (args["width"] as? NSNumber)?.doubleValue ?? 216
+        let height = (args["height"] as? NSNumber)?.doubleValue ?? 280
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = false
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .fast
+        options.isSynchronous = false
+        PHImageManager.default().requestImage(
+            for: asset, targetSize: CGSize(width: width, height: height),
+            contentMode: .aspectFill, options: options
+        ) { image, _ in
+            let data = image?.jpegData(compressionQuality: 0.8)
+            DispatchQueue.main.async {
+                result(data.map { FlutterStandardTypedData(bytes: $0) })
+            }
+        }
+    }
+}
+
+/// The library's change events, while someone listens (F-125 S3). It
+/// registers with Photos only with FULL access — registering is not asking,
+/// but there is nothing to watch for a sweep that cannot run, and the refusal
+/// is the same one every library method answers.
+final class LibraryChanges: NSObject, FlutterStreamHandler, PHPhotoLibraryChangeObserver {
+    private var sink: FlutterEventSink?
+
+    func onListen(withArguments arguments: Any?,
+                  eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        let access = PhotoLibraryAccess.current
+        if let code = CameraSweepChannel.refusal(for: access) {
+            return FlutterError(code: code,
+                                message: "photo library access is \(CameraSweepChannel.wire(access))",
+                                details: nil)
+        }
+        if sink == nil { PHPhotoLibrary.shared().register(self) }
+        sink = events
+        return nil
+    }
+
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        if sink != nil { PHPhotoLibrary.shared().unregisterChangeObserver(self) }
+        sink = nil
+        return nil
+    }
+
+    func photoLibraryDidChange(_ changeInstance: PHChange) {
+        DispatchQueue.main.async { [weak self] in self?.sink?("changed") }
     }
 }

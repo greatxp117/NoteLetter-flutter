@@ -14,6 +14,8 @@ import 'pages/activity_page.dart';
 import 'pages/review_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/settings/camera_sweep_page.dart';
+import 'services/camera_sweep_bridge.dart';
 import 'pages/notification_settings_page.dart';
 import 'pages/not_found_page.dart';
 import 'pages/branding_page.dart';
@@ -217,6 +219,14 @@ List<RouteBase> appRoutes() {
             GoRoute(
               path: '/settings/notifications',
               builder: (context, state) => const NotificationSettingsPage(),
+            ),
+            GoRoute(
+              // The camera-roll sweep's settings (F-125 S3) — only where there
+              // is a photo library this client can sweep.
+              path: '/settings/camera-roll',
+              redirect: (context, state) =>
+                  CameraSweepBridge.isAvailable ? null : '/settings',
+              builder: (context, state) => const CameraSweepPage(),
             ),
             GoRoute(
               // Settings opened at its Sources section (ruled 2026-10-09;
