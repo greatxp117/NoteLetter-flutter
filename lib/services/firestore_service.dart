@@ -44,6 +44,14 @@ class ReadLogged {
 /// A tag the background delete has marked (4.101.0): `status == "deleting"`.
 bool isDeletingTag(Map<String, dynamic> data) => data['status'] == 'deleting';
 
+/// What [FirestoreService.findCapture] found: the document an asset key
+/// already has, and its status (null when the stored value is not a string).
+class CaptureMatch {
+  const CaptureMatch({required this.docId, required this.status});
+  final String docId;
+  final String? status;
+}
+
 class FirestoreService {
   static FirestoreService _instance = FirestoreService._();
 
@@ -645,6 +653,33 @@ class FirestoreService {
     final data = Map<String, dynamic>.from(snap.data()!);
     data.remove('embedding');
     return Document.fromJson(snap.id, data);
+  }
+
+  /// The caller's own document for one camera-roll asset key (INV-14), or
+  /// null when there is none — the sweep's dry run (F-125 S2), which must say
+  /// whether a photo is already filed without asking the endpoint that FILES
+  /// it.
+  ///
+  /// A query scoped to `user_id` (INV-02), not a get on the backend's derived
+  /// `cam-…` id: the rule on a get reads `resource.data.user_id`, so a
+  /// document that does not exist is answered `permission-denied`, and "never
+  /// swept" would be the same answer as "refused". An empty result here is a
+  /// real "none"; a refusal still throws.
+  Future<CaptureMatch?> findCapture(String assetKey) async {
+    final uid = _uid;
+    if (uid == null) {
+      throw StateError('findCapture: nobody is signed in');
+    }
+    final snap = await _db
+        .collection('documents')
+        .where('user_id', isEqualTo: uid)
+        .where('source_capture.asset_key', isEqualTo: assetKey)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    final d = snap.docs.single;
+    final status = d.data()['status'];
+    return CaptureMatch(docId: d.id, status: status is String ? status : null);
   }
 
   /// One-shot tags read (`created_at desc`) for pickers that don't need a live

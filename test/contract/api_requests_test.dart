@@ -106,6 +106,18 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       Api.instance.createMultiImageSession(_maps(b['files']), b['title']),
   'fn_signal_uploads_complete': (b) =>
       Api.instance.signalUploadsComplete(b['docId']),
+  // The camera-roll sweep (F-125 S2; INV-14). `capturedAt` is a «iso8601»
+  // token in the capture, so any instant stands in for it — and it is passed
+  // only when the case sends one, because the builder OMITS an absent date.
+  'fn_create_capture_session': (b) => Api.instance.createCaptureSession(
+        assetKey: b['assetKey'],
+        filename: b['filename'],
+        mimeType: b['mimeType'],
+        size: b['size'],
+        capturedAt: b.containsKey('capturedAt')
+            ? DateTime.utc(2026, 7, 14, 9, 30, 15, 999)
+            : null,
+      ),
   'fn_ingest_url': (b) => Api.instance.ingestUrl(b['url'], b['type']),
   'fn_update_document': (b) => Api.instance
       .updateDocument(b['docId'], Map<String, dynamic>.of(b)..remove('docId')),
@@ -338,9 +350,6 @@ const _suites = [
 // has no builder for at all — the fixtures exist and nothing here exercises
 // them.
 const _noBuilder = <String, String>{
-  'fn_create_capture_session':
-      'the camera-roll sweep\'s capture session (2.18.0, ADR-023, INV-14) — '
-      'owed until Flutter\'s sweep calls it (endpoint_reach.json; QUEUE F-b)',
   'fn_ingest_passage':
       'passage capture is the browser extension\'s (ADR-032); no client but it '
       'sends this',

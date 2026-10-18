@@ -31,6 +31,7 @@ const Map<String, int> kEndpointDeadlineSeconds = {
   'fn_check_source_freshness': 60,
   'fn_claim_cloud_connection': 60,
   'fn_connect_cloud_storage': 60,
+  'fn_create_capture_session': 60,
   'fn_create_multi_image_session': 60,
   'fn_create_tag': 60,
   'fn_create_upload_session': 60,

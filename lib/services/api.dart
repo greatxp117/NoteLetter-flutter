@@ -32,6 +32,38 @@ class Api {
   Future<Map<String, dynamic>> signalUploadsComplete(String docId) =>
       _http.post('/fn_signal_uploads_complete', data: {'docId': docId});
 
+  /// One camera-roll photo's upload session (2.18.0, ADR-023, INV-14;
+  /// `spec/api/uploads.md`). The closed key set is `assetKey · filename ·
+  /// mimeType · size · capturedAt`, and `capturedAt` is OMITTED, never null,
+  /// when the asset has no date. The answer carries `duplicate` on both the
+  /// 201 and the 200; reading it is the sweep's (`CaptureSession`).
+  ///
+  /// `capturedAt` goes out as the Swift app sent it — `ISO8601DateFormatter`'s
+  /// default, UTC, whole seconds: `2026-10-04T09:00:00Z`.
+  Future<Map<String, dynamic>> createCaptureSession({
+    required String assetKey,
+    required String filename,
+    required String mimeType,
+    required int size,
+    DateTime? capturedAt,
+  }) =>
+      _http.post('/fn_create_capture_session', data: {
+        'assetKey': assetKey,
+        'filename': filename,
+        'mimeType': mimeType,
+        'size': size,
+        if (capturedAt != null) 'capturedAt': captureInstant(capturedAt),
+      });
+
+  /// `capturedAt`'s wire form: UTC, whole seconds (sub-second truncated, as
+  /// `ISO8601DateFormatter` does), `Z`.
+  static String captureInstant(DateTime at) {
+    final u = at.toUtc();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${u.year.toString().padLeft(4, '0')}-${two(u.month)}-${two(u.day)}'
+        'T${two(u.hour)}:${two(u.minute)}:${two(u.second)}Z';
+  }
+
   // ── Ingest (INV-07) ───────────────────────────────────────────────────────
 
   /// The single URL-ingest endpoint; `type` is client-detected (INV-07).
