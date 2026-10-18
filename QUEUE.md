@@ -2106,7 +2106,7 @@ a new obligation on a finished screen is a new item.
 - notes: Intent filters for a text/plain link, image/* (one and many, up to 20 as one image set) and the closed upload set's MIME types; a share-intent plugin (receive_sharing_intent or share_handler); a /share screen composed from the kit, same states and copy as the iOS extension (same SPEC GAP). BLOCKED for proof on this Mac: no Android SDK or emulator is installed (sdkmanager only), so the Android half can be written and widget-tested but not built or run until an SDK is installed (several GB; disk 12 GB free). About 1-2 days.
 
 ## F-124 · Original draws a PDF, and a device shares the original file out (F-d)
-- status: in-progress
+- status: done 2026-10-18
 - screen: reader-original-update
 - route: /reader
 - spec: spec/component-kit.md §15.1; spec/screens/reader.md §Original
