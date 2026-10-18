@@ -45,11 +45,11 @@ import 'package:flutter_app/widgets/kit/kit.dart';
 const seedEmail = 'seed@noteletter.test';
 const seedPassword = 'seed-password-1';
 
-/// The test photos are dated 2026-10-01..05 (tool/sweep_test_photos.py); the
-/// frames' pages 10-10..12 and the simulator's samples years older. So this
-/// window holds the device test's photos and nothing else.
+/// The test photos are dated 2026-10-01..05 (tool/sweep_test_photos.py), the
+/// frames' pages 10-10..12, and the simulator's samples years older. So from
+/// this start the window holds the device test's photos and, once a frame
+/// batch has run, its pages.
 final _since = DateTime.utc(2026, 9, 1);
-final _until = DateTime.utc(2026, 10, 9);
 
 Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _captures(String uid) async =>
     (await FirebaseFirestore.instance
@@ -82,12 +82,13 @@ void main() {
   }
 
   Future<void> waitFor(WidgetTester tester, String what, bool Function() done,
-      {int seconds = 90}) async {
+      {int seconds = 90, String Function()? state}) async {
     for (var i = 0; i < seconds * 4; i++) {
       if (done()) return;
+      if (state != null && i % 40 == 39) debugPrint('sweep tray: waiting for $what — ${state()}');
       await tester.pump(const Duration(milliseconds: 250));
     }
-    fail('timed out waiting for $what');
+    fail('timed out waiting for $what${state == null ? '' : ' — ${state()}'}');
   }
 
   Future<GoRouter> pumpApp(WidgetTester tester) async {
@@ -133,7 +134,11 @@ void main() {
       // Which photos the text check keeps, by key. Every copy of a photo
       // (one per run of this test or the S1/S2 ones) is its own asset under
       // ONE key.
-      final page = await bridge.fetchImages(since: _since, until: _until);
+      // The window the host walks: from the stored start to NOW. (Until
+      // 2026-10-18 this counted to 10-09 only, to leave out the frames'
+      // pages — but the walk has no end date, so once a frame batch had added
+      // its pages (10-10..12) the tray held 3 more cards than were counted.)
+      final page = await bridge.fetchImages(since: _since);
       final byKey = <String, List<String>>{};
       final nameOf = <String, String?>{};
       for (final a in page.assets.where((a) => a.isRepresentative)) {
@@ -196,8 +201,15 @@ void main() {
       // ── 3. Sources: the tray, and what is already in ───────────────────────
       router.go('/sources');
       final svc = host.service!;
+      // Every run adds another copy of each test photo to the simulator's
+      // library, so the first pass grows with it (about 47 photos through
+      // Vision, and a read per candidate, by 2026-10-18).
       await waitFor(tester, 'the pass',
-          () => !svc.isSweeping && svc.candidates.length == candidates);
+          () => !svc.isSweeping && svc.candidates.length == candidates,
+          seconds: 300,
+          state: () => 'sweeping ${svc.isSweeping}, examined ${svc.examined}, '
+              'tray ${svc.candidates.length} of $candidates, halted ${svc.halted}, '
+              'error ${svc.errorMessage}');
       await pumpFor(tester, 1500);
       expect(find.text('FROM YOUR CAMERA ROLL · $candidates'), findsOneWidget);
       expect(find.byType(KitCaptureCard), findsNWidgets(candidates));
