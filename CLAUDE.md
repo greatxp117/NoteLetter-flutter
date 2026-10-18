@@ -4,7 +4,7 @@ Flutter client. Part of the multi-repo workspace — read the umbrella
 `../CLAUDE.md` (especially "Traps that have bitten us") and
 `../NoteLetter-contracts/spec/overview.md` before any data-layer work.
 
-**Contract version: 5.23.0** (pin — advanced only with a green `/conformance`
+**Contract version: 5.24.0** (pin — advanced only with a green `/conformance`
 run; `test/contract/pin_check_test.dart` parses this exact line and fails while
 it differs from `../NoteLetter-contracts/VERSION`).
 

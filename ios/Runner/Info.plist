@@ -49,6 +49,19 @@
 	     (NoteLetter/NoteLetter/Info.plist); no spec owns it yet. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>NoteLetter looks through your photos on this device for screenshots, documents and handwritten notes, and adds only those to your library. Photos without readable text are never uploaded.</string>
+	<!-- F-125 S4: the camera-roll sweep's background pass, a BGProcessingTask
+	     under this app's OWN identifier (the retired Swift app's was
+	     xp.NoteLetter.camerasweep.refresh). Registering an identifier that is
+	     not listed here crashes at launch; test/contract/camera_sweep_background_test.dart
+	     reads both against ios/Runner/CameraSweep/SweepBackgroundTask.swift. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>xp.NoteLetter.Flutter.camerasweep.refresh</string>
+	</array>
 	<!-- INV-25(a), the mobile half. The Analytics SDK collects on its own the
 	     moment Firebase initialises — first_open, session_start, user_engagement
 	     — with no call site anywhere, so an emulator build would post development

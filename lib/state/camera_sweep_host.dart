@@ -6,11 +6,14 @@ import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding, Wi
 
 import '../services/camera_sweep_bridge.dart';
 import '../services/camera_sweep_service.dart';
+import '../services/sweep_background.dart';
 import '../services/sweep_ledger.dart';
+import '../services/sweep_uploader.dart';
 import 'auth_notifier.dart';
 
-/// What runs the camera-roll sweep in the FOREGROUND, and what its two screens
-/// read (F-125 S3; `spec/features/camera-roll-sweep.md`).
+/// What runs the camera-roll sweep — in the foreground, and in iOS's
+/// background task — and what its two screens read (F-125 S3, S4;
+/// `spec/features/camera-roll-sweep.md`).
 ///
 /// A pass starts:
 ///  * **at launch**, once someone is signed in, when the sweep is on and the
@@ -24,7 +27,16 @@ import 'auth_notifier.dart';
 ///  * when the user asks (Settings → Camera roll → Check for new photos).
 ///
 /// A change that arrives while a pass runs is not dropped: one more pass runs
-/// after it. No background task: that is S4.
+/// after it.
+///
+/// **In the background (S4)** a pass runs when iOS grants the sweep's
+/// `BGProcessingTask` ([SweepBackground]), asked for while the sweep is on and
+/// answered with the same service, ledger and tray. When the system takes the
+/// time back, or the app leaves the foreground with no task to finish in, the
+/// pass stops at its next safe point and none starts until the app is back
+/// or iOS grants a task ([CameraSweepService.expire]). Uploads are the
+/// background uploader's and carry on regardless; their results are recorded
+/// whenever they come back.
 ///
 /// **It never asks for access at launch** (spec §1): [access] reads the
 /// status without prompting, and the prompt fires only in [enable], which the
@@ -36,13 +48,17 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
     required CameraSweepBridge bridge,
     required SweepLedgerStore store,
     required SweepEndpoints endpoints,
+    required SweepUploader uploader,
+    required SweepBackground? background,
     this.debounce = const Duration(seconds: 2),
     bool observeLifecycle = true,
   })  : available = true,
         _session = session,
         _isSignedIn = isSignedIn,
         _bridge = bridge,
-        _endpoints = endpoints {
+        _endpoints = endpoints,
+        _uploader = uploader,
+        _background = background {
     _session!.addListener(_onSession);
     if (observeLifecycle) {
       WidgetsBinding.instance.addObserver(this);
@@ -59,7 +75,9 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
         _session = null,
         _isSignedIn = null,
         _bridge = null,
-        _endpoints = null {
+        _endpoints = null,
+        _uploader = null,
+        _background = null {
     ready = Future.value();
   }
 
@@ -72,6 +90,8 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
           bridge: CameraSweepBridge(),
           store: AppGroupLedgerStore(),
           endpoints: const LiveSweepEndpoints(),
+          uploader: NativeSweepUploader(),
+          background: NativeSweepBackground(),
         )
       : CameraSweepHost.unavailable();
 
@@ -89,6 +109,8 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
   final bool Function()? _isSignedIn;
   final CameraSweepBridge? _bridge;
   final SweepEndpoints? _endpoints;
+  final SweepUploader? _uploader;
+  final SweepBackground? _background;
   bool _observing = false;
 
   /// Completes once the ledger is read (or failed to be).
@@ -137,14 +159,109 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
       final ledger = await SweepLedger.load(store);
       _ledger = ledger;
       _service = CameraSweepService(
-          bridge: _bridge!, ledger: ledger, endpoints: _endpoints!);
+          bridge: _bridge!, ledger: ledger, endpoints: _endpoints!, uploader: _uploader!);
     } catch (e) {
       _loadError = e;
       debugPrint('camera sweep: the ledger could not be read ($e)');
     }
     if (_disposed) return;
+    final service = _service;
+    if (service != null) {
+      // Results that came back while the app was away are recorded first.
+      unawaited(service.attachUploads());
+      await _attachBackground();
+      if (_disposed) return;
+    }
     notifyListeners();
     _onSession();
+  }
+
+  // ── The background task (S4) ────────────────────────────────────────────────
+
+  SweepSchedule? _schedule;
+
+  /// Whether iOS took the background task request, as last asked. null
+  /// until asked; with the sweep off it is withdrawn.
+  SweepSchedule? get schedule => _schedule;
+
+  /// A background task's pass is running: leaving the foreground does not
+  /// halt it (the task's expiry does).
+  bool _backgroundActive = false;
+
+  Future<void> _attachBackground() async {
+    final background = _background;
+    if (background == null) return;
+    try {
+      await background.attach(onRun: backgroundRun, onExpire: backgroundExpire);
+    } catch (e) {
+      debugPrint('camera sweep: the background task could not be reached ($e)');
+      return;
+    }
+    await _syncSchedule();
+  }
+
+  /// Asks iOS for the background task while the sweep is on, and withdraws
+  /// the request when it is off.
+  Future<void> _syncSchedule() async {
+    final background = _background, ledger = _ledger;
+    if (background == null || ledger == null || _disposed) return;
+    try {
+      _schedule = await background.setScheduled(ledger.enabled);
+      if (ledger.enabled && !_schedule!.scheduled) {
+        // The simulator, or a phone with Background App Refresh off: the
+        // sweep still runs in the foreground, and the setup copy never
+        // promised more ("when iOS gives us a moment in the background").
+        debugPrint('camera sweep: no background pass — ${_schedule!.error}');
+      }
+    } catch (e) {
+      debugPrint('camera sweep: the background task could not be scheduled ($e)');
+    }
+  }
+
+  /// iOS granted the background task: one pass under the sweep's settings,
+  /// answered when it ENDS (the task is completed then, not when it began).
+  @visibleForTesting
+  Future<Map<String, Object?>> backgroundRun() async {
+    await ready;
+    final ledger = _ledger, service = _service;
+    if (ledger == null || service == null || _disposed) {
+      return {'ran': false, 'why': 'unreadable'};
+    }
+    if (!ledger.enabled) {
+      // Off since the request was made: withdraw it.
+      unawaited(_syncSchedule());
+      return {'ran': false, 'why': 'off'};
+    }
+    if (!_signedIn) return {'ran': false, 'why': 'signedOut'};
+    await refreshAccess();
+    if (_access != SweepAccess.granted) {
+      return {'ran': false, 'why': 'access ${_access?.name}'};
+    }
+    _backgroundActive = true;
+    service.resume();
+    try {
+      await service.drainUploads();
+      var pass = await _pass(service);
+      // A library change during the pass asks for one more; the task's time
+      // is the place to run it.
+      while (_again && !service.halted && !_disposed) {
+        _again = false;
+        pass = await _pass(service);
+      }
+      return {'ran': true, 'pass': '$pass'};
+    } finally {
+      _backgroundActive = false;
+    }
+  }
+
+  /// The system took the background time back: stop at the next safe point,
+  /// and run nothing more until the app is back or a new task is granted.
+  @visibleForTesting
+  Future<void> backgroundExpire() async {
+    _again = false;
+    _settle?.cancel();
+    await _service?.expire();
+    _backgroundActive = false;
   }
 
   void _onSession() {
@@ -211,24 +328,32 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
       _again = true;
       return;
     }
-    service.sweep().then((pass) {
+    unawaited(_pass(service).whenComplete(() {
+      if (_again && !_disposed) {
+        _again = false;
+        kick();
+      }
+    }));
+  }
+
+  /// One pass (or the one already running), its refusal read back.
+  Future<SweepPass?> _pass(CameraSweepService service) async {
+    try {
+      final pass = await service.sweep();
       if (pass.refused != null) {
         _access = pass.refused!.access;
         _unwatch();
         if (!_disposed) notifyListeners();
       }
-    }, onError: (Object e) {
+      return pass;
+    } catch (e) {
       // A pass that could not enumerate at all (the bridge failed). Said in
       // its own words on both screens, never swallowed.
       service.presentFailure(
           e is PlatformException ? (e.message ?? e.code) : '$e',
           stopsSweep: true);
-    }).whenComplete(() {
-      if (_again && !_disposed) {
-        _again = false;
-        kick();
-      }
-    });
+      return null;
+    }
   }
 
   void _watch() {
@@ -259,7 +384,24 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed || !(_ledger?.enabled ?? false)) return;
+    final service = _service;
+    if (service == null) return;
+    if (state == AppLifecycleState.paused) {
+      // Away with no background task to finish in (S4): the pass stops at
+      // its next safe point — never between a session and its upload's
+      // hand-off — and none starts until the app is back. A library change
+      // that wakes the app is not a moment to run one.
+      if (!_backgroundActive) {
+        _again = false;
+        _settle?.cancel();
+        unawaited(service.expire());
+      }
+      return;
+    }
+    if (state != AppLifecycleState.resumed) return;
+    service.resume();
+    unawaited(service.drainUploads());
+    if (!(_ledger?.enabled ?? false)) return;
     // Back from the system settings (a grant, or a revocation), or from the
     // camera: read access again, and sweep if the library is readable.
     unawaited(refreshAccess().then((_) {
@@ -296,6 +438,7 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
     await ledger.setEnabled(true);
     _launched = _signedIn;
     notifyListeners();
+    unawaited(_syncSchedule());
     if (_signedIn) {
       _watch();
       kick();
@@ -312,6 +455,7 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
     _unwatch();
     _service?.stop();
     notifyListeners();
+    unawaited(_syncSchedule());
   }
 
   Future<void> setMode(SweepMode mode) async => _ledger?.setMode(mode);
@@ -358,6 +502,8 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     _disposed = true;
+    _background?.detach();
+    unawaited(_service?.close());
     _unwatch();
     _session?.removeListener(_onSession);
     if (_observing) WidgetsBinding.instance.removeObserver(this);

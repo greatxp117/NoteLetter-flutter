@@ -15,6 +15,15 @@ import FirebaseAuth
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // F-125 S4: the camera-roll sweep in the background. BGTaskScheduler
+    // requires the handler registered before launch finishes, and the upload
+    // session must exist before the system can hand this launch an earlier
+    // one's completions (ios/Runner/CameraSweep/SweepBackgroundTask.swift,
+    // CameraSweepUploader.swift). Neither asks for anything: the task is
+    // scheduled only while the sweep is on, by the Dart side.
+    SweepBackgroundTask.register()
+    _ = CameraSweepUploader.shared.session
+
     // The Firebase session lives in the SHARED keychain group, so the share
     // extension (ios/Share) signs in as whoever signed in here. It has to be
     // set before anything reads `Auth.auth()` — so Firebase is configured here,
@@ -39,6 +48,7 @@ import FirebaseAuth
     // side calls `requestAccess`, on the user turning the sweep on (spec §1).
     if let registrar = self.registrar(forPlugin: "NoteLetterCameraSweep") {
       CameraSweepChannel.register(with: registrar.messenger())
+      SweepBackgroundTask.connect(registrar.messenger())
     }
 
     // DEBUG only: where the share extension should send a debug build's
@@ -66,5 +76,21 @@ import FirebaseAuth
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  /// F-125 S4: the system woke or relaunched the app because the sweep's
+  /// background uploads finished. Without this, an upload that completes while
+  /// the app is suspended or dead is never acknowledged.
+  override func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    guard identifier == CameraSweepUploader.sessionIdentifier else {
+      return super.application(
+        application, handleEventsForBackgroundURLSession: identifier,
+        completionHandler: completionHandler)
+    }
+    CameraSweepUploader.shared.wokeForEvents(completionHandler)
   }
 }

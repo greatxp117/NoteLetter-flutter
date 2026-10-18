@@ -40,9 +40,11 @@
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		75C7A156FDF5E56DF527BCFE /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 24915520A127A77A6AAADC32 /* GoogleService-Info.plist */; };
 		7A3A93A32C2718C242D3D6E1 /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7811002885D98DA14D008B3 /* PrimaryButton.swift */; };
+		80B1DC0C014C587E58A6E35B /* CameraSweepUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47CE87A66C84E4E38B3D838 /* CameraSweepUploader.swift */; };
 		837BCB3BD7B801B910A88A85 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8199AB33C50CB55D189F0231 /* Pods_RunnerTests.framework */; };
 		84805B386198FDDF3C06D995 /* UploadClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC32BC417E9EC8FBC8EAE64 /* UploadClient.swift */; };
 		8DC56CCA615AD3E8354D1CDE /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8358B1EBE484ED3D67081A56 /* ShareViewController.swift */; };
+		947CC27835503299CF3864F7 /* SweepBackgroundTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70428430DCB77CC8881C1982 /* SweepBackgroundTask.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
@@ -54,9 +56,12 @@
 		B5BDCCEE0924899DDB04E7E5 /* AssetPrefilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FC6336D3239F09E38D649F /* AssetPrefilter.swift */; };
 		B81C6DDB4762ABAB6E8A9C76 /* CameraSweepBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F423D7EEDA8D29D39E42453 /* CameraSweepBridgeTests.swift */; };
 		C040BB42E7F5A25D8A8702B5 /* AssetPrefilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FC6336D3239F09E38D649F /* AssetPrefilter.swift */; };
+		D17604F72BBBAC53A31027BE /* SweepBackgroundTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70428430DCB77CC8881C1982 /* SweepBackgroundTask.swift */; };
 		D7938F4B08CF456E3C60FF38 /* CameraSweepChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FFEDEC5ACAED50793FFCE9 /* CameraSweepChannel.swift */; };
 		DC934A67AED4EA433ED63785 /* Geist-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 2F77BB36321259A3F7FED400 /* Geist-SemiBold.ttf */; };
+		E406A1E0E68B9A66C71BD304 /* CameraSweepUploaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37084CAA453218C2A3E5FD01 /* CameraSweepUploaderTests.swift */; };
 		E42CEDD9425557E40B39D73B /* PhotoLibraryAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D76B672C99892DAF4ABDC8B /* PhotoLibraryAccess.swift */; };
+		E5BF055363D93926F21F280F /* CameraSweepUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47CE87A66C84E4E38B3D838 /* CameraSweepUploader.swift */; };
 		EAF77AD19D173D3820C68F8B /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 24915520A127A77A6AAADC32 /* GoogleService-Info.plist */; };
 		F1C03AE535FDC7D34A3A45AA /* Geist-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 996138E6C814DB3B69F53DE6 /* Geist-Medium.ttf */; };
 		F31F317A3156033DCBD0F0D3 /* EmulatorConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240D8DDFDCB5EAC2312A36A5 /* EmulatorConfig.swift */; };
@@ -130,6 +135,7 @@
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		362AA6BDD3185E12255601F6 /* ShareProfile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = ShareProfile.xcconfig; path = Flutter/ShareProfile.xcconfig; sourceTree = "<group>"; };
+		37084CAA453218C2A3E5FD01 /* CameraSweepUploaderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraSweepUploaderTests.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		41051DD8400D5162925F4BF1 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		59E2FC820A02DFEDAC648F30 /* Share.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Share.entitlements; sourceTree = "<group>"; };
@@ -139,6 +145,7 @@
 		694AADE55436867BACBAA5B1 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		6D76B672C99892DAF4ABDC8B /* PhotoLibraryAccess.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoLibraryAccess.swift; sourceTree = "<group>"; };
 		6E62178DEA3DD9E7C145908A /* Typography.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		70428430DCB77CC8881C1982 /* SweepBackgroundTask.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SweepBackgroundTask.swift; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		785A3BA8862EB04071AC5A75 /* Pods-Share.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Share.release.xcconfig"; path = "Target Support Files/Pods-Share/Pods-Share.release.xcconfig"; sourceTree = "<group>"; };
@@ -166,6 +173,7 @@
 		AE83F48CA297A4EE2B91FA2F /* KitFailure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KitFailure.swift; sourceTree = "<group>"; };
 		B1ABE32F42B341C29969BAFC /* GeistMono-Medium.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "GeistMono-Medium.ttf"; sourceTree = "<group>"; };
 		B29D92F0C8943A688A480119 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		B47CE87A66C84E4E38B3D838 /* CameraSweepUploader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraSweepUploader.swift; sourceTree = "<group>"; };
 		C5ED4CD59C5E39AB2A30F4B6 /* Pods-Share.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Share.debug.xcconfig"; path = "Target Support Files/Pods-Share/Pods-Share.debug.xcconfig"; sourceTree = "<group>"; };
 		CA7647936C6305C0DEA8ACB3 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		CC63423DEE4EA0FFB8B09762 /* ShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareView.swift; sourceTree = "<group>"; };
@@ -249,6 +257,7 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 				EB8773D4273F7E2CB38E1E5D /* ShareActivationRuleTests.swift */,
 				9F423D7EEDA8D29D39E42453 /* CameraSweepBridgeTests.swift */,
+				37084CAA453218C2A3E5FD01 /* CameraSweepUploaderTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -343,6 +352,8 @@
 				E9FC6336D3239F09E38D649F /* AssetPrefilter.swift */,
 				6D76B672C99892DAF4ABDC8B /* PhotoLibraryAccess.swift */,
 				D4FFEDEC5ACAED50793FFCE9 /* CameraSweepChannel.swift */,
+				B47CE87A66C84E4E38B3D838 /* CameraSweepUploader.swift */,
+				70428430DCB77CC8881C1982 /* SweepBackgroundTask.swift */,
 			);
 			name = CameraSweep;
 			path = CameraSweep;
@@ -742,6 +753,9 @@
 				68F7C565E29533D5D06237DF /* PhotoLibraryAccess.swift in Sources */,
 				D7938F4B08CF456E3C60FF38 /* CameraSweepChannel.swift in Sources */,
 				B81C6DDB4762ABAB6E8A9C76 /* CameraSweepBridgeTests.swift in Sources */,
+				E5BF055363D93926F21F280F /* CameraSweepUploader.swift in Sources */,
+				947CC27835503299CF3864F7 /* SweepBackgroundTask.swift in Sources */,
+				E406A1E0E68B9A66C71BD304 /* CameraSweepUploaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -755,6 +769,8 @@
 				C040BB42E7F5A25D8A8702B5 /* AssetPrefilter.swift in Sources */,
 				E42CEDD9425557E40B39D73B /* PhotoLibraryAccess.swift in Sources */,
 				B1DBBA698E10B0C3E76604E9 /* CameraSweepChannel.swift in Sources */,
+				80B1DC0C014C587E58A6E35B /* CameraSweepUploader.swift in Sources */,
+				D17604F72BBBAC53A31027BE /* SweepBackgroundTask.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

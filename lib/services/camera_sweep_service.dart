@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'api_service.dart';
 import 'camera_sweep_bridge.dart';
 import 'firestore_service.dart';
 import 'sweep_ledger.dart';
+import 'sweep_uploader.dart';
 
 /// The camera-roll sweep (F-125 S2; INV-14, `spec/features/camera-roll-sweep.md`),
 /// ported from the retired Swift app's `CameraSweepService.swift` and
@@ -28,19 +30,29 @@ import 'sweep_ledger.dart';
 ///
 /// The screens are S3's (`lib/pages/settings/camera_sweep_page.dart`,
 /// `lib/pages/sources/sweep_tray.dart`), and so is what starts a pass in the
-/// foreground (`lib/state/camera_sweep_host.dart`). Not here yet: the
-/// background task and background uploads (S4). The PUT is foreground and
-/// awaited until S4.
+/// foreground (`lib/state/camera_sweep_host.dart`), which also answers S4's
+/// background task.
+///
+/// **Uploads are background uploads (S4, [SweepUploader]).** A photo is
+/// recorded `ingested` only when its bytes LANDED — the uploader's result,
+/// in this launch or a later one — or when the server already had them.
+/// Between a capture session and its upload's hand-off nothing can stop a
+/// photo: [expire] waits for that step, the native side holds the app awake
+/// through it, and a session is never opened once a pass has been told to
+/// stop. So background time running out never marks a photo done and never
+/// leaves a document that no upload is coming for.
 class CameraSweepService extends ChangeNotifier {
   CameraSweepService({
     required this.bridge,
     required this.ledger,
     required this.endpoints,
+    required this.uploader,
   });
 
   final CameraSweepBridge bridge;
   final SweepLedger ledger;
   final SweepEndpoints endpoints;
+  final SweepUploader uploader;
 
   /// The first backfill is bounded, and so is every pass: a roll full of
   /// screenshots is the EXPENSIVE case for this pipeline (each
@@ -72,6 +84,19 @@ class CameraSweepService extends ChangeNotifier {
   /// when a request was merely sent (Swift D5).
   int _ingestedThisSession = 0;
   int get ingestedThisSession => _ingestedThisSession;
+
+  /// Uploads this launch handed off whose result has not come back, by
+  /// `localIdentifier`.
+  final Map<String, _Upload> _uploads = {};
+  int get uploadsInFlight => _uploads.length;
+
+  /// Uploads an EARLIER launch handed off that the system still holds: a
+  /// pass does not start a second upload of their photos.
+  Set<String> _inFlightElsewhere = {};
+
+  /// Results already counted, so a result read twice (its acknowledgement
+  /// did not land) is counted once.
+  final Set<String> _counted = {};
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
@@ -154,6 +179,21 @@ class CameraSweepService extends ChangeNotifier {
 
   Future<SweepPass>? _running;
   bool _cancelled = false;
+  Completer<void>? _stopped;
+
+  /// No pass starts while this is set: background time ran out, or the app
+  /// left the foreground with no background task to finish in. [resume]
+  /// lifts it (the app is back, or iOS granted a background task).
+  bool _halted = false;
+  bool get halted => _halted;
+
+  /// The steps between a capture session and its upload's hand-off now in
+  /// progress — what [expire] waits for.
+  final Set<Future<void>> _handOffs = {};
+
+  /// How long [expire] waits for a hand-off in progress. The native task
+  /// completes 3 s after expiry whatever happens here.
+  static const expiryGrace = Duration(seconds: 2);
 
   /// Runs the sweep only if the user turned it on and the library is fully
   /// readable; otherwise does nothing. Safe on every launch and sign-in.
@@ -163,11 +203,14 @@ class CameraSweepService extends ChangeNotifier {
     return sweep();
   }
 
-  /// One pass. A second call while one runs gets the running one.
+  /// One pass. A second call while one runs gets the running one; while
+  /// [halted], none runs.
   Future<SweepPass> sweep() {
     final running = _running;
     if (running != null) return running;
+    if (_halted) return Future.value(SweepPass()..halted = true);
     _cancelled = false;
+    _stopped = Completer<void>();
     _isSweeping = true;
     _errorMessage = null;
     _errorStoppedSweep = false;
@@ -181,14 +224,42 @@ class CameraSweepService extends ChangeNotifier {
     return _running = pass;
   }
 
-  /// Stops the pass at the next asset.
+  /// Stops the pass at the next asset. Uploads already handed off carry on.
   void stop() {
     _cancelled = true;
+    final stopped = _stopped;
+    if (stopped != null && !stopped.isCompleted) stopped.complete();
+  }
+
+  /// Background time ran out (S4), or the app left the foreground with no
+  /// background task: stop at the next safe point and start nothing until
+  /// [resume]. Returns once any capture session in flight has handed its
+  /// upload off — the one step that must not be cut in two, or a document
+  /// would wait for bytes no upload is bringing — or after [grace].
+  ///
+  /// It records nothing: a photo whose upload is on its way is recorded when
+  /// the bytes land, whenever that is.
+  Future<void> expire({Duration grace = expiryGrace}) async {
+    _halted = true;
+    stop();
+    if (_handOffs.isEmpty) return;
+    await Future.wait(List.of(_handOffs)).timeout(grace, onTimeout: () => const []);
+  }
+
+  /// Passes may run again.
+  void resume() {
+    _halted = false;
   }
 
   Future<SweepPass> _runSweep() async {
     final pass = SweepPass();
     try {
+      // Which photos already have an upload on its way — first, so that one
+      // finishing between the two reads is caught by the drain below.
+      await _refreshInFlight();
+      // A result that came back while the app was away is recorded before
+      // the walk, so its photo is skipped, not examined again.
+      await drainUploads();
       final version = (await bridge.constants()).prefilterVersion;
       // One newest-first walk covers both passes: photos taken since the
       // last run sort to the front, and everything the ledger has a standing
@@ -201,11 +272,31 @@ class CameraSweepService extends ChangeNotifier {
         // Ran out of work before the cap: nothing older is waiting.
         await ledger.setBackfillComplete(true);
       }
+      // An automatic pass ends when what it sent has landed or failed, so
+      // its counts are outcomes — unless it was stopped: an upload outlives
+      // the pass that started it, and is recorded whenever it lands.
+      if (pass._landings.isNotEmpty) {
+        await Future.any([Future.wait(pass._landings), _stopped!.future]);
+      }
     } on SweepAccessRefused catch (e) {
       _accessRefused = e;
       pass.refused = e;
     }
     return pass;
+  }
+
+  Future<void> _refreshInFlight() async {
+    try {
+      _inFlightElsewhere = {
+        for (final u in await uploader.inFlight())
+          if (!_uploads.containsKey(u.localIdentifier)) u.localIdentifier,
+      };
+    } catch (e) {
+      // Said, not swallowed. Without it a pass may upload a photo whose
+      // earlier upload is still on its way: the same bytes to the same
+      // object, under the one document the asset key allows (INV-14).
+      debugPrint('camera sweep: the uploads in flight could not be read ($e)');
+    }
   }
 
   /// The walk both the pass and the dry run take. [onAsset] runs for each
@@ -229,6 +320,13 @@ class CameraSweepService extends ChangeNotifier {
         // A burst contributes only its representative frame (spec §8).
         if (!asset.isRepresentative) {
           tally.nonRepresentative++;
+          continue;
+        }
+        // Its upload is on its way (S4): recorded when it lands, never sent
+        // twice.
+        if (_uploads.containsKey(asset.localIdentifier) ||
+            _inFlightElsewhere.contains(asset.localIdentifier)) {
+          tally.inFlight++;
           continue;
         }
         if (!ledger.needsExamination(asset.localIdentifier,
@@ -278,15 +376,31 @@ class CameraSweepService extends ChangeNotifier {
           _candidates.add(asset);
           pass.toTray++;
         } else {
-          final sentence = await _ingest(asset);
-          if (sentence == null) {
-            pass.ingested++;
-          } else {
-            pass.failed[asset.localIdentifier] = sentence;
-            // Nobody is looking at a tray, so the sentence goes to the
-            // screen's own alert — and it did not stop the sweep, unless the
-            // dedupe branch said so.
+          final id = asset.localIdentifier;
+          // Nobody is looking at a tray, so a refusal goes to the screen's
+          // own alert — and it did not stop the sweep, unless the dedupe
+          // branch said so.
+          void failed(String sentence) {
+            pass.failed[id] = sentence;
             if (!_errorStoppedSweep) presentFailure(sentence, stopsSweep: false);
+          }
+
+          switch (await _ingest(asset, fromPass: true)) {
+            case _Landed():
+              pass.ingested++;
+            case _Refused(:final sentence):
+              failed(sentence);
+            case _NotStarted():
+              break;
+            case _Uploading(:final landed):
+              pass.uploading++;
+              pass._landings.add(landed.then((sentence) {
+                if (sentence == null) {
+                  pass.ingested++;
+                } else {
+                  failed(sentence);
+                }
+              }));
           }
         }
     }
@@ -309,21 +423,42 @@ class CameraSweepService extends ChangeNotifier {
 
   // ── Review actions ─────────────────────────────────────────────────────────
 
-  /// The card leaves the tray only once the photo is in (Swift D5). On a
-  /// refusal it stays, carrying the reason.
-  Future<void> approve(SweepAsset asset) async {
-    _candidateErrors.remove(asset.localIdentifier);
-    notifyListeners();
-    record(await _ingest(asset), asset.localIdentifier);
-  }
+  /// The card leaves the tray only once the photo is in — its upload LANDED,
+  /// or the server already had it (Swift D5; S4 keeps it there through a
+  /// background upload, where Swift let it go at the hand-off). On a refusal
+  /// it stays, carrying the reason.
+  Future<void> approve(SweepAsset asset) async => (await _handOffCard(asset)).settled;
 
   /// A snapshot, because settling mutates the tray. One refusal costs one
-  /// photo; a refusal that ends the sweep ends this too.
+  /// photo; a refusal that ends the sweep ends this too. Each session is
+  /// still opened immediately before its own upload starts (spec §5); the
+  /// uploads then land side by side, rather than one after another.
   Future<void> approveAll() async {
+    final settling = <Future<void>>[];
     for (final asset in List.of(_candidates)) {
-      if (_errorStoppedSweep) return;
-      await approve(asset);
+      if (_errorStoppedSweep) break;
+      settling.add((await _handOffCard(asset)).settled);
     }
+    await Future.wait(settling);
+  }
+
+  /// Opens the card's session and hands its upload off; what it returns
+  /// says when the card is settled.
+  Future<_Card> _handOffCard(SweepAsset asset) async {
+    final id = asset.localIdentifier;
+    _candidateErrors.remove(id);
+    notifyListeners();
+    switch (await _ingest(asset, fromPass: false)) {
+      case _Landed():
+        record(null, id);
+      case _Refused(:final sentence):
+        record(sentence, id);
+      case _NotStarted():
+        break;
+      case _Uploading(:final landed):
+        return _Card(landed.then((sentence) => record(sentence, id)));
+    }
+    return _Card(Future<void>.value());
   }
 
   /// Client-local and permanent for that asset. Nothing is sent, which is why
@@ -338,82 +473,207 @@ class CameraSweepService extends ChangeNotifier {
 
   // ── Ingest ─────────────────────────────────────────────────────────────────
 
-  /// Null when the photo is in (the bytes landed, or the server already had
-  /// them); otherwise the sentence saying why not. It sets [errorMessage]
-  /// only where the failure ends the whole sweep: who renders a refusal
-  /// depends on who asked for it, a card or the automatic pass's alert.
-  Future<String?> _ingest(SweepAsset asset) async {
+  /// What became of one photo: in already, on its way, refused (with the
+  /// sentence), or — a pass told to stop — not started. It sets
+  /// [errorMessage] only where the failure ends the whole sweep: who renders
+  /// a refusal depends on who asked for it, a card or the automatic pass's
+  /// alert.
+  ///
+  /// The order is the server's consistency (S4): render and STAGE the bytes,
+  /// then — the last point at which stopping costs nothing — check the pass
+  /// may go on, then open the session and hand its upload off, as one step
+  /// [expire] waits for. A session is never opened for bytes that are not
+  /// already staged, and never left without its upload.
+  Future<_Ingest> _ingest(SweepAsset asset, {required bool fromPass}) async {
     final id = asset.localIdentifier;
+    final already = _uploads[id];
+    if (already != null) return _Uploading(already.landed.future);
+    String? staged;
     try {
       final rendered = await bridge.renderedJpeg(id);
       if (rendered == null) {
         await ledger.record(LedgerVerdict.deferredNotLocal, id);
-        return iCloudSentence;
+        return const _Refused(iCloudSentence);
       }
-      final bytes = await _take(rendered);
-      // Requested immediately before the PUT: the signed URL lasts 15
-      // minutes, so sessions are never taken out ahead of time.
-      final session = CaptureSession.fromResponse(await endpoints.openSession(
-        assetKey: asset.assetKey,
-        filename: uploadFilename(asset),
-        mimeType: uploadMimeType,
-        size: bytes.length,
-        capturedAt: capturedAt(asset),
-      ));
-      final url = session.uploadUrl;
-      if (url != null) {
+      final stage = await uploader.stage(rendered.path);
+      staged = stage.uploadId;
+      if (fromPass && _cancelled) return const _NotStarted();
+      final handOff = Completer<void>();
+      _handOffs.add(handOff.future);
+      try {
+        // Requested immediately before the upload: the signed URL lasts 15
+        // minutes, so sessions are never taken out ahead of time.
+        final session = CaptureSession.fromResponse(await endpoints.openSession(
+          assetKey: asset.assetKey,
+          filename: uploadFilename(asset),
+          mimeType: uploadMimeType,
+          size: stage.bytes,
+          capturedAt: capturedAt(asset),
+        ));
+        final url = session.uploadUrl;
+        if (url == null) {
+          // `uploadUrl: null` is the bytes having already landed: record and
+          // move on — the whole point of the server-side key.
+          await ledger.record(LedgerVerdict.ingested, id);
+          _ingestedThisSession++;
+          notifyListeners();
+          return const _Landed();
+        }
         // A fresh session, or a replay whose document never received bytes
         // (`pending_upload`/`error`): upload against it (spec §6). Skipping
         // the replay's URL would strand the document at pending_upload.
+        final upload = _Upload(stage.uploadId);
+        _uploads[id] = upload;
         try {
-          await endpoints.putSigned(url, bytes, uploadMimeType);
-        } on ApiException catch (e) {
-          // Nothing is recorded, so the next pass examines the photo again
-          // and the replay hands back a fresh link.
-          return uploadFailureSentence(
-            statusCode: e.statusCode,
-            transportError: e.statusCode == 0 ? e.message : null,
+          await uploader.start(
+            uploadId: stage.uploadId,
+            url: url,
+            mimeType: uploadMimeType,
+            localIdentifier: id,
+            assetKey: asset.assetKey,
           );
+        } catch (_) {
+          _uploads.remove(id);
+          rethrow;
         }
+        staged = null; // the uploader's now; its completion deletes it
+        notifyListeners();
+        return _Uploading(upload.landed.future);
+      } finally {
+        handOff.complete();
+        _handOffs.remove(handOff.future);
       }
-      // `uploadUrl: null` is the bytes having already landed: record and move
-      // on — the whole point of the server-side key.
-      await ledger.record(LedgerVerdict.ingested, id);
-      _ingestedThisSession++;
-      notifyListeners();
-      return null;
     } on DedupeUnsupported catch (e) {
       // The one failure that ends the sweep: continuing would re-ingest the
       // library, one duplicate at a time, with no request failing.
       presentFailure(e.sentence, stopsSweep: true);
       stop();
-      return e.sentence;
+      return _Refused(e.sentence);
     } on SweepAccessRefused catch (e) {
       _accessRefused = e;
       stop();
-      return e.sentence;
+      return _Refused(e.sentence);
     } on ApiException catch (e) {
-      return e.message;
+      return _Refused(e.message);
     } on FormatException catch (e) {
-      return e.message;
+      return _Refused(e.message);
     } on PlatformException catch (e) {
       // The bridge could not render the photo (deleted since the pass found
-      // it, or a write failed): its own words, as an envelope's are.
-      return e.message ?? e.code;
+      // it, or a write failed), or the uploader could not take it: its own
+      // words, as an envelope's are. Nothing is recorded, so the next pass
+      // offers it again — and a session already opened hands back its link.
+      return _Refused(e.message ?? e.code);
+    } finally {
+      if (staged != null) await _discard(staged);
     }
   }
 
-  /// The rendered file's bytes, and the file gone: it is a temporary copy.
-  static Future<Uint8List> _take(SweepRendered rendered) async {
-    final file = File(rendered.path);
+  Future<void> _discard(String uploadId) async {
     try {
-      return await file.readAsBytes();
-    } finally {
+      await uploader.discard(uploadId);
+    } catch (e) {
+      // A temporary file left behind costs disk, never a photo.
+      debugPrint('camera sweep: a staged upload could not be deleted ($e)');
+    }
+  }
+
+  // ── Upload results (S4) ────────────────────────────────────────────────────
+
+  StreamSubscription<void>? _resultsWaiting;
+
+  /// Listens for upload results, and records any that came back while
+  /// nobody listened — the app was suspended, or not running at all.
+  Future<void> attachUploads() {
+    _resultsWaiting ??= uploader.resultsWaiting.listen(
+      (_) => unawaited(drainUploads()),
+      onError: (Object e) => debugPrint('camera sweep: upload results stopped ($e)'),
+    );
+    return drainUploads();
+  }
+
+  Future<void> close() async {
+    await _resultsWaiting?.cancel();
+    _resultsWaiting = null;
+  }
+
+  Future<void>? _draining;
+  bool _drainAgain = false;
+
+  /// Records every upload result waiting, then acknowledges it. A result
+  /// whose ledger write fails is NOT acknowledged, so the next drain records
+  /// it.
+  Future<void> drainUploads() {
+    final running = _draining;
+    if (running != null) {
+      _drainAgain = true;
+      return running;
+    }
+    return _draining = _drain().whenComplete(() => _draining = null);
+  }
+
+  Future<void> _drain() async {
+    do {
+      _drainAgain = false;
+      final List<SweepUploadResult> results;
       try {
-        await file.delete();
-      } on FileSystemException {
-        // Already gone; the system clears tmp/ anyway.
+        results = await uploader.finished();
+      } catch (e) {
+        debugPrint('camera sweep: upload results could not be read ($e)');
+        return;
       }
+      final recorded = <String>[];
+      for (final r in results) {
+        if (await _settleUpload(r)) recorded.add(r.uploadId);
+      }
+      if (recorded.isEmpty) continue;
+      try {
+        await uploader.acknowledge(recorded);
+      } catch (e) {
+        // Read again next time, and counted once (_counted).
+        debugPrint('camera sweep: upload results could not be acknowledged ($e)');
+      }
+    } while (_drainAgain);
+  }
+
+  /// One result: landed is `ingested` in the ledger; anything else is the
+  /// Swift uploader's sentence, on the card that asked or — automatic, or a
+  /// result from an earlier launch — the screen's alert. true once recorded.
+  Future<bool> _settleUpload(SweepUploadResult r) async {
+    final id = r.localIdentifier;
+    final mine = _uploads[id]?.uploadId == r.uploadId ? _uploads.remove(id) : null;
+    if (mine == null) _inFlightElsewhere.remove(id);
+    if (r.ok) {
+      var recorded = true;
+      try {
+        await ledger.record(LedgerVerdict.ingested, id);
+        if (_counted.add(r.uploadId)) _ingestedThisSession++;
+      } catch (e) {
+        // The photo IS in; only this phone's note of it is missing. Left
+        // unacknowledged, so the next drain writes it — and if it never
+        // does, the next pass asks the server, which answers "already here".
+        debugPrint('camera sweep: ${r.uploadId} landed, but the ledger could not record it ($e)');
+        recorded = false;
+      }
+      mine?.landed.complete(null);
+      notifyListeners();
+      return recorded;
+    }
+    final sentence = uploadFailureSentence(statusCode: r.statusCode, transportError: r.error);
+    if (mine != null) {
+      mine.landed.complete(sentence);
+    } else {
+      presentFailure(sentence, stopsSweep: false);
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// A rendered copy the dry run measured, deleted: it is temporary.
+  static Future<void> _drop(SweepRendered rendered) async {
+    try {
+      await File(rendered.path).delete();
+    } on FileSystemException {
+      // Already gone; the system clears tmp/ anyway.
     }
   }
 
@@ -486,7 +746,8 @@ class CameraSweepService extends ChangeNotifier {
             outcome = DryRunOutcome.wouldDefer;
             break;
           }
-          bytes = (await _take(rendered)).length;
+          bytes = rendered.bytes;
+          await _drop(rendered);
           match = await endpoints.findCapture(asset.assetKey);
           outcome = match == null
               ? (_toTray ? DryRunOutcome.wouldHoldForReview : DryRunOutcome.wouldCreate)
@@ -533,8 +794,8 @@ class CameraSweepService extends ChangeNotifier {
 }
 
 /// What the sweep needs from the network, as one seam: the session
-/// (`Api.createCaptureSession`), the bare signed PUT (INV-08: no
-/// Authorization header), and the dry run's read.
+/// (`Api.createCaptureSession`) and the "already in NoteLetter" read. The
+/// bare signed PUT is the background uploader's (S4, [SweepUploader]).
 abstract class SweepEndpoints {
   Future<Map<String, dynamic>> openSession({
     required String assetKey,
@@ -544,15 +805,11 @@ abstract class SweepEndpoints {
     DateTime? capturedAt,
   });
 
-  Future<void> putSigned(String url, Uint8List bytes, String mimeType);
-
   Future<CaptureMatch?> findCapture(String assetKey);
 }
 
 /// The real ones: the session through `Api` (every request is built in
-/// `api.dart`), the bare PUT through [ApiService.putBytes] (no Authorization
-/// header, the declared Content-Type — INV-08, as the image-set upload does),
-/// and the dry run's read through [FirestoreService.findCapture].
+/// `api.dart`), and the read through [FirestoreService.findCapture].
 class LiveSweepEndpoints implements SweepEndpoints {
   const LiveSweepEndpoints();
 
@@ -571,10 +828,6 @@ class LiveSweepEndpoints implements SweepEndpoints {
         size: size,
         capturedAt: capturedAt,
       );
-
-  @override
-  Future<void> putSigned(String url, Uint8List bytes, String mimeType) =>
-      ApiService.instance.putBytes(url, bytes, mimeType);
 
   @override
   Future<CaptureMatch?> findCapture(String assetKey) =>
@@ -657,6 +910,9 @@ abstract class SweepTally {
   /// Skipped: a burst frame the system did not pick.
   int nonRepresentative = 0;
 
+  /// Skipped: its upload is on its way (S4).
+  int inFlight = 0;
+
   /// Set when the library was not fully readable; nothing was enumerated.
   SweepAccessRefused? refused;
 }
@@ -669,16 +925,73 @@ class SweepPass extends SweepTally {
 
   /// Already in the tray from an earlier pass: counted, not examined again.
   int held = 0;
+
+  /// In: landed, or already on the server. Automatic mode.
   int ingested = 0;
+
+  /// Handed to the background uploader (automatic mode). Each then lands
+  /// ([ingested]) or fails ([failed]) — before the pass ends, unless it was
+  /// stopped.
+  int uploading = 0;
+
+  /// Nothing ran: the sweep was halted (background time ran out, or the app
+  /// is away with no background task).
+  bool halted = false;
 
   /// Automatic mode's refusals, by `localIdentifier`.
   final Map<String, String> failed = {};
 
+  final List<Future<void>> _landings = [];
+
   @override
   String toString() => 'SweepPass(handled $handled, settled $settled, '
-      'nonRepresentative $nonRepresentative, noText $noText, deferred $deferred, '
-      'toTray $toTray, held $held, ingested $ingested, failed ${failed.length}'
+      'nonRepresentative $nonRepresentative, inFlight $inFlight, noText $noText, '
+      'deferred $deferred, toTray $toTray, held $held, uploading $uploading, '
+      'ingested $ingested, failed ${failed.length}'
+      '${halted ? ', halted' : ''}'
       '${refused == null ? '' : ', refused ${refused!.access.name}'})';
+}
+
+/// A card handed off; [settled] completes once it left the tray or kept its
+/// sentence.
+class _Card {
+  const _Card(this.settled);
+  final Future<void> settled;
+}
+
+/// An upload this launch handed off.
+class _Upload {
+  _Upload(this.uploadId);
+  final String uploadId;
+
+  /// null when it landed; the sentence when it did not.
+  final Completer<String?> landed = Completer<String?>();
+}
+
+/// What became of one photo's ingest.
+sealed class _Ingest {
+  const _Ingest();
+}
+
+/// In: the server already had its bytes, and the ledger says so.
+class _Landed extends _Ingest {
+  const _Landed();
+}
+
+/// On its way; [landed] says how it ended.
+class _Uploading extends _Ingest {
+  const _Uploading(this.landed);
+  final Future<String?> landed;
+}
+
+class _Refused extends _Ingest {
+  const _Refused(this.sentence);
+  final String sentence;
+}
+
+/// A pass told to stop, before anything was sent.
+class _NotStarted extends _Ingest {
+  const _NotStarted();
 }
 
 enum DryRunOutcome {

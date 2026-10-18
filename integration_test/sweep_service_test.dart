@@ -16,16 +16,15 @@
 //     real-phone check for photos the Swift app swept.
 //
 // NOT proven here: a PUT to a REAL signed URL. The shim's "signed" URL is the
-// storage emulator's download URL, which takes no PUT, so [_EmulatorUpload]
-// sends the same bytes to the emulator's own upload route for the same
-// object. The storage trigger does not run either (no functions emulator),
-// so a filed document stays `pending_upload`.
+// storage emulator's download URL, which takes no PUT, so the session's link
+// is swapped for a resumable upload the emulator opens for the same object
+// (sweep_emulator_upload.dart); since S4 the app's own background uploader
+// sends the bytes there. The storage trigger does not run either (no
+// functions emulator), so a filed document stays `pending_upload`.
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
-import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -33,10 +32,12 @@ import 'package:flutter_app/firebase_options.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/camera_sweep_bridge.dart';
 import 'package:flutter_app/services/camera_sweep_service.dart';
-import 'package:flutter_app/services/firestore_service.dart' show CaptureMatch;
 import 'package:flutter_app/services/sweep_ledger.dart';
+import 'package:flutter_app/services/sweep_uploader.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+
+import 'sweep_emulator_upload.dart';
 
 const seedEmail = 'seed@noteletter.test';
 const seedPassword = 'seed-password-1';
@@ -49,91 +50,6 @@ final _since = DateTime.utc(2026, 9, 1);
 /// The backend's deterministic id (spec/api/uploads.md; INV-14).
 String _camId(String uid, String key) =>
     'cam-${sha256.convert(utf8.encode('$uid|camera_roll|$key')).toString().substring(0, 32)}';
-
-/// The live endpoints, counted; the PUT goes to the storage EMULATOR's upload
-/// route for the object the shim's URL names, and nowhere else.
-class _Counted implements SweepEndpoints {
-  _Counted(this.live);
-  final SweepEndpoints live;
-  final List<String> sessions = [];
-  final List<(String, int)> puts = [];
-  final List<String> finds = [];
-
-  @override
-  Future<Map<String, dynamic>> openSession({
-    required String assetKey,
-    required String filename,
-    required String mimeType,
-    required int size,
-    DateTime? capturedAt,
-  }) {
-    sessions.add(assetKey);
-    return live.openSession(
-        assetKey: assetKey,
-        filename: filename,
-        mimeType: mimeType,
-        size: size,
-        capturedAt: capturedAt);
-  }
-
-  @override
-  Future<void> putSigned(String url, Uint8List bytes, String mimeType) async {
-    await _EmulatorUpload.put(url, bytes, mimeType);
-    puts.add((url, bytes.length));
-  }
-
-  @override
-  Future<CaptureMatch?> findCapture(String assetKey) {
-    finds.add(assetKey);
-    return live.findCapture(assetKey);
-  }
-}
-
-class _EmulatorUpload {
-  static final _dio = Dio();
-
-  /// `http://localhost:<port>/storage/v1/b/<bucket>/o/<object>?alt=media`
-  /// (dev_server.py's stand-in) → (origin, bucket, object). Anything else is
-  /// refused: this must never send bytes to a real bucket.
-  static (String, String, String) parse(String url) {
-    final u = Uri.parse(url);
-    final s = u.pathSegments;
-    if (!(u.host == 'localhost' || u.host == '127.0.0.1') ||
-        s.length != 6 ||
-        s[0] != 'storage' ||
-        s[1] != 'v1' ||
-        s[2] != 'b' ||
-        s[4] != 'o') {
-      throw StateError('not the storage emulator\'s URL: $url');
-    }
-    return ('${u.scheme}://${u.host}:${u.port}', s[3], s[5]);
-  }
-
-  static Future<void> put(String url, Uint8List bytes, String mimeType) async {
-    final (origin, bucket, object) = parse(url);
-    await _dio.post(
-      '$origin/upload/storage/v1/b/$bucket/o',
-      queryParameters: {'uploadType': 'media', 'name': object},
-      data: Stream.fromIterable([bytes]),
-      options: Options(headers: {
-        'Content-Type': mimeType,
-        'Content-Length': bytes.length,
-      }),
-    );
-  }
-
-  /// The stored object's size, or null.
-  static Future<int?> size(String url) async {
-    final (origin, bucket, object) = parse(url);
-    final r = await _dio.get(
-      '$origin/storage/v1/b/$bucket/o/${Uri.encodeComponent(object)}',
-      options: Options(validateStatus: (_) => true),
-    );
-    if (r.statusCode != 200) return null;
-    final m = r.data is String ? jsonDecode(r.data as String) : r.data;
-    return int.tryParse('${(m as Map)['size']}');
-  }
-}
 
 Future<Map<String, Object?>> _ledgerState(SweepLedgerStore store) =>
     store.read(SweepLedger.keys);
@@ -181,8 +97,11 @@ void main() {
     await ledger.setBackfillStart(_since);
 
     final live = const LiveSweepEndpoints();
-    final ep = _Counted(live);
-    var svc = CameraSweepService(bridge: bridge, ledger: ledger, endpoints: ep);
+    final ep = EmulatorPutStandIn(live);
+    final uploader = NativeSweepUploader();
+    var svc = CameraSweepService(
+        bridge: bridge, ledger: ledger, endpoints: ep, uploader: uploader);
+    await svc.attachUploads();
     final before = await _captures(uid);
     debugPrint('sweep: ${before.length} capture document(s) before');
 
@@ -196,7 +115,7 @@ void main() {
     expect(dry1.refused, isNull);
     expect(await _ledgerState(store), state, reason: 'the dry run wrote the ledger');
     expect(ep.sessions, isEmpty, reason: 'the dry run opened a capture session');
-    expect(ep.puts, isEmpty);
+    expect(ep.uploads, isEmpty);
     expect(svc.candidates, isEmpty, reason: 'the dry run touched the tray');
     expect((await _captures(uid)).length, before.length,
         reason: 'the dry run filed something');
@@ -220,13 +139,13 @@ void main() {
     final tray = svc.candidates.map((a) => a.localIdentifier).toList();
     await svc.approveAll();
     debugPrint('sweep: approved ${tray.length}; sessions ${ep.sessions.length}, '
-        'puts ${ep.puts.length}, errors ${svc.candidateErrors}');
+        'puts ${ep.uploads.length}, errors ${svc.candidateErrors}');
     expect(svc.candidateErrors, isEmpty);
     expect(svc.candidates, isEmpty);
     expect(ep.sessions.length, tray.length, reason: 'one session per approved photo');
     // Each copy's replay of a key finds the document still pending_upload
     // here (no storage trigger runs), so it is uploaded again — spec §6.
-    expect(ep.puts.length, tray.length);
+    expect(ep.uploads.length, tray.length);
     for (final id in tray) {
       expect(ledger.verdict(id), LedgerVerdict.ingested, reason: id);
     }
@@ -258,22 +177,26 @@ void main() {
       debugPrint('sweep: filed ${d.id} ${d.data()['title']} '
           '${d.data()['status']} ${cap['captured_at']}');
     }
-    for (final (url, n) in ep.puts) {
-      expect(await _EmulatorUpload.size(url), n, reason: 'bytes landed at $url');
+    for (final u in ep.uploads) {
+      expect(await EmulatorPutStandIn.storedSize(u.downloadUrl), u.size,
+          reason: 'bytes landed at ${u.downloadUrl}');
     }
 
     // ── 3. A second sweep, on a ledger read back from the App Group ──────────
     ledger = await SweepLedger.load(store);
     expect(ledger.ingestedCount, tray.length, reason: 'the verdicts persisted');
-    svc = CameraSweepService(bridge: bridge, ledger: ledger, endpoints: ep);
-    final sessionsBefore = ep.sessions.length, putsBefore = ep.puts.length;
+    await svc.close();
+    svc = CameraSweepService(
+        bridge: bridge, ledger: ledger, endpoints: ep, uploader: uploader);
+    await svc.attachUploads();
+    final sessionsBefore = ep.sessions.length, putsBefore = ep.uploads.length;
     final pass2 = await svc.sweep();
     debugPrint('sweep: pass 2 $pass2');
     expect(pass2.handled, 0, reason: 'every photo already has a standing verdict');
     expect(pass2.settled, greaterThanOrEqualTo(tray.length));
     expect(svc.candidates, isEmpty);
     expect(ep.sessions.length, sessionsBefore, reason: 'the second sweep sent a session');
-    expect(ep.puts.length, putsBefore);
+    expect(ep.uploads.length, putsBefore);
     expect((await _captures(uid)).length, after.length,
         reason: 'the second sweep filed something');
 
@@ -290,7 +213,7 @@ void main() {
     }
     expect(await _ledgerState(store), state, reason: 'the dry run wrote the ledger');
     expect(ep.sessions.length, sessionsBefore, reason: 'the dry run opened a session');
-    expect(ep.puts.length, putsBefore);
+    expect(ep.uploads.length, putsBefore);
     expect(svc.candidates, isEmpty);
     expect((await _captures(uid)).length, after.length);
     expect(ep.finds.length - findsBefore,

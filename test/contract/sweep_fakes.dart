@@ -1,16 +1,19 @@
-// The camera-roll sweep's test fakes (F-125): the bridge, the endpoints and a
-// store that can fail. Shared by the service's tests (S2) and the screens' and
-// the host's (S3), so the two cannot drift into two fakes of one bridge.
+// The camera-roll sweep's test fakes (F-125): the bridge, the endpoints, the
+// background uploader and task (S4), and a store that can fail. Shared by the
+// service's tests (S2), the screens' and the host's (S3) and the background's
+// (S4), so they cannot drift into two fakes of one bridge.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter_app/services/api_service.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_app/services/camera_sweep_bridge.dart';
 import 'package:flutter_app/services/camera_sweep_service.dart';
 import 'package:flutter_app/services/firestore_service.dart' show CaptureMatch;
+import 'package:flutter_app/services/sweep_background.dart';
 import 'package:flutter_app/services/sweep_ledger.dart';
+import 'package:flutter_app/services/sweep_uploader.dart';
 
 // ── Fakes ────────────────────────────────────────────────────────────────────
 
@@ -167,11 +170,26 @@ class FakeEndpoints implements SweepEndpoints {
   /// fresh 201.
   final Map<String, Object> answers = {};
   final List<SessionCall> sessions = [];
-  final List<(String, Uint8List, String)> puts = [];
   final Map<String, CaptureMatch?> filed = {};
   final List<String> finds = [];
-  int? putFailsWith;
   Object? findThrows;
+
+  /// The signed PUT is the background uploader's since S4; it lives here so
+  /// a test that asks "what was PUT" reads the same rig it always did.
+  final FakeUploader uploader = FakeUploader();
+
+  /// Every upload handed off: (url, the staged bytes, Content-Type).
+  List<(String, Uint8List, String)> get puts =>
+      [for (final s in uploader.starts) (s.url, s.bytes, s.mimeType)];
+
+  /// What each upload's result says: an HTTP status that did not land.
+  set putFailsWith(int? status) => uploader.failWith = status;
+
+  /// When set, every session call waits on it — a session in flight.
+  Future<void>? sessionGate;
+
+  /// Called as each session call STARTS (before [sessionGate]).
+  void Function(SessionCall call)? onSession;
 
   @override
   Future<Map<String, dynamic>> openSession({
@@ -181,7 +199,10 @@ class FakeEndpoints implements SweepEndpoints {
     required int size,
     DateTime? capturedAt,
   }) async {
-    sessions.add(SessionCall(assetKey, filename, mimeType, size, capturedAt));
+    final call = SessionCall(assetKey, filename, mimeType, size, capturedAt);
+    sessions.add(call);
+    onSession?.call(call);
+    if (sessionGate != null) await sessionGate;
     final a = answers[assetKey];
     if (a is Exception) throw a;
     return (a as Map<String, dynamic>?) ??
@@ -194,19 +215,179 @@ class FakeEndpoints implements SweepEndpoints {
   }
 
   @override
-  Future<void> putSigned(String url, Uint8List bytes, String mimeType) async {
-    if (putFailsWith != null) {
-      throw ApiException(putFailsWith!, 'Storage upload failed. Please try again.');
-    }
-    puts.add((url, bytes, mimeType));
-  }
-
-  @override
   Future<CaptureMatch?> findCapture(String assetKey) async {
     finds.add(assetKey);
     if (findThrows != null) throw findThrows!;
     return filed[assetKey];
   }
+}
+
+class UploadStart {
+  UploadStart(this.uploadId, this.url, this.bytes, this.mimeType, this.localIdentifier,
+      this.assetKey);
+  final String uploadId, url, mimeType, localIdentifier, assetKey;
+  final Uint8List bytes;
+}
+
+/// The background uploader, faked: it stages by MOVING the rendered file, as
+/// the native one does, and each started upload's result is written to
+/// [waiting] (as the native side writes it down) and signalled — at once,
+/// or when the test says ([hold], [land]).
+class FakeUploader implements SweepUploader {
+  /// What a result says: null lands it, an int is the bucket's status, a
+  /// String URLSession's own failure.
+  Object? failWith;
+
+  /// Results wait for [land] — an upload still on its way.
+  bool hold = false;
+
+  /// [start] refuses, as the native side does for a file no longer staged.
+  bool refuseStart = false;
+
+  final List<UploadStart> starts = [];
+  final List<String> discarded = [];
+  final List<String> acknowledged = [];
+
+  /// Results written down and not yet acknowledged.
+  final List<SweepUploadResult> waiting = [];
+
+  /// Uploads an earlier launch started that the system still holds.
+  final List<SweepUploadInFlight> elsewhere = [];
+
+  bool failAcknowledge = false;
+  int finishedReads = 0;
+
+  final Map<String, File> _staged = {};
+  final Set<String> _running = {};
+  final StreamController<void> _signal = StreamController<void>.broadcast();
+  final Directory _dir = Directory.systemTemp.createTempSync('sweep-uploads');
+  int _n = 0;
+
+  /// Every upload id staged and neither started nor discarded.
+  Iterable<String> get stagedNotStarted => _staged.keys.where((id) =>
+      !_running.contains(id) && !starts.any((s) => s.uploadId == id));
+
+  @override
+  Future<SweepStaged> stage(String renderedPath) async {
+    final id = 'u${++_n}';
+    final f = File(renderedPath).renameSync('${_dir.path}/$id.jpg');
+    _staged[id] = f;
+    return SweepStaged(uploadId: id, bytes: f.lengthSync());
+  }
+
+  @override
+  Future<void> start({
+    required String uploadId,
+    required String url,
+    required String mimeType,
+    required String localIdentifier,
+    required String assetKey,
+  }) async {
+    final f = _staged[uploadId];
+    if (f == null || refuseStart) {
+      throw PlatformException(code: 'uploadFailed', message: 'not staged: $uploadId');
+    }
+    starts.add(UploadStart(
+        uploadId, url, f.readAsBytesSync(), mimeType, localIdentifier, assetKey));
+    _running.add(uploadId);
+    if (!hold) scheduleMicrotask(() => land(uploadId));
+  }
+
+  /// The result of [uploadId] arrives, saying what [failWith] says.
+  void land(String uploadId) {
+    if (!_running.remove(uploadId)) return;
+    final s = starts.firstWhere((s) => s.uploadId == uploadId);
+    final f = failWith;
+    _staged.remove(uploadId)?.deleteSync();
+    waiting.add(SweepUploadResult(
+      uploadId: uploadId,
+      localIdentifier: s.localIdentifier,
+      assetKey: s.assetKey,
+      ok: f == null,
+      statusCode: f is int ? f : (f == null ? 200 : 0),
+      error: f is String ? f : null,
+    ));
+    _signal.add(null);
+  }
+
+  /// Every upload still on its way lands.
+  void landAll() {
+    for (final id in List.of(_running)) {
+      land(id);
+    }
+  }
+
+  /// A result from an earlier launch, written down while nobody listened.
+  void resultFromEarlierLaunch(SweepUploadResult r) => waiting.add(r);
+
+  Iterable<String> get running => _running;
+
+  @override
+  Future<void> discard(String uploadId) async {
+    discarded.add(uploadId);
+    _staged.remove(uploadId)?.deleteSync();
+  }
+
+  @override
+  Future<List<SweepUploadInFlight>> inFlight() async => [
+        ...elsewhere,
+        for (final s in starts)
+          if (_running.contains(s.uploadId))
+            SweepUploadInFlight(
+                uploadId: s.uploadId, localIdentifier: s.localIdentifier, assetKey: s.assetKey),
+      ];
+
+  @override
+  Future<List<SweepUploadResult>> finished() async {
+    finishedReads++;
+    return List.of(waiting);
+  }
+
+  @override
+  Future<void> acknowledge(Iterable<String> uploadIds) async {
+    if (failAcknowledge) throw PlatformException(code: 'uploadFailed', message: 'defaults');
+    final ids = uploadIds.toSet();
+    acknowledged.addAll(ids);
+    waiting.removeWhere((r) => ids.contains(r.uploadId));
+  }
+
+  @override
+  Stream<void> get resultsWaiting => _signal.stream;
+}
+
+/// The BGProcessingTask, faked: the test plays iOS, calling [launch] and
+/// [expire] as the system would.
+class FakeBackground implements SweepBackground {
+  Future<Map<String, Object?>> Function()? _onRun;
+  Future<void> Function()? _onExpire;
+  final List<bool> scheduledCalls = [];
+  SweepSchedule answer = const SweepSchedule(scheduled: true);
+  bool attached = false;
+
+  @override
+  Future<void> attach({
+    required Future<Map<String, Object?>> Function() onRun,
+    required Future<void> Function() onExpire,
+  }) async {
+    _onRun = onRun;
+    _onExpire = onExpire;
+    attached = true;
+  }
+
+  @override
+  void detach() => attached = false;
+
+  @override
+  Future<SweepSchedule> setScheduled(bool on) async {
+    scheduledCalls.add(on);
+    return on ? answer : const SweepSchedule(scheduled: false);
+  }
+
+  /// iOS launches the task; completes when the Dart side answers.
+  Future<Map<String, Object?>> launch() => _onRun!();
+
+  /// iOS takes the time back.
+  Future<void> expire() => _onExpire!();
 }
 
 /// A store whose writes can be made to fail, to prove write-before-move.
@@ -230,8 +411,11 @@ Future<(CameraSweepService, SweepLedger, FakeBridge, FakeEndpoints, MemoryLedger
   await ledger.setBackfillStart(DateTime.utc(2020));
   final bridge = FakeBridge(assets, verdicts: verdicts);
   final endpoints = FakeEndpoints();
+  final service = CameraSweepService(
+      bridge: bridge, ledger: ledger, endpoints: endpoints, uploader: endpoints.uploader);
+  await service.attachUploads();
   return (
-    CameraSweepService(bridge: bridge, ledger: ledger, endpoints: endpoints),
+    service,
     ledger,
     bridge,
     endpoints,

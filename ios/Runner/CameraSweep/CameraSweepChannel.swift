@@ -6,7 +6,8 @@ import UIKit
 /// F-125 S1: the camera-roll sweep's native bridge (INV-14,
 /// `spec/features/camera-roll-sweep.md`). S3 added what its screens need: a
 /// card's thumbnail, the "Open Settings" action, and the library's change
-/// events. No background task here; that is S4.
+/// events. S4 added the background uploader's methods (`CameraSweepUploader`);
+/// the background task has its own channel (`SweepBackgroundTask`).
 ///
 /// Everything the sweep decides on the device is the retired Swift app's own
 /// code, ported verbatim beside this file: the asset key (`AssetIdentity`,
@@ -38,6 +39,7 @@ enum CameraSweepChannel {
         channel.setMethodCallHandler { call, result in handle(call, result) }
         FlutterEventChannel(name: changesName, binaryMessenger: messenger)
             .setStreamHandler(changes)
+        CameraSweepUploader.register(with: messenger)
     }
 
     // MARK: - Pure rules (RunnerTests/CameraSweepBridgeTests)
@@ -115,6 +117,13 @@ enum CameraSweepChannel {
             }
             UIApplication.shared.open(url) { opened in result(opened) }
 
+        // F-125 S4: the uploads. They touch no photo, so they answer whatever
+        // the library access — an upload handed off before access was revoked
+        // still lands, and its result is still recorded.
+        case "stageUpload", "startUpload", "discardUpload", "uploadsInFlight",
+             "finishedUploads", "acknowledgeUploads":
+            upload(call.method, args, result)
+
         case "fetchImages", "examine", "renderedJpeg", "thumbnail":
             let access = PhotoLibraryAccess.current
             if let code = refusal(for: access) {
@@ -130,6 +139,55 @@ enum CameraSweepChannel {
 
         default:
             result(FlutterMethodNotImplemented)
+        }
+    }
+
+    private static func upload(_ method: String, _ args: [String: Any],
+                               _ result: @escaping FlutterResult) {
+        let u = CameraSweepUploader.shared
+        func fail(_ error: Error) {
+            result(FlutterError(code: "uploadFailed", message: error.localizedDescription, details: nil))
+        }
+        func string(_ key: String) -> String? {
+            guard let v = args[key] as? String, !v.isEmpty else {
+                result(FlutterError(code: "badArgs", message: "\(key) is required", details: nil))
+                return nil
+            }
+            return v
+        }
+        switch method {
+        case "stageUpload":
+            guard let path = string("path") else { return }
+            do {
+                let staged = try u.stage(renderedPath: path)
+                result(["uploadId": staged.uploadId, "bytes": staged.bytes])
+            } catch { fail(error) }
+
+        case "startUpload":
+            guard let id = string("uploadId"), let url = string("url"),
+                  let mime = string("mimeType"), let local = string("localIdentifier"),
+                  let key = string("assetKey") else { return }
+            do {
+                try u.start(uploadId: id, signedURL: url, mimeType: mime,
+                            localIdentifier: local, assetKey: key)
+                result(nil)
+            } catch { fail(error) }
+
+        case "discardUpload":
+            guard let id = string("uploadId") else { return }
+            u.discard(uploadId: id)
+            result(nil)
+
+        case "uploadsInFlight":
+            u.inFlight { result($0) }
+
+        case "finishedUploads":
+            result(u.finished())
+
+        default: // acknowledgeUploads
+            let ids = Set(args["uploadIds"] as? [String] ?? [])
+            u.acknowledge(ids)
+            result(nil)
         }
     }
 

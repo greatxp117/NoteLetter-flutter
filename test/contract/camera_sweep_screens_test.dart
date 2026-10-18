@@ -43,6 +43,7 @@ typedef _Rig = ({
   FakeEndpoints endpoints,
   MemoryLedgerStore store,
   _Session session,
+  FakeBackground background,
 });
 
 Future<_Rig> _rig(
@@ -60,17 +61,27 @@ Future<_Rig> _rig(
   final bridge = FakeBridge(assets, verdicts: verdicts)..accessNow = access;
   final endpoints = FakeEndpoints();
   final session = _Session(signedIn);
+  final background = FakeBackground();
   final host = CameraSweepHost(
     session: session,
     isSignedIn: () => session.signedIn,
     bridge: bridge,
     store: store,
     endpoints: endpoints,
+    uploader: endpoints.uploader,
+    background: background,
     debounce: const Duration(milliseconds: 20),
     observeLifecycle: false,
   );
   await host.ready;
-  return (host: host, bridge: bridge, endpoints: endpoints, store: store, session: session);
+  return (
+    host: host,
+    bridge: bridge,
+    endpoints: endpoints,
+    store: store,
+    session: session,
+    background: background,
+  );
 }
 
 /// Lets every queued microtask and short timer run.
@@ -207,6 +218,8 @@ void main() {
         bridge: bridge,
         store: store,
         endpoints: FakeEndpoints(),
+        uploader: FakeUploader(),
+        background: null,
         observeLifecycle: false,
       );
       await host.ready;
