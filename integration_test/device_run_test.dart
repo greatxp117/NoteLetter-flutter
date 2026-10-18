@@ -1661,7 +1661,8 @@ void main() {
     await pumpFor(tester, total: const Duration(seconds: 6));
     expect(find.byType(KitSupportFooter).hitTestable(), findsNothing,
         reason: 'the reader keeps it for the end of the document');
-    await _dragToFooter(tester, '/reader/device-run-long-doc');
+    await _dragToFooter(tester, '/reader/device-run-long-doc',
+        scrollable: _readerScrollable);
     expect(
       find.byType(KitSupportFooter),
       findsOneWidget,
@@ -2492,35 +2493,47 @@ Future<void> _dragUntilFound(WidgetTester tester, Finder finder,
       reason: 'not reached after $maxDrags drags of ${step.dy}');
 }
 
-/// Drags the screen with REAL gestures until the support footer is on screen
-/// and a further drag no longer moves it — the end of the screen's scroll
-/// (INV-22, ADR-173). Then asserts it is laid out inside the view, above any
-/// docked composer. The drag starts mid-screen, which is the primary column on
-/// every screen this is used on.
-Future<void> _dragToFooter(WidgetTester tester, String route) async {
+/// Drags the screen with REAL gestures until its primary scroll is at the end
+/// (INV-22, ADR-173), lets the bounce settle, and asserts the support footer is
+/// the LAST thing in that scroll: on screen, its bottom on the scroll
+/// viewport's bottom, and above any docked composer. The drag starts
+/// mid-screen, which is the primary column on every screen this is used on.
+///
+/// [scrollable] names the primary scroll when the footer is not built until
+/// the end is near — the reader's is a sliver, laid out lazily.
+Future<void> _dragToFooter(WidgetTester tester, String route,
+    {Finder? scrollable}) async {
   final view = tester.view.physicalSize / tester.view.devicePixelRatio;
   final footer = find.byType(KitSupportFooter);
-  Rect? last;
+  final scroller = scrollable ??
+      find.ancestor(of: footer, matching: find.byType(Scrollable)).first;
+  ScrollPosition pos() => tester.state<ScrollableState>(scroller).position;
   for (var i = 0; i < 40; i++) {
     await tester.dragFrom(Offset(view.width / 2, view.height * 0.45),
         const Offset(0, -500));
-    await tester.pump(const Duration(milliseconds: 400));
-    if (footer.hitTestable().evaluate().isEmpty) continue;
-    final r = tester.getRect(footer);
-    if (r == last) break;
-    last = r;
+    await tester.pump(const Duration(milliseconds: 300));
+    if (pos().pixels >= pos().maxScrollExtent - 1) break;
   }
+  // Let an iOS overscroll bounce come back to rest before measuring.
+  double? last;
+  for (var i = 0; i < 30; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    final p = pos().pixels;
+    if (last != null && (p - last).abs() < 0.01) break;
+    last = p;
+  }
+  expect(pos().pixels, closeTo(pos().maxScrollExtent, 1.0),
+      reason: '$route: the primary scroll reached its end by real drags');
   expect(footer.hitTestable(), findsOneWidget,
       reason: '$route: the footer is reached at the end of the scroll');
   final r = tester.getRect(footer);
-  expect(r.bottom, lessThanOrEqualTo(view.height + 0.5),
-      reason: '$route: laid out inside the view at the end');
+  final viewport = tester.getRect(scroller);
   final dock = find.byType(KitComposerDock);
   if (dock.evaluate().isNotEmpty) {
     expect(r.bottom, lessThanOrEqualTo(tester.getRect(dock).top + 0.5),
         reason: '$route: above the docked composer, which stays docked');
   } else {
-    expect(r.bottom, closeTo(view.height, 1.0),
-        reason: '$route: the last thing on the screen at the end');
+    expect(r.bottom, closeTo(viewport.bottom, 1.0),
+        reason: '$route: the last thing in the screen\'s scroll');
   }
 }
