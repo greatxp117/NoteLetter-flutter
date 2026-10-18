@@ -2080,12 +2080,12 @@ a new obligation on a finished screen is a new item.
 - notes: From the iOS inventory (reports/ios.md, 2026-10-18): Swift sent video/* through the resumable session (UploadViewModel.swift:26, ResumableUpload.swift); Flutter reads the whole file into memory and sends one bare PUT (upload_notifier.dart:169-175), so a long recording can fail or run out of memory. Port web api.js's resumable path: start the session at resumableUrl, PUT chunks with Content-Range, resume from the server's Range on a dropped chunk. Which sizes and kinds take it: web's rule, not a new one. About a day. Do it with or before the share extension's video branch.
 
 ## F-122 · Share extension on iOS (F-a): a native Share target that files a link, an image set or one file into the library, signed in through the app's own keychain group
-- status: open
+- status: in-progress
 - screen: share-extension
 - route: none
 - spec: spec/api/ingest.md; spec/api/uploads.md; spec/features/scroll-stitch.md; spec/features/audio-ingestion-and-closed-upload-set.md; spec/decisions/ADR-151-a-playlist-link-is-detected-as-a-playlist.md; spec/decisions/ADR-120-a-bare-address-is-a-link.md
 - web: none
-- flutter: ios/Share/ShareViewController.swift (new); ios/Share/Info.plist (new); ios/Share/Share.entitlements (new); ios/Runner/Runner.entitlements (new); ios/Runner/AppDelegate.swift; ios/Podfile; ios/Runner.xcodeproj/project.pbxproj; tool/add_share_target.rb (new); lib/services/share_config_channel.dart (new)
+- flutter: ios/Share/ShareViewController.swift (new); ios/Share/ShareView.swift (new); ios/Share/EmulatorConfig.swift (new); ios/Share/Info.plist (new); ios/Share/Share.entitlements (new); ios/Runner/Runner.entitlements (new); ios/Runner/AppDelegate.swift; ios/Podfile; ios/Runner.xcodeproj/project.pbxproj; ios/RunnerTests/ShareActivationRuleTests.swift (new); ios/RunnerUITests/ShareActivationTests.swift (new); tool/add_share_target.rb (new); lib/services/share_config_channel.dart (new); lib/main.dart
 - folds: none
 - device_test: none
 - shots: none
@@ -2093,7 +2093,7 @@ a new obligation on a finished screen is a new item.
 - notes: Ruled first by Xavier (iOS retired 2026-10-17; fresh App Group and keychain group 2026-10-18). Port of NoteLetterShare, read-only from NoteLetter/: accepts one web link (never file://), 1-20 photos as one image set (the card carries sources.md's scroll-stitch sentence), or one file of the closed upload set; no selected text. iOS: target xp.NoteLetter.Flutter.Share (team 3SA8A2JP3T, -allowProvisioningUpdates, no vendor console); App Group group.xp.NoteLetter.Flutter and keychain group 3SA8A2JP3T.xp.NoteLetter.Flutter.shared on Runner and the extension; a Podfile target with FirebaseAuth; Runner's own GoogleService-Info.plist (the iOS API key has no bundle restriction, checked read-only 2026-10-18); useUserAccessGroup in AppDelegate before FlutterFire touches Auth, which signs every existing Flutter user out ONCE. Debug: the app writes its emulator config into the group's defaults and the extension reads it, so a Debug extension refuses prod as the app does. Swift to port: ShareViewController + ShareView (~400 lines) and what they compile (~1,500: APIClient, UploadClient, ResumableUpload, UploadTypes, URLContentType, PlaylistAnswer, EndpointBudgets, EmulatorConfig, KitFailure, KitWait, Theme, Typography, Spacing, FontLoader, AppCard, buttons). Lessons (TODO): a Files item is a FILE, never a link; the activation rule is the narrowed add943d one, verbatim (BETWEEN silently dropped the whole rule). SPEC GAP: the sheet's own copy exists only in Swift (Sign in required + its line; Couldn't read what you shared; Can't add this file; Nothing to share + This kind of content isn't supported yet.; Add to NoteLetter; Files as: {kind}; N photos selected; Title (optional); Upload Photos; Upload File; Uploaded N photo(s).; Uploaded {name}.; the It couldn't be read — {reason} prefix). Ported verbatim and reported; the spec should own them. Proof: a simulator device run driving the extension from Safari, Files and Photos (port of DeviceRun/ShareActivationTests), activation-rule tests in both directions, Tier 1, head_build_check. Real iPhone: the coordinator's. About 3 days.
 
 ## F-123 · Share on Android (F-a): SEND and SEND_MULTIPLE into a Dart share screen on upload_notifier
-- status: open
+- status: blocked: no Android SDK or emulator on this Mac (sdkmanager only); installing one needs several GB on a disk at 6-7 GB free — Xavier's call
 - screen: share-extension
 - route: /share
 - spec: spec/api/ingest.md; spec/api/uploads.md; spec/features/scroll-stitch.md

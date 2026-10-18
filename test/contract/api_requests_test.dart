@@ -339,7 +339,8 @@ const _suites = [
 // them.
 const _noBuilder = <String, String>{
   'fn_create_capture_session':
-      'the multi-image capture session (4.38.0) — no Flutter capture surface',
+      'the camera-roll sweep\'s capture session (2.18.0, ADR-023, INV-14) — '
+      'owed until Flutter\'s sweep calls it (endpoint_reach.json; QUEUE F-b)',
   'fn_ingest_passage':
       'passage capture is the browser extension\'s (ADR-032); no client but it '
       'sends this',

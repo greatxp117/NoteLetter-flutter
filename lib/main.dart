@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/api_service.dart';
+import 'services/share_config_channel.dart';
 import 'services/analytics.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -53,6 +54,10 @@ void main() async {
       'auth ${ApiService.authPort})',
     );
   }
+
+  // F-122: where the iOS share extension sends a DEBUG build's traffic — the
+  // emulator this app is on, or nowhere (it then refuses). Release: a no-op.
+  await ShareConfigChannel.publish();
 
   // INV-25(a). Both manifests ship analytics collection OFF, and this is the
   // only thing that turns it on — under the emulator or under `flutter test` it

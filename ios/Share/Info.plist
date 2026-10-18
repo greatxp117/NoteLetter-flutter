@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>NoteLetter Flutter</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>NSExtensionActivationRule</key>
+			<string>SUBQUERY (
+	extensionItems, $extensionItem,
+	SUBQUERY (
+		$extensionItem.attachments, $attachment,
+		ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url"
+		AND NOT (ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.file-url")
+	).@count == 1
+	OR (SUBQUERY (
+		$extensionItem.attachments, $attachment,
+		ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image"
+	).@count &gt;= 1
+	AND SUBQUERY (
+		$extensionItem.attachments, $attachment,
+		ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image"
+	).@count &lt;= 20)
+	OR SUBQUERY (
+		$extensionItem.attachments, $attachment,
+		ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.file-url"
+		AND NOT (ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.source-code")
+		AND (
+			ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.adobe.flash.video"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.adobe.pdf"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.apple.coreaudio-format"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.apple.m4a-audio"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.apple.m4v-video"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.apple.protected-mpeg-4-audio-b"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.apple.quicktime-movie"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.microsoft.waveform-audio"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.microsoft.windows-media-wma"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "com.microsoft.windows-media-wmv"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "dyn.ah62d4rv4ge8042pwrrwg875s"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "dyn.ah62d4rv4ge804450"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "dyn.ah62d4rv4ge8047dx"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "dyn.ah62d4rv4ge804qxysq"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "dyn.ah62d4rv4ge808350"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "dyn.ah62d4rv4ge81e65y"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "net.daringfireball.markdown"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "org.3gpp.adaptive-multi-rate-audio"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "org.idpf.epub-container"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "org.openxmlformats.presentationml.presentation"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "org.openxmlformats.wordprocessingml.document"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "org.webmproject.webm"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "org.xiph.flac"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "org.xiph.ogg-audio"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "public.3gpp"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "public.aac-audio"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "public.aiff-audio"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "public.avi"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "public.mp3"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "public.mpeg"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "public.mpeg-4"
+			OR ANY $attachment.registeredTypeIdentifiers UTI-EQUALS "public.plain-text"
+		)
+	).@count == 1
+).@count == 1</string>
+		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.share-services</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
+	</dict>
+</dict>
+</plist>

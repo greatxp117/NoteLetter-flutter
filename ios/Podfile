@@ -36,6 +36,17 @@ target 'Runner' do
   end
 end
 
+# F-122 — the share extension (ios/Share; tool/add_share_target.rb). It signs in
+# through FirebaseAuth and files through fn_* over URLSession: Auth is the one
+# Firebase product it links, because an extension pays memory for every
+# framework it carries. The version is the one FlutterFire pins for Runner
+# (Podfile.lock: Firebase/Auth 12.17.0), so the two share one Firebase.
+target 'Share' do
+  platform :ios, '16.0'
+  use_frameworks!
+  pod 'FirebaseAuth', '12.17.0'
+end
+
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
