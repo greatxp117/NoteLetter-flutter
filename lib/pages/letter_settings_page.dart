@@ -287,7 +287,8 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
         children: [
           SizedBox(width: 440, child: form),
           Expanded(
-            child: KitPage(
+            child: KitPage.secondary(
+              reason: 'the letter preview beside the settings column',
               width: KitFrameWidth.reading,
               controller: _previewScroll,
               child: pane(),
@@ -298,7 +299,8 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     }
     // `.letter-preview-pane` has no gutter: the letter's own padding is its
     // margin, and the rows around it sit at `0 6px`.
-    final letter = KitScrollView(
+    final letter = KitScrollView.secondary(
+      reason: 'the letter preview under the settings column',
       controller: _previewScroll,
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.s8),

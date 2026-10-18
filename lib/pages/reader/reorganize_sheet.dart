@@ -224,6 +224,7 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
         constraints: const BoxConstraints(maxWidth: 640, maxHeight: 640),
         child: Padding(
           padding: const EdgeInsets.all(24),
+          // scroll-secondary: a dialog over the reader, not the screen's scroll
           child: SingleChildScrollView(
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -11,7 +11,8 @@ import '../services/error_text.dart';
 /// The support conversation (4.18.0, ADR-054; `spec/screens/support.md`).
 ///
 /// **App-scoped, not screen-scoped**, and that is the whole point: the shell's
-/// footer renders an unread count on every screen (INV-22), so the thread has
+/// footer, at the end of every screen's scroll, renders an unread count
+/// (INV-22), so the thread has
 /// to be subscribed above any one screen. A notifier created by the Support
 /// page would leave the badge with nothing to read.
 ///

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../theme/app_radius.dart';
@@ -24,6 +26,12 @@ import 'kit_wait.dart' show KitWaitNote;
 /// It is a **dock, not a card** — it belongs to the frame, which is what makes
 /// it right for a conversation (Ask, Support) and wrong for a form.
 class KitComposerDock extends StatelessWidget {
+  /// How far the scrim rises above the dock (the reference's `::before`,
+  /// `bottom: 100%`). A scroller the dock floats over reserves the dock's
+  /// height AND this, so the support footer at the end of its scroll rests
+  /// clear of the fade (ADR-173).
+  static const double scrimRise = 44;
+
   final TextEditingController controller;
   final String placeholder;
 
@@ -96,7 +104,7 @@ class KitComposerDock extends StatelessWidget {
         Positioned(
           left: 0,
           right: 0,
-          top: -44,
+          top: -KitComposerDock.scrimRise,
           bottom: 0,
           child: IgnorePointer(
             child: DecoratedBox(
@@ -111,7 +119,12 @@ class KitComposerDock extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(gutter, AppSpacing.s4, gutter, 22),
+          // On a phone the dock sits at the screen's bottom edge now that the
+          // footer ends the scroll instead of standing under it (ADR-173), so
+          // it clears the home indicator as web's does
+          // (`calc(16px + env(safe-area-inset-bottom))`).
+          padding: EdgeInsets.fromLTRB(gutter, AppSpacing.s4, gutter,
+              math.max(22, AppSpacing.s4 + MediaQuery.paddingOf(context).bottom)),
           child: Align(
             alignment: Alignment.bottomCenter,
             heightFactor: 1,

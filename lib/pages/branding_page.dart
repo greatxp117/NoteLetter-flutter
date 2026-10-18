@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../widgets/kit/kit.dart';
 import '../theme/app_radius.dart';
-import '../widgets/kit/kit_text.dart';
 
 class BrandingPage extends StatelessWidget {
   const BrandingPage({super.key});
@@ -12,7 +12,7 @@ class BrandingPage extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final primary = isDark ? AppColors.primaryDark : AppColors.primary;
 
-    return SingleChildScrollView(
+    return KitScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -71,6 +71,7 @@ class BrandingPage extends StatelessWidget {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final crossAxis = constraints.maxWidth >= 1024 ? 3 : 1;
+                    // scroll-secondary: a non-scrolling grid inside the page's own scroll
                     return GridView.count(
                       crossAxisCount: crossAxis,
                       crossAxisSpacing: 16,
@@ -167,6 +168,7 @@ class BrandingPage extends StatelessWidget {
                     final crossAxis = constraints.maxWidth >= 1024
                         ? 6
                         : (constraints.maxWidth >= 640 ? 3 : 2);
+                    // scroll-secondary: a non-scrolling grid inside the page's own scroll
                     return GridView.count(
                       crossAxisCount: crossAxis,
                       crossAxisSpacing: 12,

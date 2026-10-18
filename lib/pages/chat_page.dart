@@ -58,8 +58,18 @@ const _prompts = <String>[
 class _ChatPageState extends State<ChatPage> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
-  /// §9's phone form is drawn over EVERYTHING — the app bar and the support
-  /// footer included — as the reference's `position: fixed` rail and its
+
+  /// The floating dock's height, measured (§10). The transcript reserves it
+  /// AND the dock's scrim, so the support footer that ends this scroll rests
+  /// above the composer, and the composer stays docked (ADR-173).
+  double _dock = 0;
+  double get _reserve =>
+      _dock == 0 ? 0 : _dock + KitComposerDock.scrimRise;
+  void _onDock(Size s) {
+    if (mounted && s.height != _dock) setState(() => _dock = s.height);
+  }
+  /// §9's phone form is drawn over EVERYTHING — the app bar and the dock
+  /// included — as the reference's `position: fixed` rail and its
   /// backdrop are; inside the page body they stayed undimmed (F-78 (4)).
   final _railPortal = OverlayPortalController();
 
@@ -202,7 +212,9 @@ class _ChatPageState extends State<ChatPage> {
         // The dock floats over the transcript, as §10 requires.
         Align(
           alignment: Alignment.bottomCenter,
-          child: KitComposerDock(
+          child: KitMeasure(
+            onSize: _onDock,
+            child: KitComposerDock(
             controller: _controller,
             placeholder:
                 scope == null ? 'Ask your library anything…' : 'Ask $scope anything…',
@@ -215,9 +227,10 @@ class _ChatPageState extends State<ChatPage> {
             onSend:
                 _controller.text.trim().isEmpty || ask.sending ? null : _send,
           ),
+          ),
         ),
         // §9's phone form: a backdrop that closes on press, then the rail —
-        // on the ROOT overlay, over the shell's bar and footer.
+        // on the ROOT overlay, over the shell's bar and the dock.
         OverlayPortal.targetsRootOverlay(
           controller: _railPortal,
           overlayChildBuilder: (context) => Stack(
@@ -388,6 +401,7 @@ class _ChatPageState extends State<ChatPage> {
     if (ask.threadError != null) {
       return KitPage(
         width: KitFrameWidth.reading,
+        dockReserve: _reserve,
         child: KitFailureBlock(
           sentence: 'This conversation could not be read.',
           detail: ask.threadError!,
@@ -403,6 +417,7 @@ class _ChatPageState extends State<ChatPage> {
     if (ask.messages.isEmpty && ask.sentQuestion == null) {
       return KitPage(
         width: KitFrameWidth.reading,
+        dockReserve: _reserve,
         // `.ask-empty { padding-top: 20px }` on a phone, top-aligned: this
         // was s8 on top of the empty state's own s8, ~48 lower (F-78 (2)).
         child: Padding(
@@ -446,6 +461,7 @@ class _ChatPageState extends State<ChatPage> {
       controller: _scroll,
       // A short transcript sits against the composer, as a chat does.
       anchorBottom: true,
+      dockReserve: _reserve,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -480,8 +496,9 @@ class _ChatPageState extends State<ChatPage> {
               ),
             ),
           ],
-          // Room for the dock, which floats over this scroller.
-          const SizedBox(height: AppSpacing.s24),
+          // Room for the dock, which floats over this scroller, is the
+          // scroller's own [KitPage.dockReserve], below the footer.
+          const SizedBox(height: AppSpacing.s6),
         ],
       ),
     );

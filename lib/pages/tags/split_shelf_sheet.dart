@@ -176,7 +176,8 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
           right: AppSpacing.s5,
           top: AppSpacing.s5,
           bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.s5),
-      child: KitScrollView(
+      child: KitScrollView.secondary(
+        reason: 'a sheet over the shelf, not the screen\'s scroll',
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

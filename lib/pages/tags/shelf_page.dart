@@ -281,7 +281,7 @@ class _ShelfPageState extends State<ShelfPage> {
     return Consumer2<TagsNotifier, DocumentsNotifier>(
       builder: (context, tags, docs, _) {
         if (tags.loading) {
-          return const Center(child: CircularProgressIndicator());
+          return const KitLoadingPage();
         }
         final shelf = tags.tags.where((t) => t.id == widget.shelfId).firstOrNull;
         if (shelf == null) return _notFound(context);

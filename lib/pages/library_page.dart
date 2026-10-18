@@ -81,7 +81,7 @@ class _LibraryPageState extends State<LibraryPage> {
     return Consumer3<DocumentsNotifier, TagsNotifier, NewsletterNotifier>(
       builder: (context, docs, tags, letters, _) {
         if (docs.loading) {
-          return const Center(child: CircularProgressIndicator());
+          return const KitLoadingPage();
         }
 
         final complete = docs.complete;

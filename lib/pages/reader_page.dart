@@ -58,8 +58,9 @@ import '../services/error_text.dart';
 /// section header beneath the §19 rail.
 ///
 /// It sits OUTSIDE `AppLayout` and inside `SupportShell` (INV-22) — the reader
-/// is the app's one full-bleed reading surface, and the support footer is shell
-/// furniture no screen may forget.
+/// is the app's one full-bleed reading surface, and the support footer is the
+/// shell's, which no screen may forget: it ends the document
+/// ([KitShellFooterSliver], ADR-173).
 class ReaderPage extends StatefulWidget {
   final String docId;
 
@@ -461,8 +462,9 @@ class _ReaderPageState extends State<ReaderPage> {
   /// quill lockup · search) above the reader's own back control. Below the
   /// breakpoint this page wraps itself in [AppLayout]'s compact branch; wide
   /// is unchanged (the reader keeps its full-bleed frame). Done here, not in
-  /// the route table, so the routes of every other screen do not move — and
-  /// INV-22's footer stays where it is, in `SupportShell` above both.
+  /// the route table, so the routes of every other screen do not move. INV-22's
+  /// footer is composed by `SupportShell` above both, and ends this screen's
+  /// scroll as the last sliver ([KitShellFooterSliver], ADR-173).
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, c) {
@@ -477,7 +479,7 @@ class _ReaderPageState extends State<ReaderPage> {
     final doc = _document;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const KitLoadingPage();
     }
     if (_notFound || (_error != null && doc == null)) {
       return _notReadable();
@@ -668,6 +670,10 @@ class _ReaderPageState extends State<ReaderPage> {
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.s20)),
+          // INV-22 (ADR-173): the reader's footer is at the end of the
+          // document — the last sliver, and at the pane's bottom edge when
+          // the document is shorter than the pane.
+          const KitShellFooterSliver(),
         ],
       )))),
     );

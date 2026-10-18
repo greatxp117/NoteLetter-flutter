@@ -6,8 +6,9 @@ import '../../theme/tokens.dart';
 
 /// §13 — the support footer. **The way out of every screen.**
 ///
-/// INV-22: composed **once, by the shell**, beneath the routed view. A screen
-/// never renders it and never suppresses it. The alternative — a line copied
+/// INV-22: composed **once, by the shell**, and rendered as the LAST element of
+/// the screen's primary scroll container ([KitShellFooter], 5.19.0, ADR-173).
+/// A screen never renders it and never suppresses it. The alternative — a line copied
 /// into each page — fails silently and in exactly one direction: the
 /// thirteenth screen renders correctly and is simply the one with no way out.
 /// Nothing throws, no test goes red, and the only person who finds out is a
@@ -24,10 +25,12 @@ import '../../theme/tokens.dart';
 /// invisible as a control — which is why this design system otherwise avoids
 /// colour-only links.
 ///
-/// **Quiet, and always there.** This is the pattern most likely to be
-/// "improved" into a floating action button or a chat bubble. Being the least
-/// prominent thing on the screen and being on every screen are the two
-/// properties that let it be permanent without competing with the content.
+/// **Quiet, and at the end.** This is the pattern most likely to be
+/// "improved" into a floating action button or a chat bubble. It is the least
+/// prominent thing on the screen and on every screen, and it ends each
+/// screen's scroll — "out of the way but present" (Xavier, 2026-10-17). Until
+/// 5.19.0 it was pinned below the scroll and always on screen: present, and
+/// never out of the way (ADR-173).
 class KitSupportFooter extends StatefulWidget {
   /// Opens the support thread. The **shell** supplies this, along with the
   /// route the user was on — the footer itself knows neither.
@@ -62,8 +65,8 @@ class _KitSupportFooterState extends State<KitSupportFooter> {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        // It sits BELOW the screen's scroll container (§1.4), so it never
-        // inherits the ground texture and never scrolls away.
+        // A band of paper at the end of the scroll (§13), not more of the
+        // checker/grain ground: its surface is explicit, as it always was.
         color: t.surface,
         border: Border(top: BorderSide(color: t.rule)),
       ),

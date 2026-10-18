@@ -1607,22 +1607,33 @@ void main() {
     expect(ask.activeId, isNull);
   });
 
-  // ── INV-22 (4.18.0, ADR-054) ───────────────────────────────────────────────
+  // ── INV-22 (4.18.0, ADR-054; placement 5.19.0, ADR-173) ─────────────────
   // The Tier-1 gate (`test/contract/support_footer_test.dart`) proves the route
-  // TABLE nests every screen under the footer's shell, and that the footer
-  // renders when the shell is mounted alone. What it cannot do is mount a real
-  // screen — no Firebase in a plain widget test. This closes that: the real
-  // app, on a real renderer, at routes composed three different ways.
-  testWidgets('the support footer is under EVERY screen, reader included', (
+  // TABLE nests every screen under the footer's shell, that every routed screen
+  // scrolls through the kit, and the placement on the kit's own containers.
+  // What it cannot do is mount every real screen — no Firebase in a plain
+  // widget test. This closes that: the real app, on a real renderer, at routes
+  // composed different ways, reached with REAL drags (only a real gesture
+  // proves scrollability).
+  testWidgets('the support footer ENDS every screen, reader included', (
     tester,
   ) async {
     final router = await pumpApp(tester);
 
     // '/' and '/settings' sit inside the rail-and-pane shell; '/reader/:docId'
     // deliberately does NOT, and is the route a footer composed in AppLayout
-    // would have missed. '/support' is included because a screen does not stop
-    // being a screen by being the one the footer opens.
-    for (final route in ['/', '/settings', '/activity', '/support']) {
+    // would have missed. '/support' and '/ask' end their scroll above a docked
+    // composer. '/support' is included because a screen does not stop being a
+    // screen by being the one the footer opens.
+    for (final route in [
+      '/',
+      '/settings',
+      '/activity',
+      '/sources',
+      '/letters',
+      '/ask',
+      '/support',
+    ]) {
       router.go(route);
       await pumpFor(tester);
       expect(
@@ -1630,17 +1641,27 @@ void main() {
         findsOneWidget,
         reason: '$route renders with no way to reach a human (INV-22)',
       );
+      await _dragToFooter(tester, route);
       expect(
-        find.text('Chat with support…'),
+        find.text('Chat with support…').hitTestable(),
         findsOneWidget,
-        reason: 'the normative copy on $route',
+        reason: 'the normative copy, reachable at the end of $route',
       );
     }
+
+    // The long screens keep it out of the way: below the fold until the end.
+    router.go('/activity');
+    await pumpFor(tester);
+    expect(find.byType(KitSupportFooter).hitTestable(), findsNothing,
+        reason: 'ADR-173: not a strip pinned over every screen');
 
     // The same fixture the reader test uses; any real document would do, since
     // what is under test here is the shell, not the reader.
     router.go('/reader/device-run-long-doc');
     await pumpFor(tester, total: const Duration(seconds: 6));
+    expect(find.byType(KitSupportFooter).hitTestable(), findsNothing,
+        reason: 'the reader keeps it for the end of the document');
+    await _dragToFooter(tester, '/reader/device-run-long-doc');
     expect(
       find.byType(KitSupportFooter),
       findsOneWidget,
@@ -1659,7 +1680,9 @@ void main() {
 
     // A REAL tap on the control, not a router.go: what the invariant promises
     // is a way OUT of the screen the user is on, and only the tap proves the
-    // control is hittable where it is laid out.
+    // control is hittable where it is laid out — at the end of the scroll,
+    // reached by real drags (ADR-173).
+    await _dragToFooter(tester, '/activity');
     await tester.tap(find.text('Chat with support…'));
     await pumpFor(tester);
     expect(
@@ -2467,4 +2490,37 @@ Future<void> _dragUntilFound(WidgetTester tester, Finder finder,
   }
   expect(finder, findsWidgets,
       reason: 'not reached after $maxDrags drags of ${step.dy}');
+}
+
+/// Drags the screen with REAL gestures until the support footer is on screen
+/// and a further drag no longer moves it — the end of the screen's scroll
+/// (INV-22, ADR-173). Then asserts it is laid out inside the view, above any
+/// docked composer. The drag starts mid-screen, which is the primary column on
+/// every screen this is used on.
+Future<void> _dragToFooter(WidgetTester tester, String route) async {
+  final view = tester.view.physicalSize / tester.view.devicePixelRatio;
+  final footer = find.byType(KitSupportFooter);
+  Rect? last;
+  for (var i = 0; i < 40; i++) {
+    await tester.dragFrom(Offset(view.width / 2, view.height * 0.45),
+        const Offset(0, -500));
+    await tester.pump(const Duration(milliseconds: 400));
+    if (footer.hitTestable().evaluate().isEmpty) continue;
+    final r = tester.getRect(footer);
+    if (r == last) break;
+    last = r;
+  }
+  expect(footer.hitTestable(), findsOneWidget,
+      reason: '$route: the footer is reached at the end of the scroll');
+  final r = tester.getRect(footer);
+  expect(r.bottom, lessThanOrEqualTo(view.height + 0.5),
+      reason: '$route: laid out inside the view at the end');
+  final dock = find.byType(KitComposerDock);
+  if (dock.evaluate().isNotEmpty) {
+    expect(r.bottom, lessThanOrEqualTo(tester.getRect(dock).top + 0.5),
+        reason: '$route: above the docked composer, which stays docked');
+  } else {
+    expect(r.bottom, closeTo(view.height, 1.0),
+        reason: '$route: the last thing on the screen at the end');
+  }
 }

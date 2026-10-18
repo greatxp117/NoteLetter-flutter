@@ -98,8 +98,8 @@ proportions hold:
 - **`aliases_douay_rheims` is never merged** into the citation lookup: DR
   "1 Kings" is 1 Samuel, so merging resolves citations to the wrong book while
   looking complete. A bare book name is not a citation.
-- **INV-22's footer wraps the whole authenticated surface, not `AppLayout`** —
-  a wide reader is outside `AppLayout`. `widgets/support_shell.dart`, nowhere else.
+- **INV-22's footer: composed once by `widgets/support_shell.dart`** (above
+  `AppLayout`; a wide reader is outside it); every primary scroll ends with it.
 - **`flutterfire configure` does not rename the native projects.** A mismatch
   between `applicationId`/`PRODUCT_BUNDLE_IDENTIFIER` and the generated config
   fails at **Firebase init**, not at build — so a green build proves nothing here.

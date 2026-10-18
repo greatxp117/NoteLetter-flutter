@@ -5,11 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:flutter_app/models/ask_thread.dart';
+import 'package:flutter_app/pages/chat_page.dart';
 import 'package:flutter_app/router.dart';
+import 'package:flutter_app/services/firestore_service.dart';
+import 'package:flutter_app/state/chat_notifier.dart';
+import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/support_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/widgets/support_shell.dart';
+
+import 'sources_harness.dart' show StubTags;
 
 /// **INV-22 — the way to reach a human is composed once, by the shell.**
 ///
@@ -88,6 +95,17 @@ class _StubSupport extends SupportNotifier {
   int get unreadForUser => _unread;
 }
 
+/// Ask with nothing asked yet: no threads, no messages, no Firestore.
+class _NoThreads extends FirestoreService {
+  _NoThreads() : super.stub();
+  @override
+  Stream<List<AskThread>> subscribeAskThreads({int limit = 100}) =>
+      Stream.value(const []);
+  @override
+  Stream<List<AskMessage>> subscribeAskMessages(String threadId) =>
+      Stream.value(const []);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -146,7 +164,7 @@ void main() {
                 : AppTheme.light,
             home: const SupportShell(
               route: '/reader/doc-1',
-              child: Center(child: Text('a screen')),
+              child: KitPage(child: Text('a screen')),
             ),
           ),
         ),
@@ -183,18 +201,340 @@ void main() {
       await pumpShell(tester, unread: 3);
       expect(find.text('3'), findsOneWidget);
     });
+  });
 
-    testWidgets('it sits BELOW the routed view, never inside it',
+  // ── Placement (5.19.0, ADR-173; component-kit §1.4, §13) ──────────────────
+  // The footer is the LAST element of the screen's PRIMARY scroll container,
+  // reached at the end of the scroll and scrolled away with it. Each default
+  // ADR-173 names is a test here, on the real SupportShell and the kit's real
+  // scroll containers; the device run proves the same on real screens with a
+  // real gesture. "Only a real gesture proves scrollability" — so every move
+  // below is a `drag`, never a controller jump.
+  group('INV-22 — the footer ends the primary scroll (ADR-173)', () {
+    const pane = Size(1200, 900);
+
+    Future<void> pumpIn(WidgetTester tester, Widget screen,
+        {Size size = pane}) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ChangeNotifierProvider<SupportNotifier>.value(
+          value: _StubSupport(0),
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: SupportShell(route: '/activity', child: screen),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+
+    Widget rows(int n, {String prefix = 'row', Widget? last}) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < n; i++)
+              SizedBox(height: 40, child: Text('$prefix $i')),
+            ?last,
+          ],
+        );
+
+    Future<void> dragToEnd(WidgetTester tester, Finder scrollable) async {
+      for (var i = 0; i < 30; i++) {
+        await tester.drag(scrollable, const Offset(0, -600),
+            warnIfMissed: false);
+        await tester.pumpAndSettle();
+      }
+    }
+
+    Rect footer(WidgetTester tester) =>
+        tester.getRect(find.byType(KitSupportFooter));
+
+    testWidgets('the shell no longer draws it: no screen, no footer',
         (tester) async {
-      // Furniture, not content (§13): it does not scroll with the screen's body
-      // and does not sit inside the page frame.
-      await pumpShell(tester);
-      final screen = tester.getRect(find.text('a screen'));
-      final footer = tester.getRect(find.byType(KitSupportFooter));
-      expect(footer.top, greaterThan(screen.bottom - screen.height));
-      expect(footer.bottom, closeTo(600, 600),
-          reason: 'the footer is laid out, not off-screen');
-      expect(footer.top, greaterThan(screen.top));
+      // A screen with no primary scroll gets none — which is why every routed
+      // screen scrolls through the kit (the source gates below).
+      await pumpIn(tester, const Center(child: Text('bare')));
+      expect(find.byType(KitSupportFooter), findsNothing);
+    });
+
+    testWidgets('content shorter than the pane: at the pane\'s bottom edge',
+        (tester) async {
+      await pumpIn(tester, const KitPage(child: Text('short')));
+      expect(find.byType(KitSupportFooter), findsOneWidget);
+      expect(footer(tester).bottom, pane.height,
+          reason: 'never mid-screen under the last line');
+      expect(footer(tester).width, pane.width,
+          reason: 'it spans its scroll container');
+      final pos = tester.state<ScrollableState>(find.byType(Scrollable)).position;
+      expect(pos.maxScrollExtent, 0,
+          reason: 'filling the pane does not make a short screen scroll');
+    });
+
+    testWidgets('a long screen: the last element, reached at the END',
+        (tester) async {
+      await pumpIn(tester, KitPage(child: rows(60)));
+      expect(find.byType(KitSupportFooter), findsOneWidget);
+      expect(footer(tester).top, greaterThan(pane.height),
+          reason: 'out of the way: below the fold until the end');
+      await dragToEnd(tester, find.byType(Scrollable).first);
+      expect(footer(tester).bottom, pane.height,
+          reason: 'present: at the end of the scroll');
+      expect(footer(tester).top,
+          greaterThanOrEqualTo(tester.getRect(find.text('row 59')).bottom),
+          reason: 'after the last line of content');
+    });
+
+    testWidgets('a load-more list: after the last item AND its control',
+        (tester) async {
+      await pumpIn(
+        tester,
+        KitPage(
+          child: rows(40,
+              last: KitButton('Load more',
+                  variant: KitButtonVariant.ghost, onPressed: () {})),
+        ),
+      );
+      await dragToEnd(tester, find.byType(Scrollable).first);
+      expect(footer(tester).top,
+          greaterThanOrEqualTo(tester.getRect(find.text('Load more')).bottom));
+      expect(footer(tester).bottom, pane.height);
+    });
+
+    testWidgets('more than one scroller: the primary column ends with it, '
+        'the secondary never carries it', (tester) async {
+      await pumpIn(
+        tester,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(width: 440, child: KitPage(child: rows(3, prefix: 'form'))),
+            Expanded(
+              child: KitPage.secondary(
+                reason: 'the letter preview beside the settings column',
+                child: rows(60, prefix: 'preview'),
+              ),
+            ),
+          ],
+        ),
+      );
+      expect(find.byType(KitSupportFooter), findsOneWidget,
+          reason: 'exactly once, though the screen has two scrollers');
+      expect(footer(tester).left, 0);
+      expect(footer(tester).right, 440,
+          reason: 'in the primary column, not across the screen');
+      expect(footer(tester).bottom, pane.height);
+      await dragToEnd(tester, find.byType(Scrollable).last);
+      expect(footer(tester).right, 440,
+          reason: 'the secondary scroller ends with no footer');
+    });
+
+    testWidgets('a docked composer: the footer ends the content above the '
+        'dock\'s reserve, and the dock stays docked', (tester) async {
+      const dock = 120.0;
+      await pumpIn(
+        tester,
+        Stack(
+          children: [
+            KitPage(
+                anchorBottom: true,
+                dockReserve: dock + KitComposerDock.scrimRise,
+                child: rows(2, prefix: 'turn')),
+            const Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(height: dock, child: Text('dock')),
+            ),
+          ],
+        ),
+      );
+      expect(footer(tester).bottom,
+          pane.height - dock - KitComposerDock.scrimRise,
+          reason: 'above the dock and clear of its scrim');
+      expect(footer(tester).top,
+          greaterThanOrEqualTo(tester.getRect(find.text('turn 1')).bottom),
+          reason: 'a short transcript sits against the footer');
+      expect(tester.getRect(find.text('dock')).bottom, pane.height,
+          reason: 'the dock stays docked at the pane\'s bottom');
+    });
+
+    testWidgets('Ask, the real screen: the composer stays docked and the '
+        'footer ends the scroll above it', (tester) async {
+      for (final size in [pane, const Size(402, 874)]) {
+        FirestoreService.instance = _NoThreads();
+        addTearDown(FirestoreService.resetInstance);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(MultiProvider(
+          providers: [
+            ChangeNotifierProvider<SupportNotifier>.value(
+                value: _StubSupport(0)),
+            ChangeNotifierProvider<ChatNotifier>(create: (_) => ChatNotifier()),
+            ChangeNotifierProvider<TagsNotifier>(create: (_) => StubTags()),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: const SupportShell(
+                route: '/ask', child: Scaffold(body: ChatPage())),
+          ),
+        ));
+        for (var i = 0; i < 4; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(find.byType(KitSupportFooter), findsOneWidget, reason: '$size');
+        await dragToEnd(
+            tester,
+            find
+                .ancestor(
+                    of: find.byType(KitSupportFooter),
+                    matching: find.byType(Scrollable))
+                .first);
+        final dock = tester.getRect(find.byType(KitComposerDock));
+        expect(dock.bottom, size.height,
+            reason: 'the dock stays docked at the bottom ($size)');
+        expect(footer(tester).bottom,
+            closeTo(dock.top - KitComposerDock.scrimRise, 0.5),
+            reason: 'the footer rests above the dock, clear of its scrim '
+                '($size)');
+        expect(
+            footer(tester).top,
+            greaterThanOrEqualTo(
+                tester.getRect(find.byType(KitEmptyState)).bottom),
+            reason: 'after the screen\'s content ($size)');
+      }
+    });
+
+    testWidgets('the reader: at the end of the document, as its last sliver',
+        (tester) async {
+      Widget reader(int n) => CustomScrollView(slivers: [
+            SliverToBoxAdapter(child: rows(n, prefix: 'passage')),
+            const KitShellFooterSliver(),
+          ]);
+      await pumpIn(tester, reader(3));
+      expect(footer(tester).bottom, pane.height,
+          reason: 'a short document keeps it at the pane\'s bottom edge');
+      await pumpIn(tester, reader(80));
+      expect(find.byType(KitSupportFooter).hitTestable(), findsNothing,
+          reason: 'below the fold (a sliver that far out is not even built)');
+      await dragToEnd(tester, find.byType(Scrollable).first);
+      expect(footer(tester).bottom, pane.height);
+      expect(footer(tester).top,
+          greaterThanOrEqualTo(tester.getRect(find.text('passage 79')).bottom));
+    });
+
+    testWidgets('a screen still loading keeps its way out', (tester) async {
+      await pumpIn(tester, const KitLoadingPage());
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(footer(tester).bottom, pane.height);
+    });
+
+    testWidgets('on a phone it is inside the scroll, and reaches the bottom '
+        'edge only at the end', (tester) async {
+      const phone = Size(402, 874);
+      await pumpIn(tester, KitPage(child: rows(60)), size: phone);
+      expect(footer(tester).top, greaterThan(phone.height),
+          reason: 'not a strip pinned over every phone screen');
+      await dragToEnd(tester, find.byType(Scrollable).first);
+      expect(footer(tester).bottom, phone.height);
+    });
+  });
+
+  group('INV-22 — every screen scrolls through the kit (source)', () {
+    // Mounting every routed screen needs Firebase, which a widget test does not
+    // have (see the top of this file). So the gate reads the source: each
+    // routed screen's file has a PRIMARY scroll container, and every other
+    // scroller a page builds is declared secondary, with its reason — web's
+    // `data-scroll-secondary`. The device run closes it on real screens.
+    final primary = RegExp(
+        r'KitPage\(|KitScrollView\(|KitLoadingPage\(|KitShellFooterSliver\(');
+
+    test('every routed screen\'s file has a primary scroll container', () {
+      final router = File('lib/router.dart').readAsStringSync();
+      final classes = RegExp(r'=>\s*(?:const\s+)?([A-Z]\w*Page)\(')
+          .allMatches(router)
+          .map((m) => m.group(1)!)
+          .toSet()
+        // Outside the shell by decision (INV-22's exemptions above, and the
+        // router's error page, which renders outside every route).
+        ..removeAll({'NotFoundPage', 'LandingPage', 'SignInPage'});
+      expect(classes, isNotEmpty);
+      final files = Directory('lib/pages')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .toList();
+      final missing = <String>[];
+      for (final c in classes) {
+        final file = files.firstWhere(
+            (f) => f.readAsStringSync().contains(RegExp('class $c\\b')),
+            orElse: () => File(''));
+        if (file.path.isEmpty) {
+          missing.add('$c (no file)');
+        } else if (!primary.hasMatch(file.readAsStringSync())) {
+          missing.add('$c (${file.path})');
+        }
+      }
+      expect(missing, isEmpty,
+          reason: 'a routed screen with no primary scroll has no footer '
+              '(INV-22, ADR-173): scroll through KitPage / KitScrollView');
+    });
+
+    test('every other scroller a page builds is declared secondary', () {
+      final raw = RegExp(r'(?<![A-Za-z0-9_.])(SingleChildScrollView|ListView|'
+          r'CustomScrollView|GridView|PageView)(\.\w+)?\(');
+      final mark = RegExp(r'scroll-secondary:(.*)$');
+      final offenders = <String>[];
+      for (final f in Directory('lib/pages').listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        final lines = f.readAsLinesSync();
+        final src = lines.join('\n');
+        for (var i = 0; i < lines.length; i++) {
+          final m = raw.firstMatch(lines[i]);
+          if (m == null || lines[i].trimLeft().startsWith('//')) continue;
+          // The reader's sliver scroller ends with the footer itself.
+          if (m.group(1) == 'CustomScrollView' &&
+              src.contains('KitShellFooterSliver()')) {
+            continue;
+          }
+          String? why;
+          for (final l in [lines[i], if (i > 0) lines[i - 1]]) {
+            final mm = mark.firstMatch(l);
+            if (mm != null) why = mm.group(1);
+          }
+          if (why == null || why.replaceAll(RegExp(r'[^A-Za-z]'), '').length < 8) {
+            offenders.add('${f.path}:${i + 1}');
+          }
+        }
+      }
+      expect(offenders, isEmpty,
+          reason: 'a raw scroller in a page is either the screen\'s primary '
+              'one (then it must be KitPage / KitScrollView, which end with '
+              'the footer) or a secondary one marked '
+              '`// scroll-secondary: <why>`');
+    });
+
+    test('the reader\'s scroll ends with the footer sliver', () {
+      final src = File('lib/pages/reader_page.dart').readAsStringSync();
+      final last = src.lastIndexOf('KitShellFooterSliver()');
+      expect(last, greaterThan(0));
+      expect(src.indexOf('SliverToBoxAdapter', last), -1,
+          reason: 'nothing after the footer: it ends the document');
+    });
+
+    test('only the shell hands the footer down', () {
+      final offenders = <String>[];
+      for (final f in Directory('lib').listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        if (f.path.endsWith('support_shell.dart') ||
+            f.path.endsWith('kit_frame.dart')) {
+          continue;
+        }
+        if (f.readAsStringSync().contains('KitShellFooter(')) {
+          offenders.add(f.path);
+        }
+      }
+      expect(offenders, isEmpty);
     });
   });
 

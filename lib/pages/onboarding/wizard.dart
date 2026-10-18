@@ -302,6 +302,7 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
           child: Column(
             children: [
               Expanded(
+                // scroll-secondary: the first-run wizard replaces the shell (INV-22's exemption)
                 child: SingleChildScrollView(
                   controller: _scroll,
                   padding: EdgeInsets.fromLTRB(

@@ -8,10 +8,18 @@ import 'kit/kit.dart';
 
 /// **INV-22, and the only place it is composed.**
 ///
-/// The support footer is shell furniture, not screen content: it is rendered
-/// here, beneath the routed view, for every authenticated route. No screen
-/// renders it and no screen may suppress it — a client that adds a screen gets
-/// the footer without editing that screen and without remembering it exists.
+/// The support footer is composed here, once, for every authenticated route.
+/// No screen renders it and no screen may suppress it — a client that adds a
+/// screen gets the footer without editing that screen and without remembering
+/// it exists.
+///
+/// **Where it sits** (5.19.0, ADR-173): the shell hands it down
+/// ([KitShellFooter]) and the screen's PRIMARY scroll container renders it
+/// last ([KitPage], [KitScrollView], [KitLoadingPage], the reader's
+/// [KitShellFooterSliver]) — the end of each screen's scroll, "out of the way
+/// but present". Until 5.19.0 it was drawn here, under the routed view, and
+/// was always on screen; that read "under each screen" as a place on the
+/// window. A screen shorter than the pane keeps it at the pane's bottom edge.
 ///
 /// It wraps the whole authenticated routing surface rather than [AppLayout],
 /// which covers only the rail-and-pane routes. The reader is deliberately
@@ -63,23 +71,17 @@ class _SupportShellState extends State<SupportShell> {
     // keeps every screen in the app from rebuilding when a message arrives.
     final unread = context.select<SupportNotifier, int>((s) => s.unreadForUser);
 
-    return Material(
-      color: t.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: widget.child),
-          KitSupportFooter(
-            unread: unread,
-            onOpen: () {
-              if (widget.route == supportRoute) return;
-              context.go(
-                '$supportRoute?from=${Uri.encodeComponent(widget.route)}',
-              );
-            },
-          ),
-        ],
+    return KitShellFooter(
+      footer: KitSupportFooter(
+        unread: unread,
+        onOpen: () {
+          if (widget.route == supportRoute) return;
+          context.go(
+            '$supportRoute?from=${Uri.encodeComponent(widget.route)}',
+          );
+        },
       ),
+      child: Material(color: t.surface, child: widget.child),
     );
   }
 }

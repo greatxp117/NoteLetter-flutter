@@ -12,8 +12,9 @@ import '../services/analytics.dart';
 /// Support — the conversation between one user and a human (contract 4.18.0,
 /// ADR-054; `spec/screens/support.md`).
 ///
-/// Reached from the **support footer**, which the shell renders under every
-/// screen (INV-22) — never from a per-screen link. This screen therefore knows
+/// Reached from the **support footer**, which the shell composes once and every
+/// screen's primary scroll ends with (INV-22, ADR-173) — never from a
+/// per-screen link. This screen therefore knows
 /// nothing about how it was reached except [fromRoute], which the shell passed.
 ///
 /// The reply arrives through the notification channels the user already
@@ -42,6 +43,14 @@ const String _answerWindow =
 class _SupportPageState extends State<SupportPage> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
+
+  /// The floating dock's height, measured (§10): the thread reserves it and
+  /// the dock's scrim, so the support footer that ends this scroll rests above
+  /// the composer (ADR-173).
+  double _dock = 0;
+  void _onDock(Size s) {
+    if (mounted && s.height != _dock) setState(() => _dock = s.height);
+  }
 
   @override
   void initState() {
@@ -104,6 +113,7 @@ class _SupportPageState extends State<SupportPage> {
         KitPage(
           width: KitFrameWidth.reading,
           controller: _scroll,
+          dockReserve: _dock == 0 ? 0 : _dock + KitComposerDock.scrimRise,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -166,8 +176,9 @@ class _SupportPageState extends State<SupportPage> {
                     ),
                   ),
               ],
-              // Room for the dock, which floats over this scroller.
-              const SizedBox(height: AppSpacing.s24),
+              // Room for the dock, which floats over this scroller, is the
+              // scroller's own [KitPage.dockReserve], below the footer.
+              const SizedBox(height: AppSpacing.s6),
             ],
           ),
         ),
@@ -178,7 +189,9 @@ class _SupportPageState extends State<SupportPage> {
           // left, and the server's sentence is the dock's calm caption while
           // it runs — never its red error line (support.md, 4.108.0,
           // ADR-145). The draft is kept either way (write before you move).
-          child: KitWait(
+          child: KitMeasure(
+            onSize: _onDock,
+            child: KitWait(
             waitKey: WaitKey.supportSend(),
             builder: (context, wait) => KitComposerDock(
               controller: _controller,
@@ -191,6 +204,7 @@ class _SupportPageState extends State<SupportPage> {
               waitLeft: wait.left,
               onSend: _controller.text.trim().isEmpty ? null : _send,
             ),
+          ),
           ),
         ),
       ],

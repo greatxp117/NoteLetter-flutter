@@ -579,6 +579,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
         constraints: BoxConstraints(maxHeight: maxHeight),
         child: NotificationListener<ScrollNotification>(
           onNotification: _chain,
+          // scroll-secondary: the Listen section's text box, inside the reader's scroll
           child: SingleChildScrollView(
             controller: _textScroll,
             // Clamping, on every platform: a bouncing box takes the spent

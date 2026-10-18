@@ -65,7 +65,7 @@ class _ShelvesPageState extends State<ShelvesPage> {
     return Consumer2<TagsNotifier, DocumentsNotifier>(
       builder: (context, tags, docs, _) {
         if (tags.loading) {
-          return const Center(child: CircularProgressIndicator());
+          return const KitLoadingPage();
         }
         final shelves = tags.tags;
         final complete = docs.complete;

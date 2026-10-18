@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart' show CircularProgressIndicator;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import '../../theme/app_spacing.dart';
 
@@ -107,6 +109,30 @@ class KitFrameBand extends StatelessWidget {
   }
 }
 
+/// INV-22 (5.19.0, ADR-173) — the support footer the shell composed, handed
+/// down to the screen's **primary** scroll container, which renders it last.
+///
+/// The shell ([SupportShell]) is still the only place the footer is
+/// composed, and no screen names it: a screen gets it by scrolling the way
+/// every screen scrolls — [KitPage], [KitScrollView], [KitLoadingPage], or the
+/// reader's [KitShellFooterSliver] — never by rendering it. Until 5.19.0 the
+/// shell drew it below the routed view, always on screen; Xavier meant the end
+/// of each screen's scroll, "out of the way but present" (ADR-173).
+class KitShellFooter extends InheritedWidget {
+  final Widget footer;
+
+  const KitShellFooter({super.key, required this.footer, required super.child});
+
+  /// The footer to end this screen's primary scroll with, or null outside the
+  /// shell (a widget test, the pre-auth landing).
+  static Widget? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<KitShellFooter>()?.footer;
+
+  @override
+  bool updateShouldNotify(KitShellFooter oldWidget) =>
+      footer != oldWidget.footer;
+}
+
 /// The scroll container every screen body sits in (`component-kit.md` §1.4).
 ///
 /// **Every screen's body scrolls inside its own container.** This is a shipped
@@ -115,23 +141,99 @@ class KitFrameBand extends StatelessWidget {
 /// (contract 4.3.1). A screen that renders a bare [Column] under the shell has
 /// the same bug, and it will not show up until the content grows.
 ///
+/// **The primary one ends with the shell's footer** (§1.4, §13; ADR-173). The
+/// screen's content is the body, which grows to fill the container, and the
+/// footer the shell composed ([KitShellFooter]) is its last element. So a
+/// screen shorter than the pane keeps the footer at the pane's bottom edge, and
+/// a longer one reaches it at the end of the scroll. Any OTHER scroller a
+/// screen owns — a preview beside a form, a sheet — is
+/// [KitScrollView.secondary], which says why and never carries it (web
+/// `data-scroll-secondary`).
+///
 /// Only a **real gesture** proves scrollability — driving the controller
 /// programmatically moves even a pane that a user cannot scroll.
 class KitScrollView extends StatelessWidget {
   final Widget child;
   final ScrollController? controller;
 
-  const KitScrollView({super.key, required this.child, this.controller});
+  /// Content shorter than the viewport rests at its BOTTOM, footer below it,
+  /// as a chat's does (Ask's `.ask-thread { margin: auto auto 0 }`).
+  final bool anchorBottom;
+
+  /// The height a docked bar floating over this scroller takes (Ask's and
+  /// Support's composer, §10). The footer ends the content ABOVE it, inside
+  /// the space the dock reserves, and the dock stays docked (ADR-173).
+  final double dockReserve;
+
+  /// Why this scroller is not the screen's primary one. Null: it is.
+  final String? secondaryReason;
+
+  const KitScrollView({
+    super.key,
+    required this.child,
+    this.controller,
+    this.anchorBottom = false,
+    this.dockReserve = 0,
+  }) : secondaryReason = null;
+
+  /// A scroller that is not the screen's primary column (§1.4): it never
+  /// carries the footer, and it has to say why.
+  const KitScrollView.secondary({
+    super.key,
+    required String reason,
+    required this.child,
+    this.controller,
+  })  : secondaryReason = reason,
+        anchorBottom = false,
+        dockReserve = 0;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
+  Widget build(BuildContext context) {
+    final reason = secondaryReason;
+    if (reason != null) {
+      assert(reason.trim().length >= 8,
+          'a secondary scroller says why it is not the primary one');
+      return SingleChildScrollView(
         controller: controller,
         primary: controller == null ? null : false,
         child: child,
       );
+    }
+    final footer = KitShellFooter.of(context);
+    final tail = footer == null && dockReserve == 0
+        ? null
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ?footer,
+              if (dockReserve > 0) SizedBox(height: dockReserve),
+            ],
+          );
+    return LayoutBuilder(
+      builder: (context, c) => SingleChildScrollView(
+        controller: controller,
+        primary: controller == null ? null : false,
+        child: ConstrainedBox(
+          // The body grows to fill the pane: short content keeps the footer at
+          // the pane's bottom edge, never mid-screen under its last line.
+          constraints:
+              BoxConstraints(minHeight: c.hasBoundedHeight ? c.maxHeight : 0),
+          child: Column(
+            mainAxisAlignment: anchorBottom
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [child, ?tail],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// A frame and its scroller together — the shape almost every screen wants.
+/// The PRIMARY one by default, so it ends with the shell's footer.
 class KitPage extends StatelessWidget {
   final KitFrameWidth width;
   final Widget child;
@@ -143,35 +245,130 @@ class KitPage extends StatelessWidget {
   /// (5)). Longer content scrolls exactly as it would without this.
   final bool anchorBottom;
 
+  /// [KitScrollView.dockReserve].
+  final double dockReserve;
+
+  /// [KitScrollView.secondaryReason].
+  final String? secondaryReason;
+
   const KitPage({
     super.key,
     this.width = KitFrameWidth.listing,
     required this.child,
     this.controller,
     this.anchorBottom = false,
-  });
+    this.dockReserve = 0,
+  }) : secondaryReason = null;
+
+  /// A framed scroller that is not the screen's primary column (§1.4) — the
+  /// letter studio's preview beside its form. It never carries the footer.
+  const KitPage.secondary({
+    super.key,
+    required String reason,
+    this.width = KitFrameWidth.listing,
+    required this.child,
+    this.controller,
+  })  : secondaryReason = reason,
+        anchorBottom = false,
+        dockReserve = 0;
 
   @override
   Widget build(BuildContext context) {
-    if (!anchorBottom) {
-      return KitScrollView(
-        controller: controller,
-        child: KitFrame(width: width, child: child),
-      );
+    final frame = KitFrame(width: width, child: child);
+    final reason = secondaryReason;
+    if (reason != null) {
+      return KitScrollView.secondary(
+          reason: reason, controller: controller, child: frame);
     }
+    return KitScrollView(
+      controller: controller,
+      anchorBottom: anchorBottom,
+      dockReserve: dockReserve,
+      child: frame,
+    );
+  }
+}
+
+/// A screen still loading: the spinner centred in the pane, and the screen's
+/// primary scroll ending with the shell's footer as any other does (INV-22 —
+/// a screen does not lose its way out while it loads).
+class KitLoadingPage extends StatelessWidget {
+  const KitLoadingPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final footer = KitShellFooter.of(context);
     return LayoutBuilder(
-      builder: (context, c) => KitScrollView(
-        controller: controller,
+      builder: (context, c) => SingleChildScrollView(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-              minHeight: c.hasBoundedHeight ? c.maxHeight : 0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [KitFrame(width: width, child: child)],
+          constraints:
+              BoxConstraints(minHeight: c.hasBoundedHeight ? c.maxHeight : 0),
+          child: IntrinsicHeight(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Expanded(
+                    child: Center(child: CircularProgressIndicator())),
+                ?footer,
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// The footer as the LAST SLIVER of a screen built from slivers — the reader,
+/// whose section rail is sticky (§19). It ends the document, and when the
+/// document is shorter than the pane it sits at the pane's bottom edge
+/// (ADR-173: "Reader — at the end of the document").
+class KitShellFooterSliver extends StatelessWidget {
+  const KitShellFooterSliver({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final footer = KitShellFooter.of(context);
+    if (footer == null) return const SliverToBoxAdapter();
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [footer],
+      ),
+    );
+  }
+}
+
+/// Reports its child's laid-out size after the frame — how a screen learns the
+/// height of a dock that floats over its scroller, so the scroller can reserve
+/// it ([KitScrollView.dockReserve]).
+class KitMeasure extends SingleChildRenderObjectWidget {
+  final ValueChanged<Size> onSize;
+
+  const KitMeasure({super.key, required this.onSize, super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderMeasure(onSize);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) =>
+      (renderObject as _RenderMeasure).onSize = onSize;
+}
+
+class _RenderMeasure extends RenderProxyBox {
+  _RenderMeasure(this.onSize);
+  ValueChanged<Size> onSize;
+  Size? _last;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final s = size;
+    if (s == _last) return;
+    _last = s;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onSize(s));
   }
 }
