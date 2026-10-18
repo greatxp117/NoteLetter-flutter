@@ -61,11 +61,13 @@ emu_assert_ours() {
 
 # The simulator by NAME, resolved to a UDID. Never `booted`: two simulators
 # are routinely booted on this machine and `xcrun simctl io booted` picks one.
-# "iPhone 17 Pro" is the device every committed frame was shot on; the default
-# said "iPhone 17", which this Mac has never had, so every run needed
-# NL_SIM_NAME. Another agent on the same machine names its own device.
+# The default is NoteLetter's own iPhone 17 Pro simulator, "NL Flutter agent
+# 17 Pro" (94E40769). It used to be the bare name "iPhone 17 Pro", which on
+# this Mac is 16CF29E7, the iConfess workspace's simulator, so a run without
+# NL_SIM_NAME drove another workspace's device (found 2026-10-18, F-125 S1).
+# Another agent on the same machine names its own device.
 emu_sim_udid() {
-  name="${NL_SIM_NAME:-iPhone 17 Pro}"
+  name="${NL_SIM_NAME:-NL Flutter agent 17 Pro}"
   xcrun simctl list devices available -j | python3 -c "
 import json,sys
 name=sys.argv[1]
