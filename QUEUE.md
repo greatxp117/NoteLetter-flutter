@@ -2080,7 +2080,7 @@ a new obligation on a finished screen is a new item.
 - notes: From the iOS inventory (reports/ios.md, 2026-10-18): Swift sent video/* through the resumable session (UploadViewModel.swift:26, ResumableUpload.swift); Flutter reads the whole file into memory and sends one bare PUT (upload_notifier.dart:169-175), so a long recording can fail or run out of memory. Port web api.js's resumable path: start the session at resumableUrl, PUT chunks with Content-Range, resume from the server's Range on a dropped chunk. Which sizes and kinds take it: web's rule, not a new one. About a day. Do it with or before the share extension's video branch.
 
 ## F-122 · Share extension on iOS (F-a): a native Share target that files a link, an image set or one file into the library, signed in through the app's own keychain group
-- status: in-progress
+- status: done 2026-10-18
 - screen: share-extension
 - route: none
 - spec: spec/api/ingest.md; spec/api/uploads.md; spec/features/scroll-stitch.md; spec/features/audio-ingestion-and-closed-upload-set.md; spec/decisions/ADR-151-a-playlist-link-is-detected-as-a-playlist.md; spec/decisions/ADR-120-a-bare-address-is-a-link.md
