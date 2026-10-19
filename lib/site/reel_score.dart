@@ -3,6 +3,13 @@
 // same beats, the same seeded field and the same paint, so the two clients
 // show the same frame at the same `t`.
 //
+// The reference is one engine with cuts of the same film; a cut is its
+// chapters, its titles and the chapter starts every beat is computed from
+// ([makeBeats]). Only the live cut is ported, [reelPlate] — the film under the
+// masthead headline. Web's `HERO` cut (the film AS the hero, built only for a
+// `VITE_LANDING_HERO=film` preview channel) is a candidate waiting on a pick,
+// so its beats (the stale desk, the sweep, 06 Begin) are not here.
+//
 //   01 Gather  what you kept arrives — a lecture, a PDF, a page of your own
 //              handwriting, a podcast, an article, a voice memo, a deck, a book
 //   02 Read    each is read through: audio and video transcribed, ink typed,
@@ -25,103 +32,125 @@
 //
 // Departures from the JS, each because Dart has no such thing: JS's stable
 // `Array.sort` is a sort with an index tie-break ([buildField]); `Math.hypot`
-// is `sqrt(dx² + dy²)`; an SVG path string (`wavePath`) is a list of bars.
+// is `sqrt(dx² + dy²)`; an SVG path string (`wavePath`) is a list of bars; a
+// title line's `filter: blur(Npx)` is the number N under `blur` ([_inkStyle]).
 import 'dart:math' as math;
 
 import 'reel_motion.dart';
 
 typedef Pt = (double, double);
 
-const double reelDuration = 36;
-
 class ReelChapter {
   final String n;
   final String name;
   final double at;
+
+  /// The frame the chapter is best seen at when the film is paused or motion
+  /// is reduced.
   final double key;
   final String caption;
   const ReelChapter(this.n, this.name, this.at, this.key, this.caption);
-
-  /// Where the chapter ends: the next one's start, or the loop's end.
-  double get end {
-    final i = reelChapters.indexOf(this);
-    return i + 1 < reelChapters.length ? reelChapters[i + 1].at : reelDuration;
-  }
 }
 
-/// Chapter starts, and the frame each one is best seen at when the film is
-/// paused or motion is reduced (`key`).
-const reelChapters = <ReelChapter>[
-  ReelChapter(
-    '01',
-    'Gather',
-    0,
-    5.4,
-    'Lectures, PDFs, podcasts, voice memos, your own handwriting — whatever you kept, wherever you kept it.',
-  ),
-  ReelChapter(
-    '02',
-    'Read',
-    6.5,
-    10.25,
-    'Every source is read through. Audio and video are transcribed, ink is typed, and each passage keeps its source and the second it was said.',
-  ),
-  ReelChapter(
-    '03',
-    'Index',
-    12.5,
-    17.6,
-    'Passages are filed by what they mean, not by what they were called, and the shelves form around them on their own.',
-  ),
-  ReelChapter(
-    '04',
-    'Ask',
-    19,
-    26.2,
-    'Ask in a half-remembered sentence. The answer comes back quoted, with its source — even a passage that never used your words.',
-  ),
-  ReelChapter(
-    '05',
-    'Return',
-    27,
-    33.8,
-    'Then a few passages come back to you each morning, spaced to arrive just before you would have lost them.',
-  ),
-];
+/// A chapter's title: two lines, the second in the accent italic, as every
+/// headline on the page is set. It inks in whole at [at] — opacity, a focus
+/// pull and tracking that settles tight — and fades up and out at [out],
+/// before the next one begins: no masks, so no glyph is ever cut, and no two
+/// titles ever share the frame.
+class ReelTitle {
+  /// The chapter it heads (its eyebrow is the chapter's).
+  final int ch;
+  final double at, out;
+  final List<String> lines;
+  const ReelTitle(this.ch, this.at, this.out, this.lines);
+}
 
-/// Which chapter `t` falls in.
-int chapterAt(double t) {
+/// The chapter starts a cut's beats are computed from.
+typedef ReelAt = ({double read, double index, double ask, double ret});
+
+/// One cut of the film: its length, its chapters, its titles, and the beats
+/// computed from its chapter starts.
+class ReelCut {
+  final String id;
+  final double duration;
+  final ReelAt at;
+  final List<ReelChapter> chapters;
+  final List<ReelTitle> titles;
+  final ReelBeats beats;
+
+  ReelCut({
+    required this.id,
+    required this.duration,
+    required this.at,
+    required this.chapters,
+    required this.titles,
+  }) : beats = makeBeats(at);
+
+  /// Where chapter [i] ends: the next one's start, or the loop's end.
+  double endOf(int i) =>
+      i + 1 < chapters.length ? chapters[i + 1].at : duration;
+}
+
+/// `PLATE` — the live cut, under the masthead headline: thirty-six seconds in
+/// five chapters, each one the product doing a thing it ships.
+final reelPlate = ReelCut(
+  id: 'plate',
+  duration: 36,
+  at: (read: 6.5, index: 12.5, ask: 19, ret: 27),
+  chapters: const [
+    ReelChapter(
+      '01',
+      'Gather',
+      0,
+      5.4,
+      'Lectures, PDFs, podcasts, voice memos, your own handwriting — whatever you kept, wherever you kept it.',
+    ),
+    ReelChapter(
+      '02',
+      'Read',
+      6.5,
+      10.25,
+      'Every source is read through. Audio and video are transcribed, ink is typed, and each passage keeps its source and the second it was said.',
+    ),
+    ReelChapter(
+      '03',
+      'Index',
+      12.5,
+      17.6,
+      'Passages are filed by what they mean, not by what they were called, and the shelves form around them on their own.',
+    ),
+    ReelChapter(
+      '04',
+      'Ask',
+      19,
+      26.2,
+      'Ask in a half-remembered sentence. The answer comes back quoted, with its source — even a passage that never used your words.',
+    ),
+    ReelChapter(
+      '05',
+      'Return',
+      27,
+      33.8,
+      'Then a few passages come back to you each morning, spaced to arrive just before you would have lost them.',
+    ),
+  ],
+  titles: const [
+    ReelTitle(0, 0.15, 5.85, ['Everything', 'you kept.']),
+    ReelTitle(1, 6.5, 11.85, ['Read,', 'every word.']),
+    ReelTitle(2, 12.5, 18.4, ['Filed by', 'meaning.']),
+    ReelTitle(3, 19.0, 26.4, ['Found in', 'a sentence.']),
+    ReelTitle(4, 27.0, 34.5, ['Handed back,', 'in time.']),
+  ],
+);
+
+/// Which chapter of [cut] `t` falls in.
+int chapterAt(ReelCut cut, double t) {
   var i = 0;
-  for (var j = 0; j < reelChapters.length; j++) {
-    if (t >= reelChapters[j].at) i = j;
+  for (var j = 0; j < cut.chapters.length; j++) {
+    if (t >= cut.chapters[j].at) i = j;
   }
   return i;
 }
-
-/// The display line of each chapter — two lines, the second in the accent
-/// italic, as every headline on the page is set.
-const reelTitles = <List<List<String>>>[
-  [
-    ['Everything'],
-    ['you', 'kept.'],
-  ],
-  [
-    ['Read,'],
-    ['every', 'word.'],
-  ],
-  [
-    ['Filed', 'by'],
-    ['meaning.'],
-  ],
-  [
-    ['Found', 'in'],
-    ['a', 'sentence.'],
-  ],
-  [
-    ['Handed', 'back,'],
-    ['in', 'time.'],
-  ],
-];
 
 // ─── the specimen library ────────────────────────────────────────────────────
 
@@ -411,7 +440,9 @@ class ReelAnn {
 class ReelLayout {
   final String name;
   final double w, h;
-  final ({double x, double y, double size}) title;
+
+  /// Where the eyebrow sits; the title's first line starts [eb] below it.
+  final ({double x, double y, double eb}) title;
   final Map<String, ReelCard?> cards;
   final ({double w, double h}) slip;
   final Map<String, Pt> slips;
@@ -455,7 +486,7 @@ const reelWide = ReelLayout(
   name: 'wide',
   w: 1200,
   h: 600,
-  title: (x: 64, y: 40, size: 46),
+  title: (x: 64, y: 40, eb: 24),
   cards: {
     'art': ReelCard(178, 352, 204, 176, -2.4),
     'pdf': ReelCard(404, 384, 204, 236, 1.8),
@@ -505,9 +536,9 @@ const reelTall = ReelLayout(
   name: 'tall',
   w: 420,
   h: 640,
-  title: (x: 24, y: 22, size: 31),
+  title: (x: 24, y: 22, eb: 20),
   cards: {
-    'vid': ReelCard(300, 150, 180, 126, -2),
+    'vid': ReelCard(304, 174, 180, 126, -2),
     'pod': ReelCard(114, 198, 178, 106, 2.4),
     'note': ReelCard(302, 300, 178, 134, -3),
     'pdf': ReelCard(118, 354, 172, 192, 1.8),
@@ -518,7 +549,7 @@ const reelTall = ReelLayout(
   },
   slip: (w: 190, h: 66),
   slips: {
-    'p1': (300, 140),
+    'p1': (304, 160),
     'p4': (112, 200),
     'p3': (305, 272),
     'p2': (115, 318),
@@ -537,7 +568,7 @@ const reelTall = ReelLayout(
   },
   ambient: {'att': 15, 'mnt': 9, 'dec': 9, 'wri': 8, 'ckg': 6},
   askField: (s: 0.46, dx: 113, dy: 122),
-  search: ReelBox(210, 130, 372, 48),
+  search: ReelBox(210, 140, 372, 48),
   results: (x: 210, w: 372, ys: [414, 504, 594]),
   callout: null,
   letter: ReelLetterBox(210, 336, 372, 424, 112, 74),
@@ -713,50 +744,110 @@ ReelField buildField(ReelLayout l) {
 
 // ─── the beats ───────────────────────────────────────────────────────────────
 
-abstract final class B {
-  // 01 Gather
-  static const cardsIn = 0.6, cardGap = 0.3, cardDur = 1.3, inkDur = 1.7;
+/// Every beat of a cut, in seconds (and the pulse's speed in px/s).
+class ReelBeats {
+  // 01 Gather — the cards land
+  final double cardsIn, cardGap, cardDur, inkDur;
   // 02 Read
-  static const readAt = 6.95,
-      readGap = 0.3,
-      readDur = 1.05,
-      annIn = 8.2,
-      annOut = 10.35,
-      tearAt = 10.55,
-      tearGap = 0.07;
-  // 03 Index
-  static const flyAt = 12.55,
-      flyGap = 0.075,
-      flyDur = 1.4,
-      libAt = 13.7,
-      wireAt = 14.6,
-      shelfAt = 15.1;
-  // 04 Ask
-  static const fieldMove = 19.05,
-      barIn = 19.3,
-      typeAt = 19.95,
-      typeDur = 2.05,
-      pulseAt = 22.15,
-      pulseSpeed = 760.0,
-      qWireAt = 22.95,
-      resAt = 23.45,
-      resGap = 0.2,
-      hlAt = 24.55,
-      coAt = 25.45;
-  // 05 Return
-  static const fieldOut = 26.85,
-      letterIn = 27.3,
-      foldAt = 28.45,
-      foldGap = 0.24,
-      sealAt = 30.35,
-      curveAt = 30.55,
-      inboxAt = 31.35,
-      listenAt = 31.9,
-      outAt = 34.7;
+  final double readAt, readGap, readDur, annIn, annOut, tearAt, tearGap;
+  // 03 Index — the field
+  final double flyAt, flyGap, flyDur, libAt, wireAt, shelfAt;
+  // 04 Ask — the question
+  final double fieldMove, barIn, typeAt, typeDur, pulseAt, pulseSpeed;
+  final double qWireAt, resAt, resGap, hlAt, coAt;
+  // 05 Return — the letter
+  final double fieldOut, letterIn, foldAt, foldGap, sealAt, curveAt;
+  final double inboxAt, listenAt, outAt, outDur;
+
+  const ReelBeats({
+    required this.cardsIn,
+    required this.cardGap,
+    required this.cardDur,
+    required this.inkDur,
+    required this.readAt,
+    required this.readGap,
+    required this.readDur,
+    required this.annIn,
+    required this.annOut,
+    required this.tearAt,
+    required this.tearGap,
+    required this.flyAt,
+    required this.flyGap,
+    required this.flyDur,
+    required this.libAt,
+    required this.wireAt,
+    required this.shelfAt,
+    required this.fieldMove,
+    required this.barIn,
+    required this.typeAt,
+    required this.typeDur,
+    required this.pulseAt,
+    required this.pulseSpeed,
+    required this.qWireAt,
+    required this.resAt,
+    required this.resGap,
+    required this.hlAt,
+    required this.coAt,
+    required this.fieldOut,
+    required this.letterIn,
+    required this.foldAt,
+    required this.foldGap,
+    required this.sealAt,
+    required this.curveAt,
+    required this.inboxAt,
+    required this.listenAt,
+    required this.outAt,
+    required this.outDur,
+  });
 }
 
-const _titleIn = [0.15, 6.5, 12.5, 19.0, 27.0];
-const _titleOut = [5.95, 11.95, 18.55, 26.5, 34.55];
+/// Every beat from the chapter starts in [at] — web's `makeBeats(at, sweep)`
+/// with `sweep` false: the hero cut's sweep and stale-desk beats are not
+/// ported (see the header). Each beat is its chapter's start plus the same
+/// offset in every cut, so cuts share each chapter's choreography exactly.
+ReelBeats makeBeats(ReelAt at) {
+  final r = at.read, i = at.index, a = at.ask, t = at.ret;
+  return ReelBeats(
+    cardsIn: 0.6,
+    cardGap: 0.3,
+    cardDur: 1.3,
+    inkDur: 1.7,
+    readAt: r + 0.45,
+    readGap: 0.3,
+    readDur: 1.05,
+    annIn: r + 1.7,
+    annOut: r + 3.85,
+    tearAt: r + 4.05,
+    tearGap: 0.07,
+    flyAt: i + 0.05,
+    flyGap: 0.075,
+    flyDur: 1.4,
+    libAt: i + 1.2,
+    wireAt: i + 2.1,
+    shelfAt: i + 2.6,
+    fieldMove: a + 0.05,
+    barIn: a + 0.3,
+    typeAt: a + 0.95,
+    typeDur: 2.05,
+    pulseAt: a + 3.15,
+    pulseSpeed: 760,
+    qWireAt: a + 3.95,
+    resAt: a + 4.45,
+    resGap: 0.2,
+    hlAt: a + 5.55,
+    coAt: a + 6.45,
+    fieldOut: t - 0.15,
+    letterIn: t + 0.3,
+    foldAt: t + 1.45,
+    foldGap: 0.24,
+    sealAt: t + 3.35,
+    curveAt: t + 3.55,
+    inboxAt: t + 4.35,
+    listenAt: t + 4.9,
+    outAt: t + 7.7,
+    outDur: 1.0,
+  );
+}
 
 /// The order the cards land and are read in — not the array's order: the eye
 /// is walked across the desk rather than down a list.
@@ -863,7 +954,7 @@ class ReelFrame {
       ..o = o;
   }
 
-  /// A plain offset, for the words of a title inside their line masks.
+  /// A plain offset and an opacity — a title's line, inside its title.
   void tl(String k, double x, double y, [double o = 1]) {
     _p(k)
       ..x = x
@@ -912,13 +1003,22 @@ class ReelFrame {
 
 // ─── paint ───────────────────────────────────────────────────────────────────
 
-ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
+/// Every part's state at `t` in [cut] (the plate, the one cut ported).
+ReelFrame paintReel(
+  double t,
+  ReelLayout l,
+  ReelField field,
+  ReelEase e, {
+  ReelCut? cut,
+}) {
+  final c0 = cut ?? reelPlate;
+  final beat = c0.beats;
   final w = ReelFrame(t);
   double k(double a, double d, [Ease? ease]) =>
       (ease ?? e.quill)(seg(t, a, a + d));
   bool live(double a, double b) => t >= a && t < b;
 
-  _paintTitles(t, l, e, w);
+  _paintTitles(t, c0, e, w);
   final cardsShown = [
     for (final id in reelArrive)
       if (l.cards[id] != null) id,
@@ -928,13 +1028,13 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
   for (var n = 0; n < cardsShown.length; n++) {
     final id = cardsShown[n];
     final c = l.cards[id]!;
-    final at = B.cardsIn + n * B.cardGap;
-    final p = k(at, B.cardDur);
+    final at = beat.cardsIn + n * beat.cardGap;
+    final p = k(at, beat.cardDur);
     final ang = math.atan2(c.y - l.h / 2, c.x - l.w / 2);
     final far = l.w * 0.42;
     final sx = math.cos(ang) * far, sy = math.sin(ang) * far + 70;
     final spin = (n.isOdd ? 1 : -1) * 14;
-    final tear = k(B.tearAt + n * B.tearGap, 0.55, e.inOut);
+    final tear = k(beat.tearAt + n * beat.tearGap, 0.55, e.inOut);
     final x = c.x + sx * (1 - p) + drift(t, n * 1.7, 2.2, 0.55);
     final y = c.y + sy * (1 - p) + drift(t, n * 2.3, 2.6, 0.47);
     final r = c.r + spin * (1 - p) + drift(t, n.toDouble(), 0.35, 0.4);
@@ -942,10 +1042,10 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     w.at('C:$id', x, y, lerp(0.9, 1, p) * lerp(1, 0.94, tear), r, o);
     if (o > 0) {
       w.v('C:$id', '--pl-lift', 1 - p, 3);
-      final rd = k(B.readAt + n * B.readGap, B.readDur, e.inOut);
+      final rd = k(beat.readAt + n * beat.readGap, beat.readDur, e.inOut);
       w.v('C:$id', '--pl-p', rd, 4);
       w.v('C:$id', '--pl-scan', rd > 0 && rd < 1 ? 1 : 0, 0);
-      _paintMedia(t, id, c, at, w, e);
+      _paintMedia(t, id, c, at, w, e, beat);
     }
   }
 
@@ -954,7 +1054,8 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     final a = l.anns[i];
     final c = l.cards[a.src]!;
     final o =
-        k(B.annIn + i * 0.45, 0.6) * (1 - k(B.annOut + i * 0.1, 0.4, e.inOut));
+        k(beat.annIn + i * 0.45, 0.6) *
+        (1 - k(beat.annOut + i * 0.1, 0.4, e.inOut));
     w.at('A:$i', c.x + a.dx, c.y + a.dy + (1 - o) * 8, 1, 0, o);
     w.v('A:$i', '--pl-rule', o, 3);
   }
@@ -962,8 +1063,8 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
   // 02 → 03 — slips tear out, are laid out, then fly into the field and
   // become the points they will be: each one closes into a bead of its
   // shelf's colour on the way.
-  final f0 = fieldTf(t, l, e);
-  final fieldOut = 1 - k(B.fieldOut, 0.8, e.out);
+  final f0 = fieldTf(t, l, e, beat);
+  final fieldOut = 1 - k(beat.fieldOut, 0.8, e.out);
   for (final pz in reelPassages) {
     final c = l.cards[pz.src];
     final dot = field.dotOf[pz.id]!;
@@ -973,11 +1074,11 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     }
     final n = cardsShown.indexOf(pz.src);
     final sib = reelPassages.where((q) => q.src == pz.src).toList().indexOf(pz);
-    final born = B.tearAt + n * B.tearGap + sib * 0.09;
+    final born = beat.tearAt + n * beat.tearGap + sib * 0.09;
     final p0 = k(born, 0.85);
     final rest = l.slips[pz.id]!;
-    final fly = B.flyAt + dot.gi * B.flyGap;
-    final f = k(fly, B.flyDur, e.inOut);
+    final fly = beat.flyAt + dot.gi * beat.flyGap;
+    final f = k(fly, beat.flyDur, e.inOut);
     final target = applyTf(f0, (dot.x, dot.y));
     final from = (
       lerp(c.x, rest.$1, p0) + drift(t, dot.gi.toDouble(), 2.4, 0.8),
@@ -1009,15 +1110,15 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     d.y + drift(t, d.ph * 1.7, 2.4, 0.37),
   ));
   double judgedAt(Pt p) => k(
-    B.pulseAt + _hypot(p.$1 - qo.$1, p.$2 - qo.$2) / B.pulseSpeed,
+    beat.pulseAt + _hypot(p.$1 - qo.$1, p.$2 - qo.$2) / beat.pulseSpeed,
     0.35,
     e.out,
   );
 
   for (final d in field.dots) {
     final landed = d.gi >= 0
-        ? k(B.flyAt + d.gi * B.flyGap + B.flyDur * 0.86, 0.32, e.out)
-        : k(B.libAt + d.delay, 0.45, e.out);
+        ? k(beat.flyAt + d.gi * beat.flyGap + beat.flyDur * 0.86, 0.32, e.out)
+        : k(beat.libAt + d.delay, 0.45, e.out);
     final pos = drifted(d);
     final judged = judgedAt(pos);
     final keep = d.shelf == 'att' ? (d.pid != null ? 1.0 : 0.8) : 0.14;
@@ -1033,7 +1134,7 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
 
   for (final wr in field.wires) {
     final a = field.dots[wr.a], b = field.dots[wr.b];
-    final draw = k(B.wireAt + wr.delay, 0.9, e.inOut);
+    final draw = k(beat.wireAt + wr.delay, 0.9, e.inOut);
     final pa = drifted(a), pb = drifted(b);
     final judged = judgedAt(((pa.$1 + pb.$1) / 2, (pa.$2 + pb.$2) / 2));
     final keep = !wr.bridge && a.shelf == 'att' ? 0.9 : 0.12;
@@ -1045,7 +1146,7 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     final s = reelShelves[i];
     final c = l.clusters[s.id]!;
     final (x, y) = applyTf(f0, (c.x, c.y));
-    final p = k(B.shelfAt + i * 0.16, 0.9);
+    final p = k(beat.shelfAt + i * 0.16, 0.9);
     final judged = judgedAt((x, y));
     final keep = s.id == 'att' ? 1.0 : 0.28;
     final o = p * lerp(1, keep, judged) * fieldOut;
@@ -1055,8 +1156,8 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
   }
 
   // 04 — the question
-  final barIn = k(B.barIn, 0.7);
-  final barOut = k(B.fieldOut, 0.6, e.inOut);
+  final barIn = k(beat.barIn, 0.7);
+  final barOut = k(beat.fieldOut, 0.6, e.inOut);
   w.at(
     'Q',
     l.search.x,
@@ -1065,16 +1166,17 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     0,
     barIn * (1 - barOut),
   );
-  if (live(B.barIn, B.fieldOut + 0.7)) {
-    final typed = (k(B.typeAt, B.typeDur, e.lin) * reelQuery.length).round();
+  if (live(beat.barIn, beat.fieldOut + 0.7)) {
+    final typed = (k(beat.typeAt, beat.typeDur, e.lin) * reelQuery.length)
+        .round();
     w.x('Q:txt', reelQuery.substring(0, typed));
-    final typing = t >= B.typeAt && typed < reelQuery.length;
+    final typing = t >= beat.typeAt && typed < reelQuery.length;
     w.op('Q:caret', typing || (t * 1.9).floor() % 2 == 0 ? 1 : 0);
-    w.op('Q:n', k(B.qWireAt + 0.5, 0.5, e.out));
+    w.op('Q:n', k(beat.qWireAt + 0.5, 0.5, e.out));
   }
 
   for (var i = 0; i < 3; i++) {
-    final p = k(B.pulseAt + i * 0.2, 1.5, e.out);
+    final p = k(beat.pulseAt + i * 0.2, 1.5, e.out);
     w.ring(
       'P:$i',
       qo.$1,
@@ -1088,7 +1190,7 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     final h = reelHits[i];
     final (x, y) = drifted(field.dotOf[h.pid]!);
     final dist = _hypot(x - qo.$1, y - qo.$2);
-    final lit = k(B.pulseAt + dist / B.pulseSpeed + 0.1, 0.45);
+    final lit = k(beat.pulseAt + dist / beat.pulseSpeed + 0.1, 0.45);
     w.ring(
       'H:$i',
       x,
@@ -1096,14 +1198,14 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
       lerp(5, 12, lit) + math.sin(t * 3 + i) * 0.8,
       lit * fieldOut,
     );
-    final draw = k(B.qWireAt + i * 0.16, 0.8, e.inOut);
+    final draw = k(beat.qWireAt + i * 0.16, 0.8, e.inOut);
     final a = (l.search.x - l.search.w / 2 + 56 + i * 26, qo.$2);
     w.wire('QW:$i', a, (x, y), draw, draw > 0 ? fieldOut * 0.9 : 0, (a.$1, y));
 
     // the answer: out of its point, into the column, then into the letter
     final slot = (l.results.x, l.results.ys[i]);
-    final ep = k(B.resAt + i * B.resGap, 1.05);
-    final fold = k(B.foldAt + i * B.foldGap, 0.95, e.inOut);
+    final ep = k(beat.resAt + i * beat.resGap, 1.05);
+    final fold = k(beat.foldAt + i * beat.foldGap, 0.95, e.inOut);
     final sec = sectionPos(l, i);
     var pos = arc((x, y), slot, i.isOdd ? -0.16 : 0.16, ep);
     if (fold > 0) pos = arc(slot, sec, -0.12, fold);
@@ -1111,21 +1213,23 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     final s = lerp(0.08, 1, ep) * lerp(1, sw, fold);
     final o = clamp01(ep * 3) * (1 - seg(fold, 0.78, 1));
     w.at('X:$i', pos.$1, pos.$2, s, lerp(i.isOdd ? 3 : -3, 0, ep), o);
-    if (o > 0) w.v('X:$i', '--pl-hl', k(B.hlAt + i * 0.28, 0.75, e.inOut), 3);
+    if (o > 0) {
+      w.v('X:$i', '--pl-hl', k(beat.hlAt + i * 0.28, 0.75, e.inOut), 3);
+    }
   }
 
   final co = l.callout;
   if (co != null) {
-    final o = k(B.coAt, 0.6) * (1 - k(B.fieldOut, 0.4, e.inOut));
+    final o = k(beat.coAt, 0.6) * (1 - k(beat.fieldOut, 0.4, e.inOut));
     w.at('CO', co.x, co.y + (1 - o) * 6, 1, 0, o);
     w.v('CO', '--pl-rule', o, 3);
   }
 
   // 05 — the letter
-  final lin = k(B.letterIn, 1.15);
-  final out = k(B.outAt, 1.0, e.inOut);
+  final lin = k(beat.letterIn, 1.15);
+  final out = k(beat.outAt, beat.outDur, e.inOut);
   final thump =
-      math.sin(math.pi * seg(t, B.sealAt + 0.2, B.sealAt + 0.42)) * 2.2;
+      math.sin(math.pi * seg(t, beat.sealAt + 0.2, beat.sealAt + 0.42)) * 2.2;
   final lo = clamp01(lin * 2) * (1 - out);
   w.at(
     'LT',
@@ -1136,14 +1240,14 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
     lo,
   );
   if (lo > 0) {
-    w.op('LT:strap', k(B.letterIn + 0.55, 0.6, e.out));
-    w.v('LT:rule', '--pl-draw', k(B.letterIn + 0.6, 0.8, e.inOut), 3);
-    w.op('LT:kick', k(B.letterIn + 0.85, 0.5, e.out));
-    w.v('LT:title', '--pl-wipe', k(B.letterIn + 0.95, 0.9, e.inOut), 3);
+    w.op('LT:strap', k(beat.letterIn + 0.55, 0.6, e.out));
+    w.v('LT:rule', '--pl-draw', k(beat.letterIn + 0.6, 0.8, e.inOut), 3);
+    w.op('LT:kick', k(beat.letterIn + 0.85, 0.5, e.out));
+    w.v('LT:title', '--pl-wipe', k(beat.letterIn + 0.95, 0.9, e.inOut), 3);
     for (var i = 0; i < reelSections.length; i++) {
       final arrive = i < 3
-          ? k(B.foldAt + i * B.foldGap + 0.72, 0.3, e.out)
-          : k(B.foldAt + 0.95, 0.75);
+          ? k(beat.foldAt + i * beat.foldGap + 0.72, 0.3, e.out)
+          : k(beat.foldAt + 0.95, 0.75);
       final dx = i < 3 ? 0.0 : -28 * (1 - arrive);
       w.at(
         'LT:s$i',
@@ -1154,17 +1258,17 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
         arrive,
       );
       if (reelSections[i].back != null) {
-        w.op('LT:b$i', k(B.sealAt - 0.35 + i * 0.12, 0.5, e.out));
+        w.op('LT:b$i', k(beat.sealAt - 0.35 + i * 0.12, 0.5, e.out));
       }
     }
-    final press = k(B.sealAt, 0.36);
+    final press = k(beat.sealAt, 0.36);
     w.sr(
       'LT:seal',
       lerp(2.4, 1, press),
       lerp(-24, -8, press),
       clamp01(press * 1.6),
     );
-    final ring = seg(t, B.sealAt + 0.25, B.sealAt + 1.05);
+    final ring = seg(t, beat.sealAt + 0.25, beat.sealAt + 1.05);
     w.sr(
       'LT:ring',
       lerp(1, 2.6, e.out(ring)),
@@ -1175,24 +1279,24 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
 
   final cv = l.curve;
   if (cv != null) {
-    final p = k(B.curveAt, 0.8);
+    final p = k(beat.curveAt, 0.8);
     final o = p * (1 - out);
     w.at('CV', cv.x + cv.w / 2, cv.y + cv.h / 2 + (1 - p) * 14, 1, 0, o);
     if (o > 0) {
-      w.v('CV:off', '--pl-draw', k(B.curveAt + 0.3, 1.0, e.inOut), 3);
-      w.v('CV:on', '--pl-draw', k(B.curveAt + 0.75, 1.6, e.inOut), 3);
+      w.v('CV:off', '--pl-draw', k(beat.curveAt + 0.3, 1.0, e.inOut), 3);
+      w.v('CV:on', '--pl-draw', k(beat.curveAt + 0.75, 1.6, e.inOut), 3);
       for (var i = 0; i < reelCurveMarks.length; i++) {
         final fx = reelCurveMarks[i].$1;
-        w.op('CV:m$i', k(B.curveAt + 0.75 + fx * 1.6 * 0.92, 0.3, e.out));
+        w.op('CV:m$i', k(beat.curveAt + 0.75 + fx * 1.6 * 0.92, 0.3, e.out));
       }
     }
   }
 
-  final ib = k(B.inboxAt, 0.85);
+  final ib = k(beat.inboxAt, 0.85);
   w.at('IN', l.inbox.x + 34 * (1 - ib), l.inbox.y, 1, 0, ib * (1 - out));
   final ls = l.listen;
   if (ls != null) {
-    final lp = k(B.listenAt, 0.85);
+    final lp = k(beat.listenAt, 0.85);
     final o = lp * (1 - out);
     w.at('LS', ls.x + 34 * (1 - lp), ls.y, 1, 0, o);
     if (o > 0) w.bars('LS:bars', waveBars(t * 1.4, 16, 64, 22));
@@ -1202,27 +1306,59 @@ ReelFrame paintReel(double t, ReelLayout l, ReelField field, ReelEase e) {
 
 // ─── parts of paint ──────────────────────────────────────────────────────────
 
-void _paintTitles(double t, ReelLayout l, ReelEase e, ReelFrame w) {
-  for (var i = 0; i < reelTitles.length; i++) {
-    final tin = _titleIn[i], tout = _titleOut[i];
-    final on = t >= tin - 0.05 && t < tout + 0.9;
+/// A line inking in at [tin] and fading up and out at [tout]: its opacity,
+/// its rise (`dy`, design px), its focus pull (`blur`, px) and the tracking it
+/// settles from (`track`, em, over the base −0.028em).
+({double o, double dy, double blur, double track}) ink(
+  double t,
+  double tin,
+  double tout,
+  ReelEase e,
+) {
+  final pin = e.quill(seg(t, tin, tin + 1.0));
+  final pout = e.inOut(seg(t, tout, tout + 0.45));
+  return (
+    o: e.out(seg(t, tin, tin + 0.7)) * (1 - pout),
+    dy: 12 * (1 - pin) - 10 * pout,
+    blur: 5 * (1 - pin) + 4 * pout,
+    track: 0.06 * (1 - pin),
+  );
+}
+
+/// web `inkStyle`: `filter: blur(Npx)` to 0.01 (`none` at or under 0.02, so
+/// 0 here) and `--pl-track` to 0.0001em.
+void _inkStyle(
+  ReelFrame w,
+  String k,
+  ({double o, double dy, double blur, double track}) s,
+) {
+  w.v(k, 'blur', s.blur > 0.02 ? s.blur : 0, 2);
+  w.v(k, '--pl-track', s.track, 4);
+}
+
+void _paintTitles(double t, ReelCut cut, ReelEase e, ReelFrame w) {
+  for (var i = 0; i < cut.titles.length; i++) {
+    final ti = cut.titles[i];
+    final on = t >= ti.at - 0.05 && t < ti.out + 0.5;
     w.op('T$i', on ? 1 : 0);
     if (!on) continue;
-    var n = 0;
-    final lh = l.title.size * 1.12;
-    final lines = reelTitles[i];
-    for (var li = 0; li < lines.length; li++) {
-      for (var wi = 0; wi < lines[li].length; wi++) {
-        final pin = e.quill(seg(t, tin + n * 0.075, tin + n * 0.075 + 0.95));
-        final pout = e.inOut(seg(t, tout + n * 0.04, tout + n * 0.04 + 0.55));
-        w.tl('T$i:$li:$wi', 0, lh * (1 - pin) - lh * 0.9 * pout, 1);
-        n += 1;
-      }
+    for (var li = 0; li < ti.lines.length; li++) {
+      final s0 = ink(t, ti.at + li * 0.16, ti.out + li * 0.05, e);
+      w.tl('T$i:$li', 0, s0.dy, s0.o);
+      if (s0.o > 0) _inkStyle(w, 'T$i:$li', s0);
     }
+  }
+  // One eyebrow per chapter, held across every title the chapter has.
+  for (var c = 0; c < cut.chapters.length; c++) {
+    final mine = cut.titles.where((ti) => ti.ch == c).toList();
+    if (mine.isEmpty) continue;
+    final tin = mine.first.at, tout = mine.last.out;
     final eb =
-        e.out(seg(t, tin, tin + 0.6)) * (1 - e.inOut(seg(t, tout, tout + 0.5)));
-    w.op('T$i:eb', eb);
-    w.v('T$i:eb', '--pl-rule', eb, 3);
+        e.out(seg(t, tin, tin + 0.6)) * (1 - e.inOut(seg(t, tout, tout + 0.4)));
+    w.op('EB:$c', eb);
+    if (eb > 0) {
+      w.v('EB:$c', '--pl-rule', e.inOut(seg(t, tin + 0.1, tin + 0.8)), 3);
+    }
   }
 }
 
@@ -1233,6 +1369,7 @@ void _paintMedia(
   double at,
   ReelFrame w,
   ReelEase e,
+  ReelBeats beat,
 ) {
   final local = t - at;
   switch (id) {
@@ -1251,7 +1388,12 @@ void _paintMedia(
     case 'vid':
       w.v('C:vid', '--pl-play', clamp01(0.62 + local * 0.006, 0, 1), 4);
     case 'note':
-      w.v('C:note', '--pl-ink', e.inOut(seg(local, 0.25, 0.25 + B.inkDur)), 4);
+      w.v(
+        'C:note',
+        '--pl-ink',
+        e.inOut(seg(local, 0.25, 0.25 + beat.inkDur)),
+        4,
+      );
   }
 }
 
@@ -1291,11 +1433,16 @@ List<WaveBar> waveBars(
 
 /// The field's camera: a slow push-in while the shelves form (03), then a
 /// move down and left to give the answers the right of the stage (04).
-({double s, double dx, double dy}) fieldTf(double t, ReelLayout l, ReelEase e) {
-  final cam = e.inOut(seg(t, B.flyAt, B.fieldMove));
+({double s, double dx, double dy}) fieldTf(
+  double t,
+  ReelLayout l,
+  ReelEase e,
+  ReelBeats beat,
+) {
+  final cam = e.inOut(seg(t, beat.flyAt, beat.fieldMove));
   final s0 = lerp(1, 1.035, cam);
   final bdx = (l.w / 2) * (1 - s0), bdy = (l.h / 2) * (1 - s0);
-  final m = e.inOut(seg(t, B.fieldMove, B.fieldMove + 1.35));
+  final m = e.inOut(seg(t, beat.fieldMove, beat.fieldMove + 1.35));
   final a = l.askField;
   return (s: lerp(s0, a.s, m), dx: lerp(bdx, a.dx, m), dy: lerp(bdy, a.dy, m));
 }

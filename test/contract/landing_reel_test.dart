@@ -8,13 +8,18 @@
 //     tokens are theme.css's, read from its source;
 //   - the score is the reference's: the same PRNG sequence, the same field,
 //     the same element at the same place at the same instant (numbers taken
-//     from web's reelScore.js under node, 2026-10-19);
+//     from web's reelScore.js under node with `{ cut: PLATE }`, 41ffd9a);
 //   - the loop seam is clean: the last instant and the first draw nothing;
+//   - two titles never share a frame. The first port's titles rose word by
+//     word through line masks, and the outgoing one's descenders were still
+//     on the stage while the next rose into the same place — every frame
+//     individually "correct" (web 41ffd9a);
 //   - each chapter's key frame (the still a paused or reduced-motion viewer
 //     is shown) actually shows that chapter's subject;
 //   - nothing a layout places sits off its own stage;
 //   - the player: reduced motion opens paused on chapter 05; a chapter
-//     button, paused, shows that chapter's still; the clock stops off screen.
+//     button, paused, shows that chapter's still; a tap on the track lands
+//     within the segment under it; the clock stops off screen.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -57,7 +62,37 @@ Future<void> _loadFonts() async {
   }
 }
 
-ReelFrame _frame(ReelLayout l, double t) => paintReel(t, l, buildField(l), _e);
+final _fields = {for (final l in reelLayouts) l.name: buildField(l)};
+
+ReelFrame _frame(ReelLayout l, double t) =>
+    paintReel(t, l, _fields[l.name]!, _e, cut: reelPlate);
+
+/// A part's opacity as the writer sets it (unwritten is hidden).
+double _lit(ReelFrame f, String k) => f[k]?.o ?? 0;
+
+/// The web commit this port is of. Web's working tree moves on without it
+/// (the plate is being cut there for the hero, 2026-10-19), so the copy and
+/// the layout numbers are read from this commit, not from the tree.
+const _webRef = '41ffd9a';
+
+/// A web file as [_webRef] has it, with its `\uXXXX` escapes read as the
+/// characters they are (web writes a caption's em dash as `\u2014`).
+String _source(String path) {
+  final r = Process.runSync('git', [
+    '-C',
+    '../NoteLetter-web',
+    'show',
+    '$_webRef:$path',
+  ]);
+  if (r.exitCode != 0) fail('git show $_webRef:$path — ${r.stderr}');
+  return (r.stdout as String).replaceAllMapped(
+    RegExp(r'\\u([0-9a-fA-F]{4})'),
+    (m) => String.fromCharCode(int.parse(m[1]!, radix: 16)),
+  );
+}
+
+/// A number as JS source spells it: no `.0` on a whole one.
+String _js(double v) => v == v.roundToDouble() ? '${v.toInt()}' : '$v';
 
 void main() {
   group('the curves', () {
@@ -139,27 +174,191 @@ void main() {
   });
 
   group('the chapters', () {
+    final cut = reelPlate;
     test(
       'run in order inside the loop, each key frame inside its own chapter',
       () {
-        for (var i = 0; i < reelChapters.length; i++) {
-          final c = reelChapters[i];
-          expect(c.at, lessThan(c.end));
+        for (var i = 0; i < cut.chapters.length; i++) {
+          final c = cut.chapters[i];
+          expect(c.at, lessThan(cut.endOf(i)));
           expect(c.key, greaterThanOrEqualTo(c.at));
-          expect(c.key, lessThan(c.end));
-          expect(chapterAt(c.key), i);
+          expect(c.key, lessThan(cut.endOf(i)));
+          expect(chapterAt(cut, c.key), i);
         }
-        expect(reelChapters.last.end, reelDuration);
-        expect(reelTitles, hasLength(reelChapters.length));
+        expect(cut.endOf(cut.chapters.length - 1), cut.duration);
+        expect(cut.duration, 36);
+        for (var i = 0; i < cut.chapters.length; i++) {
+          expect(cut.titles.where((ti) => ti.ch == i), isNotEmpty);
+        }
       },
     );
 
+    test(
+      'every beat is the reference\'s, computed from the chapter starts',
+      () {
+        // web `PLATE.beats` under node (41ffd9a), less the hero's own beats.
+        const ref = {
+          'cardsIn': 0.6,
+          'cardGap': 0.3,
+          'cardDur': 1.3,
+          'inkDur': 1.7,
+          'readAt': 6.95,
+          'readGap': 0.3,
+          'readDur': 1.05,
+          'annIn': 8.2,
+          'annOut': 10.35,
+          'tearAt': 10.55,
+          'tearGap': 0.07,
+          'flyAt': 12.55,
+          'flyGap': 0.075,
+          'flyDur': 1.4,
+          'libAt': 13.7,
+          'wireAt': 14.6,
+          'shelfAt': 15.1,
+          'fieldMove': 19.05,
+          'barIn': 19.3,
+          'typeAt': 19.95,
+          'typeDur': 2.05,
+          'pulseAt': 22.15,
+          'pulseSpeed': 760.0,
+          'qWireAt': 22.95,
+          'resAt': 23.45,
+          'resGap': 0.2,
+          'hlAt': 24.55,
+          'coAt': 25.45,
+          'fieldOut': 26.85,
+          'letterIn': 27.3,
+          'foldAt': 28.45,
+          'foldGap': 0.24,
+          'sealAt': 30.35,
+          'curveAt': 30.55,
+          'inboxAt': 31.35,
+          'listenAt': 31.9,
+          'outAt': 34.7,
+          'outDur': 1.0,
+        };
+        final b = cut.beats;
+        final got = {
+          'cardsIn': b.cardsIn,
+          'cardGap': b.cardGap,
+          'cardDur': b.cardDur,
+          'inkDur': b.inkDur,
+          'readAt': b.readAt,
+          'readGap': b.readGap,
+          'readDur': b.readDur,
+          'annIn': b.annIn,
+          'annOut': b.annOut,
+          'tearAt': b.tearAt,
+          'tearGap': b.tearGap,
+          'flyAt': b.flyAt,
+          'flyGap': b.flyGap,
+          'flyDur': b.flyDur,
+          'libAt': b.libAt,
+          'wireAt': b.wireAt,
+          'shelfAt': b.shelfAt,
+          'fieldMove': b.fieldMove,
+          'barIn': b.barIn,
+          'typeAt': b.typeAt,
+          'typeDur': b.typeDur,
+          'pulseAt': b.pulseAt,
+          'pulseSpeed': b.pulseSpeed,
+          'qWireAt': b.qWireAt,
+          'resAt': b.resAt,
+          'resGap': b.resGap,
+          'hlAt': b.hlAt,
+          'coAt': b.coAt,
+          'fieldOut': b.fieldOut,
+          'letterIn': b.letterIn,
+          'foldAt': b.foldAt,
+          'foldGap': b.foldGap,
+          'sealAt': b.sealAt,
+          'curveAt': b.curveAt,
+          'inboxAt': b.inboxAt,
+          'listenAt': b.listenAt,
+          'outAt': b.outAt,
+          'outDur': b.outDur,
+        };
+        // Exactly: the same sums in the same doubles as JS.
+        expect(got, ref);
+      },
+    );
+
+    test('never has two titles on the stage at once', () {
+      // Sampled every 0.05s, as web's guard is. Red when one title's exit
+      // runs into the next (the first title's `out` at 6.3, say).
+      for (var n = 0; n * 0.05 < cut.duration; n++) {
+        final t = n * 0.05;
+        final f = _frame(reelWide, t);
+        final on = [
+          for (var i = 0; i < cut.titles.length; i++)
+            if (_lit(f, 'T$i:0') > .01 || _lit(f, 'T$i:1') > .01) i,
+        ];
+        expect(
+          on.length,
+          lessThanOrEqualTo(1),
+          reason: 't=${t.toStringAsFixed(2)}: titles $on',
+        );
+      }
+    });
+
+    test('inks each title line in whole, as the reference does', () {
+      // web's frame under node: each line's rise, opacity, focus pull and
+      // tracking (`filter: blur(Npx)` is N here; `none` is 0).
+      void line(
+        ReelFrame f,
+        String k,
+        double y,
+        double o,
+        double blur,
+        double track,
+      ) {
+        expect(f[k]!.x, 0, reason: k);
+        expect(f[k]!.y, closeTo(y, 1e-9), reason: '$k y');
+        expect(f[k]!.o, closeTo(o, 1e-9), reason: '$k o');
+        expect(f[k]!.v('blur'), blur, reason: '$k blur');
+        expect(f[k]!.v('--pl-track'), track, reason: '$k track');
+      }
+
+      final f04 = _frame(reelWide, .4);
+      line(f04, 'T0:0', 2.0925234298874136, .7461183870868747, .87, .0105);
+      line(f04, 'T0:1', 6.515506671152579, .34196976406402146, 2.71, .0326);
+      expect(f04['EB:0']!.o, closeTo(.8075308948427076, 1e-9));
+      expect(f04['EB:0']!.v('--pl-rule'), .049);
+      final f60 = _frame(reelWide, 6.0);
+      line(f60, 'T0:0', -1.4907459380414076, .8509254061958592, .6, 0);
+      line(f60, 'T0:1', -.5323686789141785, .9467631321085821, .21, 0);
+      expect(f60['EB:0']!.o, closeTo(.7919067337334592, 1e-9));
+      final f62 = _frame(reelWide, 6.2);
+      line(f62, 'T0:0', -9.467631321085834, .05323686789141657, 3.79, 0);
+      line(f62, 'T0:1', -8.509254061958616, .14907459380413834, 3.4, 0);
+      expect(f62['EB:0']!.o, closeTo(.014466791996507689, 1e-9));
+      expect(_lit(f62, 'T1'), 0, reason: 'the next title has not begun');
+      final f69 = _frame(reelWide, 6.9);
+      expect(_lit(f69, 'T0'), 0);
+      line(f69, 'T1:0', .7229327626809545, .9140903086896357, .3, .0036);
+      line(f69, 'T1:1', 2.2445636102699993, .729185196965736, .94, .0112);
+      expect(f69['EB:1']!.o, closeTo(.9530317628760736, 1e-9));
+      expect(f69['EB:1']!.v('--pl-rule'), .312);
+      expect(_lit(f69, 'EB:0'), 0);
+      final f54 = _frame(reelWide, 5.4);
+      line(f54, 'T0:0', 0, 1, 0, 0);
+      line(f54, 'T0:1', 0, 1, 0, 0);
+    });
+
     test('the copy is Reel.jsx / reelScore.js\'s, verbatim', () {
-      final score = File(
-        '../NoteLetter-web/src/pages/landing/reelScore.js',
-      ).readAsStringSync();
-      for (final c in reelChapters) {
+      final score = _source('src/pages/landing/reelScore.js');
+      for (final c in cut.chapters) {
         expect(score, contains("caption: '${c.caption}'"), reason: c.name);
+      }
+      for (final ti in cut.titles) {
+        expect(
+          score,
+          contains(
+            "{ ch: ${ti.ch}, at: ${ti.at}, out: ${ti.out}, "
+            "lines: ['${ti.lines[0]}', '${ti.lines[1]}'] }",
+          ),
+          reason: ti.lines.join(' '),
+        );
       }
       for (final h in reelHits) {
         expect(score, contains("mark: '${h.mark}'"));
@@ -168,9 +367,7 @@ void main() {
         expect(score, contains("q: '${s.q}'"));
       }
       expect(score, contains("export const QUERY = '$reelQuery';"));
-      final reel = File(
-        '../NoteLetter-web/src/pages/landing/Reel.jsx',
-      ).readAsStringSync();
+      final reel = _source('src/pages/landing/Reel.jsx');
       for (final line in [
         'A schematic &middot; illustrative library',
         'Your private podcast feed',
@@ -181,11 +378,45 @@ void main() {
         expect(reel, contains(line));
       }
     });
+
+    test('the stages are laid out with the reference\'s numbers', () {
+      final score = _source('src/pages/landing/reelScore.js');
+      for (final l in reelLayouts) {
+        final ti = l.title;
+        expect(
+          score,
+          contains(
+            'title: { x: ${_js(ti.x)}, y: ${_js(ti.y)}, '
+            'eb: ${_js(ti.eb)} }',
+          ),
+          reason: l.name,
+        );
+        final q = l.search;
+        expect(
+          score,
+          contains(
+            'search: { x: ${_js(q.x)}, y: ${_js(q.y)}, '
+            'w: ${_js(q.w)}, h: ${_js(q.h)} }',
+          ),
+          reason: l.name,
+        );
+      }
+      final vid = reelTall.cards['vid']!;
+      expect(
+        score,
+        contains(
+          'vid: { x: ${_js(vid.x)}, y: ${_js(vid.y)}, '
+          'w: ${_js(vid.w)}, h: ${_js(vid.h)}, r: ${_js(vid.r)} }',
+        ),
+      );
+      final p1 = reelTall.slips['p1']!;
+      expect(score, contains('p1: [${_js(p1.$1)}, ${_js(p1.$2)}]'));
+    });
   });
 
   for (final l in reelLayouts) {
     group('the ${l.name} stage', () {
-      final field = buildField(l);
+      final field = _fields[l.name]!;
       final shown = reelSources.where((s) => l.cards[s.id] != null).toList();
 
       test('places every card, slip, answer and the letter on the stage', () {
@@ -299,8 +530,10 @@ void main() {
       test(
         'puts each element where the reference does, at the same instant',
         () {
-          // Numbers from web's paint() under node at t = 23.7 and 29.3.
+          // Numbers from web's paint() under node at t = 23.7 and 29.3 (and
+          // 5.4, 12.0 for the parts the tall stage moved in 41ffd9a).
           final ask = _frame(l, 23.7), ret = _frame(l, 29.3);
+          final gather = _frame(l, 5.4), laid = _frame(l, 12.0);
           void at(ReelPart? p, double x, double y, [double? s, double? o]) {
             expect(p!.x, closeTo(x, 1e-6));
             expect(p.y, closeTo(y, 1e-6));
@@ -330,6 +563,9 @@ void main() {
             );
             at(ret['LT'], 210, 336, 1, 1);
             at(ret['LT:s3'], 158, 371, 1, 0);
+            at(ask['Q'], 210, 140, 1, 1);
+            at(gather['C:vid'], 304.3756540236925, 175.4757703168383, 1, 1);
+            at(laid['S:p1'], 303.58161572506486, 161.70919781617656, 1, 1);
           } else {
             at(ask['D:5'], 382.9386828795252, 358.138786840251, null, .8);
             expect(ask['D:5']!.rad, closeTo(1.8, 1e-9));
@@ -352,6 +588,9 @@ void main() {
             );
             at(ret['LT'], 640, 316, 1, 1);
             at(ret['LT:s3'], 174, 454, 1, 0);
+            at(ask['Q'], 790, 92, 1, 1);
+            at(gather['C:vid'], 842.3756540236925, 157.4757703168383, 1, 1);
+            at(laid['S:p1'], 833.5816157250648, 147.70919781617656, 1, 1);
           }
           expect(ask['P:1']!.o, closeTo(0.001885279856274691, 1e-12));
           expect(ask['P:1']!.shown, 0, reason: 'the writer hides ≤ 0.002');
@@ -360,7 +599,7 @@ void main() {
       );
 
       test('draws nothing at either side of the loop seam', () {
-        for (final t in [0.0, reelDuration - 0.05]) {
+        for (final t in [0.0, reelPlate.duration - 0.05]) {
           final f = _frame(l, t);
           final lit = [
             for (final e in f.parts.entries)
@@ -379,11 +618,19 @@ void main() {
         }
       });
 
-      test('shows each chapter at its key frame', () {
-        final keys = [for (final c in reelChapters) _frame(l, c.key)];
+      test("shows each chapter's subject at its key frame", () {
+        final cut = reelPlate;
+        final keys = [for (final c in cut.chapters) _frame(l, c.key)];
         final [gather, read, index, ask, ret] = keys;
-        for (var i = 0; i < reelChapters.length; i++) {
-          expect(keys[i]['T$i']!.o, 1, reason: reelChapters[i].name);
+        for (var i = 0; i < cut.chapters.length; i++) {
+          final f = keys[i];
+          final name = cut.chapters[i].name;
+          final full = [
+            for (var j = 0; j < cut.titles.length; j++)
+              if (cut.titles[j].ch == i) j,
+          ].any((j) => _lit(f, 'T$j:0') > .99 && _lit(f, 'T$j:1') > .99);
+          expect(full, isTrue, reason: '$name: a title fully inked');
+          expect(f['EB:$i']!.o, closeTo(1, .01), reason: '$name: eyebrow');
         }
         for (final s in shown) {
           expect(gather['C:${s.id}']!.o, closeTo(1, .01), reason: s.id);
@@ -430,6 +677,30 @@ void main() {
         expect(tablet.left, closeTo((700 - 420 * 1.15) / 2, 1e-9));
       },
     );
+  });
+
+  group('the track', () {
+    test('maps a pointer within the segment under it', () {
+      final cut = reelPlate;
+      final segs = reelTrackSegments(cut, 1000);
+      expect(segs, hasLength(5));
+      expect(segs.first.left, 0);
+      expect(segs.last.left + segs.last.width, closeTo(1000, 1e-9));
+      for (var i = 1; i < segs.length; i++) {
+        final prev = segs[i - 1];
+        expect(segs[i].left - (prev.left + prev.width), closeTo(4, 1e-9));
+        // A segment's left edge is its chapter's start, and so is the gap
+        // before it — a linear map put 6.5s ~4px late per gap crossed.
+        expect(reelTrackSeek(cut, segs[i].left, 1000), cut.chapters[i].at);
+        expect(reelTrackSeek(cut, segs[i].left - 2, 1000), cut.chapters[i].at);
+      }
+      final idx = segs[2];
+      expect(reelTrackSeek(cut, idx.left + idx.width / 2, 1000), 15.75);
+      expect(reelTrackSeek(cut, 0, 1000), 0);
+      expect(reelTrackSeek(cut, -20, 1000), 0);
+      expect(reelTrackSeek(cut, 1000, 1000), cut.duration - .01);
+      expect(reelTrackSeek(cut, 1200, 1000), cut.duration - .01);
+    });
   });
 
   group('the audio bars', () {
@@ -498,7 +769,7 @@ void main() {
     ) async {
       await pump(tester, reduced: true);
       expect(timecode(tester), '00:33 / 00:36');
-      expect(find.text(reelChapters.last.caption), findsOneWidget);
+      expect(find.text(reelPlate.chapters.last.caption), findsOneWidget);
       await tester.pump(const Duration(seconds: 2));
       expect(timecode(tester), '00:33 / 00:36', reason: 'paused');
       final handle = tester.ensureSemantics();
@@ -524,7 +795,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('reel-ch-2')));
       await tester.pump();
       expect(timecode(tester), '00:17 / 00:36', reason: 'Index\'s key, 17.6');
-      expect(find.text(reelChapters[2].caption), findsOneWidget);
+      expect(find.text(reelPlate.chapters[2].caption), findsOneWidget);
       await tester.pump(const Duration(seconds: 1));
       expect(timecode(tester), '00:17 / 00:36');
       // Playing, a chapter button goes to the chapter's START.
@@ -548,12 +819,21 @@ void main() {
       tester.semantics.decrease(find.semantics.byLabel('Film position'));
       await tester.pump();
       expect(timecode(tester), '00:32 / 00:36');
-      // A tap a quarter along the track lands a quarter into the film.
+      // A tap lands within the segment under it: 6.05s along Gather's
+      // segment is 00:06, where one linear map over the whole track (gaps
+      // and all) read 00:05.
       final track = find.byKey(const ValueKey('reel-track'));
       final box = tester.getRect(track);
-      await tester.tapAt(Offset(box.left + box.width / 4, box.center.dy));
+      final dx = (box.width - reelTrackGap * 4) * 6.05 / 36;
+      expect(dx / box.width * 36, lessThan(6), reason: 'a linear map');
+      await tester.tapAt(Offset(box.left + dx, box.center.dy));
       await tester.pump();
-      expect(timecode(tester), '00:08 / 00:36');
+      expect(timecode(tester), '00:06 / 00:36');
+      // In the gap before Ask, it is Ask's start.
+      final ask = reelTrackSegments(reelPlate, box.width)[3];
+      await tester.tapAt(Offset(box.left + ask.left - 2, box.center.dy));
+      await tester.pump();
+      expect(timecode(tester), '00:19 / 00:36');
       handle.dispose();
       await tester.pumpWidget(const SizedBox());
     });

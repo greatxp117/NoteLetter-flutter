@@ -30,6 +30,7 @@
 //  * `text-wrap: pretty` has no counterpart: a card's text can break a word
 //    earlier or later than the reference's on its last two lines.
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show ValueListenable, listEquals;
 import 'package:flutter/material.dart';
@@ -240,18 +241,38 @@ class _At extends StatelessWidget {
   );
 }
 
-/// `tl()`: a plain offset — a title's word inside its line mask.
-class _Tl extends StatelessWidget {
+/// `tl()` and the ink a title line is written in: its rise, its opacity, a
+/// focus pull (web's `filter: blur()`, a Gaussian of that standard deviation,
+/// as `ImageFilter.blur`'s sigma is) and `--pl-track`, the tracking it settles
+/// from — handed to [line], which sets the text. Nothing masks the line, so
+/// no glyph is cut mid-motion. At rest (no blur) the filter is off, and at
+/// full opacity `Opacity` paints straight through: a still costs nothing.
+class _InkLine extends StatelessWidget {
   final ValueListenable<ReelPart?> part;
-  final Widget child;
-  const _Tl(this.part, this.child);
+  final Widget Function(double track) line;
+  const _InkLine(this.part, this.line);
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<ReelPart?>(
     valueListenable: part,
-    child: child,
-    builder: (context, p, child) =>
-        Transform.translate(offset: Offset(p?.x ?? 0, p?.y ?? 0), child: child),
+    builder: (context, p, _) {
+      final blur = p?.v('blur') ?? 0;
+      return Transform.translate(
+        offset: Offset(p?.x ?? 0, p?.y ?? 0),
+        child: Opacity(
+          opacity: p?.shown ?? 0,
+          child: ImageFiltered(
+            enabled: blur > 0,
+            imageFilter: ImageFilter.blur(
+              sigmaX: blur,
+              sigmaY: blur,
+              tileMode: TileMode.decal,
+            ),
+            child: line(p?.v('--pl-track') ?? 0),
+          ),
+        ),
+      );
+    },
   );
 }
 
@@ -332,11 +353,12 @@ class _Inset extends CustomClipper<Rect> {
 
 class _Cast {
   final Tokens t;
+  final ReelCut cut;
   final ReelLayout l;
   final ReelField field;
   final _Parts parts;
   final String day;
-  _Cast(this.t, this.l, this.field, this.parts, this.day);
+  _Cast(this.t, this.cut, this.l, this.field, this.parts, this.day);
 
   bool get tall => l.tall;
 
@@ -355,7 +377,9 @@ class _Cast {
             child: CustomPaint(painter: _FieldPainter(parts, field, t)),
           ),
         ),
-        for (var i = 0; i < reelTitles.length; i++) title(i),
+        for (var c = 0; c < cut.chapters.length; c++)
+          if (cut.titles.any((ti) => ti.ch == c)) eyebrow(c),
+        for (var i = 0; i < cut.titles.length; i++) title(i),
         for (final s in reelSources)
           if (l.cards[s.id] != null) _At(parts.part('C:${s.id}'), card(s)),
         for (var i = 0; i < l.anns.length; i++) _At(parts.part('A:$i'), ann(i)),
@@ -376,89 +400,73 @@ class _Cast {
   );
 
   // ── the chapter lines ──
+  // One eyebrow per chapter at (title.x, title.y), held across every title
+  // the chapter has; each title `title.eb` below it, its two lines set whole.
+
+  Widget eyebrow(int c) {
+    final ch = cut.chapters[c];
+    final ebStyle = _mono(tall ? 11.0 : 10.5, .16, t.fgMuted, height: 1);
+    return Positioned(
+      left: l.title.x,
+      top: l.title.y,
+      child: _Op(
+        parts.shown('EB:$c'),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(ch.n, style: ebStyle.copyWith(color: t.accentText)),
+            const SizedBox(width: 9),
+            _Rule(parts.v('EB:$c', '--pl-rule', 0), 20, t.borderStrong),
+            const SizedBox(width: 9),
+            Text(ch.name.toUpperCase(), style: ebStyle),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget title(int i) {
-    final size = l.title.size;
-    final ebSize = tall ? 11.0 : 10.5;
-    final line = _serif(
+    final size = tall ? 31.0 : 46.0;
+    // `letter-spacing: calc(-.028em + var(--pl-track))`.
+    TextStyle line(double track) => _serif(
       size,
       t.fg,
       height: 1.12,
       weight: FontWeight.w600,
-      tracking: -.028,
+      tracking: -.028 + track,
       opsz: 60,
       press: true,
     );
-    final accent = _serif(
+    TextStyle accent(double track) => _serif(
       size,
       t.accent,
       height: 1.12,
       weight: FontWeight.w500,
-      tracking: -.028,
+      tracking: -.028 + track,
       opsz: 60,
       italic: true,
       press: true,
     );
-    final ch = reelChapters[i];
-    final ebStyle = _mono(ebSize, .16, t.fgMuted, height: 1);
-    final eb = _Op(
-      parts.shown('T$i:eb'),
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(ch.n, style: ebStyle.copyWith(color: t.accentText)),
-          const SizedBox(width: 9),
-          _Rule(parts.v('T$i:eb', '--pl-rule', 0), 20, t.borderStrong),
-          const SizedBox(width: 9),
-          Text(ch.name.toUpperCase(), style: ebStyle),
-        ],
+    final ti = cut.titles[i];
+    Widget lineOf(int li) => _InkLine(
+      parts.part('T$i:$li'),
+      (track) => Text(
+        ti.lines[li],
+        style: li == 0 ? line(track) : accent(track),
+        softWrap: false,
       ),
     );
-    Widget lineOf(int li) {
-      final words = reelTitles[i][li];
-      return ClipRect(
-        child: Padding(
-          padding: EdgeInsets.only(right: .12 * size, bottom: .08 * size),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var wi = 0; wi < words.length; wi++)
-                Padding(
-                  padding: EdgeInsets.only(right: .24 * size),
-                  child: _Tl(
-                    parts.part('T$i:$li:$wi'),
-                    Text(
-                      words[wi],
-                      style: li == 0 ? line : accent,
-                      softWrap: false,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      );
-    }
 
     return Positioned(
       left: l.title.x,
-      top: l.title.y,
+      top: l.title.y + l.title.eb,
       child: _Op(
         parts.shown('T$i'),
         RepaintBoundary(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              eb,
-              SizedBox(height: tall ? 7 : 10),
-              lineOf(0),
-              // `.pl-line { margin-bottom: -.08em }`: the second line's box
-              // starts one line-height below the first.
-              Transform.translate(
-                offset: Offset(0, -.08 * size),
-                child: lineOf(1),
-              ),
-            ],
+            children: [for (var li = 0; li < ti.lines.length; li++) lineOf(li)],
           ),
         ),
       ),
@@ -2175,6 +2183,8 @@ class _LandingReelState extends State<LandingReel>
   final _clock = ValueNotifier<double>(0);
   final _sec = ValueNotifier<int>(0);
 
+  /// The cut this player runs — the plate, the one cut ported.
+  final ReelCut _cut = reelPlate;
   ReelLayout _layout = reelWide;
   ReelField _field = buildField(reelWide);
   late _Parts _parts;
@@ -2201,8 +2211,8 @@ class _LandingReelState extends State<LandingReel>
       // one frame that holds the whole argument. Play is the viewer's choice.
       if (MediaQuery.disableAnimationsOf(context)) {
         _playing = false;
-        _chapter = reelChapters.length - 1;
-        _t = reelChapters.last.key;
+        _chapter = _cut.chapters.length - 1;
+        _t = _cut.chapters.last.key;
       }
       _parts = _Parts(_frameAt(_t), _fieldKeysOf(_field));
       _clock.value = _t;
@@ -2236,7 +2246,7 @@ class _LandingReelState extends State<LandingReel>
   }
 
   ReelFrame _frameAt(double t) =>
-      paintReel(t, _layout, _field, ReelEase.tokens);
+      paintReel(t, _layout, _field, ReelEase.tokens, cut: _cut);
 
   /// The clock: runs only while playing, seen and not being scrubbed.
   void _run() {
@@ -2254,7 +2264,7 @@ class _LandingReelState extends State<LandingReel>
     _last = elapsed;
     if (last == null) return;
     final dt = math.min(0.1, (elapsed - last).inMicroseconds / 1e6);
-    _t = (_t + dt) % reelDuration;
+    _t = (_t + dt) % _cut.duration;
     _paint();
   }
 
@@ -2263,17 +2273,18 @@ class _LandingReelState extends State<LandingReel>
     _clock.value = _t;
     final s = _t.floor();
     if (s != _sec.value) _sec.value = s;
-    final ch = chapterAt(_t);
+    final ch = chapterAt(_cut, _t);
     if (ch != _chapter && mounted) setState(() => _chapter = ch);
   }
 
   void _seek(double t) {
-    _t = ((t % reelDuration) + reelDuration) % reelDuration;
+    final d = _cut.duration;
+    _t = ((t % d) + d) % d;
     _paint();
   }
 
   void _goChapter(int i) =>
-      _seek(_playing ? reelChapters[i].at : reelChapters[i].key);
+      _seek(_playing ? _cut.chapters[i].at : _cut.chapters[i].key);
 
   void _toggle() {
     setState(() => _playing = !_playing);
@@ -2372,7 +2383,7 @@ class _LandingReelState extends State<LandingReel>
                   maxWidth: _ch(t, phone) * 64,
                 ),
                 child: Text(
-                  reelChapters[_chapter].caption,
+                  _cut.chapters[_chapter].caption,
                   style: _capStyle(t, phone),
                 ),
               ),
@@ -2408,7 +2419,7 @@ class _LandingReelState extends State<LandingReel>
       if (l.name != _layout.name) _switchLayout(l);
       final fit = fitFor(l, inner);
       final world = _world ??= MediaQuery.withNoTextScaling(
-        child: _Cast(t, _layout, _field, _parts, widget.day).world(),
+        child: _Cast(t, _cut, _layout, _field, _parts, widget.day).world(),
       );
       _worldTokens = t;
       final radius = phone ? BorderRadius.zero : AppRadius.mdR;
@@ -2467,7 +2478,7 @@ class _LandingReelState extends State<LandingReel>
 
   // ── the controls ──
 
-  static int _flex(ReelChapter c) => ((c.end - c.at) * 10).round();
+  int _flex(int i) => ((_cut.endOf(i) - _cut.chapters[i].at) * 10).round();
 
   Widget _controls(Tokens t, bool phone) {
     final gap = phone ? 10.0 : 14.0;
@@ -2477,7 +2488,7 @@ class _LandingReelState extends State<LandingReel>
       t.fgMuted,
       height: _lb(10.5),
     ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
-    final tcText = '00:00 / ${reelTimecode(reelDuration)}';
+    final tcText = '00:00 / ${reelTimecode(_cut.duration)}';
     final tcW = (TextPainter(
       text: TextSpan(text: tcText, style: tcStyle),
       textDirection: TextDirection.ltr,
@@ -2512,22 +2523,21 @@ class _LandingReelState extends State<LandingReel>
     );
     final track = LayoutBuilder(
       builder: (context, box) {
-        void from(double dx) =>
-            _seek(clamp01(dx / box.maxWidth) * reelDuration * 0.9999);
+        void from(double dx) => _seek(reelTrackSeek(_cut, dx, box.maxWidth));
         return ValueListenableBuilder<int>(
           valueListenable: _sec,
           builder: (context, _, child) {
-            final ch = reelChapters[chapterAt(_t)];
+            final ch = _cut.chapters[chapterAt(_cut, _t)];
             return Semantics(
               container: true,
               slider: true,
               label: 'Film position',
               value: '${reelTimecode(_t)}, chapter ${ch.n}, ${ch.name}',
               increasedValue: reelTimecode(
-                math.min(reelDuration - .01, _t + 1),
+                math.min(_cut.duration - .01, _t + 1),
               ),
               decreasedValue: reelTimecode(math.max(0, _t - 1)),
-              onIncrease: () => _seek(math.min(reelDuration - .01, _t + 1)),
+              onIncrease: () => _seek(math.min(_cut.duration - .01, _t + 1)),
               onDecrease: () => _seek(math.max(0, _t - 1)),
               child: child,
             );
@@ -2555,7 +2565,12 @@ class _LandingReelState extends State<LandingReel>
               child: SizedBox(
                 height: 26,
                 child: CustomPaint(
-                  painter: _TrackPainter(_clock, t.borderStrong, t.accent),
+                  painter: _TrackPainter(
+                    _cut,
+                    _clock,
+                    t.borderStrong,
+                    t.accent,
+                  ),
                   size: Size.infinite,
                 ),
               ),
@@ -2566,17 +2581,18 @@ class _LandingReelState extends State<LandingReel>
     );
     final chapters = Row(
       children: [
-        for (var i = 0; i < reelChapters.length; i++) ...[
+        for (var i = 0; i < _cut.chapters.length; i++) ...[
           if (i > 0) const SizedBox(width: 4),
           Expanded(
-            flex: _flex(reelChapters[i]),
+            flex: _flex(i),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Semantics(
                 container: true,
                 button: true,
                 selected: i == _chapter,
-                label: 'Chapter ${reelChapters[i].n}, ${reelChapters[i].name}',
+                label:
+                    'Chapter ${_cut.chapters[i].n}, ${_cut.chapters[i].name}',
                 excludeSemantics: true,
                 child: GestureDetector(
                   key: ValueKey('reel-ch-$i'),
@@ -2588,7 +2604,7 @@ class _LandingReelState extends State<LandingReel>
                       TextSpan(
                         children: [
                           TextSpan(
-                            text: reelChapters[i].n,
+                            text: _cut.chapters[i].n,
                             style: TextStyle(
                               color: i == _chapter ? t.accentText : t.fgMuted,
                             ),
@@ -2596,7 +2612,7 @@ class _LandingReelState extends State<LandingReel>
                           if (!phone) ...[
                             const WidgetSpan(child: SizedBox(width: 7)),
                             TextSpan(
-                              text: reelChapters[i].name.toUpperCase(),
+                              text: _cut.chapters[i].name.toUpperCase(),
                               style: TextStyle(
                                 color: i == _chapter ? t.fg : t.fgMuted,
                               ),
@@ -2631,7 +2647,7 @@ class _LandingReelState extends State<LandingReel>
               child: ValueListenableBuilder<int>(
                 valueListenable: _sec,
                 builder: (context, _, _) => Text(
-                  '${reelTimecode(_t)} / ${reelTimecode(reelDuration)}',
+                  '${reelTimecode(_t)} / ${reelTimecode(_cut.duration)}',
                   style: tcStyle,
                   softWrap: false,
                 ),
@@ -2655,20 +2671,20 @@ class _LandingReelState extends State<LandingReel>
     if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
-    final ch = chapterAt(_t);
+    final ch = chapterAt(_cut, _t);
     final k = e.logicalKey;
     if (k == LogicalKeyboardKey.arrowRight) {
-      _seek(math.min(reelDuration - .01, _t + 1));
+      _seek(math.min(_cut.duration - .01, _t + 1));
     } else if (k == LogicalKeyboardKey.arrowLeft) {
       _seek(math.max(0, _t - 1));
     } else if (k == LogicalKeyboardKey.pageDown) {
-      _goChapter(math.min(reelChapters.length - 1, ch + 1));
+      _goChapter(math.min(_cut.chapters.length - 1, ch + 1));
     } else if (k == LogicalKeyboardKey.pageUp) {
       _goChapter(math.max(0, ch - 1));
     } else if (k == LogicalKeyboardKey.home) {
       _seek(0);
     } else if (k == LogicalKeyboardKey.end) {
-      _seek(reelDuration - .01);
+      _seek(_cut.duration - .01);
     } else {
       return KeyEventResult.ignored;
     }
@@ -2676,39 +2692,83 @@ class _LandingReelState extends State<LandingReel>
   }
 }
 
-/// The track: five segments as long as their chapters, each filled with the
-/// accent as far as the clock has run through it.
+/// The track's segments, as `.pl-track` lays them out: one per chapter of
+/// [cut], as long as the chapter, [reelTrackGap] apart — each its left edge
+/// and its width on a track [width] wide.
+const double reelTrackGap = 4;
+
+List<({double left, double width})> reelTrackSegments(
+  ReelCut cut,
+  double width,
+) {
+  final n = cut.chapters.length;
+  final w = width - reelTrackGap * (n - 1);
+  var x = 0.0;
+  return [
+    for (var i = 0; i < n; i++)
+      () {
+        final sw = w * (cut.endOf(i) - cut.chapters[i].at) / cut.duration;
+        final seg = (left: x, width: sw);
+        x += sw + reelTrackGap;
+        return seg;
+      }(),
+  ];
+}
+
+/// Where a tap or a drag at [dx] on a track [width] wide lands: within the
+/// segment under the pointer (the first whose right edge is past it — a gap
+/// reads as the next chapter's start), so the gaps between chapters do not
+/// skew it, as a single linear map over the whole track did.
+double reelTrackSeek(ReelCut cut, double dx, double width) {
+  final segs = reelTrackSegments(cut, width);
+  var i = segs.indexWhere((s) => dx < s.left + s.width);
+  if (i < 0) i = segs.length - 1;
+  final r = segs[i];
+  final at = cut.chapters[i].at, end = cut.endOf(i);
+  return math.min(
+    cut.duration - 0.01,
+    at + clamp01((dx - r.left) / r.width) * (end - at),
+  );
+}
+
+/// The track: a segment per chapter, as long as the chapter, each filled with
+/// the accent as far as the clock has run through it.
 class _TrackPainter extends CustomPainter {
+  final ReelCut cut;
   final ValueListenable<double> clock;
   final Color rest, fill;
-  _TrackPainter(this.clock, this.rest, this.fill) : super(repaint: clock);
+  _TrackPainter(this.cut, this.clock, this.rest, this.fill)
+    : super(repaint: clock);
 
   @override
   void paint(Canvas canvas, Size size) {
-    const gap = 4.0;
-    final total = reelChapters.fold<double>(0, (a, c) => a + (c.end - c.at));
-    final w = size.width - gap * (reelChapters.length - 1);
-    var x = 0.0;
     final y = (size.height - 3) / 2;
-    for (final c in reelChapters) {
-      final sw = w * (c.end - c.at) / total;
+    final segs = reelTrackSegments(cut, size.width);
+    for (var i = 0; i < segs.length; i++) {
+      final s = segs[i];
+      final c = cut.chapters[i];
       final r = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, y, sw, 3),
+        Rect.fromLTWH(s.left, y, s.width, 3),
         const Radius.circular(2),
       );
       canvas.drawRRect(r, Paint()..color = rest);
-      final p = clamp01((clock.value - c.at) / (c.end - c.at));
+      final p = clamp01((clock.value - c.at) / (cut.endOf(i) - c.at));
       if (p > 0) {
         canvas.save();
         canvas.clipRRect(r);
-        canvas.drawRect(Rect.fromLTWH(x, y, sw * p, 3), Paint()..color = fill);
+        canvas.drawRect(
+          Rect.fromLTWH(s.left, y, s.width * p, 3),
+          Paint()..color = fill,
+        );
         canvas.restore();
       }
-      x += sw + gap;
     }
   }
 
   @override
   bool shouldRepaint(_TrackPainter old) =>
-      old.rest != rest || old.fill != fill || old.clock != clock;
+      old.cut != cut ||
+      old.rest != rest ||
+      old.fill != fill ||
+      old.clock != clock;
 }
