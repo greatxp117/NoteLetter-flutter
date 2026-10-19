@@ -149,7 +149,8 @@ void main() {
     testWidgets('the edition, in order, at $width', (tester) async {
       await pump(tester, width);
       double y(String s) {
-        // Chips exactly: `§ 02 · LECTURE` in the hero letter also holds `§ 02`.
+        // Chips exactly: the film's letter (Plate I) also numbers its
+        // sections `§ 01`…`§ 04`, inside one rich line with their kind.
         final f = s.startsWith('§ ')
             ? find.text(s)
             : find.textContaining(s, findRichText: true);

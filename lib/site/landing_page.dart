@@ -18,6 +18,13 @@
 //  * The footer's `rgba(255,255,255,.72/.5)` are the chrome tokens nearest them
 //    (`--chrome-control`, `--chrome-muted`); `--brick-300` on the plum band is
 //    `Tokens.dark.accentText`, the same fixed step in both themes.
+//
+// The hero object is Plate I (ADR-178): the film is `landing_reel.dart`, its
+// score `reel_score.dart` (a 1:1 port of web `reelScore.js`), and the film's
+// own departures — no SVG, no inner shadow, no mixed-colour rounded border —
+// are recorded in landing_reel.dart's header. The headline row is the
+// reference's: headline beside its stand and act above 1180, stacked under
+// it below, the plate full width beneath (to the sheet's edges on a phone).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -35,6 +42,7 @@ import '../widgets/kit/kit_ground.dart';
 import '../widgets/kit/kit_shell.dart';
 import 'auth_modal.dart';
 import 'landing_bits.dart';
+import 'landing_reel.dart';
 
 // ── the sheet ────────────────────────────────────────────────────────────────
 
@@ -268,8 +276,12 @@ class _LandingPageState extends State<LandingPage> {
                       lt.narrow ? 64 : 88,
                     ),
                     child: Center(
+                      // `.ed { max-width: 1400px }` is border-box: its 32px
+                      // gutters are inside the 1400, so the sheet stops at 1336.
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1400),
+                        constraints: BoxConstraints(
+                          maxWidth: 1400 - 2 * (lt.narrow ? 18.0 : 32.0),
+                        ),
                         child: _Sheet(
                           lt: lt,
                           line: _line,
@@ -720,66 +732,167 @@ class _Masthead extends StatelessWidget {
               ),
             ],
           );
-    final say = _Say(lt: lt, onSignUp: onSignUp);
-    final stack = _LetterStack(lt: lt, line: line);
-    return Padding(
-      padding: lt.phone
-          ? const EdgeInsets.fromLTRB(18, 22, 18, 0)
-          : lt.narrow
-          ? const EdgeInsets.fromLTRB(30, 26, 30, 0)
-          : const EdgeInsets.fromLTRB(60, 34, 60, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    // `.hg` — the headline and its stand share one row above 1180, so the
+    // film starts high on the first screen; below it the stand drops under
+    // the headline (beside the act to 980, above it below).
+    final w = lt.w;
+    final standSize = lt.phone ? 17.0 : (w <= 1180 ? 20.0 : 18.0);
+    final standStyle = lt.serif(
+      standSize,
+      t.fgLede,
+      height: (lt.phone ? 28 : (w <= 1180 ? 32 : 29)) / standSize,
+      italic: true,
+      opsz: 20,
+    );
+    // `max-width: 46ch` — 46 of the face's "0".
+    final ch = (TextPainter(
+      text: TextSpan(text: '0', style: standStyle),
+      textDirection: TextDirection.ltr,
+    )..layout()).width;
+    final stand = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: 46 * ch),
+      child: Text(
+        'You kept it because it was worth keeping. NoteLetter holds the '
+        'whole collection and posts a few passages back to you every '
+        'morning — until the things you chose are things you know.',
+        style: standStyle,
+      ),
+    );
+    // `.nl-micro` sets no line-height: it takes the page's 24px.
+    final micro = Text(
+      'Free to start · No card · Your library stays yours',
+      style: lt.mono(11, .06, t.fgSubtle, height: 24 / 11),
+    );
+    final cta = _Cta(lt: lt, onTap: onSignUp);
+    // `.row` — wrapping beside each other, or the act over its line (1180–980).
+    final act = w <= 1180 && !lt.narrow
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [cta, const SizedBox(height: 10), micro],
+          )
+        : Wrap(
+            spacing: 16,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [cta, micro],
+          );
+    final headline = _Headline(lt: lt);
+    final Widget hero;
+    if (w > 1180) {
+      hero = Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Container(
-            padding: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: t.rule)),
+          Expanded(child: headline),
+          const SizedBox(width: 48),
+          SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [stand, const SizedBox(height: 20), act],
             ),
-            child: strapRow,
-          ),
-          Container(height: 2, color: t.fg),
-          Padding(
-            padding: lt.phone
-                ? const EdgeInsets.only(top: 32, bottom: 36)
-                : lt.narrow
-                ? const EdgeInsets.only(top: 40, bottom: 48)
-                : const EdgeInsets.only(top: 56, bottom: 64),
-            child: lt.narrow
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      say,
-                      SizedBox(height: lt.phone ? 36 : 44),
-                      stack,
-                    ],
-                  )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(flex: 7, child: say),
-                      SizedBox(width: lt.w <= 1100 ? 40 : 56),
-                      Expanded(flex: 5, child: stack),
-                    ],
-                  ),
           ),
         ],
-      ),
+      );
+    } else if (!lt.narrow) {
+      hero = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          headline,
+          const SizedBox(height: 26),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(child: stand),
+              const SizedBox(width: 48),
+              act,
+            ],
+          ),
+        ],
+      );
+    } else {
+      hero = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          headline,
+          const SizedBox(height: 26),
+          stand,
+          // the say-row's 18 gap, and on a phone the stand's own 24 margin
+          SizedBox(height: lt.phone ? 18 + 24 : 18),
+          act,
+        ],
+      );
+    }
+    final side = lt.phone
+        ? 18.0
+        : lt.narrow
+        ? 30.0
+        : 60.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            side,
+            lt.phone
+                ? 22
+                : lt.narrow
+                ? 26
+                : 34,
+            side,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: t.rule)),
+                ),
+                child: strapRow,
+              ),
+              Container(height: 2, color: t.fg),
+              Padding(
+                padding: lt.phone
+                    ? const EdgeInsets.only(top: 28, bottom: 26)
+                    : lt.narrow
+                    ? const EdgeInsets.only(top: 36, bottom: 30)
+                    : const EdgeInsets.only(top: 40, bottom: 32),
+                child: hero,
+              ),
+            ],
+          ),
+        ),
+        // Plate I (ADR-178). On a phone it runs to the sheet's edges.
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: lt.phone ? 0 : side),
+          child: LandingReel(day: line.day, phone: lt.phone),
+        ),
+        SizedBox(
+          height: lt.phone
+              ? 30
+              : lt.narrow
+              ? 40
+              : 52,
+        ),
+      ],
     );
   }
 }
 
-/// The headline, its two retyping words, the standfirst and the primary act.
-class _Say extends StatefulWidget {
+/// The headline and its two retyping words.
+class _Headline extends StatefulWidget {
   final _Lt lt;
-  final VoidCallback onSignUp;
-  const _Say({required this.lt, required this.onSignUp});
+  const _Headline({required this.lt});
 
   @override
-  State<_Say> createState() => _SayState();
+  State<_Headline> createState() => _HeadlineState();
 }
 
-class _SayState extends State<_Say> {
+class _HeadlineState extends State<_Headline> {
   (String, String) _typed = rotPairs.first;
   bool _busy = false;
   bool _caret = true;
@@ -854,11 +967,13 @@ class _SayState extends State<_Say> {
     final lt = widget.lt;
     final t = lt.t;
     final w = lt.w;
+    // `.mh h1`: clamp(44px, 4.6vw, 72px); 1180 and under clamp(40px, 5vw,
+    // 60px); a phone clamp(36px, 10.5vw, 44px).
     final size = lt.phone
         ? (w * 0.105).clamp(36.0, 44.0)
-        : w <= 1100
+        : w <= 1180
         ? (w * 0.05).clamp(40.0, 60.0)
-        : (w * 0.054).clamp(44.0, 78.0);
+        : (w * 0.046).clamp(44.0, 72.0);
     final h1 = lt.serif(
       size,
       t.fg,
@@ -901,299 +1016,24 @@ class _SayState extends State<_Say> {
         ],
       ),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text.rich(
-          TextSpan(
-            style: h1,
-            children: [
-              const TextSpan(text: 'Your '),
-              rot(_typed.$1, t.accent),
-              const TextSpan(text: ' deserve'),
-              // `.ln { display: block }` at every width — on a phone only
-              // their `white-space` goes normal, so each line may wrap but
-              // the two never join (F-82 (3)).
-              const TextSpan(text: '\n'),
-              const TextSpan(text: 'to be re-'),
-              rot(_typed.$2, t.fg),
-              const TextSpan(text: '.'),
-            ],
-          ),
-          semanticsLabel:
-              'Your ${rotPairs.first.$1} deserve to be re-${rotPairs.first.$2}.',
-        ),
-        SizedBox(height: lt.phone ? 20 : 28),
-        ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: lt.phone ? double.infinity : 440,
-          ),
-          child: Text(
-            'You kept it because it was worth keeping. NoteLetter holds the '
-            'whole collection and posts a few passages back to you every '
-            'morning — until the things you chose are things you know.',
-            style: lt.serif(
-              lt.phone ? 17 : 20,
-              t.fgLede,
-              height: lt.phone ? 28 / 17 : 32 / 20,
-              italic: true,
-              opsz: 20,
-            ),
-          ),
-        ),
-        SizedBox(height: lt.phone ? 24 : 30),
-        Wrap(
-          spacing: 18,
-          runSpacing: 14,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            _Cta(lt: lt, onTap: widget.onSignUp),
-            Text(
-              'Free to start · No card · Your library stays yours',
-              style: lt.mono(11, .06, t.fgSubtle, height: 1.9),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Three mornings of letters, fanned; at a phone's width only today's.
-class _LetterStack extends StatelessWidget {
-  final _Lt lt;
-  final Dateline line;
-  const _LetterStack({required this.lt, required this.line});
-
-  Widget _paper(_Lt lt, {required Widget child, double? minHeight}) {
-    final t = lt.t;
-    return Container(
-      constraints: BoxConstraints(minHeight: minHeight ?? 0),
-      decoration: BoxDecoration(
-        color: t.surface,
-        border: Border.all(color: t.border),
-        borderRadius: AppRadius.mdR,
-        boxShadow: AppShadows.s3,
-      ),
-      child: ClipRRect(
-        borderRadius: AppRadius.mdR,
-        child: Material(
-          type: MaterialType.transparency,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(26, 22, 26, 24),
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _head(_Lt lt, List<InlineSpan> spans, {bool seal = false}) {
-    final t = lt.t;
-    return Container(
-      padding: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: t.rule)),
-      ),
-      child: Row(
+    return Text.rich(
+      TextSpan(
+        style: h1,
         children: [
-          Expanded(
-            child: Text.rich(
-              TextSpan(style: lt.mono(10, .14, t.fgMuted), children: spans),
-            ),
-          ),
-          if (seal)
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: t.accentSoft,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: KitQuill(size: 14, color: t.seal),
-            ),
+          const TextSpan(text: 'Your '),
+          rot(_typed.$1, t.accent),
+          const TextSpan(text: ' deserve'),
+          // `.ln { display: block }` at every width — on a phone only
+          // their `white-space` goes normal, so each line may wrap but
+          // the two never join (F-82 (3)).
+          const TextSpan(text: '\n'),
+          const TextSpan(text: 'to be re-'),
+          rot(_typed.$2, t.fg),
+          const TextSpan(text: '.'),
         ],
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = lt.t;
-    final h4 = lt.serif(
-      30,
-      t.fg,
-      height: 1.06,
-      weight: 600,
-      tracking: -.022,
-      opsz: 32,
-      press: true,
-    );
-    final mark = t.highlight;
-    final top = _paper(
-      lt,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _head(lt, [
-            TextSpan(
-              text: '№ 124',
-              style: TextStyle(color: t.accentText),
-            ),
-            TextSpan(text: '     ${line.day.toUpperCase()}, 6:30'),
-          ], seal: true),
-          const SizedBox(height: 14),
-          Text(
-            'Four passages · two returning'.toUpperCase(),
-            style: lt.mono(9.5, .16, t.accentText),
-          ),
-          const SizedBox(height: 12),
-          Text.rich(
-            TextSpan(
-              style: h4,
-              children: [
-                const TextSpan(text: 'Margin & '),
-                TextSpan(text: 'Memory', style: lt.em(h4)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text.rich(
-            TextSpan(
-              style: lt.serif(15.5, t.fg, height: 25 / 15.5, opsz: 16),
-              children: [
-                const TextSpan(
-                  text:
-                      'We fetishize invention because invention has a '
-                      'photograph. Maintenance has no photograph. ',
-                ),
-                TextSpan(
-                  text:
-                      'The woman who re-tarred the roof is not in the history '
-                      'book; the roof is not in the history book either, '
-                      'because the roof held.',
-                  style: TextStyle(backgroundColor: mark),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _Chip(lt: lt, text: 'Essay', size: 9, tracking: .12),
-              Text(
-                'The Maintenance Essays · p. 61',
-                style: lt.sans(12, t.fgMuted),
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: Text(
-                  'Third time · first read in March',
-                  style: lt.serif(13, t.fgLede, italic: true),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.only(top: 12),
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: t.rule)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final s in const [
-                  '§ 02 · Lecture · 41:20',
-                  '§ 03 · Your note · Kyoto notebook',
-                  '§ 04 · Podcast · 12:05',
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 7),
-                    child: Text(
-                      s.toUpperCase(),
-                      style: lt.mono(9.5, .12, t.fgMuted),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-    if (lt.phone) return ExcludeSemantics(child: top);
-    Widget under(String no, String when, String title, double minH) => _paper(
-      lt,
-      minHeight: minH,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _head(lt, [TextSpan(text: '$no     $when'.toUpperCase())]),
-          const SizedBox(height: 12),
-          Text(title, style: h4),
-        ],
-      ),
-    );
-    return ExcludeSemantics(
-      child: Align(
-        alignment: lt.narrow ? Alignment.center : Alignment.centerRight,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: lt.narrow ? 460 : 440),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 40),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: Transform.translate(
-                    offset: const Offset(-44, 40),
-                    child: Transform.rotate(
-                      angle: -7 * math.pi / 180,
-                      alignment: Alignment.bottomCenter,
-                      child: Opacity(
-                        opacity: .8,
-                        child: under(
-                          '№ 122',
-                          'Sunday, 6:30',
-                          'The Unread Shelf',
-                          380,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: Transform.translate(
-                    offset: const Offset(36, 18),
-                    child: Transform.rotate(
-                      angle: 4 * math.pi / 180,
-                      alignment: Alignment.bottomCenter,
-                      child: Opacity(
-                        opacity: .92,
-                        child: under(
-                          '№ 123',
-                          'Monday, 6:30',
-                          'Weather, Not Currency',
-                          400,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Transform.rotate(
-                  angle: -1 * math.pi / 180,
-                  alignment: Alignment.bottomCenter,
-                  child: top,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      semanticsLabel:
+          'Your ${rotPairs.first.$1} deserve to be re-${rotPairs.first.$2}.',
     );
   }
 }

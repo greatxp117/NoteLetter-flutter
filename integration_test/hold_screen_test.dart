@@ -168,6 +168,11 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
   for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 200));
   }
+  // Plate I (ADR-178) is a pure function of time, so a frame taken seconds
+  // after load is whatever instant its clock reached. Pause it and ask for
+  // chapter 05's still — what web's theme-shots drives its landing frame to,
+  // and what a reduced-motion visitor opens on.
+  if (route == '/landing') await _stillThePlate(tester);
   await reachState(tester, h.state);
   // A state that focuses a field (the shelf picker's search, the create
   // sheet, a typed query) raises the SOFTWARE keyboard on a simulator with no
@@ -256,6 +261,46 @@ Future<void> leaveState(WidgetTester tester, String holdState) async {
         }
       }
       await Api.instance.updateSummarySettings(null);
+  }
+}
+
+/// Pause the landing's film on chapter 05's still, then put the page back at
+/// its top. The controls are below a phone's fold, so the page scrolls to
+/// them first — on screen, a playing film's clock runs, which is how a play
+/// is told from a pause.
+Future<void> _stillThePlate(WidgetTester tester) async {
+  final play = find.byKey(const ValueKey('reel-play'));
+  if (play.evaluate().isEmpty) fail('the landing has no Plate I controls');
+  final page = Scrollable.of(tester.element(play)).position;
+  await tester.ensureVisible(play);
+  for (var i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  String tc() =>
+      tester.widget<Text>(find.textContaining(' / 00:36').first).data ?? '';
+  Future<bool> moving() async {
+    final a = tc();
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    return tc() != a;
+  }
+
+  if (await moving()) {
+    await tester.tap(play);
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  if (await moving()) fail('Plate I would not pause');
+  await tester.tap(find.byKey(const ValueKey('reel-ch-4')));
+  for (var i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  if (tc() != '00:33 / 00:36') {
+    fail('Plate I is at ${tc()}, not chapter 05\'s still');
+  }
+  page.jumpTo(0);
+  for (var i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
   }
 }
 
