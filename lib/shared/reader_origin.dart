@@ -27,6 +27,8 @@ const Map<String, String> readerOriginLabels = <String, String>{
   '/activity': 'Activity',
   '/letters': 'Letters',
   '/shelves': 'Shelves',
+  // The shelf map (5.25.0, ADR-177) — `Shelf map`, web's backOrigin table.
+  '/shelves/map': 'Shelf map',
   '/study': 'Deep study',
 };
 

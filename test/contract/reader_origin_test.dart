@@ -39,6 +39,7 @@ void main() {
         '/activity': 'Activity',
         '/letters': 'Letters',
         '/shelves': 'Shelves',
+        '/shelves/map': 'Shelf map',
       };
       origins.forEach((path, label) {
         final origin = readerOrigin(path);

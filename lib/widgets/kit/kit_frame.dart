@@ -168,13 +168,18 @@ class KitScrollView extends StatelessWidget {
   /// Why this scroller is not the screen's primary one. Null: it is.
   final String? secondaryReason;
 
+  /// A secondary scroller's direction — the shelf map's inspector chips run
+  /// sideways (§24, §1.4). The primary one is always vertical.
+  final Axis axis;
+
   const KitScrollView({
     super.key,
     required this.child,
     this.controller,
     this.anchorBottom = false,
     this.dockReserve = 0,
-  }) : secondaryReason = null;
+  })  : secondaryReason = null,
+        axis = Axis.vertical;
 
   /// A scroller that is not the screen's primary column (§1.4): it never
   /// carries the footer, and it has to say why.
@@ -183,6 +188,7 @@ class KitScrollView extends StatelessWidget {
     required String reason,
     required this.child,
     this.controller,
+    this.axis = Axis.vertical,
   })  : secondaryReason = reason,
         anchorBottom = false,
         dockReserve = 0;
@@ -196,6 +202,7 @@ class KitScrollView extends StatelessWidget {
       return SingleChildScrollView(
         controller: controller,
         primary: controller == null ? null : false,
+        scrollDirection: axis,
         child: child,
       );
     }
@@ -286,6 +293,94 @@ class KitPage extends StatelessWidget {
       dockReserve: dockReserve,
       child: frame,
     );
+  }
+}
+
+/// §1.5's **Canvas** frame (5.25.0, ADR-177) — no ceiling, the pane: a graph
+/// that pans has no natural width, so a ceiling would only shrink it. The
+/// shelf map's page (`.map-page`): padding 34/56/28 (the app's phone gutter
+/// and 24/20 below [AppSpacing.compactWidth]), the [header], then the [body]
+/// taking the rest of the pane with a 420 floor; the shell's footer follows
+/// at the end of the primary scroll (§1.4, INV-22).
+///
+/// A [body] that is not the canvas — the failure block, the empty state —
+/// takes its own height ([fill] false), as web's does inside `.map-body`.
+class KitCanvasPage extends StatefulWidget {
+  final Widget header;
+  final Widget body;
+  final bool fill;
+
+  /// `.map-body { flex: 1 0 420px }`.
+  static const double floor = 420;
+
+  const KitCanvasPage(
+      {super.key, required this.header, required this.body, this.fill = true});
+
+  @override
+  State<KitCanvasPage> createState() => _KitCanvasPageState();
+}
+
+class _KitCanvasPageState extends State<KitCanvasPage> {
+  // Measured after a frame: the body's height is the pane less these, so the
+  // canvas fills what the header and the footer leave of it.
+  double _header = 0;
+  double _footer = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    final gutter =
+        compact ? AppSpacing.frameGutterCompact : AppSpacing.frameGutter;
+    final top = compact ? 24.0 : 34.0;
+    final bottom = compact ? 20.0 : 28.0;
+    final footer = KitShellFooter.of(context);
+    return LayoutBuilder(builder: (context, c) {
+      final pane = c.hasBoundedHeight ? c.maxHeight : KitCanvasPage.floor;
+      final bodyH = (pane - top - bottom - _header - _footer)
+          .clamp(KitCanvasPage.floor, double.infinity)
+          .toDouble();
+      return SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: c.hasBoundedHeight ? pane : 0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(gutter, top, gutter, bottom),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    KitMeasure(
+                      onSize: (s) {
+                        if (mounted && s.height != _header) {
+                          setState(() => _header = s.height);
+                        }
+                      },
+                      child: widget.header,
+                    ),
+                    if (widget.fill)
+                      SizedBox(height: bodyH, child: widget.body)
+                    else
+                      widget.body,
+                  ],
+                ),
+              ),
+              if (footer != null)
+                KitMeasure(
+                  onSize: (s) {
+                    if (mounted && s.height != _footer) {
+                      setState(() => _footer = s.height);
+                    }
+                  },
+                  child: footer,
+                ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 }
 

@@ -47,8 +47,13 @@ class MapDoc {
   final bool complete;
   final List<String> tagIds;
 
-  const MapDoc(this.id,
-      {this.title, this.type, this.complete = true, this.tagIds = const []});
+  const MapDoc(
+    this.id, {
+    this.title,
+    this.type,
+    this.complete = true,
+    this.tagIds = const [],
+  });
 }
 
 class MapNode {
@@ -97,11 +102,12 @@ class MapCounts {
   final int links;
   final int unshelved;
 
-  const MapCounts(
-      {required this.shelves,
-      required this.volumes,
-      required this.links,
-      required this.unshelved});
+  const MapCounts({
+    required this.shelves,
+    required this.volumes,
+    required this.links,
+    required this.unshelved,
+  });
 
   @override
   bool operator ==(Object other) =>
@@ -141,8 +147,11 @@ class MapGraph {
 /// parentOf  — shelf → its parent shelf's id, or null. Nothing at 5.25.0:
 ///             `parent_tag_id` is still provenance (ADR-025 §3) and draws
 ///             nothing until shelves nest.
-MapGraph buildShelfGraph(List<MapShelf> shelves, List<MapDoc> documents,
-    {String? Function(MapShelf)? parentOf}) {
+MapGraph buildShelfGraph(
+  List<MapShelf> shelves,
+  List<MapDoc> documents, {
+  String? Function(MapShelf)? parentOf,
+}) {
   final shelfById = <String, MapShelf>{};
   for (final s in shelves) {
     if (s.id.isNotEmpty) shelfById[s.id] = s;
@@ -171,23 +180,26 @@ MapGraph buildShelfGraph(List<MapShelf> shelves, List<MapDoc> documents,
     }
     final key = nodeKey('volume', d.id);
     nodes.putIfAbsent(
-        key,
-        () => MapNode(
-            key: key,
-            kind: 'volume',
-            id: d.id,
-            label: _orElse(d.title, 'Untitled'),
-            type: d.type));
+      key,
+      () => MapNode(
+        key: key,
+        kind: 'volume',
+        id: d.id,
+        label: _orElse(d.title, 'Untitled'),
+        type: d.type,
+      ),
+    );
     volumes += 1;
   }
   for (final s in shelfById.values) {
     final key = nodeKey('shelf', s.id);
     nodes[key] = MapNode(
-        key: key,
-        kind: 'shelf',
-        id: s.id,
-        label: _orElse(s.title, 'Untitled shelf'),
-        color: s.color);
+      key: key,
+      kind: 'shelf',
+      id: s.id,
+      label: _orElse(s.title, 'Untitled shelf'),
+      color: s.color,
+    );
   }
 
   for (final d in documents) {
@@ -214,13 +226,17 @@ MapGraph buildShelfGraph(List<MapShelf> shelves, List<MapDoc> documents,
   // nest, without a second rule.
   for (final n in nodes.values) {
     if (!n.isShelf) continue;
-    n.count = _walk(down, n.key).where((k) => nodes[k]!.kind == 'volume').length;
+    n.count = _walk(
+      down,
+      n.key,
+    ).where((k) => nodes[k]!.kind == 'volume').length;
   }
   graph.counts = MapCounts(
-      shelves: shelfById.length,
-      volumes: volumes,
-      links: edges.length,
-      unshelved: unshelved);
+    shelves: shelfById.length,
+    volumes: volumes,
+    links: edges.length,
+    unshelved: unshelved,
+  );
   graph.windowFull = documents.length >= documentWindow;
   return graph;
 }
@@ -283,11 +299,13 @@ MapRelations? relationsOf(MapGraph graph, String? key) {
   final node = key == null ? null : graph.nodes[key];
   if (node == null) return null;
   List<MapNode> nodesOf(List<String>? keys) => [
-        for (final k in keys ?? const <String>[])
-          if (graph.nodes[k] != null) graph.nodes[k]!,
-      ];
+    for (final k in keys ?? const <String>[])
+      if (graph.nodes[k] != null) graph.nodes[k]!,
+  ];
   if (node.kind == 'volume') {
-    return MapRelations(node, [MapSection('On shelves', nodesOf(graph.up[key]))]);
+    return MapRelations(node, [
+      MapSection('On shelves', nodesOf(graph.up[key])),
+    ]);
   }
   final below = nodesOf(graph.down[key]);
   final sections = <MapSection>[];
@@ -297,10 +315,12 @@ MapRelations? relationsOf(MapGraph graph, String? key) {
   if (graph.edges.any((e) => e.type == 'shelf-parent')) {
     sections.add(MapSection('Inside', nodesOf(graph.up[key])));
     sections.add(
-        MapSection('Sub-shelves', below.where((n) => n.isShelf).toList()));
+      MapSection('Sub-shelves', below.where((n) => n.isShelf).toList()),
+    );
   }
   sections.add(
-      MapSection('Volumes', below.where((n) => n.kind == 'volume').toList()));
+    MapSection('Volumes', below.where((n) => n.kind == 'volume').toList()),
+  );
   return MapRelations(node, sections);
 }
 
@@ -360,12 +380,13 @@ class MapLayout {
   final double height;
   final int columns;
 
-  const MapLayout(
-      {required this.pos,
-      required this.headers,
-      required this.width,
-      required this.height,
-      required this.columns});
+  const MapLayout({
+    required this.pos,
+    required this.headers,
+    required this.width,
+    required this.height,
+    required this.columns,
+  });
 
   @override
   bool operator ==(Object other) {
@@ -443,7 +464,8 @@ MapLayout layoutGraph(MapGraph graph, double W, double H) {
 
   // Columns seeded in the graph's own insertion order — subscription order.
   final cols = <List<String>>[
-    for (var d = 0; d <= maxDepth; d++) keys.where((k) => depth[k] == d).toList(),
+    for (var d = 0; d <= maxDepth; d++)
+      keys.where((k) => depth[k] == d).toList(),
   ];
 
   final ny = <String, double>{};
@@ -495,7 +517,8 @@ MapLayout layoutGraph(MapGraph graph, double W, double H) {
   final perCol = rowsIn(_colFields * naturalH);
   final perStaggered = rowsIn(_colFields * naturalH - _halfRow);
   final groups = <List<List<String>>>[
-    for (final col in cols) _deal(col, col.length > perCol ? (col.length / perStaggered).ceil() : 1),
+    for (final col in cols)
+      _deal(col, col.length > perCol ? (col.length / perStaggered).ceil() : 1),
   ];
 
   // An empty depth takes no column and no header — a library whose shelves
@@ -544,18 +567,25 @@ MapLayout layoutGraph(MapGraph graph, double W, double H) {
         if (slots[i].d == d) slotX(i),
     ];
     if (xs.isEmpty) continue;
-    headers.add(MapHeader(
-      (xs.reduce(math.min) + xs.reduce(math.max)) / 2,
-      d == 0 ? 'Volumes' : d == maxDepth ? 'Shelves' : 'Sub-shelves',
-    ));
+    headers.add(
+      MapHeader(
+        (xs.reduce(math.min) + xs.reduce(math.max)) / 2,
+        d == 0
+            ? 'Volumes'
+            : d == maxDepth
+            ? 'Shelves'
+            : 'Sub-shelves',
+      ),
+    );
   }
 
   return MapLayout(
-      pos: pos,
-      headers: headers,
-      width: width,
-      height: height,
-      columns: slots.length);
+    pos: pos,
+    headers: headers,
+    width: width,
+    height: height,
+    columns: slots.length,
+  );
 }
 
 List<List<String>> _deal(List<String> col, int k) {
@@ -571,7 +601,11 @@ List<List<String>> _deal(List<String> col, int k) {
 // branch is the explicit one a port from JS owes (CLAUDE.md).
 int _jsCompare(double? a, double? b) {
   if (a == null || b == null) return 0;
-  return a < b ? -1 : a > b ? 1 : 0;
+  return a < b
+      ? -1
+      : a > b
+      ? 1
+      : 0;
 }
 
 /// Wire geometry: a cubic that leaves each end HORIZONTALLY toward the other,

@@ -38,6 +38,7 @@ export 'kit_popover.dart';
 export 'kit_program_card.dart';
 export 'kit_rail.dart';
 export 'kit_reading.dart';
+export 'kit_relationship_map.dart';
 export 'kit_recipe.dart';
 export 'kit_rows.dart';
 export 'kit_section_rail.dart';
