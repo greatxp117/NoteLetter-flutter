@@ -2067,7 +2067,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier, 2026-10-17: the footer goes at the bottom of each screen's scroll, out of the way but present. The shell (SupportShell) composes it once and hands it down through KitShellFooter. The kit's primary scroll (KitPage, KitScrollView, KitLoadingPage, and the reader's KitShellFooterSliver) renders it last, in a body that fills the pane, so short content keeps it at the pane's bottom edge. Any other scroller is .secondary(reason:) or marked `// scroll-secondary:`. Ask and Support reserve their measured dock plus its 44px scrim, so the footer rests above the composer and the dock stays docked. All 65 authenticated pairs were re-shot 2026-10-18 and looked at in both themes. Web's 5.19.0 frames were not released when these were shot (web 5.17.0 at f7a0a0f): re-copy with tool/web_frames.sh once web pushes its frames, and look again at every pair whose web frame moved (5aa says STALE-WEB-FRAME). 5.18.0 is pin-only.
 
 ## F-121 · Resumable upload for large files (F-c): chunked Content-Range PUTs to resumableUrl instead of one bare PUT of the whole file in memory
-- status: in-progress
+- status: done 2026-10-18
 - screen: sources
 - route: /sources
 - spec: spec/api/uploads.md; spec/invariants.md §INV-08; spec/decisions/ADR-050-large-uploads-are-resumable-sessions.md
