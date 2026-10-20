@@ -13,6 +13,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.util.concurrent.Executors
 import xp.NoteLetter.Flutter.camerasweep.CameraSweepChannel
+import xp.NoteLetter.Flutter.camerasweep.SweepBackground
 
 /**
  * The Android share target (F-123): SEND and SEND_MULTIPLE, filtered in
@@ -40,6 +41,9 @@ class MainActivity : FlutterActivity() {
     /** The camera-roll sweep's library bridge (F-125 S5a). */
     private var cameraSweep: CameraSweepChannel? = null
 
+    /** Its background pass's channel on this engine (F-125 S5c). */
+    private var sweepBackground: MethodChannel? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // The LAUNCH intent only: a re-creation (a rotation, a process restored)
         // carries the same intent, and must not offer the same share twice.
@@ -64,6 +68,7 @@ class MainActivity : FlutterActivity() {
             it.register(flutterEngine.dartExecutor.binaryMessenger)
             it.attach(this)
         }
+        sweepBackground = SweepBackground.register(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).also {
             it.setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -87,6 +92,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         cameraSweep?.attach(null)
+        SweepBackground.detach(sweepBackground)
         super.onDestroy()
     }
 

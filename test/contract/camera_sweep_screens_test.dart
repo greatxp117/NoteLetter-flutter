@@ -18,6 +18,7 @@ import 'package:flutter_app/services/camera_sweep_bridge.dart';
 import 'package:flutter_app/services/camera_sweep_service.dart';
 import 'package:flutter_app/services/firestore_service.dart' show CaptureMatch;
 import 'package:flutter_app/services/sweep_ledger.dart';
+import 'package:flutter_app/services/sweep_words.dart';
 import 'package:flutter_app/state/camera_sweep_host.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
@@ -514,6 +515,9 @@ void main() {
         SweepTraySection.looking,
         KitCaptureCard.alreadyInLabel,
         CameraSweepService.iCloudSentence,
+        SweepWords.android.automaticNote,
+        SweepWords.android.deferredTitle,
+        SweepWords.android.deferredSentence,
         DedupeUnsupported.message,
         CameraSweepHost.notSaved,
         SettingsPage.cameraRollDescription,

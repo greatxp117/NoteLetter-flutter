@@ -38,11 +38,12 @@ class CameraSweepBridge {
   /// The backfill's page size in the Swift service (`backfillBatchLimit`).
   static const defaultPageSize = 200;
 
-  /// Whether this platform runs the sweep. Android answers the library
-  /// methods since S5a, but has no uploader or background pass yet (S5b,
-  /// S5c), so the sweep stays off there until they land.
+  /// Whether this platform runs the sweep: iOS, and Android since S5c (its
+  /// library bridge S5a, uploads S5b, background pass S5c).
   static bool get isAvailable =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android);
 
   Future<SweepConstants> constants() async =>
       SweepConstants.fromWire(_map(await _channel.invokeMethod<Object?>('constants')));

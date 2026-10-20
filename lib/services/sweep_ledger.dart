@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_android/shared_preferences_android.dart';
 import 'package:shared_preferences_foundation/shared_preferences_foundation.dart';
 
 import 'row_decode.dart';
@@ -331,11 +332,24 @@ abstract class SweepLedgerStore {
 /// (`ios/Runner/Runner.entitlements`), never the Swift app's.
 const sweepAppGroup = 'group.xp.NoteLetter.Flutter';
 
+/// Android's ledger file (S5c), the App Group's counterpart there.
+const sweepAndroidStore = 'camera_sweep_ledger';
+
 /// The App Group's shared defaults (`UserDefaults(suiteName:)`, as in Swift).
 class AppGroupLedgerStore implements SweepLedgerStore {
   AppGroupLedgerStore()
       : _prefs = SharedPreferencesAsync(
-          options: SharedPreferencesAsyncFoundationOptions(suiteName: sweepAppGroup),
+          options: defaultTargetPlatform == TargetPlatform.android
+              // Android has no App Group (its share target is in-app). The
+              // classic SharedPreferences backend, in its own file: DataStore
+              // allows ONE instance per file per process, and the background
+              // pass (S5c) can run a second engine beside the app's.
+              ? const SharedPreferencesAsyncAndroidOptions(
+                  backend: SharedPreferencesAndroidBackendLibrary.SharedPreferences,
+                  originalSharedPreferencesOptions:
+                      AndroidSharedPreferencesStoreOptions(fileName: sweepAndroidStore),
+                )
+              : SharedPreferencesAsyncFoundationOptions(suiteName: sweepAppGroup),
         );
 
   final SharedPreferencesAsync _prefs;

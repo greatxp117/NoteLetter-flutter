@@ -53,16 +53,21 @@ object SweepUploader {
     private val lock = Any()
     private val main by lazy { Handler(Looper.getMainLooper()) }
 
-    /** The Dart side's listener, when the app is alive and listening. */
-    val events = UploadEvents()
+    /** Every engine's listener: the app's, and a background pass's beside
+     *  it (S5c). A result is signalled to all of them. Main thread only. */
+    private val listening = mutableSetOf<EventChannel.EventSink>()
 
-    class UploadEvents : EventChannel.StreamHandler {
+    /** One engine's handler for the events channel. */
+    fun events(): EventChannel.StreamHandler = object : EventChannel.StreamHandler {
         var sink: EventChannel.EventSink? = null
         override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+            sink?.let(listening::remove)
             sink = events
+            listening += events
         }
 
         override fun onCancel(arguments: Any?) {
+            sink?.let(listening::remove)
             sink = null
         }
     }
@@ -135,7 +140,7 @@ object SweepUploader {
     /** Written down, then told — never the other way round. */
     fun record(context: Context, result: JSONObject) {
         synchronized(lock) { save(context, stored(context) + result.toString()) }
-        main.post { events.sink?.success("finished") }
+        main.post { listening.toList().forEach { it.success("finished") } }
     }
 
     private fun stored(context: Context): List<String> {

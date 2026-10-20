@@ -7,6 +7,7 @@ import '../../services/camera_sweep_bridge.dart';
 import '../../services/camera_sweep_service.dart';
 import '../../services/error_text.dart';
 import '../../services/sweep_ledger.dart';
+import '../../services/sweep_words.dart';
 import '../../shared/dates.dart';
 import '../../state/camera_sweep_host.dart';
 import '../../theme/app_spacing.dart';
@@ -46,17 +47,15 @@ class CameraSweepPage extends StatefulWidget {
       'The first catch-up always goes through review, whichever you pick. '
       'It’s the pass that finds everything at once, so it’s worth a look '
       'before it runs.';
-  static const automaticNote =
-      'Automatic still means "next time the app runs, or when iOS gives us a '
-      'moment in the background" — there’s no way to wake an app the instant '
-      'a photo is taken.';
+  /// iOS's; the host carries the platform's own (`SweepWords`, 5.26.1).
+  static final automaticNote = SweepWords.ios.automaticNote;
   static const goBackTitle = 'Go back to';
   static const catchUpNote =
       'Only a fraction of these will have readable text — the rest are never '
       'uploaded. NoteLetter works through them a few hundred at a time.';
   static const inRangeTitle = 'Photos in range';
   static const addedTitle = 'Added from photos';
-  static const iCloudTitle = 'Waiting for iCloud';
+  static final iCloudTitle = SweepWords.ios.deferredTitle;
   static const waitingTitle = 'Waiting for your review';
   static const checkTitle = 'Check for new photos';
   static String checking(int n) => 'Checking photos… $n so far';
@@ -222,7 +221,7 @@ class _CameraSweepPageState extends State<CameraSweepPage> {
                 icon: Icons.tune,
                 title: CameraSweepPage.modeTitle,
                 description: ledger.backfillComplete
-                    ? CameraSweepPage.automaticNote
+                    ? host.words.automaticNote
                     : CameraSweepPage.firstCatchUpNote,
                 // The row's control strip, in the text column (as the level
                 // picker on Notifications): two long choices fill it rather
@@ -300,7 +299,7 @@ class _CameraSweepPageState extends State<CameraSweepPage> {
                   if (ledger.deferredCount > 0)
                     KitSettingRow(
                       icon: Icons.cloud_outlined,
-                      title: CameraSweepPage.iCloudTitle,
+                      title: host.words.deferredTitle,
                       trailing: [_Figure(ledger.deferredCount)],
                     ),
                   KitSettingRow(

@@ -10,6 +10,7 @@ import 'camera_sweep_bridge.dart';
 import 'firestore_service.dart';
 import 'sweep_ledger.dart';
 import 'sweep_uploader.dart';
+import 'sweep_words.dart';
 
 /// The camera-roll sweep (F-125 S2; INV-14, `spec/features/camera-roll-sweep.md`),
 /// ported from the retired Swift app's `CameraSweepService.swift` and
@@ -47,7 +48,11 @@ class CameraSweepService extends ChangeNotifier {
     required this.ledger,
     required this.endpoints,
     required this.uploader,
+    this.words = SweepWords.ios,
   });
+
+  /// The platform's sentences (5.26.1).
+  final SweepWords words;
 
   final CameraSweepBridge bridge;
   final SweepLedger ledger;
@@ -493,7 +498,7 @@ class CameraSweepService extends ChangeNotifier {
       final rendered = await bridge.renderedJpeg(id);
       if (rendered == null) {
         await ledger.record(LedgerVerdict.deferredNotLocal, id);
-        return const _Refused(iCloudSentence);
+        return _Refused(words.deferredSentence);
       }
       final stage = await uploader.stage(rendered.path);
       staged = stage.uploadId;
@@ -771,9 +776,7 @@ class CameraSweepService extends ChangeNotifier {
 
   // ── Sentences (the Swift app's, verbatim) ──────────────────────────────────
 
-  static const iCloudSentence =
-      'This photo hasn’t finished downloading from iCloud. '
-      'It stays here and the next sweep will try again.';
+  static final iCloudSentence = SweepWords.ios.deferredSentence;
 
   /// What to say about a PUT that did not land (Swift
   /// `CameraSweepUploader.failureSentence`). A 403 is overwhelmingly a signed

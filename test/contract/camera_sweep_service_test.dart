@@ -7,6 +7,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
@@ -14,6 +15,7 @@ import 'package:flutter_app/services/camera_sweep_bridge.dart';
 import 'package:flutter_app/services/camera_sweep_service.dart';
 import 'package:flutter_app/services/firestore_service.dart' show CaptureMatch;
 import 'package:flutter_app/services/sweep_ledger.dart';
+import 'package:flutter_app/services/sweep_words.dart';
 
 import 'fixtures.dart';
 import 'sweep_fakes.dart';
@@ -422,6 +424,29 @@ void main() {
       expect(ledger.verdict('p1'), isNull);
       expect(svc.candidateErrors['p1'], isNotNull);
       expect(svc.errorStoppedSweep, isFalse);
+    });
+
+    test('Android: the same deferral, in its own words (5.26.1)', () async {
+      final (svc, ledger, bridge, ep, _) =
+          await rig([asset('p1')], words: SweepWords.android);
+      bridge.notRenderable.add('p1');
+      await svc.sweep();
+      await svc.approveAll();
+      expect(ledger.verdict('p1'), LedgerVerdict.deferredNotLocal);
+      expect(svc.candidateErrors['p1'],
+          'This photo couldn’t be opened on this phone. '
+          'It stays here and the next sweep will try again.');
+      expect(ep.sessions, isEmpty);
+    });
+
+    test('the words are chosen by platform, iOS anywhere but Android', () {
+      expect(SweepWords.forPlatform(TargetPlatform.android), same(SweepWords.android));
+      expect(SweepWords.forPlatform(TargetPlatform.iOS), same(SweepWords.ios));
+      expect(SweepWords.ios.deferredSentence, CameraSweepService.iCloudSentence);
+      for (final w in [SweepWords.android.automaticNote, SweepWords.android.deferredTitle,
+          SweepWords.android.deferredSentence]) {
+        expect(w.contains('iOS') || w.contains('iCloud'), isFalse, reason: w);
+      }
     });
 
     test('not on the device: deferred, never no-text, and the card says why', () async {

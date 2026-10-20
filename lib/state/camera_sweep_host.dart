@@ -9,6 +9,7 @@ import '../services/camera_sweep_service.dart';
 import '../services/sweep_background.dart';
 import '../services/sweep_ledger.dart';
 import '../services/sweep_uploader.dart';
+import '../services/sweep_words.dart';
 import 'auth_notifier.dart';
 
 /// What runs the camera-roll sweep — in the foreground, and in iOS's
@@ -52,6 +53,7 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
     required SweepBackground? background,
     this.debounce = const Duration(seconds: 2),
     bool observeLifecycle = true,
+    this.words = SweepWords.ios,
   })  : available = true,
         _session = session,
         _isSignedIn = isSignedIn,
@@ -67,10 +69,11 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
     ready = _load(store);
   }
 
-  /// A platform with no photo library this client can sweep (web; Android
-  /// until S5). Draws nothing and runs nothing.
+  /// A platform with no photo library this client can sweep (web, desktop).
+  /// Draws nothing and runs nothing.
   CameraSweepHost.unavailable()
       : available = false,
+        words = SweepWords.ios,
         debounce = Duration.zero,
         _session = null,
         _isSignedIn = null,
@@ -81,19 +84,27 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
     ready = Future.value();
   }
 
-  /// The app's: iOS gets the real bridge, store and endpoints; every other
-  /// platform the inert host.
-  factory CameraSweepHost.forApp(AuthNotifier auth) => CameraSweepBridge.isAvailable
-      ? CameraSweepHost(
-          session: auth,
-          isSignedIn: () => auth.isLoggedIn,
-          bridge: CameraSweepBridge(),
-          store: AppGroupLedgerStore(),
-          endpoints: const LiveSweepEndpoints(),
-          uploader: NativeSweepUploader(),
-          background: NativeSweepBackground(),
-        )
-      : CameraSweepHost.unavailable();
+  /// The app's: iOS and Android (S5) get the real bridge, store and
+  /// endpoints, and the platform's own words; every other platform the inert
+  /// host. [observeLifecycle] is false only for Android's background engine,
+  /// which has no foreground to leave.
+  factory CameraSweepHost.forApp(AuthNotifier auth, {bool observeLifecycle = true}) =>
+      CameraSweepBridge.isAvailable
+          ? CameraSweepHost(
+              session: auth,
+              isSignedIn: () => auth.isLoggedIn,
+              bridge: CameraSweepBridge(),
+              store: AppGroupLedgerStore(),
+              endpoints: const LiveSweepEndpoints(),
+              uploader: NativeSweepUploader(),
+              background: NativeSweepBackground(),
+              observeLifecycle: observeLifecycle,
+              words: SweepWords.forPlatform(defaultTargetPlatform),
+            )
+          : CameraSweepHost.unavailable();
+
+  /// The platform's sentences (5.26.1), for the screens and the service.
+  final SweepWords words;
 
   final bool available;
 
@@ -159,7 +170,8 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
       final ledger = await SweepLedger.load(store);
       _ledger = ledger;
       _service = CameraSweepService(
-          bridge: _bridge!, ledger: ledger, endpoints: _endpoints!, uploader: _uploader!);
+          bridge: _bridge!, ledger: ledger, endpoints: _endpoints!, uploader: _uploader!,
+          words: words);
     } catch (e) {
       _loadError = e;
       debugPrint('camera sweep: the ledger could not be read ($e)');

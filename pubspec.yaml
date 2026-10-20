@@ -25,6 +25,8 @@ dependencies:
   # The camera-roll sweep's ledger lives in this app's App Group suite
   # (F-125 S2); 2.5.2 fixed getAll under a suite name.
   shared_preferences_foundation: ^2.5.2
+  # ...and on Android in its own SharedPreferences file (F-125 S5c).
+  shared_preferences_android: ^2.4.23
   visibility_detector: ^0.4.0+2
   firebase_app_installations: ^0.4.2+7
   # Pinned EXACTLY, and low, on purpose. `firebase_analytics` 12.5.0+ requires

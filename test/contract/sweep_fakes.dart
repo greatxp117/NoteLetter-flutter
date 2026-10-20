@@ -14,6 +14,7 @@ import 'package:flutter_app/services/firestore_service.dart' show CaptureMatch;
 import 'package:flutter_app/services/sweep_background.dart';
 import 'package:flutter_app/services/sweep_ledger.dart';
 import 'package:flutter_app/services/sweep_uploader.dart';
+import 'package:flutter_app/services/sweep_words.dart';
 
 // ── Fakes ────────────────────────────────────────────────────────────────────
 
@@ -404,7 +405,8 @@ class FlakyStore extends MemoryLedgerStore {
 Future<(CameraSweepService, SweepLedger, FakeBridge, FakeEndpoints, MemoryLedgerStore)>
     rig(List<SweepAsset> assets,
         {Map<String, SweepVerdict> verdicts = const {},
-        MemoryLedgerStore? store}) async {
+        MemoryLedgerStore? store,
+        SweepWords words = SweepWords.ios}) async {
   final s = store ?? MemoryLedgerStore();
   final ledger = await SweepLedger.load(s, now: () => DateTime(2026, 10, 18, 12));
   // The fixtures' dates are 2025/2026; reach back far enough for all.
@@ -412,7 +414,8 @@ Future<(CameraSweepService, SweepLedger, FakeBridge, FakeEndpoints, MemoryLedger
   final bridge = FakeBridge(assets, verdicts: verdicts);
   final endpoints = FakeEndpoints();
   final service = CameraSweepService(
-      bridge: bridge, ledger: ledger, endpoints: endpoints, uploader: endpoints.uploader);
+      bridge: bridge, ledger: ledger, endpoints: endpoints, uploader: endpoints.uploader,
+      words: words);
   await service.attachUploads();
   return (
     service,

@@ -101,7 +101,7 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
     fun register(messenger: BinaryMessenger) {
         MethodChannel(messenger, NAME).setMethodCallHandler(::handle)
         EventChannel(messenger, CHANGES).setStreamHandler(this)
-        EventChannel(messenger, SweepUploader.EVENTS).setStreamHandler(SweepUploader.events)
+        EventChannel(messenger, SweepUploader.EVENTS).setStreamHandler(SweepUploader.events())
     }
 
     fun attach(activity: Activity?) {
@@ -400,7 +400,15 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
         val row = row(args, result) ?: return
         io.execute {
             try {
-                val bitmap = decode(row.uri, null, row.orientation)
+                // A photo that will not open or decode renders nothing: null,
+                // which the sweep records as deferred, as iOS's nil is.
+                val bitmap = try {
+                    decode(row.uri, null, row.orientation)
+                } catch (e: java.io.IOException) {
+                    null
+                } catch (e: SecurityException) {
+                    null
+                }
                 if (bitmap == null) {
                     main.post { result.success(null) }
                     return@execute

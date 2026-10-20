@@ -13,9 +13,53 @@ import 'app.dart';
 import 'app_providers.dart';
 import 'router.dart';
 import 'state/auth_notifier.dart';
+import 'state/camera_sweep_host.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _boot();
+
+  // F-122: where the iOS share extension sends a DEBUG build's traffic — the
+  // emulator this app is on, or nowhere (it then refuses). Release: a no-op.
+  await ShareConfigChannel.publish();
+
+  // INV-25(a). Both manifests ship analytics collection OFF, and this is the
+  // only thing that turns it on — under the emulator or under `flutter test` it
+  // returns without touching the SDK, so a development build measures nothing.
+  // Awaited, not fired: the SDK queues nothing while collection is disabled.
+  await Analytics.start();
+
+  final authNotifier = AuthNotifier();
+  final router = createRouter(authNotifier);
+  attachAnalytics(router);
+  // Android's share target (F-123): the share that launched the app, if any,
+  // then each one that arrives while it runs.
+  ShareIntake.instance.start(router);
+
+  runApp(
+    MultiProvider(
+      providers: appProviders(authNotifier),
+      child: NoteLetterApp(router: router),
+    ),
+  );
+}
+
+/// The camera-roll sweep's background pass on Android when the app is NOT
+/// running (F-125 S5c; features/camera-roll-sweep.md §5): WorkManager's job
+/// starts an engine on this entrypoint, and it builds the sweep's host and
+/// nothing else — no widgets, no frames, so nothing here waits on a frame.
+/// The host attaches to the background channel as it does in the app, the
+/// job asks it to run one pass, and stops this engine when the pass ends.
+@pragma('vm:entry-point')
+Future<void> sweepBackgroundMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await _boot();
+  CameraSweepHost.forApp(AuthNotifier(), observeLifecycle: false);
+}
+
+/// What every engine needs before anything reads Firebase: the app, the
+/// prod guard, and the emulator wiring.
+Future<void> _boot() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Umbrella law 1: Firestore/Functions development runs against the emulator
@@ -55,28 +99,4 @@ void main() async {
       'auth ${ApiService.authPort})',
     );
   }
-
-  // F-122: where the iOS share extension sends a DEBUG build's traffic — the
-  // emulator this app is on, or nowhere (it then refuses). Release: a no-op.
-  await ShareConfigChannel.publish();
-
-  // INV-25(a). Both manifests ship analytics collection OFF, and this is the
-  // only thing that turns it on — under the emulator or under `flutter test` it
-  // returns without touching the SDK, so a development build measures nothing.
-  // Awaited, not fired: the SDK queues nothing while collection is disabled.
-  await Analytics.start();
-
-  final authNotifier = AuthNotifier();
-  final router = createRouter(authNotifier);
-  attachAnalytics(router);
-  // Android's share target (F-123): the share that launched the app, if any,
-  // then each one that arrives while it runs.
-  ShareIntake.instance.start(router);
-
-  runApp(
-    MultiProvider(
-      providers: appProviders(authNotifier),
-      child: NoteLetterApp(router: router),
-    ),
-  );
 }
