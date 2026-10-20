@@ -24,6 +24,7 @@ import 'pages/letter_settings_page.dart';
 import 'pages/letters_page.dart';
 import 'pages/sources_page.dart';
 import 'pages/tags_page.dart';
+import 'pages/tags/shelf_map_page.dart';
 import 'pages/tags/shelf_page.dart';
 import 'pages/study_page.dart';
 import 'pages/study/session_player.dart';
@@ -278,6 +279,16 @@ List<RouteBase> appRoutes() {
             GoRoute(
               path: '/shelves',
               builder: (context, state) => const ShelvesPage(),
+            ),
+            // The shelf map (5.25.0, ADR-177). Ahead of the id form: a shelf
+            // id is a 20-character Firestore auto-id, never "map". The shelf
+            // to focus rides `extra` — navigation state, never the address,
+            // where a shelf id would reach analytics' page_location (INV-25b).
+            GoRoute(
+              path: '/shelves/map',
+              builder: (context, state) => ShelfMapPage(
+                focusShelfId: state.extra is String ? state.extra as String : null,
+              ),
             ),
             GoRoute(
               path: '/shelves/:shelfId',

@@ -565,7 +565,18 @@ enum KitBadgeSize {
   /// readings-day passage card's head (`.sc-p-h .filebadge`, which sets no
   /// width or height), where a 36×44 row plate made each quoted passage read
   /// as a source row.
-  chip(null, null, 9);
+  chip(null, null, 9),
+
+  /// 22×26, mono 7 — a volume chip on the shelf map (§24, `.rm-badge`).
+  mapChip(22, 26, 7),
+
+  /// 18×22, mono 6 — a relation chip in the map's inspector
+  /// (`.rm-badge.rm-badge-sm`).
+  mapRelation(18, 22, 6),
+
+  /// 30×38, mono 7 — the inspector's identity (`.rm-ident .rm-badge`, which
+  /// resizes the plate and keeps `.rm-badge`'s 7px).
+  mapIdentity(30, 38, 7);
 
   /// `null` for [chip]: the plate sizes to its label.
   final double? width;

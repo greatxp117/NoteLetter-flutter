@@ -115,6 +115,9 @@ const Map<String, String> screenNames = <String, String>{
   '/letters': 'letter',
   '/letters/settings': 'letter-settings',
   '/shelves': 'shelves',
+  // The shelf map (5.25.0, ADR-177) — the reference's `shelves-map` route
+  // token, which its `screenName()` passes through as it is.
+  '/shelves/map': 'shelves-map',
   '/shelves/:shelfId': 'shelf',
   '/tags': 'shelves',
   '/reader/:docId': 'reader',

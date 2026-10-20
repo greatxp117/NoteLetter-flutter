@@ -87,6 +87,14 @@ class _ShelvesPageState extends State<ShelvesPage> {
                     // `counted(totalVols, 'volume')` — one volume is singular
                     // (F-81 (4)).
                     '${plural(complete.length, 'volume', 'volumes')}, shelved.',
+                // The shelf map (5.25.0, ADR-177), in the chapter opening's
+                // actions slot — only when there is a shelf to draw.
+                actions: [
+                  if (shelves.isNotEmpty)
+                    KitButton.ghost('Shelf map',
+                        icon: Icons.map_outlined,
+                        onPressed: () => context.go('/shelves/map')),
+                ],
               ),
               if (error != null) ...[
                 KitFailureInline(
