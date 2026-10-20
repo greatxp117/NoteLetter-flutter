@@ -45,3 +45,11 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // The camera-roll sweep's pre-filter (F-125 S5a, ADR-180): the BUNDLED
+    // Latin model. The Play-services variant downloads its model on first
+    // use, and §2 forbids the network for the text check.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    testImplementation("junit:junit:4.13.2")
+}

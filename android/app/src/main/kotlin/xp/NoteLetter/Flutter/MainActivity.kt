@@ -12,6 +12,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.util.concurrent.Executors
+import xp.NoteLetter.Flutter.camerasweep.CameraSweepChannel
 
 /**
  * The Android share target (F-123): SEND and SEND_MULTIPLE, filtered in
@@ -36,6 +37,9 @@ class MainActivity : FlutterActivity() {
     private val main = Handler(Looper.getMainLooper())
     private var copies = 0
 
+    /** The camera-roll sweep's library bridge (F-125 S5a). */
+    private var cameraSweep: CameraSweepChannel? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // The LAUNCH intent only: a re-creation (a rotation, a process restored)
         // carries the same intent, and must not offer the same share twice.
@@ -56,6 +60,10 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        cameraSweep = CameraSweepChannel(applicationContext).also {
+            it.register(flutterEngine.dartExecutor.binaryMessenger)
+            it.attach(this)
+        }
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).also {
             it.setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -68,6 +76,18 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CameraSweepChannel.REQUEST_CODE) cameraSweep?.onPermissionsResult()
+    }
+
+    override fun onDestroy() {
+        cameraSweep?.attach(null)
+        super.onDestroy()
     }
 
     /** What was shared, without reading a byte of it. Null for any other intent. */

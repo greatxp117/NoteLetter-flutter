@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The camera-roll sweep (F-125 S5a; features/camera-roll-sweep.md §1,
+         5.26.0): asked for only when the reader turns the sweep on, never at
+         launch. READ_MEDIA_VISUAL_USER_SELECTED is declared so Android 14's
+         "limited" answer is SEEN, and refused in its sentence, rather than
+         read as no access. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
     <application
         android:label="NoteLetter Flutter"
         android:name="${applicationName}"

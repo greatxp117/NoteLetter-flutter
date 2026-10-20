@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// The camera-roll sweep's native bridge (F-125 S1; INV-14,
-/// `spec/features/camera-roll-sweep.md`). iOS only, for now.
+/// `spec/features/camera-roll-sweep.md`). Answered natively on iOS and, since
+/// F-125 S5a, on Android (`android/…/camerasweep/CameraSweepChannel.kt`,
+/// ADR-180: the same methods and wire shapes, MediaStore and ML Kit).
 ///
 /// Everything the sweep decides on the device runs natively, in the retired
 /// Swift app's own code ported verbatim (`ios/Runner/CameraSweep/`):
@@ -36,8 +38,9 @@ class CameraSweepBridge {
   /// The backfill's page size in the Swift service (`backfillBatchLimit`).
   static const defaultPageSize = 200;
 
-  /// Whether this platform has the bridge. Android's half is S5 (F-123's
-  /// SDK ruling).
+  /// Whether this platform runs the sweep. Android answers the library
+  /// methods since S5a, but has no uploader or background pass yet (S5b,
+  /// S5c), so the sweep stays off there until they land.
   static bool get isAvailable =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
