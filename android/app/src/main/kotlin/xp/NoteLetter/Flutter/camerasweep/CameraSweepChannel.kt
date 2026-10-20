@@ -48,9 +48,9 @@ import kotlin.math.max
  * - §5 the upload bytes are a RENDERED JPEG, never the original file;
  * - §8 MediaStore records no bursts, so every image is representative.
  *
- * The uploads (`stageUpload` …) and the background pass are the steps after
- * this one; until they land, `CameraSweepBridge.isAvailable` keeps the Dart
- * host off on Android.
+ * S5b added the uploads (`stageUpload` … `acknowledgeUploads`, [SweepUploader]).
+ * The background pass is the step after; until it lands,
+ * `CameraSweepBridge.isAvailable` keeps the Dart host off on Android.
  */
 class CameraSweepChannel(private val context: Context) : EventChannel.StreamHandler {
     companion object {
@@ -101,6 +101,7 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
     fun register(messenger: BinaryMessenger) {
         MethodChannel(messenger, NAME).setMethodCallHandler(::handle)
         EventChannel(messenger, CHANGES).setStreamHandler(this)
+        EventChannel(messenger, SweepUploader.EVENTS).setStreamHandler(SweepUploader.events)
     }
 
     fun attach(activity: Activity?) {
@@ -136,6 +137,14 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 result.success(runCatching { context.startActivity(intent) }.isSuccess)
             }
+            // S5b: the uploads. They touch no photo, so they answer whatever
+            // the library access — an upload handed off before access was
+            // revoked still lands, and its result is still recorded.
+            "stageUpload", "startUpload", "discardUpload", "uploadsInFlight",
+            "finishedUploads", "acknowledgeUploads" -> {
+                @Suppress("UNCHECKED_CAST")
+                upload(call.method, (call.arguments as? Map<String, Any?>) ?: emptyMap(), result)
+            }
             "fetchImages", "examine", "renderedJpeg", "thumbnail" -> {
                 val a = access(context)
                 refusal(a)?.let { return result.error(it, "photo library access is $a", null) }
@@ -149,6 +158,49 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
                 }
             }
             else -> result.notImplemented()
+        }
+    }
+
+    // ── S5b uploads ────────────────────────────────────────────────────────
+
+    private fun upload(method: String, args: Map<String, Any?>, result: MethodChannel.Result) {
+        fun string(key: String): String? = (args[key] as? String)?.takeIf { it.isNotEmpty() }
+            ?: run { result.error("badArgs", "$key is required", null); null }
+        fun fail(e: Exception) = result.error("uploadFailed", e.message ?: e.javaClass.simpleName, null)
+        when (method) {
+            "stageUpload" -> {
+                val path = string("path") ?: return
+                try { result.success(SweepUploader.stage(context, path)) } catch (e: Exception) { fail(e) }
+            }
+            "startUpload" -> {
+                val id = string("uploadId") ?: return
+                val url = string("url") ?: return
+                val mime = string("mimeType") ?: return
+                val local = string("localIdentifier") ?: return
+                val key = string("assetKey") ?: return
+                try {
+                    SweepUploader.start(context, id, url, mime, local, key)
+                    result.success(null)
+                } catch (e: Exception) { fail(e) }
+            }
+            "discardUpload" -> {
+                val id = string("uploadId") ?: return
+                SweepUploader.discard(context, id)
+                result.success(null)
+            }
+            "uploadsInFlight" -> io.execute {
+                val answer = runCatching { SweepUploader.inFlight(context) }
+                main.post {
+                    answer.fold({ result.success(it) },
+                        { result.error("uploadFailed", it.message ?: it.javaClass.simpleName, null) })
+                }
+            }
+            "finishedUploads" -> result.success(SweepUploader.finished(context))
+            else -> {
+                @Suppress("UNCHECKED_CAST")
+                SweepUploader.acknowledge(context, (args["uploadIds"] as? List<String>) ?: emptyList())
+                result.success(null)
+            }
         }
     }
 
