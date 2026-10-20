@@ -4,6 +4,11 @@ import 'package:provider/provider.dart';
 
 import '../pages/tags/shelf_sheet.dart';
 import '../shared/local_flags.dart';
+import '../shared/shelf_tree.dart';
+import '../state/tags_notifier.dart';
+import '../theme/app_colors.dart';
+import '../theme/tokens.dart';
+import '../models/document.dart';
 import '../state/activity_notifier.dart';
 import '../state/review_inbox.dart';
 import '../state/auth_notifier.dart';
@@ -72,6 +77,8 @@ class _RailContentState extends State<RailContent> {
       if (!mounted) return;
       context.read<DocumentsNotifier>().start();
       context.read<ActivityNotifier>().start();
+      // The rail's shelf tree (5.28.0) reads the one tags subscription.
+      context.read<TagsNotifier>().start();
       // For your review's attention count is seen from every screen but its
       // own, so the rail opens the one inbox too (INV-30).
       context.read<ReviewInbox>().start();
@@ -185,9 +192,7 @@ class _RailContentState extends State<RailContent> {
               onTap: () => go('/letters'),
             ),
             // Always drawn (4.83.0, ADR-117): the `+` is how a first shelf
-            // gets made, so it cannot wait for a source to exist. The rail
-            // does NOT list every shelf here — that is a separate parity
-            // question, not this control's.
+            // gets made, so it cannot wait for a source to exist.
             KitRailGroupLabel(
               'Shelves',
               addLabel: 'New shelf',
@@ -196,9 +201,11 @@ class _RailContentState extends State<RailContent> {
             KitNavItem(
               icon: Icons.label_outline,
               label: 'All shelves',
-              active: route.startsWith('/shelves'),
+              active: route == '/shelves' || route == '/shelves/map',
               onTap: () => go('/shelves'),
             ),
+            // The shelf tree (5.28.0, ADR-185; kit §1.2).
+            _ShelfRail(route: route, complete: done, measured: ok, go: go),
           ],
           footer: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -235,6 +242,61 @@ class _RailContentState extends State<RailContent> {
           ),
         );
       },
+    );
+  }
+}
+
+/// The rail's shelf tree (kit §1.2, 5.28.0, ADR-185): tree order, a child
+/// indented under its parent, a parent collapsible (the viewer's own state,
+/// [LocalFlags.shelfCollapsed]). Each count is the subtree's complete volumes,
+/// and none while the documents read is not a measurement (ADR-109).
+class _ShelfRail extends StatelessWidget {
+  final String route;
+  final List<Document> complete;
+  final bool measured;
+  final void Function(String) go;
+  const _ShelfRail(
+      {required this.route,
+      required this.complete,
+      required this.measured,
+      required this.go});
+
+  @override
+  Widget build(BuildContext context) {
+    final tags = context.watch<TagsNotifier>().tags;
+    final tree = ShelfTree(tags);
+    final dark = Tokens.of(context).isDark;
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: LocalFlags.shelfCollapsed,
+      builder: (context, collapsed, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final r in tree.ordered())
+            if (!r.path.any((a) => collapsed.contains(a.id)))
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Builder(builder: (context) {
+                  final s = r.shelf;
+                  final kids = tree.childrenOf(s.id).isNotEmpty;
+                  final ids = tree.subtreeIds(s.id);
+                  final n =
+                      complete.where((d) => inSubtree(d.tagIds, ids)).length;
+                  return KitRailShelfRow(
+                    label: s.title.isEmpty ? 'Untitled' : s.title,
+                    dot: AppColors.shelfColor(s.color, dark: dark) ?? // pair-ok: a shelf's stored colour is a fixed data token
+                        Tokens.of(context).chromeSubtle,
+                    depth: r.depth,
+                    active: route == '/shelves/${s.id}',
+                    expanded: kids ? !collapsed.contains(s.id) : null,
+                    onToggle: () => LocalFlags.toggleShelfCollapsed(s.id),
+                    count: measured && n > 0 ? '$n' : null,
+                    onTap: () => go('/shelves/${s.id}'),
+                  );
+                }),
+              ),
+        ],
+      ),
     );
   }
 }

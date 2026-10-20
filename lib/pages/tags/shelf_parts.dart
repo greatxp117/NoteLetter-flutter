@@ -12,6 +12,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../models/document.dart';
 import '../../models/tag.dart';
+import '../../shared/shelf_tree.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
@@ -84,9 +85,18 @@ class ShelfSwatches extends StatelessWidget {
 }
 
 /// The volumes on a shelf — **complete** documents only, which is what every
-/// "{n} volumes" figure in this app means.
-List<Document> shelfVolumes(Tag shelf, List<Document> complete) =>
-    complete.where((d) => d.tagIds.contains(shelf.id)).toList();
+/// "{n} volumes" figure in this app means. With [tree], the shelf HOLDS its
+/// sub-shelves (5.28.0, ADR-185, INV-33): every volume on it or anything
+/// below it, counted once. Without one, its own — what a split or a delete
+/// acts on.
+List<Document> shelfVolumes(Tag shelf, List<Document> complete,
+    [ShelfTree? tree]) {
+  if (tree == null) {
+    return complete.where((d) => d.tagIds.contains(shelf.id)).toList();
+  }
+  final ids = tree.subtreeIds(shelf.id);
+  return complete.where((d) => inSubtree(d.tagIds, ids)).toList();
+}
 
 int shelfPassages(List<Document> vols) =>
     vols.fold<int>(0, (n, d) => n + (d.chunkCount ?? 0));

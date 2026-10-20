@@ -22,10 +22,10 @@ class Tag {
   /// an unread count is not zero (ADR-109).
   final bool documentCountStored;
 
-  /// 2.20.0 (ADR-025) — the shelf this one was split out of. **Provenance
-  /// only**: no roll-up, no transitive filter, and child shelves are not nested
-  /// in the index. A half-honoured hierarchy makes the same shelf report two
-  /// sizes depending on which screen you look at. Dangling ids are inert.
+  /// The shelf this one sits inside — the nesting edge from 5.28.0 (ADR-185,
+  /// INV-33; provenance only since 2.20.0, which is why every split already
+  /// nests). A stored id is a claim: `lib/shared/shelf_tree.dart` resolves it,
+  /// and a dangling one reads as top-level.
   final String? parentTagId;
 
   /// 4.88.0 (ADR-122) — the shelf's place in the daily letter: `lead`,
@@ -33,6 +33,12 @@ class Tag {
   /// unrecognised read as `mixed` — an open read of a closed write, never an
   /// error.
   final String letterMode;
+
+  /// The shelf's OWN mode, or null when it has none and inherits the nearest
+  /// one above it (5.28.0, ADR-185) — what [ShelfTree.letterMode] walks.
+  /// `fromJson` passes it as stored; a `Tag` built in code with a lead or
+  /// muted [letterMode] owns that mode.
+  final String? ownLetterMode;
 
   const Tag({
     required this.id,
@@ -47,7 +53,9 @@ class Tag {
     this.documentCountStored = true,
     this.parentTagId,
     this.letterMode = 'mixed',
-  });
+    String? ownLetterMode,
+  }) : ownLetterMode =
+            ownLetterMode ?? (letterMode == 'mixed' ? null : letterMode);
 
   static const letterModes = ['lead', 'mixed', 'muted'];
 
@@ -67,6 +75,9 @@ class Tag {
       letterMode: letterModes.contains(json['letter_mode'])
           ? json['letter_mode'] as String
           : 'mixed',
+      ownLetterMode: letterModes.contains(json['letter_mode'])
+          ? json['letter_mode'] as String
+          : null,
     );
   }
 }

@@ -115,6 +115,22 @@ class LocalFlags {
     onboardAsked.value = true;
   }
 
+  /// The rail's collapsed shelves (5.28.0, ADR-185; kit §1.2) — the viewer's
+  /// own. One notifier for the one store, read by the wide rail and the
+  /// drawer alike (web holds it in App for the same reason).
+  static const String shelfCollapsedKey = 'nl-shelf-collapsed';
+  static final ValueNotifier<Set<String>> shelfCollapsed =
+      ValueNotifier<Set<String>>(const {});
+
+  /// Write before you move: the stored set lands first, then the notifier.
+  static Future<void> toggleShelfCollapsed(String id) async {
+    final next = {...shelfCollapsed.value};
+    if (!next.remove(id)) next.add(id);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(shelfCollapsedKey, next.toList());
+    shelfCollapsed.value = next;
+  }
+
   static String _oneOf(String? v, List<String> set) =>
       v != null && set.contains(v) ? v : 'shelf';
 
@@ -138,6 +154,7 @@ class LocalFlags {
     onboardDismissed.value = prefs.getBool(onboardDismissedKey) ?? false;
     onboardExpanded.value = prefs.getBool(onboardExpandedKey);
     onboardAsked.value = prefs.getBool(onboardAskedKey) ?? false;
+    shelfCollapsed.value = {...?prefs.getStringList(shelfCollapsedKey)};
   }();
 
   /// Forget the one-time load, so a test can seed the store and read it again.

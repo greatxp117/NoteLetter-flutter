@@ -52,7 +52,7 @@ void main() {
           ShelfFormFields(
             canBackfill: true,
             onCreated: (c) => got = c,
-            create: (title, {description, color}) {
+            create: (title, {description, color, parentTagId}) {
               sentDesc = description;
               return pending.future;
             },
@@ -87,7 +87,7 @@ void main() {
           ShelfFormFields(
             canBackfill: true,
             onCreated: (c) => got = c,
-            create: (title, {description, color}) async =>
+            create: (title, {description, color, parentTagId}) async =>
                 throw const ApiException(400, 'A shelf named Bread exists.'),
           ));
       await tester.enterText(find.byType(TextField).first, 'Bread');
@@ -238,7 +238,7 @@ void main() {
       host,
       canBackfill: true,
       land: (id) => landed = id,
-      create: (title, {description, color}) async => {'tagId': 't9'},
+      create: (title, {description, color, parentTagId}) async => {'tagId': 't9'},
       suggest: (_) async => throw StateError('the fill is not read here any more'),
       requestBackfill: (id) async {
         asked.add(id);
@@ -318,5 +318,5 @@ void main() {
 }
 
 Future<Map<String, dynamic>> _never(String title,
-        {String? description, String? color}) =>
+        {String? description, String? color, String? parentTagId}) =>
     Completer<Map<String, dynamic>>().future;

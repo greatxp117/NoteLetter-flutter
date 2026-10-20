@@ -207,7 +207,10 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       breadth: b['breadth'] as String?,
       limit: b['limit'] as int?),
   'fn_create_tag': (b) => Api.instance
-      .createTag(b['title'], description: b['description'], color: b['color']),
+      .createTag(b['title'],
+          description: b['description'],
+          color: b['color'],
+          parentTagId: b['parentTagId']),
   'fn_update_tag': (b) => Api.instance
       .updateTag(b['tagId'], Map<String, dynamic>.of(b)..remove('tagId')),
   'fn_delete_tag': (b) => Api.instance.deleteTag(b['tagId']),

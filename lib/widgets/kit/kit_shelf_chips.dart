@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/tag.dart';
 import '../../shared/shelf_pick.dart';
+import '../../shared/shelf_tree.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
@@ -50,6 +51,10 @@ class KitShelfChipEditor extends StatefulWidget {
   final String? error;
   final String Function(Tag shelf) removeLabel;
 
+  /// Every shelf, for the picker's tree order and path prefix (5.28.0,
+  /// ADR-185). Defaults to [addable].
+  final List<Tag>? allShelves;
+
   const KitShelfChipEditor({
     super.key,
     this.label,
@@ -61,6 +66,7 @@ class KitShelfChipEditor extends StatefulWidget {
     required this.removeLabel,
     this.busy = false,
     this.error,
+    this.allShelves,
   });
 
   /// `.shelf-pick` width. The panel never exceeds the viewport less 32.
@@ -155,6 +161,7 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
       panel: (context) => _ShelfPickerPanel(
         onItem: [for (final c in widget.chips) c.shelf],
         addable: widget.addable,
+        allShelves: widget.allShelves,
         onPick: (id) {
           _close();
           widget.onAdd(id);
@@ -297,6 +304,10 @@ class KitShelfSelect extends StatefulWidget {
   final ValueChanged<String> onCreate;
   final bool disabled;
 
+  /// Every shelf, for the path prefix when [shelves] is a subset — Move into
+  /// lists only valid parents (5.28.0, ADR-185). Defaults to [shelves].
+  final List<Tag>? allShelves;
+
   const KitShelfSelect({
     super.key,
     required this.value,
@@ -306,6 +317,7 @@ class KitShelfSelect extends StatefulWidget {
     required this.onChanged,
     required this.onCreate,
     this.disabled = false,
+    this.allShelves,
   });
 
   /// `.shelf-select-trigger` — 32 high, at least 180 wide.
@@ -361,6 +373,7 @@ class _KitShelfSelectState extends State<KitShelfSelect>
       panel: (context) => _ShelfPickerPanel(
         onItem: const [],
         addable: widget.shelves,
+        allShelves: widget.allShelves ?? widget.shelves,
         none: widget.none,
         selected: chosen?.id ?? '',
         onPick: (id) {
@@ -493,7 +506,11 @@ class _ShelfPickerPanel extends StatefulWidget {
     required this.onEscape,
     this.none,
     this.selected,
+    this.allShelves,
   });
+
+  /// Every shelf — the tree the rows are ordered and prefixed by.
+  final List<Tag>? allShelves;
 
   static double rowHeight(double viewWidth) => viewWidth <= 680 ? 40 : 32;
 
@@ -513,6 +530,18 @@ class _ShelfPickerPanel extends StatefulWidget {
 class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
   final _q = TextEditingController();
   final _focus = FocusNode(debugLabel: 'ShelfPicker.search');
+
+  /// Tree order (5.28.0, ADR-185; kit §20.1): depth first, siblings in
+  /// subscription order, which `pickRows` keeps for its ties. The ranking
+  /// still reads the title alone, so "Mary" ranks Mary first.
+  late final ShelfTree _tree = ShelfTree(widget.allShelves ?? widget.addable);
+  late final List<Tag> _addable = () {
+    final order = {
+      for (final (i, r) in _tree.ordered().indexed) r.shelf.id: i,
+    };
+    int at(Tag s) => order[s.id] ?? 1 << 30;
+    return [...widget.addable]..sort((a, b) => at(a).compareTo(at(b)));
+  }();
   final _scroll = ScrollController();
   int _active = 0;
   bool _in = false;
@@ -530,7 +559,7 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
     // The active row on open is the chosen one (§20.2).
     final sel = widget.selected;
     if (sel != null && sel.isNotEmpty) {
-      final i = pickRows(widget.addable, '').indexWhere((r) => r.shelf.id == sel);
+      final i = pickRows(_addable, '').indexWhere((r) => r.shelf.id == sel);
       if (i != -1) _active = _lead('') + i;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -573,9 +602,9 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final rows = pickRows(widget.addable, _q.text);
+    final rows = pickRows(_addable, _q.text);
     final st = pickState(
-        onItem: widget.onItem, addable: widget.addable, q: _q.text, rows: rows);
+        onItem: widget.onItem, addable: _addable, q: _q.text, rows: rows);
     final lead = _lead(_q.text);
     final listed = lead + rows.length;
     final count = listed + 1; // the create row is always last
@@ -703,10 +732,10 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) {
                     // A soft keyboard's Done arrives here, not as a key event.
-                    final rows = pickRows(widget.addable, _q.text);
+                    final rows = pickRows(_addable, _q.text);
                     final st = pickState(
                         onItem: widget.onItem,
-                        addable: widget.addable,
+                        addable: _addable,
                         q: _q.text,
                         rows: rows);
                     _choose(rows, st,
@@ -784,6 +813,12 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
         Expanded(
           child: Text.rich(
             TextSpan(style: base, children: [
+              // The ancestor path, muted and never matched (5.28.0). `--fg-muted`
+              // for the count's reason below.
+              if (_tree.parent[r.shelf.id] != null)
+                TextSpan(
+                    text: '${_tree.pathLabel(r.shelf.id)}$shelfPathSep',
+                    style: TextStyle(color: t.fgMuted)),
               TextSpan(text: title.substring(0, m.start)),
               TextSpan(
                   text: title.substring(m.start, m.end),
@@ -1028,5 +1063,158 @@ class _DashedPainter extends BoxPainter {
         canvas.drawPath(metric.extractPath(at, at + 3), paint);
       }
     }
+  }
+}
+
+/// The shelf page's breadcrumb (5.28.0, ADR-185 — library.md §Nested
+/// shelves): each ancestor, root first, as a link in `--fg-muted` (`--fg` on
+/// hover), each followed by a `›`.
+class KitShelfCrumbs extends StatelessWidget {
+  final List<Tag> crumbs;
+  final ValueChanged<String> onOpen;
+  const KitShelfCrumbs({super.key, required this.crumbs, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final style = TextStyle(
+        fontFamily: AppTheme.fontSans, fontSize: 13, color: t.fgMuted);
+    return Semantics(
+      container: true,
+      label: 'Inside',
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (final c in crumbs) ...[
+            _CrumbLink(c.title.isEmpty ? 'Untitled' : c.title,
+                onTap: () => onOpen(c.id)),
+            Text('›', style: style),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CrumbLink extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _CrumbLink(this.label, {required this.onTap});
+  @override
+  State<_CrumbLink> createState() => _CrumbLinkState();
+}
+
+class _CrumbLinkState extends State<_CrumbLink> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      button: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Text(widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 13,
+                    color: _hover ? t.fg : t.fgMuted)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One chip of the shelf page's *Sub-shelves* row (5.28.0, ADR-185): the
+/// child's §6.2 dot, its title and its rolled-up volume count (mono, null
+/// draws `—`); [isNew] is the row's closing *New sub-shelf* chip. 32 high,
+/// `--r-c-32`, `--surface` with a 1px `--border`, `--hover` on hover — web
+/// `.shelf-sub-chip`.
+class KitSubShelfChip extends StatefulWidget {
+  final Tag? shelf;
+  final int? count;
+  final VoidCallback onTap;
+  final bool isNew;
+  const KitSubShelfChip(
+      {super.key, required this.shelf, required this.count, required this.onTap})
+      : isNew = false;
+  const KitSubShelfChip.create({super.key, required this.onTap})
+      : shelf = null,
+        count = null,
+        isNew = true;
+
+  @override
+  State<KitSubShelfChip> createState() => _KitSubShelfChipState();
+}
+
+class _KitSubShelfChipState extends State<KitSubShelfChip> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final s = widget.shelf;
+    final label = widget.isNew
+        ? 'New sub-shelf'
+        : (s!.title.isEmpty ? 'Untitled' : s.title);
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: _hover ? t.hover : t.surface,
+              borderRadius: BorderRadius.circular(AppRadius.control(32)),
+              border: Border.all(color: t.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.isNew)
+                  Icon(Icons.add, size: 12, color: t.fgMuted)
+                else
+                  _Dot(
+                      size: 9,
+                      color: AppColors.shelfColor(s!.color, dark: t.isDark) ?? t.fgSubtle, // pair-ok: a shelf's stored colour is a fixed data token
+                      hairline: t.border),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontFamily: AppTheme.fontSans,
+                          fontSize: 13,
+                          color: widget.isNew ? t.fgMuted : t.fg)),
+                ),
+                if (!widget.isNew) ...[
+                  const SizedBox(width: 8),
+                  Text(widget.count == null ? '—' : '${widget.count}',
+                      style: AppTheme.mono(fontSize: 11, color: t.fgMuted)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

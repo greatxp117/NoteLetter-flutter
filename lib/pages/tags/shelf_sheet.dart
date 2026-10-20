@@ -12,6 +12,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../models/tag.dart';
 import '../../services/analytics.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
@@ -26,7 +27,7 @@ const shelfTitleMax = 50;
 const shelfDescriptionMax = 300;
 
 typedef CreateTag = Future<Map<String, dynamic>> Function(String title,
-    {String? description, String? color});
+    {String? description, String? color, String? parentTagId});
 typedef SuggestBackfill = Future<Map<String, dynamic>> Function(String tagId);
 
 /// Starts the background fill; resolves to the refusal's sentence, or null.
@@ -135,15 +136,20 @@ Future<void> showShelfSheet(
   String initialName = '',
   String? createSubtitle,
   ValueChanged<String>? onCreated,
+  List<Tag>? shelves,
+  Tag? parent,
 }) {
   // The toast is said after the sheet is gone, over whatever it covered.
   final host = Navigator.of(context, rootNavigator: true).context;
   final holding = ValueNotifier<bool>(false);
-  final heading = ValueNotifier<KitSheetHeading>(backfillFor == null
-      ? (createSubtitle == null
-          ? _newHeading
-          : KitSheetHeading(_newHeading.title, createSubtitle))
-      : _fillHeading(backfillFor.title));
+  final heading = ValueNotifier<KitSheetHeading>(backfillFor != null
+      ? _fillHeading(backfillFor.title)
+      : parent != null
+          ? KitSheetHeading('New sub-shelf in ${parent.title}',
+              createSubtitle ?? _newHeading.subtitle)
+          : (createSubtitle == null
+              ? _newHeading
+              : KitSheetHeading(_newHeading.title, createSubtitle)));
   return KitOverlaySheet.show(
     context,
     // `IcoStack`, the reference's shelf glyph (F-81 (6)).
@@ -168,6 +174,8 @@ Future<void> showShelfSheet(
       apply: apply,
       initialName: initialName,
       onCreated: onCreated,
+      shelves: shelves,
+      parent: parent,
       onBackfill: (tagId, title) =>
           startCreatedBackfill(host, tagId, title, request: requestBackfill),
     ),
@@ -206,6 +214,10 @@ class ShelfSheetBody extends StatefulWidget {
   /// (4.102.0), started once the sheet has landed.
   final Future<void> Function(String tagId, String title)? onBackfill;
 
+  /// The *Inside* field's shelves, and the parent it starts on (5.28.0).
+  final List<Tag>? shelves;
+  final Tag? parent;
+
   const ShelfSheetBody({
     super.key,
     required this.canBackfill,
@@ -220,6 +232,8 @@ class ShelfSheetBody extends StatefulWidget {
     this.initialName = '',
     this.onCreated,
     this.onBackfill,
+    this.shelves,
+    this.parent,
   });
 
   @override
@@ -252,6 +266,8 @@ class _ShelfSheetBodyState extends State<ShelfSheetBody> {
               onBusy: widget.onBusy,
               create: widget.create,
               initialName: widget.initialName,
+              shelves: widget.shelves,
+              parent: widget.parent,
             )
           : ShelfBackfillReview(
               key: ValueKey(review.tagId),
@@ -291,10 +307,18 @@ class ShelfFormFields extends StatefulWidget {
     this.submitLabel = 'Create shelf',
     this.create,
     this.initialName = '',
+    this.shelves,
+    this.parent,
   });
 
   /// The name a picker's create row was typed as (4.104.0) — trimmed, ≤ 50.
   final String initialName;
+
+  /// 5.28.0 (ADR-185): [shelves] turns on the *Inside* field — a §20.2 select
+  /// whose none is the top level — and [parent] prefills it, with the colour
+  /// defaulting to the parent's when it is one of the ten.
+  final List<Tag>? shelves;
+  final Tag? parent;
 
   static void _noBusy(bool _) {}
 
@@ -306,7 +330,10 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
   late final _name = TextEditingController(
       text: widget.initialName.trim().characters.take(shelfTitleMax).toString());
   final _desc = TextEditingController();
-  String _color = AppColors.shelfColorLabels.keys.first; // the first NAME of the ten
+  late String _color = AppColors.shelfColorLabels.containsKey(widget.parent?.color)
+      ? widget.parent!.color!
+      : AppColors.shelfColorLabels.keys.first; // the first NAME of the ten
+  late String _inside = widget.parent?.id ?? '';
   bool _backfill = true;
   bool _busy = false;
   String? _error;
@@ -330,7 +357,9 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
     widget.onBusy(true);
     try {
       final res = await _create(title,
-          description: _desc.text.trim(), color: _color);
+          description: _desc.text.trim(),
+          color: _color,
+          parentTagId: _inside.isEmpty ? null : _inside);
       if (!mounted) return;
       final tagId = res['tagId'] as String?;
       if (tagId == null || tagId.isEmpty) {
@@ -349,6 +378,29 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
         _busy = false;
       });
       widget.onBusy(false);
+    }
+  }
+
+  Future<void> _createParent(String name) async {
+    final title = name.trim();
+    if (title.isEmpty || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final res = await _create(title, description: '', color: _color);
+      if (!mounted) return;
+      setState(() {
+        _inside = res['tagId'] as String? ?? _inside;
+        _busy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = _detail(e);
+        _busy = false;
+      });
     }
   }
 
@@ -388,6 +440,28 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
             enabled: !_busy,
           ),
         ),
+        if ((widget.shelves ?? const []).isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _field(
+            context,
+            'Inside',
+            Align(
+              alignment: Alignment.centerLeft,
+              child: KitShelfSelect(
+                value: _inside,
+                shelves: widget.shelves!,
+                none: 'Top level',
+                label: 'The shelf this one goes inside',
+                disabled: _busy,
+                onChanged: (id) => setState(() => _inside = id),
+                // The select's create row: a typed name becomes a top-level
+                // shelf and then this one's parent — write before you move,
+                // and the select shows it once the subscription brings it.
+                onCreate: _createParent,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         _field(
           context,

@@ -40,7 +40,10 @@ class _Tags extends TagsNotifier {
       {String? title,
       String? description,
       String? color,
-      String? letterMode}) async {
+      String? letterMode,
+      bool clearLetterMode = false,
+      String? moveTo,
+      bool toTopLevel = false}) async {
     calls.add(letterMode);
     pending = Completer<String?>();
     final err = await pending!.future;

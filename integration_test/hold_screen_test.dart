@@ -1068,7 +1068,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
         ctx,
         canBackfill: true,
         land: (_) {},
-        create: (title, {description, color}) => Api.instance
+        create: (title, {description, color, parentTagId}) => Api.instance
             .createTag(title, description: description, color: color),
       ));
       await settle();

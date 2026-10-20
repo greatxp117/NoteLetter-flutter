@@ -15,6 +15,7 @@ import 'shelf_parts.dart';
 import 'shelf_sheet.dart';
 import 'split_shelf_sheet.dart';
 import '../../shared/passage_figure.dart';
+import '../../shared/shelf_tree.dart';
 
 /// **One shelf** (`/shelves/{id}`) — `screens/library.md` §Shelf color, §Shelf
 /// granularity and splitting.
@@ -51,6 +52,8 @@ class _ShelfPageState extends State<ShelfPage> {
   bool _savingLetter = false;
   String? _letterError;
   String? _nameError;
+  bool _moving = false;
+  String? _moveError;
 
   /// "Find sources for this shelf" and "Split this shelf" start background
   /// tasks (4.102.0, ADR-136); each holds its control while asking and keeps
@@ -142,19 +145,40 @@ class _ShelfPageState extends State<ShelfPage> {
   /// nothing and was back on after a reload. Same rule as the colour: no local
   /// state, the controls are disabled while the call is out, and the tags
   /// subscription carries the accepted value back.
-  Future<void> _setLetterMode(Tag shelf, String mode) async {
-    if (_savingLetter || mode == shelf.letterMode) return;
+  ///
+  /// 5.28.0 (ADR-185): a choice is the shelf's OWN mode; a null [mode] clears
+  /// it (`letter_mode: null`) so the shelf inherits the nearest one above.
+  Future<void> _setLetterMode(Tag shelf, String? mode) async {
+    if (_savingLetter || mode == shelf.ownLetterMode) return;
     setState(() {
       _savingLetter = true;
       _letterError = null;
     });
-    final err = await context
-        .read<TagsNotifier>()
-        .updateTag(shelf.id, letterMode: mode);
+    final err = await context.read<TagsNotifier>().updateTag(shelf.id,
+        letterMode: mode, clearLetterMode: mode == null);
     if (!mounted) return;
     setState(() {
       _savingLetter = false;
       _letterError = err;
+    });
+  }
+
+  /// *Inside* (Move into, 5.28.0, ADR-185). Write before you move: the select
+  /// shows the STORED parent, so it moves only when the tags subscription
+  /// brings the write back; a refusal is the server's sentence, in place.
+  Future<void> _moveTo(Tag shelf, String? currentParent, String next) async {
+    final target = next.isEmpty ? null : next;
+    if (_moving || target == currentParent) return;
+    setState(() {
+      _moving = true;
+      _moveError = null;
+    });
+    final err = await context.read<TagsNotifier>().updateTag(shelf.id,
+        moveTo: target, toTopLevel: target == null);
+    if (!mounted) return;
+    setState(() {
+      _moving = false;
+      _moveError = err;
     });
   }
 
@@ -172,8 +196,12 @@ class _ShelfPageState extends State<ShelfPage> {
   // answers (§18 rule 1). The capture, the strip and the proposal are the
   // worker's; whatever it proposes waits in For your review, not in a sheet
   // that closing loses.
-  Future<void> _delete(Tag shelf, List<Document> vols, List<Tag> all) async {
+  Future<void> _delete(Tag shelf, List<Document> vols, List<Tag> all,
+      ShelfTree tree) async {
     final others = [for (final s in all) if (s.id != shelf.id) s];
+    final kids = tree.childrenOf(shelf.id).length;
+    final up = tree.parent[shelf.id];
+    final upTitle = up == null ? null : tree.byId[up]?.title;
     final canReshelve = vols.isNotEmpty && others.isNotEmpty;
     final orphans =
         vols.where((d) => d.tagIds.every((t) => t == shelf.id)).length;
@@ -182,7 +210,9 @@ class _ShelfPageState extends State<ShelfPage> {
     final body = 'The shelf and its settings are removed. Its '
         '${plural(vols.length, 'volume stays', 'volumes stay')} in your '
         'library — they just come off this shelf.'
-        '${orphans > 0 ? ' $orphans of them ${orphans == 1 ? 'is' : 'are'} on no other shelf.' : ''}';
+        '${orphans > 0 ? ' $orphans of them ${orphans == 1 ? 'is' : 'are'} on no other shelf.' : ''}'
+        // 5.28.0 (ADR-185 §7): the confirm says where the children go.
+        '${kids > 0 ? ' Its ${plural(kids, 'sub-shelf moves', 'sub-shelves move')} up ${upTitle != null ? 'into $upTitle' : 'to the top level'}.' : ''}';
     final done = await KitConfirm.show(
       context,
       title: 'Delete the “$title” shelf?',
@@ -292,9 +322,15 @@ class _ShelfPageState extends State<ShelfPage> {
           _savedName = shelf.title;
         }
 
-        final vols = shelfVolumes(shelf, docs.complete);
+        // The page counts the SUBTREE (5.28.0, ADR-185, INV-33); a split, a
+        // delete and their copy act on what is filed DIRECTLY here.
+        final tree = ShelfTree(tags.tags);
+        final vols = shelfVolumes(shelf, docs.complete, tree);
+        final direct = shelfVolumes(shelf, docs.complete);
         final passages = shelfPassages(vols);
         final error = tags.error ?? docs.error;
+        final crumbs = tree.ancestors(shelf.id).reversed.toList();
+        final kids = tree.childrenOf(shelf.id);
 
         return KitPage(
           child: Column(
@@ -303,9 +339,15 @@ class _ShelfPageState extends State<ShelfPage> {
               KitBackControl('All shelves',
                   onTap: () => context.go('/shelves')),
               const SizedBox(height: 18),
+              if (crumbs.isNotEmpty) ...[
+                KitShelfCrumbs(
+                    crumbs: crumbs,
+                    onOpen: (id) => context.go('/shelves/$id')),
+                const SizedBox(height: 10),
+              ],
               ChapterOpening(
                 mark: KitShelfPlate(shelf.color),
-                folio: 'Shelf${_provenance(shelf, tags.tags)} · '
+                folio: 'Shelf${_provenance(shelf)} · '
                     '${plural(vols.length, 'volume', 'volumes')} · '
                     '${plural(passages, 'passage', 'passages')}',
                 title: shelf.title,
@@ -362,14 +404,17 @@ class _ShelfPageState extends State<ShelfPage> {
                 KitStat(docs.measured ? '${vols.length}' : null, 'Volumes'),
                 KitStat(docs.measured ? '$passages' : null, 'Passages'),
                 KitStat(docs.measured ? _span(vols) : null, 'Span'),
-                KitStat(_letterLabel(shelf.letterMode), 'In your letter'),
+                KitStat(_letterLabel(tree.letterMode(shelf.id).mode),
+                    'In your letter'),
               ]),
+              const SizedBox(height: 18),
+              _subShelves(shelf, kids, docs, tree, tags.tags),
               if (_settings) ...[
                 const SizedBox(height: 22),
-                _settingsPanel(shelf, vols, tags.tags),
+                _settingsPanel(shelf, direct, tags.tags, tree),
               ],
               const SizedBox(height: 22),
-              _letterSection(shelf),
+              _letterSection(shelf, tree),
               const SizedBox(height: 10),
               const SizedBox(height: 12),
               SectionHeader('Volumes · ${vols.length}'),
@@ -426,10 +471,17 @@ class _ShelfPageState extends State<ShelfPage> {
 
   /// *Feed today's letter* — the switch, and while it is on, how prominently.
   /// Off writes `muted`; on writes `mixed`.
-  Widget _letterSection(Tag shelf) {
+  Widget _letterSection(Tag shelf, ShelfTree tree) {
     final t = Tokens.of(context);
-    final on = shelf.letterMode != 'muted';
-    final weight = shelf.letterMode == 'lead' ? 0 : 1;
+    // What the letter reads: the shelf's own mode, else the nearest above it.
+    final eff = tree.letterMode(shelf.id);
+    final on = eff.mode != 'muted';
+    final weight = eff.mode == 'lead' ? 0 : 1;
+    final inheritedFrom = shelf.ownLetterMode == null &&
+            eff.from != null &&
+            eff.from!.id != shelf.id
+        ? eff.from
+        : null;
     return KitCard(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: Column(
@@ -448,6 +500,11 @@ class _ShelfPageState extends State<ShelfPage> {
                         : 'This shelf is muted — its passages stay out of your letter.',
                     style: KitText.ui(context, color: t.fgMuted),
                   ),
+                  if (inheritedFrom != null) ...[
+                    const SizedBox(height: 3),
+                    Text('${_letterLabel(eff.mode)} by ${inheritedFrom.title}.',
+                        style: KitText.ui(context, color: t.fgMuted)),
+                  ],
                 ],
               ),
             ),
@@ -487,12 +544,52 @@ class _ShelfPageState extends State<ShelfPage> {
               ],
             ),
           ],
+          if (shelf.ownLetterMode != null && tree.parent[shelf.id] != null) ...[
+            const SizedBox(height: 10),
+            KitButton.ghost('Use the parent’s setting',
+                onPressed:
+                    _savingLetter ? null : () => _setLetterMode(shelf, null)),
+          ],
           if (_letterError != null) ...[
             const SizedBox(height: 10),
             KitFailureInline(_letterError!, dense: true),
           ],
         ],
       ),
+    );
+  }
+
+  /// *Sub-shelves* (5.28.0, ADR-185 — library.md §Nested shelves): the
+  /// direct children as chips with their rolled-up counts, ending in *New
+  /// sub-shelf*, which opens the create form with Inside set to this shelf.
+  Widget _subShelves(Tag shelf, List<Tag> kids, DocumentsNotifier docs,
+      ShelfTree tree, List<Tag> all) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader('Sub-shelves · ${kids.length}'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final k in kids)
+              KitSubShelfChip(
+                shelf: k,
+                count: docs.measured
+                    ? shelfVolumes(k, docs.complete, tree).length
+                    : null,
+                onTap: () => context.go('/shelves/${k.id}'),
+              ),
+            KitSubShelfChip.create(
+              onTap: () => showShelfSheet(context,
+                  canBackfill: docs.complete.isNotEmpty,
+                  land: (id) => context.go('/shelves/$id'),
+                  shelves: all,
+                  parent: shelf),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -510,8 +607,14 @@ class _ShelfPageState extends State<ShelfPage> {
         ),
       );
 
-  Widget _settingsPanel(Tag shelf, List<Document> vols, List<Tag> all) {
+  Widget _settingsPanel(
+      Tag shelf, List<Document> vols, List<Tag> all, ShelfTree tree) {
     final volumes = vols.length;
+    final parentId = tree.parent[shelf.id];
+    final valid = [
+      for (final s in all)
+        if (s.id != shelf.id && tree.canHold(shelf.id, s.id)) s
+    ];
     return KitPanel(
       children: [
         KitPanelRow(
@@ -557,6 +660,35 @@ class _ShelfPageState extends State<ShelfPage> {
               if (_colorError != null) ...[
                 const SizedBox(height: 8),
                 KitFailureInline(_colorError!),
+              ],
+            ],
+          ),
+        ),
+        // Move into (5.28.0, ADR-185): every valid parent, plus the top level.
+        KitPanelRow(
+          label: 'Inside',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              KitShelfSelect(
+                value: parentId ?? '',
+                shelves: valid,
+                allShelves: all,
+                none: 'Top level',
+                label: 'Move ${shelf.title} into',
+                disabled: _moving,
+                onChanged: (id) => _moveTo(shelf, parentId, id),
+                onCreate: (name) => showShelfSheet(context,
+                    canBackfill: false,
+                    land: null,
+                    initialName: name,
+                    createSubtitle:
+                        '${shelf.title} moves into it as soon as it is created.',
+                    onCreated: (id) => _moveTo(shelf, parentId, id)),
+              ),
+              if (_moveError != null) ...[
+                const SizedBox(height: 8),
+                KitFailureInline(_moveError!),
               ],
             ],
           ),
@@ -608,7 +740,7 @@ class _ShelfPageState extends State<ShelfPage> {
             child: KitButton.dangerText(
               'Delete shelf',
               icon: Icons.delete_outline,
-              onPressed: () => _delete(shelf, vols, all),
+              onPressed: () => _delete(shelf, vols, all, tree),
             ),
           ),
         ),
@@ -630,17 +762,10 @@ class _ShelfPageState extends State<ShelfPage> {
   }
 }
 
-/// Provenance is **purely a label** (ADR-025): counts and filters never roll up
-/// to the parent, child shelves are not nested under it in the index, and a
-/// `parent_tag_id` whose shelf has since been deleted reads as nothing rather
-/// than as an error.
-String _provenance(Tag shelf, List<Tag> shelves) {
-  if (shelf.source == 'auto_created') return ' · auto-created';
-  if (shelf.source != 'split_from') return '';
-  final parent =
-      shelves.where((s) => s.id == shelf.parentTagId).firstOrNull;
-  return parent == null ? '' : ' · split from ${parent.title}';
-}
+/// Where the shelf sits is its breadcrumb (5.28.0, ADR-185); "split from"
+/// was the label for a relation that now nests.
+String _provenance(Tag shelf) =>
+    shelf.source == 'auto_created' ? ' · auto-created' : '';
 
 /// The stat's reading of the stored mode — Lead · Mixed · Muted.
 String _letterLabel(String mode) => switch (mode) {
@@ -660,4 +785,3 @@ String _span(List<Document> vols) {
   if (ranked.length == 1) return first;
   return '$first – ${shortDate(ranked.last.createdAt)}';
 }
-
