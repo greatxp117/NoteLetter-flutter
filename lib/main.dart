@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/api_service.dart';
 import 'services/share_config_channel.dart';
+import 'services/share_intake.dart';
 import 'services/analytics.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -68,6 +69,9 @@ void main() async {
   final authNotifier = AuthNotifier();
   final router = createRouter(authNotifier);
   attachAnalytics(router);
+  // Android's share target (F-123): the share that launched the app, if any,
+  // then each one that arrives while it runs.
+  ShareIntake.instance.start(router);
 
   runApp(
     MultiProvider(

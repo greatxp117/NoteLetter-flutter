@@ -30,15 +30,22 @@ import 'pages/study/session_player.dart';
 import 'pages/study/program_editor.dart';
 import 'pages/support_page.dart';
 import 'pages/onboarding/wizard.dart';
+import 'pages/share_page.dart';
 
 /// The routes a signed-out reader may be on. Everything else redirects to
 /// `/landing`; a signed-in reader on one of these goes to `/`.
 const signedOutRoutes = {'/landing', '/signin'};
 
+/// The share sheet (F-123) — open signed in or out, never redirected: a
+/// signed-out reader is told "Sign in required" ON it, as iOS's sheet tells
+/// them, rather than losing the share to the landing page.
+const shareRoute = '/share';
+
 GoRouter createRouter(AuthNotifier authNotifier) {
   return GoRouter(
     refreshListenable: authNotifier,
     redirect: (context, state) {
+      if (state.matchedLocation == shareRoute) return null;
       final loggedIn = authNotifier.isLoggedIn;
       // The signed-out surfaces (F-44a): the landing, and `/signin` — the
       // addressable sign-in a reader can be sent back to. A signed-in reader
@@ -97,6 +104,9 @@ List<RouteBase> appRoutes() {
   return [
     GoRoute(path: '/landing', builder: (context, state) => const LandingPage()),
     GoRoute(path: '/signin', builder: (context, state) => const SignInPage()),
+    // Outside both shells: a sheet over the app that shared, with no rail and
+    // no footer, as iOS's extension has neither (INV-22's exemption names it).
+    GoRoute(path: shareRoute, builder: (context, state) => const SharePage()),
     // INV-22 — the OUTER shell, and the single place the support footer is
     // composed. Every authenticated route is nested inside it, including the
     // reader, which sits outside the rail-and-pane shell below. `/landing` and

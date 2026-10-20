@@ -120,16 +120,25 @@ class UploadNotifier extends ChangeNotifier {
   /// `console.error`, the field cleared, no row appeared, and the paste
   /// vanished. Here the local INV-07 refusal did the same thing one step
   /// earlier, by returning silently.
-  Future<String?> addUrl(String rawUrl) async {
-    if (rawUrl.trim().isEmpty) return null;
+  Future<String?> addUrl(String rawUrl) async =>
+      (await shareUrl(rawUrl)).rejection;
+
+  /// [addUrl] for the share screen (F-123), which also says what was added:
+  /// [note] is the playlist's sentence when the answer was a playlist
+  /// (4.114.0, ADR-151), null for a single link.
+  Future<({String? rejection, String? note})> shareUrl(String rawUrl) async {
+    if (rawUrl.trim().isEmpty) return (rejection: null, note: null);
 
     // Normalize, then detect (4.86.0, ADR-120): the normalized string is what
     // fn_ingest_url is sent, verbatim.
     final url = normalizeUrl(rawUrl);
     final type = url == null ? null : detectUrlType(url);
     if (url == null || type == null) {
-      return 'That doesn’t look like a link NoteLetter can read. Paste a full '
-          'web address, or a YouTube, Instagram, TikTok or podcast link.';
+      return (
+        rejection: 'That doesn’t look like a link NoteLetter can read. Paste a full '
+            'web address, or a YouTube, Instagram, TikTok or podcast link.',
+        note: null,
+      );
     }
 
     final displayName =
@@ -148,7 +157,9 @@ class UploadNotifier extends ChangeNotifier {
     // The row carries the reason; hand it back too, so the field the reader is
     // still looking at can say so and keep what they typed.
     final row = _files.firstWhere((f) => f.id == file.id, orElse: () => file);
-    return row.status == UploadStatus.error ? row.errorMessage : null;
+    return row.status == UploadStatus.error
+        ? (rejection: row.errorMessage, note: null)
+        : (rejection: null, note: row.note);
   }
 
   void removeFile(String id) {

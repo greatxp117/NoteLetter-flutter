@@ -49,7 +49,10 @@ import 'sources_harness.dart' show StubTags;
 /// - A first-run onboarding wizard would be the second exemption; this client
 ///   has none, so the set is one entry long. When it gets one it goes *outside*
 ///   the shell route, never behind a condition inside the footer.
-const _exempt = {'/landing', '/signin'};
+/// - `/share` — Android's share sheet (F-123), over the app that shared and
+///   open signed out ("Sign in required"), as iOS's share extension is; it
+///   has no footer on iOS either, and nothing for one to link to signed out.
+const _exempt = {'/landing', '/signin', '/share'};
 
 /// Every `GoRoute` in the tree below [route], as full paths.
 List<String> _goRoutePaths(RouteBase route, String prefix) {

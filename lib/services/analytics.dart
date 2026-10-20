@@ -107,6 +107,8 @@ const Map<String, String> screenNames = <String, String>{
   // `screen_name` is that closed set: silent until analytics-events.md names
   // one, rather than a token web does not have.
   '/settings/camera-roll': '',
+  // The Android share sheet (F-123): no reference route either, so silent.
+  '/share': '',
   // Settings opened at its Sources section (ruled 2026-10-09) — the
   // reference's `settings-sources` route token.
   '/settings/sources': 'settings-sources',
