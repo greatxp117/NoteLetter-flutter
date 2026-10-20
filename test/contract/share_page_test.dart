@@ -217,6 +217,16 @@ void main() {
       expect(p.items.last.name, '');
     });
 
+    test('the address is truncated in the middle', () {
+      expect(middleEllipsis('https://example.com/a'), 'https://example.com/a');
+      final long = 'https://example.com/${'x' * 200}/the-end';
+      final shown = middleEllipsis(long);
+      expect(shown.length, 90);
+      expect(shown, startsWith('https://example.com/'));
+      expect(shown, endsWith('/the-end'));
+      expect(shown, contains('…'));
+    });
+
     test('the kind a link files as — iOS URLContentType.label', () {
       expect(linkKindLabel('article'), 'Article');
       expect(linkKindLabel('youtube'), 'YouTube video');

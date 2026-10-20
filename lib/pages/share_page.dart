@@ -226,7 +226,10 @@ class _SharePageState extends State<SharePage> {
                   const SizedBox(height: AppSpacing.s4),
                   Text(
                     _success!,
-                    style: KitText.note(context, color: t.positiveText),
+                    // A meta line in --positive-text (share-sheet.md).
+                    style: KitText.meta(
+                      context,
+                    ).copyWith(color: t.positiveText),
                   ),
                 ],
                 const SizedBox(height: AppSpacing.s8),
@@ -247,7 +250,7 @@ class _SharePageState extends State<SharePage> {
           SharePage.linkEyebrow,
           [
             Text(
-              url,
+              middleEllipsis(url),
               style: meta,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

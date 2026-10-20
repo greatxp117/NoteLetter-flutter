@@ -218,3 +218,13 @@ String linkKindLabel(String type) {
   // INV-07's table is open: a type a later detector adds files as a page.
   return 'Article';
 }
+
+/// The address on the Link card: at most [max] characters, truncated in the
+/// MIDDLE (`screens/share-sheet.md`), so the host and the end of the path —
+/// the two parts that tell links apart — both stay on screen.
+String middleEllipsis(String s, {int max = 90}) {
+  if (s.length <= max) return s;
+  final tail = (max - 1) ~/ 3;
+  final head = max - 1 - tail;
+  return '${s.substring(0, head)}…${s.substring(s.length - tail)}';
+}
