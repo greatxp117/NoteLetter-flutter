@@ -10,6 +10,7 @@ import '../models/tag.dart';
 import '../shared/local_flags.dart';
 import '../shared/passage_figure.dart';
 import '../shared/upload_types.dart';
+import '../shared/shelf_tree.dart';
 import '../state/documents_notifier.dart';
 import '../state/newsletter_notifier.dart';
 import '../state/settings_notifier.dart';
@@ -18,6 +19,7 @@ import '../theme/app_colors.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 import 'sources/shelf_books.dart';
+import 'tags/shelf_parts.dart' show shelfVolumes;
 import 'tags/suggest_shelves.dart';
 
 /// **Library — the home screen** (`spec/screens/library.md`).
@@ -188,6 +190,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
   Widget build(BuildContext context) {
     final complete = widget.complete;
     final shelves = widget.shelves;
+    // Home shows TOP-LEVEL shelves, each holding its subtree (5.28.0, ADR-185).
+    final tree = ShelfTree(shelves);
     final letter = widget.letter;
     final letterError = widget.letterError;
     // library.md §The letter: the letter can be days old, so it names its day.
@@ -339,7 +343,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
 
         // ── Shelves ──────────────────────────────────────────────────────
         SectionHeader(
-          'Shelves · ${shelves.length}',
+          'Shelves · ${tree.roots.length}',
           tools: _toggle(_shelvesViews, LocalFlags.shelvesView, 'Shelf layout'),
           actionLabel: 'New shelf +',
           onAction: () => context.go('/shelves'),
@@ -364,14 +368,14 @@ class _LibraryHomeState extends State<_LibraryHome> {
                 spacing: gap,
                 runSpacing: gap,
                 children: [
-                  for (final s in shelves)
+                  for (final s in tree.roots)
                     SizedBox(
                       width: w,
                       child: KitShelfUnit(
                         label: s.title,
                         books: [
-                          for (final d in complete)
-                            if (d.tagIds.contains(s.id)) bookOf(d, shelves, dark: Tokens.of(context).isDark),
+                          for (final d in shelfVolumes(s, complete, tree))
+                            bookOf(d, shelves, dark: Tokens.of(context).isDark),
                         ],
                         openId: _shelfOpenId,
                         onOpen: (id) => setState(() => _shelfOpenId = id),
@@ -379,8 +383,10 @@ class _LibraryHomeState extends State<_LibraryHome> {
                             Tokens.of(context).fgSubtle,
                         // §The letter chip: on the named head, Lead / Muted
                         // only, and none while the letter is off.
-                        letterChip: KitLetterChip.forShelf(s.letterMode,
+                        letterChip: KitLetterChip.forShelf(
+                            tree.letterMode(s.id).mode,
                             letterOn: letterOn),
+                        subShelves: tree.childrenOf(s.id).length,
                       ),
                     ),
                 ],
@@ -390,11 +396,10 @@ class _LibraryHomeState extends State<_LibraryHome> {
         else
           KitCardGrid(
             children: [
-              for (final s in shelves)
+              for (final s in tree.roots)
                 Builder(builder: (context) {
-                  final vols = complete
-                      .where((d) => d.tagIds.contains(s.id))
-                      .toList();
+                  final vols = shelfVolumes(s, complete, tree);
+                  final subs = tree.childrenOf(s.id).length;
                   final passages = vols.fold<int>(
                       0, (n, d) => n + (d.chunkCount ?? 0));
                   return KitShelfCard(
@@ -402,7 +407,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
                     colorToken: s.color,
                     volumes: vols.length,
                     meta: '${_plural(vols.length, 'volume')}'
-                        '${passages > 0 ? ' · ${_plural(passages, 'passage')}' : ''}',
+                        '${passages > 0 ? ' · ${_plural(passages, 'passage')}' : ''}'
+                        '${subs > 0 ? ' · ${subs == 1 ? '1 sub-shelf' : '$subs sub-shelves'}' : ''}',
                     // A dot, a name and a count: Home's cards list no
                     // volumes, and so never say "Empty shelf".
                     listsVolumes: false,

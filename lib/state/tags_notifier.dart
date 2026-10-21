@@ -35,17 +35,26 @@ class TagsNotifier extends ChangeNotifier {
     });
   }
 
+  /// [clearLetterMode] sends `letter_mode: null` — the shelf inherits again
+  /// (5.28.0, ADR-185). [moveTo] sends `parentTagId`; [toTopLevel] sends it as
+  /// null. A refusal comes back as the server's sentence.
   Future<String?> updateTag(String tagId,
       {String? title,
       String? description,
       String? color,
-      String? letterMode}) async {
+      String? letterMode,
+      bool clearLetterMode = false,
+      String? moveTo,
+      bool toTopLevel = false}) async {
     try {
       await Api.instance.updateTag(tagId, {
         if (title != null) 'title': title,
         if (description != null) 'description': description,
         if (color != null) 'color': color,
         if (letterMode != null) 'letter_mode': letterMode,
+        if (clearLetterMode) 'letter_mode': null,
+        if (moveTo != null) 'parentTagId': moveTo,
+        if (toTopLevel) 'parentTagId': null,
       });
       return null;
     } on ApiException catch (e) {

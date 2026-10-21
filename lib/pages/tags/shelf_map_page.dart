@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/document.dart';
 import '../../models/tag.dart';
 import '../../shared/relmap_layout.dart';
+import '../../shared/shelf_tree.dart';
 import '../../state/documents_notifier.dart';
 import '../../state/tags_notifier.dart';
 import '../../widgets/kit/kit.dart';
@@ -115,10 +116,16 @@ class _ShelfMapPageState extends State<ShelfMapPage> {
         return KitCanvasPage(
           header: header,
           body: KitRelationshipMap(
-            graph: buildShelfGraph(
-              [for (final s in shelves) _shelf(s)],
-              [for (final d in docs.documents) _doc(d)],
-            ),
+            // Parent edges from 5.28.0 (ADR-185): the INV-33 resolution, so a
+            // dangling or cyclic stored parent draws no wire.
+            graph: () {
+              final tree = ShelfTree(shelves);
+              return buildShelfGraph(
+                [for (final s in shelves) _shelf(s)],
+                [for (final d in docs.documents) _doc(d)],
+                parentOf: (s) => tree.parent[s.id],
+              );
+            }(),
             focusKey: focus == null ? null : nodeKey('shelf', focus),
             onOpen: _open,
           ),

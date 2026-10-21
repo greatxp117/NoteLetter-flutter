@@ -651,6 +651,10 @@ class KitShelfUnit extends StatelessWidget {
   /// shelf); the host decides with [KitLetterChip.forShelf].
   final KitLetterChip? letterChip;
 
+  /// The named head's sub-shelf count (kit §21, 5.28.0, ADR-185); [books] is
+  /// then the subtree's volumes. Zero draws nothing.
+  final int subShelves;
+
   const KitShelfUnit({
     super.key,
     required this.label,
@@ -660,6 +664,7 @@ class KitShelfUnit extends StatelessWidget {
     this.bare = false,
     this.dot,
     this.letterChip,
+    this.subShelves = 0,
   });
 
   @override
@@ -706,7 +711,8 @@ class KitShelfUnit extends StatelessWidget {
           (letterChip == null ? Flexible.new : Expanded.new)(
             child: Text(
               '${books.length} ${books.length == 1 ? 'volume' : 'volumes'} · '
-              '$passages passage${passages == 1 ? '' : 's'}',
+              '$passages passage${passages == 1 ? '' : 's'}'
+              '${subShelves > 0 ? ' · $subShelves ${subShelves == 1 ? 'sub-shelf' : 'sub-shelves'}' : ''}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTheme.mono(

@@ -258,7 +258,7 @@ void main() {
               land: (_) => closed = true,
               initialName: '  Tax records  ',
               onCreated: handed.add,
-              create: (title, {description, color}) => pending.future,
+              create: (title, {description, color, parentTagId}) => pending.future,
             ),
           ),
         ),

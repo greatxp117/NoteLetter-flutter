@@ -836,6 +836,148 @@ class _KitNavItemState extends State<KitNavItem> {
   }
 }
 
+/// One shelf in the rail's tree (§1.2, 5.28.0, ADR-185): a [KitNavItem]'s row
+/// with a 16px disclosure cell and the shelf's 8px dot in place of the icon,
+/// indented 14px per level. [expanded] is null for a leaf, which keeps the
+/// cell empty so every dot aligns. [count] is the subtree's volume count.
+class KitRailShelfRow extends StatefulWidget {
+  final String label;
+  final Color dot;
+  final int depth;
+  final bool active;
+  final bool? expanded;
+  final String? count;
+  final VoidCallback onTap;
+  final VoidCallback? onToggle;
+
+  const KitRailShelfRow({
+    super.key,
+    required this.label,
+    required this.dot,
+    required this.depth,
+    required this.onTap,
+    this.active = false,
+    this.expanded,
+    this.count,
+    this.onToggle,
+  });
+
+  @override
+  State<KitRailShelfRow> createState() => _KitRailShelfRowState();
+}
+
+class _KitRailShelfRowState extends State<KitRailShelfRow> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final fg = widget.active || _hover ? t.chromeFg : t.chromeMuted;
+    final open = widget.expanded;
+    return Padding(
+      padding: EdgeInsets.only(left: widget.depth * 14.0),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: open == null
+                ? null
+                : Semantics(
+                    button: true,
+                    expanded: open,
+                    label: '${open ? 'Collapse' : 'Expand'} ${widget.label}',
+                    excludeSemantics: true,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: widget.onToggle,
+                        child: Icon(
+                            open ? Icons.expand_more : Icons.chevron_right,
+                            size: 12,
+                            color: t.chromeSubtle),
+                      ),
+                    ),
+                  ),
+          ),
+          Expanded(
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) => setState(() => _hover = true),
+              onExit: (_) => setState(() => _hover = false),
+              child: GestureDetector(
+                onTap: widget.onTap,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: widget.active
+                            ? t.chromeActive
+                            : (_hover ? t.chromeHover : const Color(0x00000000)),
+                        borderRadius: AppRadius.smR,
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 4),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                                color: widget.dot, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              widget.label,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: AppTheme.fontSans,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: fg,
+                              ),
+                            ),
+                          ),
+                          if (widget.count != null)
+                            Text(
+                              widget.count!,
+                              style: AppTheme.mono(
+                                fontSize: 11,
+                                color: widget.active
+                                    ? t.chromeFg
+                                    : t.chromeSubtle,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (widget.active)
+                      Positioned(
+                        left: -8,
+                        top: 8,
+                        bottom: 8,
+                        child: Container(
+                          width: 2,
+                          decoration: BoxDecoration(
+                            color: t.chromeAccentBar,
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The filled pill a [KitNavItem] wears when something is unread.
 ///
 /// **The fill is the chrome's accent, not `--accent`.** The rail is plum in

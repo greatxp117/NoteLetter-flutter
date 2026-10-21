@@ -363,11 +363,14 @@ class Api {
 
   // ── Tags (INV-04) ─────────────────────────────────────────────────────────
 
+  /// `parentTagId` makes the new shelf a sub-shelf (5.28.0, ADR-185); it is
+  /// sent only when given, and fn_create_tag's key set is closed from then.
   Future<Map<String, dynamic>> createTag(String title,
-      {String? description, String? color}) {
+      {String? description, String? color, String? parentTagId}) {
     final body = <String, dynamic>{'title': title};
     if (description != null) body['description'] = description;
     if (color != null) body['color'] = color;
+    if (parentTagId != null) body['parentTagId'] = parentTagId;
     return _http.post('/fn_create_tag', data: body);
   }
 

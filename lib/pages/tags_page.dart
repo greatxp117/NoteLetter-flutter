@@ -9,6 +9,8 @@ import '../state/settings_notifier.dart';
 import '../state/tags_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
+import '../shared/relmap_layout.dart' show documentWindow;
+import '../shared/shelf_tree.dart';
 import 'tags/shelf_parts.dart';
 import 'tags/shelf_sheet.dart';
 import 'tags/suggest_shelves.dart';
@@ -69,6 +71,9 @@ class _ShelvesPageState extends State<ShelvesPage> {
         }
         final shelves = tags.tags;
         final complete = docs.complete;
+        // The index shows TOP-LEVEL shelves; each card holds its subtree
+        // (5.28.0, ADR-185 §5).
+        final tree = ShelfTree(shelves);
         // INV-24 (ADR-071): every figure on this screen is counted from two
         // subscriptions, so a failed one makes the folio and the standfirst
         // statements about a library we could not read.
@@ -86,7 +91,8 @@ class _ShelvesPageState extends State<ShelvesPage> {
                     'shelf can feed your letter on its own. '
                     // `counted(totalVols, 'volume')` — one volume is singular
                     // (F-81 (4)).
-                    '${plural(complete.length, 'volume', 'volumes')}, shelved.',
+                    '${plural(complete.length, 'volume', 'volumes')}, shelved'
+                    '${docs.documents.length >= documentWindow ? ', of your most recent $documentWindow' : ''}.',
                 // The shelf map (5.25.0, ADR-177), in the chapter opening's
                 // actions slot — only when there is a shelf to draw.
                 actions: [
@@ -116,8 +122,8 @@ class _ShelvesPageState extends State<ShelvesPage> {
                 // that say what is ON the shelf.
                 compactColumns: 1,
                 children: [
-                  for (final s in shelves)
-                    _shelfCard(context, s, complete),
+                  for (final s in tree.roots)
+                    _shelfCard(context, s, complete, tree),
                   if (_adding)
                     _NewShelfCard(
                       canBackfill: complete.isNotEmpty,
@@ -162,21 +168,24 @@ class _ShelvesPageState extends State<ShelvesPage> {
     if (c.backfill) startCreatedBackfill(host, c.tagId, c.title);
   }
 
-  Widget _shelfCard(BuildContext context, Tag shelf, List<Document> complete) {
-    final vols = shelfVolumes(shelf, complete);
+  Widget _shelfCard(
+      BuildContext context, Tag shelf, List<Document> complete, ShelfTree tree) {
+    final vols = shelfVolumes(shelf, complete, tree);
     final passages = shelfPassages(vols);
+    final subs = tree.childrenOf(shelf.id).length;
     return KitShelfCard(
       title: shelf.title,
       colorToken: shelf.color,
       volumes: vols.length,
       meta: '${plural(vols.length, 'volume', 'volumes')} · '
-          '${plural(passages, 'passage', 'passages')}',
+          '${plural(passages, 'passage', 'passages')}'
+          '${subs > 0 ? ' · ${plural(subs, 'sub-shelf', 'sub-shelves')}' : ''}',
       volumeTitles: [
         for (final v in vols.take(3)) v.title.isEmpty ? 'Untitled' : v.title,
       ],
       moreCount: vols.length > 3 ? vols.length - 3 : 0,
-      // Provenance is a LABEL (ADR-025): it never rolls counts up to a parent
-      // and never nests one shelf under another in this index.
+      // `split` marks how the shelf was made; WHERE it sits is its page's
+      // breadcrumb (5.28.0) — the index lists top-level shelves.
       badge: switch (shelf.source) {
         'auto_created' => 'auto',
         'split_from' => 'split',
@@ -185,7 +194,7 @@ class _ShelvesPageState extends State<ShelvesPage> {
       onTap: () => context.go('/shelves/${shelf.id}'),
       // §The letter chip, in the card's foot: Lead / Muted only, none while
       // the letter is off.
-      letterChip: KitLetterChip.forShelf(shelf.letterMode,
+      letterChip: KitLetterChip.forShelf(tree.letterMode(shelf.id).mode,
           letterOn: context.watch<SettingsNotifier>().letterOn),
     );
   }
@@ -212,6 +221,7 @@ class _NewShelfCard extends StatelessWidget {
     return KitCard(
       padding: const EdgeInsets.all(16),
       child: ShelfFormFields(
+        shelves: context.read<TagsNotifier>().tags,
         canBackfill: canBackfill,
         onCreated: onCreated,
         onCancel: onCancel,
