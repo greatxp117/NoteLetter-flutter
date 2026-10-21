@@ -2187,12 +2187,24 @@ a new obligation on a finished screen is a new item.
 - status: in-progress
 - screen: shelves; shelf; picker; rail
 - route: /shelves; /shelves/{id}
-- spec: spec/screens/library.md §Nested shelves; spec/invariants.md INV-33; spec/component-kit.md §1.2 §20.1 §20.2 §21 §24; spec/decisions/ADR-185-shelves-nest.md
+- spec: spec/screens/library.md §Nested shelves; spec/invariants.md §INV-33; spec/component-kit.md §1.2 §20.1 §20.2 §21 §24; spec/decisions/ADR-185-shelves-nest.md
 - web: src/shared/shelfTree.js; src/pages/ShelvesView.jsx; src/pages/LibraryHome.jsx; src/shell/AppShell.jsx; src/shared/ShelfPicker.jsx; src/shared/ShelfSelect.jsx; src/shared/ShelfForm.jsx; src/pages/map/MapView.jsx; tests/contract/shelf-tree.test.js
 - flutter: lib/shared/shelf_tree.dart (new); lib/models/tag.dart; lib/services/api.dart; lib/state/tags_notifier.dart; lib/pages/tags_page.dart; lib/pages/library_page.dart; lib/pages/tags/shelf_page.dart; lib/pages/tags/shelf_parts.dart; lib/pages/tags/shelf_sheet.dart; lib/pages/tags/shelf_map_page.dart; lib/widgets/sidebar.dart; lib/widgets/kit/kit_shelf_chips.dart; lib/widgets/kit/kit_shell.dart; lib/widgets/kit/kit_shelf.dart; lib/shared/local_flags.dart; test/contract/shelf_tree_test.dart (new); test/kit/shelf_nesting_test.dart (new)
 - folds: 5.25.1 … 5.26.2; 5.28.0 (5.27.0 is F-130's; pin stays 5.24.0: F-129 is held, and the pin moves with a green /conformance on the Mac)
 - device_test: a sub-shelf page from the rail's tree; Move into and its refusal; New sub-shelf lands inside
-- shots: shelves; shelf (with sub-shelves); shelf-child (breadcrumb); shelf-picker (paths); rail (tree)
+- shots: shelves; shelf; shelf-child; shelf-picker; rail
 - extra_gates: shelf_tree_test runs web's shelf-tree cases case for case
 - notes: Cloud lane D (cloud/subshelves-b, replayed as cloud/subshelves-b2 2026-10-21), 2026-10-20, on top of F-126. `shelf_tree.dart` is web's `shelfTree.js` rule for rule (resolution with the 64-hop guard, subtree, path, tree order, inherited letter mode, `canHold` on the stored chain). `Tag.ownLetterMode` is the stored mode or null (inherits); `letterMode` keeps its old meaning. The index and Home list top-level shelves with subtree counts and "{n} sub-shelves"; a shelf page has the breadcrumb (kit `KitShelfCrumbs`), a Sub-shelves row (`KitSubShelfChip`) ending in New sub-shelf, Inside (Move into, a §20.2 select over `canHold` parents plus Top level), the inherited mode said as "Muted by {shelf}." with "Use the parent's setting" (letter_mode: null), and a delete confirm naming where the children go. The rail lists the tree (`KitRailShelfRow`, collapse state in `LocalFlags.shelfCollapsed`), which it never did before. §20.1/§20.2 rows are in tree order with a muted path prefix; matching reads the title alone. The map draws parent edges through the tree. OWED on the Mac: the five pairs, the device test, then done.
 
+## F-132 · Reader: Listen playback speed, and dragging a passage boundary (UI-only, recorded at 5.28.0)
+- status: blocked: held until Xavier approves the web look (port after approval); the web frames are reader-listen and reader-edit-drag
+- screen: reader
+- route: /reader/:docId
+- spec: spec/screens/reader.md §Playback speed §Moving a passage boundary; spec/features/listen-playback-speed.md; spec/features/passage-boundary-drag.md; spec/component-kit.md §6.8
+- web: src/pages/reader/ListenPanel.jsx; src/pages/reader/readerPrefs.js; src/pages/reader/ManuscriptPanel.jsx; src/pages/reader/passageBoundary.js; src/styles/app-source.css
+- flutter: lib/pages/reader/listen_panel.dart; lib/pages/reader/reader_prefs.dart; lib/pages/reader/manuscript_panel.dart; lib/pages/reader/passage_boundary.dart (new); test/contract/passage_boundary_test.dart (new)
+- folds: none (UI-only)
+- device_test: drag a passage's grip on the phone: the line follows, the page scrolls at the edge, the release re-cuts; Up/Down on a hardware keyboard
+- shots: reader-listen; reader-edit-drag
+- extra_gates: none
+- notes: Speed: a KitSegmented (§6.8) named Speed under the player controls, 0.75/1/1.25/1.5/1.75/2, default 1, stored in reader_prefs beside text size; it sets the player's rate on change and on every load. Drag: passage_boundary.dart ports web's passageBoundary.js rule for rule (blocks, offeredCuts, currentCut, recut, stepCut) with its test over web's cases; the grip is a 22px handle at the start of every editing head after the first, named 'Move where passage {n} begins'. On a phone web's editing head wraps the shelf chips onto their own line, and the Speed track takes its own line under its label.
