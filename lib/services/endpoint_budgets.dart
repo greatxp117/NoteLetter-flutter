@@ -26,7 +26,7 @@ const Map<String, int> kEndpointDeadlineSeconds = {
   'fn_apply_syllabus_plan': 120,
   'fn_approve_tags': 120,
   'fn_ask_threads': 60,
-  'fn_ask_turn': 60,
+  'fn_ask_turn': 120,
   'fn_cancel_document': 60,
   'fn_check_source_freshness': 60,
   'fn_claim_cloud_connection': 60,

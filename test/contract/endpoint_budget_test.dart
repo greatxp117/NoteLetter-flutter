@@ -50,12 +50,13 @@ void main() {
         reason: 'the flat 30s gave up on this one ten times too early');
   });
 
-  test('a 60s endpoint is waited on for 60s + the margin', () async {
+  test('Ask is waited on for its own 120s deadline + the margin', () async {
     await Api.instance.askTurn('q');
     expect(adapter.budgets['/fn_ask_turn'],
-        const Duration(seconds: 60) + kTimeoutMargin,
+        const Duration(seconds: 120) + kTimeoutMargin,
         reason: 'a 35s Ask rendered "Request timed out" and then the answer '
-            'landed underneath it');
+            'landed underneath it; since 5.30.0 (ADR-187) the turn also '
+            'writes an answer and deploys at 120s');
   });
 
   test('every budget outlasts the deadline it waits on', () {

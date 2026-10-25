@@ -2221,3 +2221,16 @@ a new obligation on a finished screen is a new item.
 - shots: settings-ai-off; reader-ai-off; ask-off; onboarding-librarian
 - extra_gates: none
 - notes: One AiSettingsNotifier subscribes /users/{uid}/settings/ai once (absent = on; only a literal false is off; loading and failed hide every gated surface, as web's genAIState). Settings: a KitSettingRow + KitSwitch section above Summaries, write before you move (OrgNotifier's pattern), the off caption verbatim from settings.md, a §14.1 block when unreadable; Summaries and the letter section's Ask row absent while off. Reader: filter readerRailItems and the sections in step, default section the first remaining; hold the sections until the switch is read. Router: /ask, /ask/shelf/:tagId, /ask/thread/:id render the §12 Notice while off. Wizard: the Use generative AI check row on the Librarian step (ticked; a replay starts from the stored value), a fourth separate fn_ai_settings PUT on finish made once, its failure line 'Your AI choice could not be saved: {sentence}', and a Generative AI row on the done step. Add api/ai-settings to the request suite and fn_ai_settings to endpoint_budgets.
+
+## F-134 · Ask: the written answer and its quotations (5.30.0, ADR-187, INV-35)
+- status: blocked: held until Xavier approves the web look (port after approval); the web frames are ask-thread and ask-answer-note
+- screen: ask
+- route: /ask
+- spec: spec/api/ask.md §The written answer; spec/data-model.md §/ask_threads/{threadId}/messages/{messageId}; spec/screens/ask.md §States §Composition; spec/component-kit.md §25; spec/invariants.md §INV-35; spec/features/ask-hybrid-answer.md
+- web: src/api.js; src/shared/AskAnswer.jsx; src/pages/AskView.jsx; src/styles/app-kit.css
+- flutter: lib/models/ask_thread.dart; lib/services/firestore_service.dart; lib/widgets/kit/kit_ask_answer.dart (new); lib/pages/chat_page.dart; test/contract/firestore_shapes_test.dart
+- folds: 5.30.0
+- device_test: ask 'Summarize my notes on cooking' on the seed: a paragraph with a [1] chip and a quote block under its source's title appear above the pills; tapping the chip scrolls to pill 1 and marks it; the thinking line reads Reading your notes…
+- shots: ask-thread; ask-answer-note
+- extra_gates: none
+- notes: Map `answer` (paragraph/quote blocks; drop an unknown kind or a quote with no n; empty list is null) and `answer_note` on a library message, as web's askAnswer. KitAskAnswer (kit §25): paragraphs in the answer's serif face with each [n] a mono --accent-text chip carrying the pill's index (tap scrolls to the pill and marks it --accent-soft for 1.6 s); a quote block in serif italic set in from a 2px --accent rule, its text through KitMarkerInline, a sans meta line with the chip and the source title, no added quotation marks; answer_note as one italic sans --fg-muted line, never a §14 block. Copy from screens/ask.md §Copy (5.30.0) and the thinking line. The fn_ask_turn client budget is already 120 (moved with the backend at 5.30.0).
