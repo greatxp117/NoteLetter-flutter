@@ -2095,6 +2095,9 @@ const Map<String, String> kKindByType = <String, String>{
   // is indexed from its audio track alone but it is not a recording, and
   // labelling a lecture video AUDIO is the conflation ADR-049 refused.
   'video': 'video',
+  // A post on any other video platform (5.32.0, ADR-189) is a video beside an
+  // uploaded one, with no brand of its own; the Video chip sends both.
+  'social_video': 'video',
 };
 
 /// The source-shape vocabulary (component-kit.md §6.4.2, 4.37.0 ADR-075) —
@@ -2127,6 +2130,7 @@ const Map<String, String> kShapeByType = <String, String>{
   'instagram': 'link',
   'tiktok': 'link',
   'podcast': 'link',
+  'social_video': 'link',
   'url': 'link',
 
   // `set` — many objects (`gcs_paths[]`), no single one. The endpoint signs

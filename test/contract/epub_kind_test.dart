@@ -37,6 +37,7 @@ void main() {
       () {
     expect(searchSourceTypes('pdf'), unorderedEquals(['pdf', 'epub']));
     expect(searchSourceTypes('web'), unorderedEquals(['article', 'url']));
-    expect(searchSourceTypes('video'), ['video']);
+    // 5.32.0 (ADR-189): a post on another video platform is a video too.
+    expect(searchSourceTypes('video'), ['video', 'social_video']);
   });
 }

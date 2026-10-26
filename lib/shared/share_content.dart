@@ -212,6 +212,8 @@ String linkKindLabel(String type) {
       return 'TikTok video';
     case 'podcast':
       return 'Podcast episode';
+    case 'social_video':
+      return 'Video post';
     case 'article':
       return 'Article';
   }

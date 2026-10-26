@@ -310,6 +310,16 @@ String? normalizeUrl(String? input) {
       (m) => '${m[1]!.toLowerCase()}${m[2]!.toLowerCase()}');
 }
 
+/// A post on any other video platform (5.32.0, ADR-189; api/ingest.md) —
+/// mirrors web `SOCIAL_VIDEO_HOSTS`. Matched on the hostname's labels, never as
+/// a substring (`phoenix.com` holds `x.com`); Threads stays an article.
+const List<String> kSocialVideoHosts = <String>[
+  'facebook.com', 'fb.watch', 'x.com', 'twitter.com', 'reddit.com', 'redd.it',
+  'vimeo.com', 'linkedin.com', 'bsky.app', 'dailymotion.com', 'dai.ly',
+  'twitch.tv', 'rumble.com', 'streamable.com', 'loom.com', 'pinterest.com',
+  'pin.it', 'snapchat.com',
+];
+
 /// Canonical client-side detection table (INV-07) — mirrors web `detectUrlType()`.
 String? detectUrlType(String? input) {
   final url = normalizeUrl(input);
@@ -330,5 +340,8 @@ String? detectUrlType(String? input) {
   if (host == 'tiktok.com' || host == 'vm.tiktok.com') return 'tiktok';
   if (host == 'podcasts.apple.com') return 'podcast';
   if (host == 'open.spotify.com' && uri.path.startsWith('/episode/')) return 'podcast';
+  if (kSocialVideoHosts.any((d) => host == d || host.endsWith('.$d'))) {
+    return 'social_video';
+  }
   return 'article';
 }

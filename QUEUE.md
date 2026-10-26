@@ -2234,3 +2234,16 @@ a new obligation on a finished screen is a new item.
 - shots: ask-thread; ask-answer-note
 - extra_gates: none
 - notes: Map `answer` (paragraph/quote blocks; drop an unknown kind or a quote with no n; empty list is null) and `answer_note` on a library message, as web's askAnswer. KitAskAnswer (kit §25): paragraphs in the answer's serif face with each [n] a mono --accent-text chip carrying the pill's index (tap scrolls to the pill and marks it --accent-soft for 1.6 s); a quote block in serif italic set in from a 2px --accent rule, its text through KitMarkerInline, a sans meta line with the chip and the source title, no added quotation marks; answer_note as one italic sans --fg-muted line, never a §14 block. Copy from screens/ask.md §Copy (5.30.0) and the thinking line. The fn_ask_turn client budget is already 120 (moved with the backend at 5.30.0).
+
+## F-135 · A post on any other video platform is social_video (5.32.0, ADR-189): detection, the Video kind and link shape, the share sheet's "Video post"
+- status: done 2026-10-26
+- screen: share-extension
+- route: /share
+- spec: spec/api/ingest.md; spec/component-kit.md; spec/screens/share-sheet.md
+- web: src/api.js; src/shared/FileBadge.jsx
+- flutter: lib/state/upload_notifier.dart; lib/widgets/kit/kit_controls.dart; lib/shared/share_content.dart; lib/models/activity_item.dart; test/contract/epub_kind_test.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: doc_kind_check.py
+- notes: Done in the 5.32.0 run itself, out of queue order: the shared url-detection table gained social_video cases, and a Flutter that did not know the hosts would have turned every lane's per-item gate red. No screen changes (the Video chip and badge already exist); the share sheet's Files-as line gains one label.
