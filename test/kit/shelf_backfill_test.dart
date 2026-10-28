@@ -1,7 +1,10 @@
 // screens/library.md §Creating a shelf §Backfill review (4.83.0, ADR-117,
 // INV-29). One form for the rail sheet and the index card; the create resolves
-// BEFORE the sheet moves; a failed suggest is never "nothing fits"; apply
-// holds the sheet open — scrim included — until it resolves.
+// BEFORE the sheet moves; the review is over a stored `shelf_backfill`
+// proposal (4.102.0), so its "nothing fits" is always the model's answer; apply
+// holds the sheet open — scrim included — until it resolves. The live
+// fn_suggest_shelf_backfill read, and the test that its failure was never
+// "nothing fits", were retired in 5.36.0: that failure is the task's now.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -21,6 +24,14 @@ Future<void> _host(WidgetTester tester, Widget child) async {
   ));
   await tester.pump();
 }
+
+StoredBackfill _stored(Map<String, dynamic> result,
+        [Future<Map<String, dynamic>> Function(List<String> ids)? apply]) =>
+    StoredBackfill(
+      key: 'tsk:1',
+      result: result,
+      apply: apply ?? (_) async => const {'filed': 0, 'skipped': {}},
+    );
 
 Map<String, dynamic> _two() => {
       'scanned': 12,
@@ -101,9 +112,7 @@ void main() {
   });
 
   group('the review', () {
-    testWidgets('reading draws no figure; the proposal is all checked',
-        (tester) async {
-      final pending = Completer<Map<String, dynamic>>();
+    testWidgets('the proposal is all checked', (tester) async {
       await _host(
           tester,
           ShelfBackfillReview(
@@ -111,12 +120,8 @@ void main() {
             title: 'Bread',
             onDone: () {},
             onCancel: () {},
-            suggest: (_) => pending.future,
-            apply: (_, __) async => {},
+            stored: _stored(_two()),
           ));
-      expect(find.text('Reading your library…'), findsOneWidget);
-      pending.complete(_two());
-      await tester.pumpAndSettle();
       expect(find.text('File 2 sources'), findsOneWidget);
       expect(find.text('About bread.'), findsOneWidget);
       await tester.tap(find.text('Rye ratios'));
@@ -133,28 +138,10 @@ void main() {
             title: 'Bread',
             onDone: () {},
             onCancel: () {},
-            suggest: (_) async => {'scanned': 12, 'candidates': []},
+            stored: _stored(const {'scanned': 12, 'candidates': []}),
           ));
       expect(find.textContaining('looks like it belongs on'), findsOneWidget);
       expect(find.text('Try again'), findsNothing);
-    });
-
-    testWidgets('INV-29: a failed suggest is never the nothing-fits sentence',
-        (tester) async {
-      await _host(
-          tester,
-          ShelfBackfillReview(
-            tagId: 't1',
-            title: 'Bread',
-            onDone: () {},
-            onCancel: () {},
-            suggest: (_) async =>
-                throw const ApiException(502, 'Upstream down'),
-          ));
-      expect(find.textContaining('could not be matched against Bread'),
-          findsOneWidget);
-      expect(find.textContaining('looks like it belongs on'), findsNothing);
-      expect(find.text('Try again'), findsOneWidget);
     });
 
     testWidgets('apply sends the checked ids in pool order; a refusal stays',
@@ -168,11 +155,10 @@ void main() {
             title: 'Bread',
             onDone: () => done = true,
             onCancel: () {},
-            suggest: (_) async => _two(),
-            apply: (tagId, ids) async {
+            stored: _stored(_two(), (ids) async {
               sent = ids;
               throw const ApiException(400, 'd2 is not complete.');
-            },
+            }),
           ));
       await tester.tap(find.text('File 2 sources'));
       await tester.pump();
@@ -200,10 +186,9 @@ void main() {
     showShelfSheet(
       host,
       canBackfill: true,
-      backfillFor: const BackfillFor('t1', 'Bread'),
+      backfillFor:
+          BackfillFor('t1', 'Bread', stored: _stored(_two(), (_) => filing.future)),
       land: (id) => landed = id,
-      suggest: (_) async => _two(),
-      apply: (_, __) => filing.future,
     );
     await tester.pumpAndSettle();
     expect(find.text('Fill Bread'), findsOneWidget);
@@ -239,7 +224,6 @@ void main() {
       canBackfill: true,
       land: (id) => landed = id,
       create: (title, {description, color, parentTagId}) async => {'tagId': 't9'},
-      suggest: (_) async => throw StateError('the fill is not read here any more'),
       requestBackfill: (id) async {
         asked.add(id);
         return null;
@@ -270,7 +254,6 @@ void main() {
               title: 'Bread',
               onDone: onDone ?? () {},
               onCancel: () {},
-              suggest: (_) async => throw StateError('a stored review reads nothing'),
               stored: StoredBackfill(
                 key: 'tsk:1',
                 result: _two(),
@@ -292,7 +275,6 @@ void main() {
       final sent = await mountStored(tester,
           answer: {'filed': 2, 'skipped': {'deleted': [], 'not_ready': []}},
           onDone: () => done++);
-      expect(find.text('Reading your library…'), findsNothing);
       await tester.tap(find.text('File 2 sources'));
       await tester.pumpAndSettle();
       expect(sent, [

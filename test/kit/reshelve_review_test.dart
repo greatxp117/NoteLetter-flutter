@@ -1,8 +1,11 @@
-// screens/library.md §Re-shelve review (4.85.0, ADR-119, INV-29). Mirrors
-// NoteLetter-web/tests/contract/reshelve-review.test.js: three answers that
-// must never be merged, every source gets a picker, and filing is one
-// fn_apply_shelf_backfill per destination — a shelf already filed is not
-// re-sent.
+// screens/library.md §Re-shelve review (4.85.0, ADR-119, INV-29), over a
+// stored `shelf_delete` proposal (4.101.0, ADR-136). Mirrors
+// NoteLetter-web/tests/contract/reshelve-review.test.js: "nothing fits" and
+// "nowhere to go" are different answers, every source gets a picker, and
+// filing is ONE fn_resolve_task apply. The review reads nothing itself: the
+// live fn_suggest_reshelve read and its per-shelf filing were retired in
+// 5.36.0, and with them the tests of a failed read, of reading in slices and of
+// a per-shelf retry.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -21,12 +24,24 @@ Tag _tag(String id, String title) =>
     Tag(id: id, userId: 'u', title: title, color: 'sage-500', documentCount: 1);
 final _shelves = [_tag('t-bread', 'Bread'), _tag('t-tax', 'Taxes')];
 
+StoredReshelve _stored(Map<String, dynamic> result,
+        {Future<Map<String, dynamic>> Function(List<Map<String, String>>)?
+            apply,
+        int unconsidered = 0}) =>
+    StoredReshelve(
+      key: 'tsk-1:1',
+      result: result,
+      unconsidered: unconsidered,
+      apply: apply ?? (_) async => const {'filed': 0, 'skipped': {}},
+    );
+
 Future<void> _mount(
   WidgetTester tester, {
-  required SuggestReshelve suggest,
-  ApplyBackfill? apply,
+  required Map<String, dynamic> result,
+  Future<Map<String, dynamic>> Function(List<Map<String, String>>)? apply,
   VoidCallback? onDone,
   List<Tag>? shelves,
+  List<ReshelveItem> sources = _sources,
   void Function(String name, ValueChanged<String> created)? create,
   Size size = const Size(900, 1400),
 }) async {
@@ -39,11 +54,10 @@ Future<void> _mount(
       body: SingleChildScrollView(
         child: ShelfReshelveReview(
           title: 'Misc',
-          sources: _sources,
+          sources: sources,
           shelves: shelves ?? _shelves,
           onDone: onDone ?? () {},
-          suggest: suggest,
-          apply: apply ?? (_, __) async => {},
+          stored: _stored(result, apply: apply),
           create: create,
         ),
       ),
@@ -57,14 +71,14 @@ List<String> _picks(WidgetTester tester) => tester
     .map((s) => s.value)
     .toList();
 
-Future<Map<String, dynamic>> _fitTwo(List<String> _) async => {
-      'scanned': 3,
-      'shelves': 2,
-      'proposals': [
-        {'documentId': 'd1', 'tagId': 't-bread', 'reason': ''},
-        {'documentId': 'd2', 'tagId': 't-tax', 'reason': ''},
-      ],
-    };
+const _fitTwo = <String, dynamic>{
+  'scanned': 3,
+  'shelves': 2,
+  'proposals': [
+    {'documentId': 'd1', 'tagId': 't-bread', 'reason': ''},
+    {'documentId': 'd2', 'tagId': 't-tax', 'reason': ''},
+  ],
+};
 
 Future<void> _open(WidgetTester tester, String docId) async {
   await tester.tap(find.byKey(ValueKey('reshelve-pick-$docId')));
@@ -88,28 +102,23 @@ List<String> _panelRows(WidgetTester tester) {
 void main() {
   testWidgets('presets every row, including the one nothing fit',
       (tester) async {
-    List<String>? sent;
-    await _mount(tester, suggest: (ids) async {
-      sent = ids;
-      return {
-        'scanned': 3,
-        'shelves': 2,
-        'proposals': [
-          {'documentId': 'd1', 'tagId': 't-bread', 'tagTitle': 'Bread', 'reason': 'About bread.'},
-          {'documentId': 'd2', 'tagId': 't-tax', 'tagTitle': 'Taxes', 'reason': 'About tax.'},
-        ],
-      };
+    await _mount(tester, result: const {
+      'scanned': 3,
+      'shelves': 2,
+      'proposals': [
+        {'documentId': 'd1', 'tagId': 't-bread', 'tagTitle': 'Bread', 'reason': 'About bread.'},
+        {'documentId': 'd2', 'tagId': 't-tax', 'tagTitle': 'Taxes', 'reason': 'About tax.'},
+      ],
     });
     expect(_picks(tester), ['t-bread', 't-tax', '']);
     expect(find.text('File 2 sources'), findsOneWidget);
     expect(find.text('About bread.'), findsOneWidget);
-    expect(sent, ['d1', 'd2', 'd3']);
   });
 
   testWidgets('nothing fits is not a failure, and still offers a picker per source',
       (tester) async {
     await _mount(tester,
-        suggest: (_) async => {'scanned': 3, 'shelves': 2, 'proposals': []});
+        result: const {'scanned': 3, 'shelves': 2, 'proposals': []});
     expect(find.textContaining('None of your shelves looked like a clear fit'),
         findsOneWidget);
     expect(find.byType(KitShelfSelect), findsNWidgets(3));
@@ -118,48 +127,22 @@ void main() {
 
   testWidgets('nowhere to go is its own sentence', (tester) async {
     await _mount(tester,
-        suggest: (_) async => {'scanned': 3, 'shelves': 0, 'proposals': []});
+        result: const {'scanned': 3, 'shelves': 0, 'proposals': []});
     expect(find.text('You have no other shelves to move these sources to.'),
         findsOneWidget);
   });
 
-  testWidgets('a failed read is a failure, never "nothing fits"',
+  testWidgets('the lede: upright at fg, only the figures and the shelf are em',
       (tester) async {
-    await _mount(tester,
-        suggest: (_) async => throw const ApiException(502, 'Upstream down'));
-    expect(find.textContaining('could not be suggested'), findsOneWidget);
-    expect(find.textContaining('clear fit'), findsNothing);
-    expect(find.text('Try again'), findsOneWidget);
-  });
-
-  testWidgets('reads in slices of 150 and merges them', (tester) async {
     final many = [for (var i = 0; i < 320; i++) ReshelveItem('d$i', 'S$i')];
-    final calls = <int>[];
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light,
-      home: Scaffold(
-        body: SingleChildScrollView(
-          child: ShelfReshelveReview(
-            title: 'Misc',
-            sources: many,
-            shelves: _shelves,
-            onDone: () {},
-            suggest: (ids) async {
-              calls.add(ids.length);
-              return {
-                'scanned': ids.length,
-                'shelves': 2,
-                'proposals': [
-                  {'documentId': ids.first, 'tagId': 't-bread', 'reason': ''}
-                ],
-              };
-            },
-          ),
-        ),
-      ),
-    ));
-    await tester.pumpAndSettle();
-    expect(calls, [150, 150, 20]);
+    await _mount(tester, sources: many, result: {
+      'scanned': 320,
+      'shelves': 2,
+      'proposals': [
+        for (final i in [0, 150, 300])
+          {'documentId': 'd$i', 'tagId': 't-bread', 'reason': ''},
+      ],
+    });
     expect(find.text('3 of 320 sources from Misc have a suggested shelf.'),
         findsOneWidget);
 
@@ -176,57 +159,27 @@ void main() {
     expect(em, ['3', '320', 'Misc']);
   });
 
-  testWidgets('files per shelf, and a retry does not re-send a shelf already filed',
+  testWidgets('a refused apply stays, with its sentence (§18 rule 2)',
       (tester) async {
-    final applied = <List<Object>>[];
-    var failNext = false;
     var done = 0;
     await _mount(
       tester,
-      suggest: (_) async => {
-        'scanned': 3,
-        'shelves': 2,
-        'proposals': [
-          {'documentId': 'd1', 'tagId': 't-bread', 'reason': ''},
-          {'documentId': 'd2', 'tagId': 't-tax', 'reason': ''},
-        ],
-      },
-      apply: (tagId, ids) async {
-        applied.add([tagId, ids]);
-        if (tagId == 't-tax' && failNext) {
-          failNext = false;
-          throw const ApiException(400, 'Not in your library: d2');
-        }
-        return {'filed': ids.length, 'unchanged': 0};
-      },
+      result: _fitTwo,
+      apply: (_) async =>
+          throw const ApiException(409, 'This proposal was already answered.'),
       onDone: () => done++,
     );
-    // Choose Bread for the story, which nothing fit.
-    final third = tester.widget<KitShelfSelect>(
-        find.byKey(const ValueKey('reshelve-pick-d3')));
-    third.onChanged('t-bread');
+    await tester.tap(find.text('File 2 sources'));
     await tester.pumpAndSettle();
-
-    failNext = true;
-    await tester.tap(find.text('File 3 sources'));
-    await tester.pumpAndSettle();
-    expect(find.text('Taxes: Not in your library: d2'), findsOneWidget);
-    expect(applied[0], ['t-bread', ['d1', 'd3']]);
-    expect(applied[1], ['t-tax', ['d2']]);
+    expect(find.text('This proposal was already answered.'), findsOneWidget);
+    expect(find.text('File 2 sources'), findsOneWidget);
     expect(done, 0);
-    expect(find.text('Filed'), findsNWidgets(2));
-
-    await tester.tap(find.text('File 1 source'));
-    await tester.pumpAndSettle();
-    expect(done, 1);
-    expect(applied, hasLength(3));
-    expect(applied.last, ['t-tax', ['d2']]);
   });
 
   group('§20.2 Shelf select on each row (4.105.0)', () {
     testWidgets('the trigger draws the chosen shelf, or the none label',
         (tester) async {
-      await _mount(tester, suggest: _fitTwo);
+      await _mount(tester, result: _fitTwo);
       final d1 = find.byKey(const ValueKey('reshelve-pick-d1'));
       final d3 = find.byKey(const ValueKey('reshelve-pick-d3'));
       expect(find.descendant(of: d1, matching: find.text('Bread')), findsOneWidget);
@@ -246,7 +199,7 @@ void main() {
     testWidgets(
         'opens over every shelf: the none row first, the chosen one checked, '
         'the create row last', (tester) async {
-      await _mount(tester, suggest: _fitTwo);
+      await _mount(tester, result: _fitTwo);
       await _open(tester, 'd2');
       expect(_panelRows(tester), ['Leave unshelved', 'Bread 1', 'Taxes 1', 'New shelf…']);
       final check = find.byKey(const ValueKey('shelf-pick-check'));
@@ -259,7 +212,7 @@ void main() {
 
     testWidgets('choosing sets the value and closes; the none row sets none',
         (tester) async {
-      await _mount(tester, suggest: _fitTwo);
+      await _mount(tester, result: _fitTwo);
       await _open(tester, 'd3');
       await tester.tap(find.byKey(const ValueKey('shelf-pick-row-2')));
       await tester.pumpAndSettle();
@@ -277,7 +230,7 @@ void main() {
         'and the new shelf becomes the choice', (tester) async {
       String? asked;
       ValueChanged<String>? done;
-      await _mount(tester, suggest: _fitTwo, create: (name, created) {
+      await _mount(tester, result: _fitTwo, create: (name, created) {
         asked = name;
         done = created;
       });
@@ -296,7 +249,7 @@ void main() {
 
     testWidgets('a value that resolves to no shelf draws the none label',
         (tester) async {
-      await _mount(tester, suggest: _fitTwo, shelves: [_tag('t-bread', 'Bread')]);
+      await _mount(tester, result: _fitTwo, shelves: [_tag('t-bread', 'Bread')]);
       final d2 = find.byKey(const ValueKey('reshelve-pick-d2'));
       expect(find.descendant(of: d2, matching: find.text('Leave unshelved')),
           findsOneWidget);
@@ -304,7 +257,7 @@ void main() {
 
     testWidgets('at phone width the select drops under the title, full width',
         (tester) async {
-      await _mount(tester, suggest: _fitTwo, size: const Size(390, 1400));
+      await _mount(tester, result: _fitTwo, size: const Size(390, 1400));
       final pick = tester.getRect(find.byKey(const ValueKey('reshelve-pick-d1')));
       final title = tester.getRect(find.text('Bread starter'));
       expect(pick.top, greaterThan(title.bottom));
@@ -331,7 +284,6 @@ void main() {
               sources: _sources,
               shelves: _shelves,
               onDone: onDone ?? () {},
-              suggest: (_) async => throw StateError('a stored review reads nothing'),
               stored: StoredReshelve(
                 key: 'tsk-1:1',
                 result: const {

@@ -131,8 +131,6 @@ void main() {
     expect(c.bodies['/fn_create_tag']?['title'], 'Bread');
     expect(c.bodies['/fn_request_task'],
         {'kind': 'shelf_backfill', 'tagId': 't9'});
-    expect(c.bodies.containsKey('/fn_suggest_shelf_backfill'), isFalse,
-        reason: 'the live in-sheet review was retired at 4.102.0');
     expect(router.routerDelegate.currentConfiguration.uri.path, '/shelves/t9');
     expect(find.text('shelf t9'), findsOneWidget);
     expect(find.text('Fill Bread'), findsNothing);

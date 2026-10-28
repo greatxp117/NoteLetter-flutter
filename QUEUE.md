@@ -2247,3 +2247,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: doc_kind_check.py
 - notes: Done in the 5.32.0 run itself, out of queue order: the shared url-detection table gained social_video cases, and a Flutter that did not know the hosts would have turned every lane's per-item gate red. No screen changes (the Video chip and badge already exist); the share sheet's Files-as line gains one label.
+
+## F-136 · The six synchronous shelf builders retire (5.36.0): the reviews read only stored proposals
+- status: done 2026-10-28
+- screen: none
+- route: none
+- spec: spec/api/tags.md; spec/api/tasks.md; spec/api/study.md; spec/screens/library.md §Re-shelve review §Backfill review
+- web: src/api.js; src/shared/ShelfForm.jsx
+- flutter: lib/services/api.dart; lib/services/endpoint_budgets.dart; lib/pages/tags/reshelve_sheet.dart; lib/pages/tags/shelf_sheet.dart; lib/pages/tags/split_shelf_sheet.dart; lib/pages/study/syllabus_plan_editor.dart; test/contract/api_requests_test.dart; test/kit/reshelve_review_test.dart; test/kit/shelf_backfill_test.dart; test/kit/shelves_index_create_test.dart; test/kit/shelf_delete_task_test.dart
+- folds: 5.36.0
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/client_timeout_check.py --target flutter
+- notes: Done in the 5.36.0 run itself, out of queue order. `fn_delete_tag`, `fn_suggest_reshelve`, `fn_suggest_shelf_backfill`, `fn_suggest_shelf_split`, `fn_split_shelf` and `fn_suggest_syllabus_plan` are retired. No runtime path reached them since F-72, which moved each to its background task. Their six builders and budget rows are gone. The re-shelve and backfill reviews now take `stored` as required and read nothing themselves. Removed as unreachable: the live read, its failure block, its "Finding…"/"Reading…" state, the per-shelf filing and its "Filed" label, `reshelveSlice`, the `SuggestReshelve`/`SuggestBackfill`/`ApplyBackfill` seams, and `BackfillFor.created`. No visible state the app could reach changed, so there is no pair. The kit tests now mount stored proposals. Dropped with the read: the failed-read, slices-of-150 and per-shelf-retry tests. Added: a refused stored apply stays with its sentence. `applyShelfBackfill` keeps its builder (`fn_apply_shelf_backfill` is not retired) but no longer has a runtime caller.

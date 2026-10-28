@@ -2,18 +2,19 @@
 /// `screens/library.md` §Re-shelve review). Mirrors the reference's
 /// `ShelfReshelveReview` in `NoteLetter-web/src/shared/ShelfForm.jsx`.
 ///
-/// `sources` were captured BEFORE the delete — after it, no query can find
-/// them. Every source gets a row and a picker preset to the proposal: the one
-/// the model could not place is the one the reader most needs to choose for.
-/// Filing is one `fn_apply_shelf_backfill` per destination, in turn; a shelf
-/// already filed is not re-sent on retry.
+/// `sources` are the `shelf_delete` task's capture, taken BEFORE the delete —
+/// after it, no query can find them. Every source gets a row and a picker
+/// preset to the stored proposal: the one the model could not place is the one
+/// the reader most needs to choose for. Filing is ONE `fn_resolve_task apply`
+/// with every assignment. The review reads nothing itself: the synchronous
+/// `fn_suggest_reshelve` read and the per-shelf filing it led to were retired
+/// in 5.36.0.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/tag.dart';
-import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../state/tags_notifier.dart';
 import '../../theme/tokens.dart';
@@ -27,11 +28,9 @@ class ReshelveItem {
   const ReshelveItem(this.id, this.title);
 }
 
-const reshelveSlice = 150;
-
 /// The re-shelve review **from a stored proposal** (4.101.0, ADR-136 —
-/// `screens/review.md` §Proposals): a `shelf_delete` task's `result` (the
-/// `fn_suggest_reshelve` body) seeds the rows, and filing is ONE
+/// `screens/review.md` §Proposals): a `shelf_delete` task's `result`
+/// (`{scanned, shelves, proposals}`) seeds the rows, and filing is ONE
 /// `fn_resolve_task apply` with every assignment — the writer reports what it
 /// could not file in `skipped`, which the sheet says before Done.
 class StoredReshelve {
@@ -53,11 +52,6 @@ class StoredReshelve {
   });
 }
 const _unshelved = '';
-
-typedef SuggestReshelve = Future<Map<String, dynamic>> Function(
-    List<String> documentIds);
-typedef ApplyBackfill = Future<Map<String, dynamic>> Function(
-    String tagId, List<String> documentIds);
 
 /// Opens the re-shelve review over a stored `shelf_delete` proposal, in a §15
 /// sheet: rows from `capture.sources`, presets from `result.proposals`, the
@@ -103,12 +97,8 @@ class ShelfReshelveReview extends StatefulWidget {
   final VoidCallback onDone;
   final ValueChanged<bool> onBusy;
 
-  /// Seams for the widget test; default to the canonical builders.
-  final SuggestReshelve? suggest;
-  final ApplyBackfill? apply;
-
-  /// Set: the review of a stored proposal (no read, one apply).
-  final StoredReshelve? stored;
+  /// The stored proposal: no read, one apply.
+  final StoredReshelve stored;
 
   /// A row's create row, with the query; default opens §Creating a shelf's
   /// form, and calls back with the new id once `fn_create_tag` resolved.
@@ -120,11 +110,9 @@ class ShelfReshelveReview extends StatefulWidget {
     required this.sources,
     required this.shelves,
     required this.onDone,
+    required this.stored,
     this.onBusy = _noBusy,
-    this.suggest,
-    this.apply,
     this.create,
-    this.stored,
   });
 
   static void _noBusy(bool _) {}
@@ -134,38 +122,26 @@ class ShelfReshelveReview extends StatefulWidget {
 }
 
 class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
-  bool _reading = true;
-  Object? _readError;
   int _shelfCount = 0;
   List<Map<String, dynamic>> _proposals = const [];
   final Map<String, String> _choice = {};
-  final Set<String> _filed = {};
   bool _applying = false;
   String? _applyError;
 
-  /// A stored apply that could not file everything: `{filed, skipped}`.
+  /// An apply that could not file everything: `{filed, skipped}`.
   Map<String, dynamic>? _summary;
-
-  SuggestReshelve get _suggest =>
-      widget.suggest ?? Api.instance.suggestReshelve;
-  ApplyBackfill get _apply => widget.apply ?? Api.instance.applyShelfBackfill;
 
   @override
   void initState() {
     super.initState();
-    final stored = widget.stored;
-    if (stored != null) {
-      _seed(stored.result);
-    } else {
-      _read();
-    }
+    _seed(widget.stored.result);
   }
 
   @override
   void didUpdateWidget(covariant ShelfReshelveReview old) {
     super.didUpdateWidget(old);
     final stored = widget.stored;
-    if (stored != null && stored.key != old.stored?.key) _seed(stored.result);
+    if (stored.key != old.stored.key) _seed(stored.result);
   }
 
   void _seed(Map<String, dynamic> result) {
@@ -181,10 +157,14 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
     }
     _proposals = proposals;
     _shelfCount = (result['shelves'] as num?)?.toInt() ?? 0;
-    _reading = false;
   }
 
-  Future<void> _applyStored(StoredReshelve stored) async {
+  int get _pending => widget.sources
+      .where((s) => (_choice[s.id] ?? _unshelved).isNotEmpty)
+      .length;
+
+  Future<void> _file() async {
+    if (_applying) return;
     final assignments = [
       for (final s in widget.sources)
         if ((_choice[s.id] ?? _unshelved).isNotEmpty)
@@ -197,7 +177,7 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
     });
     widget.onBusy(true);
     try {
-      final res = await stored.apply(assignments);
+      final res = await widget.stored.apply(assignments);
       if (!mounted) return;
       final sk = (res['skipped'] as Map?)?.cast<String, dynamic>() ?? const {};
       int n(String k) => ((sk[k] as List?) ?? const []).length;
@@ -220,96 +200,6 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
     }
   }
 
-  Future<void> _read() async {
-    setState(() {
-      _reading = true;
-      _readError = null;
-    });
-    final ids = [for (final s in widget.sources) s.id];
-    final slices = <List<String>>[
-      for (var i = 0; i < ids.length; i += reshelveSlice)
-        ids.sublist(i, (i + reshelveSlice).clamp(0, ids.length)),
-    ];
-    try {
-      // Any failed slice fails the whole read: a partial answer would present
-      // the rest as sources nothing fits (INV-29).
-      final parts = await Future.wait(slices.map(_suggest));
-      if (!mounted) return;
-      var shelves = 0;
-      final proposals = <Map<String, dynamic>>[];
-      for (final p in parts) {
-        final n = (p['shelves'] as num?)?.toInt() ?? 0;
-        if (n > shelves) shelves = n;
-        for (final x in (p['proposals'] as List?) ?? const []) {
-          proposals.add((x as Map).cast<String, dynamic>());
-        }
-      }
-      setState(() {
-        _choice
-          ..clear()
-          ..addEntries(widget.sources.map((s) => MapEntry(s.id, _unshelved)));
-        for (final p in proposals) {
-          _choice[p['documentId'] as String] = p['tagId'] as String;
-        }
-        _proposals = proposals;
-        _shelfCount = shelves;
-        _reading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _readError = e;
-        _reading = false;
-      });
-    }
-  }
-
-  int get _pending => widget.sources.where((s) {
-        final t = _choice[s.id] ?? _unshelved;
-        return t.isNotEmpty && !_filed.contains(t);
-      }).length;
-
-  Future<void> _file() async {
-    if (_applying) return;
-    final stored = widget.stored;
-    if (stored != null) return _applyStored(stored);
-    final groups = <String, List<String>>{};
-    for (final s in widget.sources) {
-      final t = _choice[s.id] ?? _unshelved;
-      if (t.isNotEmpty && !_filed.contains(t)) {
-        (groups[t] ??= []).add(s.id);
-      }
-    }
-    if (groups.isEmpty) return;
-    setState(() {
-      _applying = true;
-      _applyError = null;
-    });
-    widget.onBusy(true);
-    for (final entry in groups.entries) {
-      try {
-        await _apply(entry.key, entry.value);
-        if (!mounted) return;
-        setState(() => _filed.add(entry.key));
-      } catch (e) {
-        if (!mounted) return;
-        final name = widget.shelves
-                .where((s) => s.id == entry.key)
-                .firstOrNull
-                ?.title ??
-            'a shelf';
-        setState(() {
-          _applyError = '$name: ${_detail(e)}';
-          _applying = false;
-        });
-        widget.onBusy(false);
-        return;
-      }
-    }
-    widget.onBusy(false);
-    widget.onDone();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -320,38 +210,11 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
 
   Widget _body(BuildContext context) {
     final n = widget.sources.length;
-    if (_readError != null) {
-      final e = _readError!;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          KitFailureBlock(
-            sentence: 'New shelves could not be suggested for these sources.',
-            detail: _detail(e),
-            requestId: e is ApiException ? e.requestId : null,
-            onRetry: _read,
-          ),
-          const SizedBox(height: 14),
-          _actions([KitButton.ghost('Not now', onPressed: widget.onDone)]),
-        ],
-      );
-    }
     // `.bf-lede` is KitText.reviewLede (upright serif 17 at fg) with the
     // figures and the shelf name in reviewEm — not the italic standfirst
     // `lede`, which set the whole answer italic and muted (F-38's finding).
     final lede = KitText.reviewLede(context);
     final em = KitText.reviewEm(context);
-    if (_reading) {
-      return Text.rich(
-        TextSpan(children: [
-          const TextSpan(text: 'Finding new shelves for '),
-          TextSpan(text: '$n', style: em),
-          TextSpan(text: n == 1 ? ' source…' : ' sources…'),
-        ]),
-        style: lede,
-      );
-    }
     if (_shelfCount == 0) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -403,7 +266,7 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
 
     final t = Tokens.of(context);
     final m = _proposals.length;
-    final unconsidered = widget.stored?.unconsidered ?? 0;
+    final unconsidered = widget.stored.unconsidered;
     final reasons = {
       for (final p in _proposals)
         p['documentId'] as String: (p['reason'] as String?) ?? ''
@@ -460,7 +323,6 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
 
   Widget _row(BuildContext context, Tokens t, ReshelveItem s, String tagId,
       String? reason) {
-    final filed = tagId.isNotEmpty && _filed.contains(tagId);
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -471,20 +333,18 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
               style: KitText.meta(context).copyWith(color: t.fgMuted)),
       ],
     );
-    final control = filed
-        ? Text('Filed', style: KitText.meta(context))
-        : KitShelfSelect(
-            key: ValueKey('reshelve-pick-${s.id}'),
-            value: tagId,
-            shelves: widget.shelves,
-            none: 'Leave unshelved',
-            label: 'Shelf for ${s.title.isEmpty ? 'Untitled' : s.title}',
-            disabled: _applying,
-            onChanged: (v) => setState(() => _choice[s.id] = v),
-            onCreate: (name) => _create(name, (id) {
-              if (mounted) setState(() => _choice[s.id] = id);
-            }),
-          );
+    final control = KitShelfSelect(
+      key: ValueKey('reshelve-pick-${s.id}'),
+      value: tagId,
+      shelves: widget.shelves,
+      none: 'Leave unshelved',
+      label: 'Shelf for ${s.title.isEmpty ? 'Untitled' : s.title}',
+      disabled: _applying,
+      onChanged: (v) => setState(() => _choice[s.id] = v),
+      onCreate: (name) => _create(name, (id) {
+        if (mounted) setState(() => _choice[s.id] = id);
+      }),
+    );
     // `.rs-row`: the select beside the title, gap 10; at ≤ 560 it drops under
     // the title and takes the whole line.
     final phone = MediaQuery.sizeOf(context).width <= 560;

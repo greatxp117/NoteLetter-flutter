@@ -20,7 +20,6 @@ import '../../theme/app_colors.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
-import 'reshelve_sheet.dart' show ApplyBackfill;
 import 'shelf_parts.dart';
 
 const shelfTitleMax = 50;
@@ -28,7 +27,6 @@ const shelfDescriptionMax = 300;
 
 typedef CreateTag = Future<Map<String, dynamic>> Function(String title,
     {String? description, String? color, String? parentTagId});
-typedef SuggestBackfill = Future<Map<String, dynamic>> Function(String tagId);
 
 /// Starts the background fill; resolves to the refusal's sentence, or null.
 typedef RequestBackfill = Future<String?> Function(String tagId);
@@ -74,9 +72,9 @@ Future<void> startCreatedBackfill(BuildContext host, String tagId, String title,
 }
 
 /// A backfill review **from a stored proposal** (4.102.0 — `screens/review.md`
-/// §Proposals): the `shelf_backfill` task's `result` (the
-/// `fn_suggest_shelf_backfill` body) seeds the candidates, all kept, and
-/// filing is ONE `fn_resolve_task apply {documentIds}`.
+/// §Proposals): the `shelf_backfill` task's `result` (`{scanned, candidates}`)
+/// seeds the candidates, all kept, and filing is ONE
+/// `fn_resolve_task apply {documentIds}`.
 class StoredBackfill {
   final String key;
   final Map<String, dynamic> result;
@@ -95,18 +93,13 @@ class ShelfCreated {
   const ShelfCreated(this.tagId, this.title, this.backfill);
 }
 
-/// A shelf the review reads for. [created] says where *Not now* goes: a
-/// shelf this sheet just made is opened (it exists now, and the reader came to
-/// make it); a shelf opened from its own page is simply left.
+/// The shelf a stored backfill proposal is for. *Not now* closes the sheet
+/// and the proposal keeps waiting in For your review.
 class BackfillFor {
   final String tagId;
   final String title;
-  final bool created;
-
-  /// Set: review this stored proposal rather than reading one now.
-  final StoredBackfill? stored;
-  const BackfillFor(this.tagId, this.title,
-      {this.created = false, this.stored});
+  final StoredBackfill stored;
+  const BackfillFor(this.tagId, this.title, {required this.stored});
 }
 
 /// §15's sheet (480) over whatever the reader was on. Opens at the form, or —
@@ -130,8 +123,6 @@ Future<void> showShelfSheet(
   required ValueChanged<String>? land,
   BackfillFor? backfillFor,
   CreateTag? create,
-  SuggestBackfill? suggest,
-  ApplyBackfill? apply,
   RequestBackfill? requestBackfill,
   String initialName = '',
   String? createSubtitle,
@@ -170,8 +161,6 @@ Future<void> showShelfSheet(
         land?.call(id);
       },
       create: create,
-      suggest: suggest,
-      apply: apply,
       initialName: initialName,
       onCreated: onCreated,
       shelves: shelves,
@@ -200,10 +189,8 @@ class ShelfSheetBody extends StatefulWidget {
   final VoidCallback close;
   final ValueChanged<String> land;
 
-  /// Seams for the widget test; default to the canonical builders.
+  /// Seam for the widget test; defaults to the canonical builder.
   final CreateTag? create;
-  final SuggestBackfill? suggest;
-  final ApplyBackfill? apply;
 
   /// A picker's create row (4.104.0): the name it was typed as, and where the
   /// new id goes once the create resolved.
@@ -227,8 +214,6 @@ class ShelfSheetBody extends StatefulWidget {
     required this.land,
     this.backfillFor,
     this.create,
-    this.suggest,
-    this.apply,
     this.initialName = '',
     this.onCreated,
     this.onBackfill,
@@ -245,7 +230,7 @@ class _ShelfSheetBodyState extends State<ShelfSheetBody> {
 
   void _created(ShelfCreated c) {
     // Handed back BEFORE anything else: the host's write is what the reader
-    // came for, and it runs while the review (if any) is still reading.
+    // came for, and it runs before the fill is even asked for.
     widget.onCreated?.call(c.tagId);
     widget.land(c.tagId);
     // 4.102.0: the fill runs in the background; the new shelf opens at once
@@ -275,10 +260,7 @@ class _ShelfSheetBodyState extends State<ShelfSheetBody> {
               title: review.title,
               onBusy: widget.onBusy,
               onDone: () => widget.land(review.tagId),
-              onCancel: () =>
-                  review.created ? widget.land(review.tagId) : widget.close(),
-              suggest: widget.suggest,
-              apply: widget.apply,
+              onCancel: widget.close,
               stored: review.stored,
             ),
     );
@@ -520,23 +502,23 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
       );
 }
 
-/// The review (INV-29): reading → proposal | nothing fits | failure.
+/// The review of a stored `shelf_backfill` proposal (INV-29): candidates |
+/// nothing fits.
 ///
-/// The failure is a §14.1 block and is **never** drawn as "nothing fits": that
-/// sentence is a considered answer from the model, and a read that did not
-/// happen is not one. Applying keeps the sheet open until the call resolves
-/// (§18 rule 1), and a refusal stays here with its sentence.
+/// The read happened in the background task, so "nothing fits" here is always
+/// the model's considered answer: a read that failed is the TASK's failure and
+/// is said in For your review, never drawn as this. Applying keeps the sheet
+/// open until the call resolves (§18 rule 1), and a refusal stays here with its
+/// sentence.
 class ShelfBackfillReview extends StatefulWidget {
   final String tagId;
   final String title;
   final VoidCallback onDone;
   final VoidCallback onCancel;
   final ValueChanged<bool> onBusy;
-  final SuggestBackfill? suggest;
-  final ApplyBackfill? apply;
 
-  /// Set: the review of a stored proposal (no read, one apply).
-  final StoredBackfill? stored;
+  /// The stored proposal: no read, one apply.
+  final StoredBackfill stored;
 
   const ShelfBackfillReview({
     super.key,
@@ -544,10 +526,8 @@ class ShelfBackfillReview extends StatefulWidget {
     required this.title,
     required this.onDone,
     required this.onCancel,
+    required this.stored,
     this.onBusy = ShelfFormFields._noBusy,
-    this.suggest,
-    this.apply,
-    this.stored,
   });
 
   @override
@@ -555,30 +535,19 @@ class ShelfBackfillReview extends StatefulWidget {
 }
 
 class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
-  bool _reading = true;
-  Object? _readError;
   int _scanned = 0;
   List<Map<String, dynamic>> _candidates = const [];
   final Set<String> _kept = {};
   bool _applying = false;
   String? _applyError;
 
-  /// A stored apply that could not file everything: `(filed, missed)`.
+  /// An apply that could not file everything: `(filed, missed)`.
   (int, int)? _summary;
-
-  SuggestBackfill get _suggest =>
-      widget.suggest ?? Api.instance.suggestShelfBackfill;
-  ApplyBackfill get _apply => widget.apply ?? Api.instance.applyShelfBackfill;
 
   @override
   void initState() {
     super.initState();
-    final stored = widget.stored;
-    if (stored != null) {
-      _seed(stored.result);
-    } else {
-      _read();
-    }
+    _seed(widget.stored.result);
   }
 
   void _seed(Map<String, dynamic> res) {
@@ -591,36 +560,6 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
     _kept
       ..clear()
       ..addAll(candidates.map((c) => c['documentId'] as String));
-    _reading = false;
-  }
-
-  Future<void> _read() async {
-    setState(() {
-      _reading = true;
-      _readError = null;
-    });
-    try {
-      final res = await _suggest(widget.tagId);
-      if (!mounted) return;
-      final candidates = [
-        for (final c in (res['candidates'] as List?) ?? const [])
-          (c as Map).cast<String, dynamic>(),
-      ];
-      setState(() {
-        _scanned = (res['scanned'] as num?)?.toInt() ?? 0;
-        _candidates = candidates;
-        _kept
-          ..clear()
-          ..addAll(candidates.map((c) => c['documentId'] as String));
-        _reading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _readError = e;
-        _reading = false;
-      });
-    }
   }
 
   Future<void> _file() async {
@@ -636,27 +575,19 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
         for (final c in _candidates)
           if (_kept.contains(c['documentId'])) c['documentId'] as String,
       ];
-      final stored = widget.stored;
-      if (stored != null) {
-        final res = await stored.apply(ids);
-        if (!mounted) return;
-        final sk = (res['skipped'] as Map?) ?? const {};
-        final missed = ((sk['deleted'] as List?) ?? const []).length +
-            ((sk['not_ready'] as List?) ?? const []).length;
-        widget.onBusy(false);
-        if (missed > 0) {
-          setState(() {
-            _applying = false;
-            _summary = ((res['filed'] as num?)?.toInt() ?? 0, missed);
-          });
-          return;
-        }
-        widget.onDone();
+      final res = await widget.stored.apply(ids);
+      if (!mounted) return;
+      final sk = (res['skipped'] as Map?) ?? const {};
+      final missed = ((sk['deleted'] as List?) ?? const []).length +
+          ((sk['not_ready'] as List?) ?? const []).length;
+      widget.onBusy(false);
+      if (missed > 0) {
+        setState(() {
+          _applying = false;
+          _summary = ((res['filed'] as num?)?.toInt() ?? 0, missed);
+        });
         return;
       }
-      await _apply(widget.tagId, ids);
-      if (!mounted) return;
-      widget.onBusy(false);
       widget.onDone();
     } catch (e) {
       if (!mounted) return;
@@ -674,28 +605,6 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
     final lede = KitText.reviewLede(context);
     final em = KitText.reviewEm(context);
 
-    if (_readError != null) {
-      final e = _readError!;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          KitFailureBlock(
-            sentence:
-                'Your library could not be matched against ${widget.title}.',
-            detail: _detail(e),
-            requestId: e is ApiException ? e.requestId : null,
-            onRetry: _read,
-          ),
-          const SizedBox(height: 14),
-          _actions([KitButton.ghost('Not now', onPressed: widget.onCancel)]),
-        ],
-      );
-    }
-    // No figure: `scanned` does not exist until the answer does.
-    if (_reading) {
-      return Text('Reading your library…', style: lede);
-    }
     final summary = _summary;
     if (summary != null) {
       final (filed, missed) = summary;

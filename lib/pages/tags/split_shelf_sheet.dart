@@ -16,8 +16,9 @@
 /// `FilledButton` before).
 ///
 /// **From a stored proposal** (4.102.0, ADR-136 — web `SplitReview.jsx`): the
-/// `shelf_split` task's `result` is `fn_suggest_shelf_split`'s body exactly,
-/// and the apply is `fn_resolve_task {parts: [{index, title, description}]}` —
+/// `shelf_split` task's `result` is the proposal (`{parts, rationale,
+/// unassignedDocumentIds, …}`; the synchronous `fn_suggest_shelf_split` that
+/// once answered the same body was retired in 5.36.0), and the apply is `fn_resolve_task {parts: [{index, title, description}]}` —
 /// the DOCUMENTS each part moves are the proposal's and are never sent; the
 /// server narrows each to the sources still on the shelf (INV-15 stays
 /// strict), reports the ones that left in `skipped.moved_away`, and answers a

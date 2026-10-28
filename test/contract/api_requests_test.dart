@@ -129,23 +129,14 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       answerText: b['answerText']),
   'fn_study_advance_unit': (b) => Api.instance.advanceStudyUnit(b['programId'],
       positions: (b['positions'] as Map?)?.cast<String, dynamic>()),
-  'fn_suggest_syllabus_plan': (b) =>
-      Api.instance.suggestSyllabusPlan(b['programId'], b['documentId']),
   'fn_scripture_lookup': (b) =>
       Api.instance.scriptureLookup(b['reference'], translation: b['translation']),
   'fn_set_read_state': (b) =>
       Api.instance.setReadState(b['docId'], b['finished'] as bool),
   'fn_update_chunk_tags': (b) =>
       Api.instance.updateChunkTags(b['documentId'], _maps(b['overrides'])),
-  'fn_suggest_shelf_split': (b) => Api.instance.suggestShelfSplit(b['tagId']),
-  'fn_split_shelf': (b) =>
-      Api.instance.splitShelf(b['tagId'], _maps(b['parts'])),
-  'fn_suggest_shelf_backfill': (b) =>
-      Api.instance.suggestShelfBackfill(b['tagId']),
   'fn_apply_shelf_backfill': (b) => Api.instance.applyShelfBackfill(
       b['tagId'], (b['documentIds'] as List).cast<String>()),
-  'fn_suggest_reshelve': (b) => Api.instance
-      .suggestReshelve((b['documentIds'] as List).cast<String>()),
   'fn_cancel_document': (b) => Api.instance.cancelDocument(b['docId']),
   // For your review (4.100.0) and the background tasks (4.101.0–4.103.0).
   // The negative cases' stray keys (`until`, `force`, an unknown kind) are
@@ -213,7 +204,6 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
           parentTagId: b['parentTagId']),
   'fn_update_tag': (b) => Api.instance
       .updateTag(b['tagId'], Map<String, dynamic>.of(b)..remove('tagId')),
-  'fn_delete_tag': (b) => Api.instance.deleteTag(b['tagId']),
   'fn_suggest_tags': (b) => Api.instance.suggestTags(b['purposeText']),
   'fn_approve_tags': (b) => Api.instance.approveTags(_maps(b['tags'])),
   'fn_newsletter_settings': (b) => Api.instance.updateNewsletterSettings(b),

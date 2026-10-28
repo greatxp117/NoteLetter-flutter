@@ -130,12 +130,6 @@ class Api {
         if (positions != null && positions.isNotEmpty) 'positions': positions,
       });
 
-  /// Stateless parse of an ordinary ingested syllabus document. Saves nothing.
-  Future<Map<String, dynamic>> suggestSyllabusPlan(
-          String programId, String documentId) =>
-      _http.post('/fn_suggest_syllabus_plan',
-          data: {'programId': programId, 'documentId': documentId});
-
   /// 3.0.0: takes **`assessments`** where 2.x took `exams`, and `unitIndexes`
   /// is gone — coverage is positional, so there is no index to be wrong about.
   Future<Map<String, dynamic>> applySyllabusPlan(
@@ -378,45 +372,11 @@ class Api {
           String tagId, Map<String, dynamic> updates) =>
       _http.post('/fn_update_tag', data: {'tagId': tagId, ...updates});
 
-  /// Propose how one shelf could be divided (2.20.0, ADR-025). **Stateless —
-  /// saves nothing**, the `fn_suggest_tags` shape, which is what keeps the LLM
-  /// call out of the write path.
-  ///
-  /// 400 below 5 documents (a split has nothing to divide), and `parts: []` is
-  /// a 200 meaning the shelf does not divide cleanly — not an error.
-  Future<Map<String, dynamic>> suggestShelfSplit(String tagId) =>
-      _http.post('/fn_suggest_shelf_split', data: {'tagId': tagId});
-
-  /// Execute a split the user has REVIEWED. The parent shelf is never deleted,
-  /// even when every document moves — a parent deleted the moment it empties
-  /// would be silently re-created by the auto-tagger the next time a document
-  /// fits none of the children.
-  Future<Map<String, dynamic>> splitShelf(
-          String tagId, List<Map<String, dynamic>> parts) =>
-      _http.post('/fn_split_shelf', data: {'tagId': tagId, 'parts': parts});
-
-  /// Propose the caller's complete sources that belong on a shelf (4.83.0,
-  /// ADR-117). Writes nothing; a failed model read is a 502, never an empty
-  /// `candidates`.
-  Future<Map<String, dynamic>> suggestShelfBackfill(String tagId) =>
-      _http.post('/fn_suggest_shelf_backfill', data: {'tagId': tagId});
-
   /// File the REVIEWED ids on the shelf. Only adds, and is idempotent.
   Future<Map<String, dynamic>> applyShelfBackfill(
           String tagId, List<String> documentIds) =>
       _http.post('/fn_apply_shelf_backfill',
           data: {'tagId': tagId, 'documentIds': documentIds});
-
-  /// Propose a remaining shelf for each source a deleted shelf held (4.85.0,
-  /// ADR-119, INV-29). Stateless → `{scanned, shelves, proposals}`. A throw is
-  /// a failure, `proposals: []` with `shelves > 0` is "nothing fits", and
-  /// `shelves: 0` is "nowhere to go" — three answers, never merged. Filing is
-  /// [applyShelfBackfill], once per destination shelf.
-  Future<Map<String, dynamic>> suggestReshelve(List<String> documentIds) =>
-      _http.post('/fn_suggest_reshelve', data: {'documentIds': documentIds});
-
-  Future<Map<String, dynamic>> deleteTag(String tagId) =>
-      _http.post('/fn_delete_tag', data: {'tagId': tagId});
 
   Future<Map<String, dynamic>> suggestTags(String purposeText) =>
       _http.post('/fn_suggest_tags', data: {'purposeText': purposeText});

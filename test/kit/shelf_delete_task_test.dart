@@ -118,7 +118,6 @@ void main() {
     final c = await _delete(tester);
     expect(c.bodies['/fn_request_task'],
         {'kind': 'shelf_delete', 'tagId': 's1', 'reshelve': false});
-    expect(c.bodies.containsKey('/fn_delete_tag'), isFalse);
     expect(find.text('all shelves'), findsOneWidget);
   });
 

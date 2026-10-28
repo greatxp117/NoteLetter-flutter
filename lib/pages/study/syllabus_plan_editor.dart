@@ -12,7 +12,7 @@ import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 
 class SyllabusPlanEditor extends StatefulWidget {
-  /// `fn_suggest_syllabus_plan`'s body: `{units, assessments, skipped, notes}`.
+  /// The `syllabus_plan` task's `result`: `{units, assessments, skipped, notes}`.
   final Map<String, dynamic> proposal;
   final bool busy;
   final void Function(List<Map<String, dynamic>> units,
