@@ -700,7 +700,7 @@ class _ReaderPageState extends State<ReaderPage> {
     setState(() => _reorganizing = true);
     final title = doc.title.isEmpty ? 'this document' : doc.title;
     try {
-      await Api.instance.requestTask('reorg_plan', {'documentId': widget.docId});
+      await Api.instance.requestReorgPlan(widget.docId);
       if (mounted) {
         AppToast.show(
             context,

@@ -946,8 +946,7 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
       _error = null;
     });
     try {
-      await Api.instance.requestTask('syllabus_plan',
-          {'programId': widget.program.id, 'documentId': docId});
+      await Api.instance.requestSyllabusPlan(widget.program.id, docId);
       if (!mounted) return;
       setState(() {
         _requested = true;

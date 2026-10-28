@@ -211,13 +211,44 @@ class Api {
           data: {'docIds': docIds, 'action': 'dismiss'});
 
   /// Start a background task (4.101.0, ADR-136; `api/tasks.md`): `kind` plus
-  /// the kind's closed key set — `{tagId, reshelve?}` for `shelf_delete`,
-  /// `{tagId}` for `shelf_backfill`/`shelf_split`, `{programId, documentId}`
-  /// for `syllabus_plan`, `{documentId}` for `reorg_plan`. 202 `{taskId,
-  /// status}`, or 200 with `existing: true` when that subject's slot is open.
-  Future<Map<String, dynamic>> requestTask(
+  /// the kind's closed key set. 202 `{taskId, status}`, or 200 with
+  /// `existing: true` when that subject's slot is open.
+  ///
+  /// Library-private (5.37.0) and used only for the proposal kinds: a screen
+  /// cannot call it, so the only way to delete a shelf is [requestShelfDelete],
+  /// which confirm_check binds to its §18 confirm. One public method per kind.
+  Future<Map<String, dynamic>> _requestTask(
           String kind, Map<String, dynamic> fields) =>
       _http.post('/fn_request_task', data: {'kind': kind, ...fields});
+
+  /// Delete a shelf in the background, proposing new shelves for its sources
+  /// when [reshelve]. Destructive: always behind a §18 confirm. It builds its
+  /// own request so the proposal issuer above never carries the delete.
+  Future<Map<String, dynamic>> requestShelfDelete(String tagId,
+          {required bool reshelve}) =>
+      _http.post('/fn_request_task', data: {
+        'kind': 'shelf_delete',
+        'tagId': tagId,
+        'reshelve': reshelve,
+      });
+
+  /// Propose existing sources for a shelf (`shelf_backfill`, 4.102.0).
+  Future<Map<String, dynamic>> requestShelfBackfill(String tagId) =>
+      _requestTask('shelf_backfill', {'tagId': tagId});
+
+  /// Propose a split of a shelf (`shelf_split`, 4.102.0).
+  Future<Map<String, dynamic>> requestShelfSplit(String tagId) =>
+      _requestTask('shelf_split', {'tagId': tagId});
+
+  /// Read a syllabus into an editable plan (`syllabus_plan`, 4.103.0).
+  Future<Map<String, dynamic>> requestSyllabusPlan(
+          String programId, String documentId) =>
+      _requestTask('syllabus_plan',
+          {'programId': programId, 'documentId': documentId});
+
+  /// Draft a reorganization of a document (`reorg_plan`, 4.103.0).
+  Future<Map<String, dynamic>> requestReorgPlan(String documentId) =>
+      _requestTask('reorg_plan', {'documentId': documentId});
 
   /// Answer a task: `apply` (with the kind's [decision]), `dismiss` or
   /// `retry`. [decision] is sent only with `apply` — the key set is closed.
@@ -371,12 +402,6 @@ class Api {
   Future<Map<String, dynamic>> updateTag(
           String tagId, Map<String, dynamic> updates) =>
       _http.post('/fn_update_tag', data: {'tagId': tagId, ...updates});
-
-  /// File the REVIEWED ids on the shelf. Only adds, and is idempotent.
-  Future<Map<String, dynamic>> applyShelfBackfill(
-          String tagId, List<String> documentIds) =>
-      _http.post('/fn_apply_shelf_backfill',
-          data: {'tagId': tagId, 'documentIds': documentIds});
 
   Future<Map<String, dynamic>> suggestTags(String purposeText) =>
       _http.post('/fn_suggest_tags', data: {'purposeText': purposeText});

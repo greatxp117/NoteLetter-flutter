@@ -2260,3 +2260,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/client_timeout_check.py --target flutter
 - notes: Done in the 5.36.0 run itself, out of queue order. `fn_delete_tag`, `fn_suggest_reshelve`, `fn_suggest_shelf_backfill`, `fn_suggest_shelf_split`, `fn_split_shelf` and `fn_suggest_syllabus_plan` are retired. No runtime path reached them since F-72, which moved each to its background task. Their six builders and budget rows are gone. The re-shelve and backfill reviews now take `stored` as required and read nothing themselves. Removed as unreachable: the live read, its failure block, its "Finding…"/"Reading…" state, the per-shelf filing and its "Filed" label, `reshelveSlice`, the `SuggestReshelve`/`SuggestBackfill`/`ApplyBackfill` seams, and `BackfillFor.created`. No visible state the app could reach changed, so there is no pair. The kit tests now mount stored proposals. Dropped with the read: the failed-read, slices-of-150 and per-shelf-retry tests. Added: a refused stored apply stays with its sentence. `applyShelfBackfill` keeps its builder (`fn_apply_shelf_backfill` is not retired) but no longer has a runtime caller.
+
+## F-137 · `applyShelfBackfill` retires, and a shelf delete can only be requestShelfDelete (5.37.0)
+- status: done 2026-10-28
+- screen: none
+- route: none
+- spec: spec/api/tags.md; spec/api/tasks.md; spec/screens/library.md §Deleting a shelf
+- web: src/api.js
+- flutter: lib/services/api.dart; lib/services/endpoint_budgets.dart; lib/pages/tags/shelf_page.dart; lib/pages/tags/shelf_sheet.dart; lib/pages/reader_page.dart; lib/pages/study/program_editor.dart; test/contract/api_requests_test.dart
+- folds: 5.37.0
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/client_timeout_check.py --target flutter; python3 ../NoteLetter-contracts/harness/confirm_check.py
+- notes: Done in the 5.37.0 run itself, out of queue order. `fn_apply_shelf_backfill` is retired (Xavier, 2026-10-28: "just retire now"). Its builder and budget row are gone; nothing called it since F-136, because the reviews file through `resolveTask`. `requestTask(kind, fields)` is now library-private `_requestTask`, with one public method per kind: `requestShelfDelete(tagId, reshelve:)`, `requestShelfBackfill`, `requestShelfSplit`, `requestSyllabusPlan`, `requestReorgPlan`. Request bodies are byte-identical. A screen cannot call `_requestTask`, so the only way to delete a shelf is `requestShelfDelete`, which confirm_check (5ab) now binds to its §18 confirm in `shelf_page.dart`. Before this, the gate's shelf-delete entry named a builder nothing called, and the real delete was ungated. Five call sites moved. `api_requests_test` dispatches `fn_request_task` cases on their `kind`, and an unknown kind is refused locally. No visible state changed, so there is no pair.

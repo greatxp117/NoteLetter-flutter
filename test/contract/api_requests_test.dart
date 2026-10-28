@@ -135,8 +135,6 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       Api.instance.setReadState(b['docId'], b['finished'] as bool),
   'fn_update_chunk_tags': (b) =>
       Api.instance.updateChunkTags(b['documentId'], _maps(b['overrides'])),
-  'fn_apply_shelf_backfill': (b) => Api.instance.applyShelfBackfill(
-      b['tagId'], (b['documentIds'] as List).cast<String>()),
   'fn_cancel_document': (b) => Api.instance.cancelDocument(b['docId']),
   // For your review (4.100.0) and the background tasks (4.101.0–4.103.0).
   // The negative cases' stray keys (`until`, `force`, an unknown kind) are
@@ -144,8 +142,19 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   // builder does not resolve on the error status.
   'fn_review_documents': (b) =>
       Api.instance.reviewDocuments(_strs(b['docIds']) ?? const []),
-  'fn_request_task': (b) => Api.instance.requestTask(
-      b['kind'] as String, Map<String, dynamic>.of(b)..remove('kind')),
+  // One public method per kind since 5.37.0 (`_requestTask` is private, so a
+  // shelf delete can only be requestShelfDelete). A kind no method sends — the
+  // unknown-kind case — is refused here, which the error path accepts.
+  'fn_request_task': (b) => switch (b['kind']) {
+        'shelf_delete' => Api.instance.requestShelfDelete(b['tagId'],
+            reshelve: b['reshelve'] as bool? ?? false),
+        'shelf_backfill' => Api.instance.requestShelfBackfill(b['tagId']),
+        'shelf_split' => Api.instance.requestShelfSplit(b['tagId']),
+        'syllabus_plan' =>
+          Api.instance.requestSyllabusPlan(b['programId'], b['documentId']),
+        'reorg_plan' => Api.instance.requestReorgPlan(b['documentId']),
+        final k => throw ArgumentError('no method sends kind $k'),
+      },
   'fn_resolve_task': (b) => Api.instance.resolveTask(
       b['taskId'] as String,
       b['action'] as String,

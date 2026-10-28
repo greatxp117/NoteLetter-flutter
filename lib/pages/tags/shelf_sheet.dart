@@ -37,7 +37,7 @@ typedef RequestBackfill = Future<String?> Function(String tagId);
 /// where the reader pressed (§14.2). Web `requestBackfill`.
 Future<String?> requestShelfBackfill(String tagId) async {
   try {
-    await Api.instance.requestTask('shelf_backfill', {'tagId': tagId});
+    await Api.instance.requestShelfBackfill(tagId);
     return null;
   } on ApiException catch (e) {
     return e.message;

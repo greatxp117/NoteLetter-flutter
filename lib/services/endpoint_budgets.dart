@@ -74,7 +74,6 @@ const Map<String, int> kEndpointDeadlineSeconds = {
   'fn_study_advance_unit': 60,
   'fn_study_programs': 60,
   'fn_submit_study_answer': 60,
-  'fn_apply_shelf_backfill': 60,
   'fn_suggest_tags': 60,
   'fn_summary_settings': 60,
   'fn_sync_settings': 60,

@@ -240,10 +240,8 @@ class _ShelfPageState extends State<ShelfPage> {
       cancelLabel: 'Keep it',
       onConfirm: () async {
         try {
-          await Api.instance.requestTask('shelf_delete', {
-            'tagId': shelf.id,
-            'reshelve': canReshelve && reshelveOn,
-          });
+          await Api.instance.requestShelfDelete(shelf.id,
+              reshelve: canReshelve && reshelveOn);
           return null;
         } on ApiException catch (e) {
           return e.message;
@@ -285,7 +283,7 @@ class _ShelfPageState extends State<ShelfPage> {
     });
     String? refused;
     try {
-      await Api.instance.requestTask('shelf_split', {'tagId': shelf.id});
+      await Api.instance.requestShelfSplit(shelf.id);
     } on ApiException catch (e) {
       refused = e.message;
     } catch (_) {
