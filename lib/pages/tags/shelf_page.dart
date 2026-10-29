@@ -312,7 +312,7 @@ class _ShelfPageState extends State<ShelfPage> {
           return const KitLoadingPage();
         }
         final shelf = tags.tags.where((t) => t.id == widget.shelfId).firstOrNull;
-        if (shelf == null) return _notFound(context);
+        if (shelf == null) return _notFound(context, tags.error);
 
         if (!_nameBound) {
           _nameBound = true;
@@ -591,16 +591,24 @@ class _ShelfPageState extends State<ShelfPage> {
     );
   }
 
-  Widget _notFound(BuildContext context) => KitPage(
+  /// INV-24: shelves we could not read say so — "may have been deleted" is a
+  /// claim about a list this page never received (web `ShelfDetail`).
+  Widget _notFound(BuildContext context, String? error) => KitPage(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             KitBackControl('All shelves', onTap: () => context.go('/shelves')),
             const SizedBox(height: 18),
-            const ChapterOpening(
-              title: 'Shelf not found',
-              standfirst: 'This shelf may have been deleted.',
-            ),
+            if (error != null)
+              KitFailureBlock(
+                sentence: 'This shelf could not be read.',
+                detail: error,
+              )
+            else
+              const ChapterOpening(
+                title: 'Shelf not found',
+                standfirst: 'This shelf may have been deleted.',
+              ),
           ],
         ),
       );
