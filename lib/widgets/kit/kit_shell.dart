@@ -521,10 +521,73 @@ class _CardsPainter extends CustomPainter {
   bool shouldRepaint(_CardsPainter old) => old.color != color;
 }
 
+/// The reference's `IcoMap` — a box over two, joined by a forked line: the
+/// shelf map's glyph (*Shelf map*, *See on map*). Material's `map` is a
+/// folded paper map, which says geography, not a graph (F-126).
+class KitMapGlyph extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const KitMapGlyph({super.key, required this.size, required this.color});
+
+  /// A sentinel for kit widgets that take an [IconData], as [KitQuill.icon].
+  static const IconData icon = IconData(0xF8F6, fontFamily: 'NoteLetterMap');
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _MapPainter(color)),
+      );
+}
+
+class _MapPainter extends CustomPainter {
+  final Color color;
+  const _MapPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.75
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    // rect x16 y16 w6 h6 rx1 · rect x2 y16 w6 h6 rx1 · rect x9 y2 w6 h6 rx1
+    for (final r in const [
+      Rect.fromLTWH(16, 16, 6, 6),
+      Rect.fromLTWH(2, 16, 6, 6),
+      Rect.fromLTWH(9, 2, 6, 6),
+    ]) {
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(r, const Radius.circular(1)), paint);
+    }
+    // M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3  M12 12V8
+    canvas.drawPath(
+        Path()
+          ..moveTo(5, 16)
+          ..lineTo(5, 13)
+          ..arcToPoint(const Offset(6, 12), radius: const Radius.circular(1))
+          ..lineTo(18, 12)
+          ..arcToPoint(const Offset(19, 13), radius: const Radius.circular(1))
+          ..lineTo(19, 16)
+          ..moveTo(12, 12)
+          ..lineTo(12, 8),
+        paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_MapPainter old) => old.color != color;
+}
+
 /// An [IconData] as a kit widget draws it: [KitQuill.icon] is the quill,
 /// [KitSparkle.icon] the reference's sparkle, [KitUploadGlyph.icon] its
 /// upload tray, [KitStackGlyph.icon] its shelf stack, [KitCardsGlyph.icon]
-/// Study's cards, any other a Material [Icon].
+/// Study's cards, [KitMapGlyph.icon] the shelf map's, any other a Material
+/// [Icon].
 class KitGlyph extends StatelessWidget {
   final IconData icon;
   final double size;
@@ -544,6 +607,8 @@ class KitGlyph extends StatelessWidget {
                     ? KitStackGlyph(size: size, color: color)
                     : icon == KitCardsGlyph.icon
                         ? KitCardsGlyph(size: size, color: color)
+                        : icon == KitMapGlyph.icon
+                        ? KitMapGlyph(size: size, color: color)
                         : KitProviderLogo.providerOf(icon) != null
                             // A vendor's mark carries its own colours.
                             ? KitProviderLogo(

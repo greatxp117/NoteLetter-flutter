@@ -21,6 +21,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 import 'kit_wait.dart';
 
@@ -187,9 +188,11 @@ class _KitButtonState extends State<KitButton> {
         fg = t.criticalText;
     }
     final quiet = widget.variant == KitButtonVariant.dangerText;
+    // Through [KitGlyph], so a ported reference glyph (the shelf map's) draws
+    // where a sentinel is passed; any Material icon is drawn as [Icon] was.
     final glyph = widget.icon == null
         ? null
-        : Icon(widget.icon, size: 14, color: fg);
+        : KitGlyph(widget.icon!, size: 14, color: fg);
 
     final button = MouseRegion(
       cursor: disabled

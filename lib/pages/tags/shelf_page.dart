@@ -364,7 +364,7 @@ class _ShelfPageState extends State<ShelfPage> {
                   // Opens the map with this shelf selected and centred. The
                   // focus rides `extra`, never the URL (INV-25b, ADR-177).
                   KitButton.ghost('See on map',
-                      icon: Icons.map_outlined,
+                      icon: KitMapGlyph.icon,
                       onPressed: () =>
                           context.go('/shelves/map', extra: shelf.id)),
                   // §Backfill review from the shelf's own page (4.83.0,

@@ -2136,6 +2136,201 @@ void main() {
     }
   });
 
+  testWidgets('shelf map composes from the kit, opens fitted, pans, pinches, '
+      'selects', (tester) async {
+    // QUEUE F-126 (5.25.0, ADR-177, kit §24). The seed holds four shelves —
+    // Baking inside Recipes since 5.28.0 (INV-33), so the map draws a
+    // Sub-shelves column — and four shelved, complete volumes (Recipes 2,
+    // Finance 1, Stories 1). Every
+    // gesture below is a REAL pointer sequence: a programmatic transform moves
+    // even a viewer that cannot be dragged, so it would prove nothing.
+    final router = await pumpApp(tester);
+    router.go('/shelves');
+    final entry = find.widgetWithText(KitButton, 'Shelf map');
+    for (var i = 0; i < 40 && entry.evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    // library.md §The shelf map — the entry point is the Shelves index's
+    // chapter-opening action, not an address a reader has to know.
+    expect(entry, findsOneWidget);
+    await tester.ensureVisible(entry);
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
+    await tester.tap(entry);
+    final viewer = find.byKey(const Key('relmap-viewer'));
+    for (var i = 0; i < 40 && viewer.evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(router.state.matchedLocation, '/shelves/map');
+
+    // Composition: the Canvas frame (§1.5), the §2.2 header, one §24 map.
+    expect(find.byType(KitCanvasPage), findsOneWidget);
+    expect(find.byType(SubScreenHeader), findsOneWidget);
+    expect(find.text('All shelves'), findsOneWidget);
+    expect(find.text('SHELF MAP · 4 SHELVES'), findsOneWidget);
+    expect(find.byType(KitRelationshipMap), findsOneWidget);
+    expect(find.text('INSPECTOR'), findsOneWidget);
+    expect(find.text('Find a shelf or volume…'), findsOneWidget);
+    // The column headers, inside the canvas.
+    expect(find.descendant(of: viewer, matching: find.text('VOLUMES')),
+        findsOneWidget);
+    expect(find.descendant(of: viewer, matching: find.text('SUB-SHELVES')),
+        findsOneWidget);
+    expect(find.descendant(of: viewer, matching: find.text('SHELVES')),
+        findsOneWidget);
+
+    // Every chip, or one kind's (`relmap-node-{kind}:{id}`).
+    Finder nodes([String kind = '']) => find.byWidgetPredicate((w) =>
+        w.key is ValueKey<String> &&
+        (w.key! as ValueKey<String>)
+            .value
+            .startsWith(kind.isEmpty ? 'relmap-node-' : 'relmap-node-$kind:'));
+    expect(nodes('shelf'), findsNWidgets(4));
+    // Shelved, complete volumes only; an unshelved one is counted, not drawn.
+    expect(nodes('volume').evaluate().length, greaterThanOrEqualTo(4));
+    final recipes =
+        find.byKey(const Key('relmap-node-shelf:seed-tag-recipes'));
+    expect(recipes, findsOneWidget);
+
+    await Scrollable.ensureVisible(tester.element(viewer), alignment: 0.0);
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    final tc = tester
+        .widget<InteractiveViewer>(viewer)
+        .transformationController!;
+    double zoom() => tc.value.getMaxScaleOnAxis();
+    Offset shift() {
+      final t = tc.value.getTranslation();
+      return Offset(t.x, t.y);
+    }
+
+    // ── opens fitted: the whole graph in the box, never above 100% ────────
+    final box = tester.getRect(viewer);
+    final fitted = zoom();
+    expect(fitted, lessThanOrEqualTo(1.0001));
+    for (final e in nodes().evaluate()) {
+      final r = tester.getRect(find.byElementPredicate((x) => x == e));
+      expect(box.inflate(1).contains(r.topLeft) &&
+              box.inflate(1).contains(r.bottomRight), isTrue,
+          reason: 'a fitted map shows every chip; $r is outside $box');
+    }
+    expect(find.text('${(fitted * 100).round()}%'), findsOneWidget);
+
+    // A point on the empty canvas: below the view controls, on no chip.
+    Offset emptyPoint() {
+      final b = tester.getRect(viewer);
+      final chips = [
+        for (final e in nodes().evaluate())
+          tester.getRect(find.byElementPredicate((x) => x == e)).inflate(16),
+      ];
+      for (var y = b.bottom - 24; y > b.top + 80; y -= 24) {
+        for (var x = b.left + 24; x < b.right - 24; x += 24) {
+          final p = Offset(x, y);
+          if (chips.every((c) => !c.contains(p))) return p;
+        }
+      }
+      fail('no empty point on the canvas');
+    }
+
+    // ── pans: a one-finger drag moves the graph, not the page ─────────────
+    final before = shift();
+    final recipesAt = tester.getCenter(recipes);
+    await tester.timedDragFrom(emptyPoint(), const Offset(-70, -50),
+        const Duration(milliseconds: 500));
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    final moved = shift() - before;
+    expect(moved.distance, greaterThan(40),
+        reason: 'a drag on the canvas pans it (it moved $moved)');
+    expect(zoom(), closeTo(fitted, 1e-6), reason: 'a pan never zooms');
+    expect(tester.getRect(viewer), box,
+        reason: 'the page scrolled instead: the viewer must win the drag');
+    expect((tester.getCenter(recipes) - recipesAt - moved).distance,
+        lessThan(1.5),
+        reason: 'the chips move with the transform');
+    expect(find.text('Open shelf'), findsNothing,
+        reason: 'a drag that moved is a pan, never a selection');
+
+    // ── pinches: two fingers spreading zoom in ────────────────────────────
+    final c = tester.getRect(viewer).center;
+    final f1 = await tester.startGesture(c - const Offset(30, 0), pointer: 41);
+    final f2 = await tester.startGesture(c + const Offset(30, 0), pointer: 42);
+    await tester.pump(const Duration(milliseconds: 16));
+    for (var i = 0; i < 12; i++) {
+      await f1.moveBy(const Offset(-6, 0));
+      await f2.moveBy(const Offset(6, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await f1.up();
+    await f2.up();
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    final pinched = zoom();
+    expect(pinched, greaterThan(fitted * 1.5),
+        reason: 'a pinch zooms ($fitted → $pinched)');
+    expect(pinched, lessThanOrEqualTo(4.0001), reason: 'zoom clamps at 4×');
+    expect(find.text('${(pinched * 100).round()}%'), findsOneWidget);
+
+    // Activating the zoom figure re-fits.
+    await tester.tap(find.text('${(pinched * 100).round()}%'));
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    expect(zoom(), closeTo(fitted, 1e-6));
+
+    // ── selects: a chip lights its path and fills the inspector ───────────
+    await tester.tap(recipes);
+    await pumpFor(tester, total: const Duration(milliseconds: 800));
+    expect(find.text('SHELF'), findsOneWidget);
+    // Read the way the arrows read: Inside, Sub-shelves, then Volumes.
+    expect(find.text('INSIDE · 0'), findsOneWidget);
+    expect(find.text('SUB-SHELVES · 1'), findsOneWidget);
+    expect(find.text('VOLUMES · 2'), findsOneWidget);
+    expect(find.widgetWithText(KitButton, 'Open shelf'), findsOneWidget);
+    expect(find.text('INSPECTOR'), findsNothing);
+
+    // A relation chip moves the selection (and centres it).
+    final pasta = find.text('Pasta Fundamentals');
+    final onCanvas =
+        find.descendant(of: viewer, matching: pasta).evaluate().toSet();
+    final relation = pasta.evaluate().where((e) => !onCanvas.contains(e));
+    expect(relation, hasLength(1), reason: 'the inspector lists Pasta');
+    // The relation row scrolls sideways (§1.4); Volumes is its third section.
+    final relationChip = find.byElementPredicate((x) => x == relation.first);
+    await tester.ensureVisible(relationChip);
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
+    await tester.tap(relationChip);
+    await pumpFor(tester, total: const Duration(milliseconds: 800));
+    expect(find.text('VOLUME'), findsOneWidget);
+    expect(find.text('ON SHELVES · 1'), findsOneWidget);
+    expect(find.widgetWithText(KitButton, 'Open in reader'), findsOneWidget);
+
+    // Activating the empty canvas clears.
+    await tester.tapAt(emptyPoint());
+    await pumpFor(tester, total: const Duration(milliseconds: 800));
+    expect(find.text('INSPECTOR'), findsOneWidget);
+    expect(find.widgetWithText(KitButton, 'Open in reader'), findsNothing);
+
+    // ── leaving, and focus on arrival ─────────────────────────────────────
+    // Re-fit first: the relation chip centred Pasta, and Recipes sits a
+    // column to its right, past a phone's canvas.
+    await tester.tap(find.textContaining(RegExp(r'^\d+%$')));
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    await tester.tap(recipes);
+    await pumpFor(tester, total: const Duration(milliseconds: 800));
+    await tester.tap(find.widgetWithText(KitButton, 'Open shelf'));
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/shelves/seed-tag-recipes');
+    final seeOnMap = find.widgetWithText(KitButton, 'See on map');
+    expect(seeOnMap, findsOneWidget);
+    await tester.ensureVisible(seeOnMap);
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
+    await tester.tap(seeOnMap);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/shelves/map');
+    // The focus rode navigation state, never the address (INV-25b).
+    expect(router.routerDelegate.currentConfiguration.uri.toString(),
+        '/shelves/map');
+    expect(find.text('SHELF'), findsOneWidget);
+    expect(find.text('VOLUMES · 2'), findsOneWidget);
+    expect(find.widgetWithText(KitButton, 'Open shelf'), findsOneWidget);
+  });
+
   testWidgets('study composes from the kit', (tester) async {
     // Screen 8/11 (QUEUE F-06). The seed holds no study program, so `/study`
     // is the EMPTY state by construction — the same state the web reference

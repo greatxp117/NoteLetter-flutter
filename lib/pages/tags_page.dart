@@ -98,7 +98,7 @@ class _ShelvesPageState extends State<ShelvesPage> {
                 actions: [
                   if (shelves.isNotEmpty)
                     KitButton.ghost('Shelf map',
-                        icon: Icons.map_outlined,
+                        icon: KitMapGlyph.icon,
                         onPressed: () => context.go('/shelves/map')),
                 ],
               ),

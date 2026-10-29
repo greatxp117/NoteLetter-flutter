@@ -67,4 +67,27 @@ void main() {
     expect(find.byType(KitStackGlyph), findsOneWidget);
     expect(Tokens.light.seal, isNotNull);
   });
+
+  // F-126 — the reference draws *Shelf map* and *See on map* with `IcoMap` (a
+  // box over two, forked); Material's `map` is a folded paper map. A button
+  // handed the sentinel must paint the port, never an empty glyph box.
+  testWidgets('a button handed the map sentinel paints the reference glyph',
+      (tester) async {
+    await _pump(
+        tester,
+        Center(
+            child: KitButton.ghost('Shelf map',
+                icon: KitMapGlyph.icon, onPressed: () {})));
+    expect(find.byType(KitMapGlyph), findsOneWidget);
+    expect(tester.getSize(find.byType(KitMapGlyph)), const Size(14, 14));
+    expect(find.byIcon(KitMapGlyph.icon), findsNothing,
+        reason: 'the sentinel is no font glyph; drawn as Icon it is a blank');
+    // Any other icon is still a Material Icon, drawn as before.
+    await _pump(
+        tester,
+        Center(
+            child: KitButton.ghost('Ask this shelf',
+                icon: Icons.forum_outlined, onPressed: () {})));
+    expect(find.byIcon(Icons.forum_outlined), findsOneWidget);
+  });
 }
