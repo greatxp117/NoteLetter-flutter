@@ -144,8 +144,9 @@ void main() {
       for (final a in page.assets.where((a) => a.isRepresentative)) {
         final e = await bridge.examine(a.localIdentifier);
         if (e.verdict != SweepVerdict.candidate) continue;
-        byKey.putIfAbsent(a.assetKey, () => []).add(a.localIdentifier);
-        nameOf[a.assetKey] = a.originalFilename;
+        final id = await bridge.identify(a.localIdentifier);
+        byKey.putIfAbsent(id.assetKey, () => []).add(a.localIdentifier);
+        nameOf[id.assetKey] = id.originalFilename;
       }
       debugPrint('sweep tray: ${byKey.length} candidate keys, '
           '${byKey.values.fold<int>(0, (n, l) => n + l.length)} candidate photos: '

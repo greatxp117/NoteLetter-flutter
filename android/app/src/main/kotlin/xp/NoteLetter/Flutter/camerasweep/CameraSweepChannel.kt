@@ -145,15 +145,22 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
                 @Suppress("UNCHECKED_CAST")
                 upload(call.method, (call.arguments as? Map<String, Any?>) ?: emptyMap(), result)
             }
-            "fetchImages", "examine", "renderedJpeg", "thumbnail" -> {
+            "fetchImages", "identify", "examine", "renderedJpeg", "thumbnail",
+            "changeToken", "changesSince" -> {
                 val a = access(context)
                 refusal(a)?.let { return result.error(it, "photo library access is $a", null) }
                 @Suppress("UNCHECKED_CAST")
                 val args = (call.arguments as? Map<String, Any?>) ?: emptyMap()
                 when (call.method) {
                     "fetchImages" -> fetchImages(args, result)
+                    "identify" -> identify(args, result)
                     "examine" -> examine(args, result)
                     "thumbnail" -> thumbnail(args, result)
+                    "changeToken" -> io.execute {
+                        val token = runCatching { LibraryHistory.token(context) }.getOrNull()
+                        main.post { result.success(token) }
+                    }
+                    "changesSince" -> changesSince(args, result)
                     else -> renderedJpeg(args, result)
                 }
             }
@@ -236,7 +243,11 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
         if (Build.VERSION.SDK_INT >= 29) add(MediaStore.Images.Media.RELATIVE_PATH)
     }.toTypedArray()
 
-    /** Still images, newest first, `since` inclusive and `until` exclusive. */
+    /**
+     * Still images, newest first, `since` inclusive and `until` exclusive, as
+     * listings with no key (5.40.0). With `localIdentifiers`, only those rows
+     * (a pass from a change token), in the same window and order.
+     */
     private fun fetchImages(args: Map<String, Any?>, result: MethodChannel.Result) {
         val offset = (args["offset"] as? Number)?.toInt() ?: 0
         val limit = (args["limit"] as? Number)?.toInt() ?: 0
@@ -245,60 +256,143 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
         }
         val since = (args["sinceMs"] as? Number)?.toLong()
         val until = (args["untilMs"] as? Number)?.toLong()
+        val ids = (args["localIdentifiers"] as? List<*>)?.mapNotNull { (it as? String)?.toLongOrNull() }
         io.execute {
             val where = mutableListOf<String>()
             val params = mutableListOf<String>()
             since?.let { where += "${MediaStore.Images.Media.DATE_TAKEN} >= ?"; params += "$it" }
             until?.let { where += "${MediaStore.Images.Media.DATE_TAKEN} < ?"; params += "$it" }
             try {
-                // Pending and trashed rows are excluded by MediaStore by default.
-                context.contentResolver.query(
-                    images, columns(),
-                    where.joinToString(" AND ").ifEmpty { null },
-                    params.toTypedArray().ifEmpty { null },
-                    "${MediaStore.Images.Media.DATE_TAKEN} DESC, ${MediaStore.Images.Media._ID} DESC",
-                ).use { c ->
-                    val total = c?.count ?: 0
-                    val assets = mutableListOf<Map<String, Any?>>()
-                    if (c != null && offset < total && c.moveToPosition(offset)) {
-                        do {
-                            assets += describe(c)
-                        } while (assets.size < limit && c.moveToNext())
-                    }
-                    main.post { result.success(mapOf("total" to total, "assets" to assets)) }
+                val answer = if (ids == null) {
+                    pageOfLibrary(where, params, offset, limit)
+                } else {
+                    pageOfRows(ids, where, params, offset, limit)
                 }
+                main.post { result.success(answer) }
             } catch (e: Exception) {
                 main.post { result.error("queryFailed", e.message ?: e.javaClass.simpleName, null) }
             }
         }
     }
 
-    /** One row, as iOS's `describe`: metadata only, no pixel read. */
-    private fun describe(c: android.database.Cursor): Map<String, Any?> {
-        fun str(col: String) = c.getColumnIndex(col).takeIf { it >= 0 && !c.isNull(it) }?.let(c::getString)
-        fun long(col: String) = c.getColumnIndex(col).takeIf { it >= 0 && !c.isNull(it) }?.let(c::getLong)
-        val id = long(MediaStore.Images.Media._ID) ?: 0L
-        val taken = long(MediaStore.Images.Media.DATE_TAKEN)
-        val width = long(MediaStore.Images.Media.WIDTH)?.toInt() ?: 0
-        val height = long(MediaStore.Images.Media.HEIGHT)?.toInt() ?: 0
-        val name = str(MediaStore.Images.Media.DISPLAY_NAME)
-        val relative = if (Build.VERSION.SDK_INT >= 29) str(MediaStore.Images.Media.RELATIVE_PATH) else null
-        val bucket = str(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+    private val newestFirst =
+        "${MediaStore.Images.Media.DATE_TAKEN} DESC, ${MediaStore.Images.Media._ID} DESC"
+
+    private fun pageOfLibrary(where: List<String>, params: List<String>, offset: Int, limit: Int): Map<String, Any?> =
+        // Pending and trashed rows are excluded by MediaStore by default.
+        context.contentResolver.query(
+            images, columns(),
+            where.joinToString(" AND ").ifEmpty { null },
+            params.toTypedArray().ifEmpty { null },
+            newestFirst,
+        ).use { c ->
+            val total = c?.count ?: 0
+            val assets = mutableListOf<Map<String, Any?>>()
+            if (c != null && offset < total && c.moveToPosition(offset)) {
+                do {
+                    assets += listing(c)
+                } while (assets.size < limit && c.moveToNext())
+            }
+            mapOf("total" to total, "assets" to assets)
+        }
+
+    /**
+     * The named rows, read in chunks (a query's `?` arguments are bounded) and
+     * put back in [newestFirst]'s order: DATE_TAKEN descending with an undated
+     * row last, as SQLite sorts a NULL, then `_ID` descending.
+     */
+    private fun pageOfRows(
+        ids: List<Long>, where: List<String>, params: List<String>, offset: Int, limit: Int,
+    ): Map<String, Any?> {
+        val rows = mutableListOf<Map<String, Any?>>()
+        for (chunk in ids.distinct().chunked(500)) {
+            val inIds = "${MediaStore.Images.Media._ID} IN (${chunk.joinToString(",") { "?" }})"
+            context.contentResolver.query(
+                images, columns(),
+                (where + inIds).joinToString(" AND "),
+                (params + chunk.map { "$it" }).toTypedArray(),
+                null,
+            )?.use { c -> while (c.moveToNext()) rows += listing(c) }
+        }
+        val sorted = rows.sortedWith(
+            compareByDescending<Map<String, Any?>> { it["creationSeconds"] as Double? ?: Double.NEGATIVE_INFINITY }
+                .thenByDescending { (it["localIdentifier"] as String).toLong() },
+        )
+        return mapOf("total" to sorted.size, "assets" to sorted.drop(offset).take(limit))
+    }
+
+    /** One row, as iOS's `listing`: what deciding whether to look at it needs. */
+    private fun listing(c: android.database.Cursor): Map<String, Any?> {
+        val r = RowMetadata(c)
         return mapOf(
-            "localIdentifier" to "$id",
-            "assetKey" to AssetIdentity.assetKey(taken, width, height, name),
-            "creationSeconds" to taken?.let { it / 1000.0 },
-            "pixelWidth" to width,
-            "pixelHeight" to height,
-            "originalFilename" to name,
-            "isScreenshot" to AssetIdentity.isScreenshot(relative, bucket),
+            "localIdentifier" to "${r.id}",
+            "creationSeconds" to r.taken?.let { it / 1000.0 },
+            "pixelWidth" to r.width,
+            "pixelHeight" to r.height,
+            "isScreenshot" to AssetIdentity.isScreenshot(r.relative, r.bucket),
             "isRepresentative" to true,
         )
     }
 
+    /** One row, as iOS's `describe`: the listing, the key and the name. */
+    private fun describe(c: android.database.Cursor): Map<String, Any?> {
+        val r = RowMetadata(c)
+        return listing(c) + mapOf(
+            "assetKey" to r.key,
+            "originalFilename" to r.name,
+        )
+    }
+
+    /** A row's columns, read once; metadata only, no pixel read. */
+    private class RowMetadata(c: android.database.Cursor) {
+        private fun str(c: android.database.Cursor, col: String) =
+            c.getColumnIndex(col).takeIf { it >= 0 && !c.isNull(it) }?.let(c::getString)
+        private fun long(c: android.database.Cursor, col: String) =
+            c.getColumnIndex(col).takeIf { it >= 0 && !c.isNull(it) }?.let(c::getLong)
+
+        val id = long(c, MediaStore.Images.Media._ID) ?: 0L
+        val taken = long(c, MediaStore.Images.Media.DATE_TAKEN)
+        val width = long(c, MediaStore.Images.Media.WIDTH)?.toInt() ?: 0
+        val height = long(c, MediaStore.Images.Media.HEIGHT)?.toInt() ?: 0
+        val name = str(c, MediaStore.Images.Media.DISPLAY_NAME)
+        val relative = if (Build.VERSION.SDK_INT >= 29) str(c, MediaStore.Images.Media.RELATIVE_PATH) else null
+        val bucket = str(c, MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+
+        /** The INV-14 key: derived only when asked (5.40.0). */
+        val key: String get() = AssetIdentity.assetKey(taken, width, height, name)
+    }
+
+    /** A candidate's key and name, with the rest of its listing (5.40.0). */
+    private fun identify(args: Map<String, Any?>, result: MethodChannel.Result) {
+        val id = (args["localIdentifier"] as? String)?.toLongOrNull()
+            ?: return result.error("badArgs", "localIdentifier is required", null)
+        io.execute {
+            val found = runCatching {
+                context.contentResolver.query(ContentUris.withAppendedId(images, id), columns(), null, null, null)
+                    ?.use { c -> if (c.moveToFirst()) describe(c) else null }
+            }.getOrNull()
+            main.post {
+                if (found == null) result.error("notFound", "no asset $id", null) else result.success(found)
+            }
+        }
+    }
+
+    /** What changed since a token, or null when only a walk will do. */
+    private fun changesSince(args: Map<String, Any?>, result: MethodChannel.Result) {
+        val token = (args["token"] as? String)?.takeIf { it.isNotEmpty() }
+            ?: return result.error("badArgs", "token is required", null)
+        io.execute {
+            val changes = runCatching { LibraryHistory.changes(context, token) }.getOrNull()
+            main.post { result.success(changes) }
+        }
+    }
+
     // ── one row ────────────────────────────────────────────────────────────
 
-    private class Row(val uri: Uri, val screenshot: Boolean, val orientation: Int, val key: String)
+    private class Row(val uri: Uri, val screenshot: Boolean, val orientation: Int, private val metadata: RowMetadata) {
+        /** Only the rendered file's name needs it. */
+        val key: String get() = metadata.key
+    }
 
     private fun row(args: Map<String, Any?>, result: MethodChannel.Result): Row? {
         val id = (args["localIdentifier"] as? String)?.toLongOrNull()
@@ -311,10 +405,10 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
         val found = runCatching {
             context.contentResolver.query(uri, cols, null, null, null)?.use { c ->
                 if (!c.moveToFirst()) return@use null
-                val d = describe(c)
+                val m = RowMetadata(c)
                 val o = c.getColumnIndex(MediaStore.Images.Media.ORIENTATION)
-                Row(uri, d["isScreenshot"] as Boolean,
-                    if (o >= 0 && !c.isNull(o)) c.getInt(o) else 0, d["assetKey"] as String)
+                Row(uri, AssetIdentity.isScreenshot(m.relative, m.bucket),
+                    if (o >= 0 && !c.isNull(o)) c.getInt(o) else 0, m)
             }
         }.getOrNull()
         if (found == null) result.error("notFound", "no asset $id", null)

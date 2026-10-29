@@ -42,12 +42,15 @@ final class CameraSweepBridgeTests: XCTestCase {
 
     private static let selector = NSSelectorFromString("assetResourcesForAsset:")
     private static var original: IMP?
+    /// Every `assetResources(for:)` the code under test made.
+    private static var resourceReads = 0
 
     override class func setUp() {
         super.setUp()
         let method = class_getClassMethod(PHAssetResource.self, selector)!
         let fake: @convention(block) (AnyObject, PHAsset) -> NSArray = { _, asset in
-            ((asset as? FakeAsset)?.resources ?? []) as NSArray
+            resourceReads += 1
+            return ((asset as? FakeAsset)?.resources ?? []) as NSArray
         }
         original = method_setImplementation(method, imp_implementationWithBlock(fake))
     }
@@ -126,6 +129,31 @@ final class CameraSweepBridgeTests: XCTestCase {
         let undated = CameraSweepChannel.describe(asset(nil, 1, 1, []))
         XCTAssertTrue(undated["creationSeconds"] is NSNull)
         XCTAssertTrue(undated["originalFilename"] is NSNull)
+    }
+
+    /// 5.40.0 (feature spec §4): a listing derives nothing — no resource
+    /// lookup, no key — because the ledger skips most listed assets. `describe`
+    /// is the listing plus the key and the name.
+    func testAListingReadsNoResourceAndCarriesNoKey() {
+        let a = asset(1700000000.5, 1170, 2532, [(.photo, "IMG_1.PNG")])
+        Self.resourceReads = 0
+        let l = CameraSweepChannel.listing(a)
+        XCTAssertEqual(Self.resourceReads, 0)
+        XCTAssertEqual(Set(l.keys), ["localIdentifier", "creationSeconds", "pixelWidth",
+                                     "pixelHeight", "isScreenshot", "isRepresentative"])
+        let d = CameraSweepChannel.describe(a)
+        XCTAssertGreaterThan(Self.resourceReads, 0)
+        XCTAssertEqual(Set(d.keys), Set(l.keys).union(["assetKey", "originalFilename"]))
+        for (key, value) in l {
+            XCTAssertEqual("\(d[key]!)", "\(value)", key)
+        }
+    }
+
+    /// A change token that cannot be read is a walk of the whole library,
+    /// answered before Photos is asked anything.
+    func testAnUnreadableTokenIsAWalk() {
+        XCTAssertNil(LibraryHistory.changes(since: "not base64 !"))
+        XCTAssertNil(LibraryHistory.changes(since: Data("junk".utf8).base64EncodedString()))
     }
 
     /// Feature spec §1: partial access is refused, not silently tolerated.

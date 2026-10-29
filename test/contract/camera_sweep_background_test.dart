@@ -105,7 +105,7 @@ void main() {
       var passDone = false;
       final pass = svc.sweep().whenComplete(() => passDone = true);
       await _until(() => ep.uploader.starts.isNotEmpty, 'the hand-off');
-      expect(ledger.verdict('p1'), isNull, reason: 'handed off is not landed');
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting, reason: 'handed off is not landed');
       expect(svc.ingestedThisSession, 0);
       expect(svc.uploadsInFlight, 1);
       await _settle();
@@ -143,7 +143,7 @@ void main() {
       await _settle();
       expect(settled, isFalse);
       expect(svc.candidates, hasLength(1), reason: 'not in yet: the card stays (D5)');
-      expect(ledger.verdict('p1'), isNull);
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting);
       ep.uploader.landAll();
       await add;
       expect(svc.candidates, isEmpty);
@@ -172,8 +172,8 @@ void main() {
         await svc.approve(svc.candidates.single);
         expect(svc.candidateErrors['p1'], sentence, reason: '$fail');
         expect(svc.candidates, hasLength(1));
-        expect(ledger.verdict('p1'), isNull,
-            reason: 'nothing recorded: the next pass re-requests a link');
+        expect(ledger.verdict('p1'), LedgerVerdict.waiting,
+            reason: 'not in: the next pass re-requests a link');
         expect(svc.ingestedThisSession, 0);
         await _until(() => ep.uploader.acknowledged.isNotEmpty, 'the acknowledgement');
         expect(ep.uploader.acknowledged, ['u1'], reason: 'a failure is recorded too');
@@ -237,7 +237,7 @@ void main() {
       expect(svc.candidateErrors['p1'], isNotNull,
           reason: 'S2: a fresh session with no link is refused');
       expect(ep.uploader.discarded, ['u1']);
-      expect(ledger.verdict('p1'), isNull);
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting);
     });
 
     test('an upload the system will not take keeps the card, and records nothing',
@@ -247,7 +247,7 @@ void main() {
       ep.uploader.refuseStart = true;
       await svc.approve(svc.candidates.single);
       expect(svc.candidateErrors['p1'], 'not staged: u1');
-      expect(ledger.verdict('p1'), isNull);
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting);
       expect(svc.uploadsInFlight, 0);
       expect(ep.uploader.discarded, ['u1']);
     });
@@ -267,7 +267,7 @@ void main() {
       expect(ep.uploader.waiting, hasLength(1));
 
       final ledger2 = await SweepLedger.load(store);
-      expect(ledger2.verdict('p1'), isNull);
+      expect(ledger2.verdict('p1'), LedgerVerdict.waiting);
       final next = CameraSweepService(
           bridge: bridge, ledger: ledger2, endpoints: ep, uploader: ep.uploader);
       await next.attachUploads();
@@ -301,7 +301,7 @@ void main() {
       expect(bridge.examinedIds, ['p2']);
       expect(pass.inFlight, 1);
       expect(ep.sessions.map((s) => s.assetKey), [bridge.assets[1].assetKey]);
-      expect(ledger.verdict('p1'), isNull, reason: 'recorded when ITS result comes back');
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting, reason: 'waiting (5.40.0); ingested when ITS result comes back');
       ep.uploader.elsewhere.clear();
       ep.uploader.resultFromEarlierLaunch(const SweepUploadResult(
           uploadId: 'old', localIdentifier: 'p1', assetKey: 'v1:x', ok: true, statusCode: 200));
@@ -365,7 +365,7 @@ void main() {
       expect(ep.sessions, isEmpty, reason: 'told to stop: no document is made');
       expect(ep.uploader.discarded, ['u1']);
       expect(ep.uploader.stagedNotStarted, isEmpty);
-      expect(ledger.verdict('p1'), isNull);
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting);
       expect(ledger.verdict('p2'), isNull, reason: 'the pass stopped at the next photo');
       expect(bridge.examinedIds, ['p1']);
       expect(p.ingested, 0);
@@ -389,12 +389,12 @@ void main() {
       expect(ep.uploader.starts, hasLength(1),
           reason: 'the session that was opened got its upload — no empty document');
       expect(ep.sessions, hasLength(1), reason: 'and no other session opened');
-      expect(ledger.verdict('p1'), isNull, reason: 'handed off is not landed');
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting, reason: 'handed off is not landed');
       final p = await pass;
       expect(p.uploading, 1);
       // The upload outlives the pass that started it, and is recorded when it lands.
       ep.uploader.landAll();
-      await _until(() => ledger.verdict('p1') != null, 'the landing');
+      await _until(() => ledger.verdict('p1') == LedgerVerdict.ingested, 'the landing');
       expect(ledger.verdict('p1'), LedgerVerdict.ingested);
       expect(ledger.verdict('p2'), isNull);
     });
@@ -409,8 +409,8 @@ void main() {
       final t = Stopwatch()..start();
       await svc.expire(grace: const Duration(milliseconds: 80));
       expect(t.elapsedMilliseconds, lessThan(1000));
-      expect(ledger.verdict('p1'), isNull,
-          reason: 'not recorded: the next pass asks again, and the replay hands back '
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting,
+          reason: 'not in: the next pass asks again, and the replay hands back '
               'the link (spec §6)');
     });
 
@@ -452,7 +452,7 @@ void main() {
       final p = await pass.timeout(const Duration(seconds: 2));
       expect((p.uploading, p.ingested), (1, 0));
       ep.uploader.landAll();
-      await _until(() => ledger.verdict('p1') != null, 'the landing');
+      await _until(() => ledger.verdict('p1') == LedgerVerdict.ingested, 'the landing');
       expect(svc.ingestedThisSession, 1);
     });
   });
@@ -568,7 +568,7 @@ void main() {
       await run.timeout(const Duration(seconds: 2));
       expect(r.endpoints.sessions, hasLength(1));
       expect(r.endpoints.uploader.starts, hasLength(1), reason: 'its upload went');
-      expect(r.host.ledger!.verdict('p1'), isNull);
+      expect(r.host.ledger!.verdict('p1'), LedgerVerdict.waiting);
       r.host.kick();
       await _settle();
       expect(r.endpoints.sessions, hasLength(1), reason: 'halted until the app is back');

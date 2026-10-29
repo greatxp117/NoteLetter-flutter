@@ -4,6 +4,7 @@
 // CameraSweepAPI / CameraSweepUploader (NoteLetter 910864a) and their tests
 // (OneBadRowTests, CameraSweepFailureTests, ResponseMappingTests). The
 // request itself is driven against the fixtures by api_requests_test.dart.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -15,6 +16,7 @@ import 'package:flutter_app/services/camera_sweep_bridge.dart';
 import 'package:flutter_app/services/camera_sweep_service.dart';
 import 'package:flutter_app/services/firestore_service.dart' show CaptureMatch;
 import 'package:flutter_app/services/sweep_ledger.dart';
+import 'package:flutter_app/services/sweep_uploader.dart';
 import 'package:flutter_app/services/sweep_words.dart';
 
 import 'fixtures.dart';
@@ -24,13 +26,13 @@ void main() {
   // ── The ledger ─────────────────────────────────────────────────────────────
 
   group('ledger', () {
-    test('starts empty: off, Review, 90 days back, no cursor, no verdicts', () async {
+    test('starts empty: off, Review, 90 days back, no change mark, no verdicts', () async {
       final l = await SweepLedger.load(MemoryLedgerStore(),
           now: () => DateTime(2026, 10, 18, 12, 30));
       expect(l.enabled, isFalse);
       expect(l.mode, SweepMode.review);
       expect(l.backfillStart, DateTime(2026, 7, 20, 12, 30));
-      expect(l.cursor, isNull);
+      expect(l.changeMark, isNull);
       expect(l.backfillComplete, isFalse);
       expect(l.verdicts, isEmpty);
     });
@@ -45,16 +47,18 @@ void main() {
       expect(delegate, contains('"$sweepAppGroup"'));
     });
 
-    test('what it writes it reads back, all four verdicts, in Swift\'s shape', () async {
+    test('what it writes it reads back, all five verdicts, in Swift\'s shape', () async {
       final store = MemoryLedgerStore();
       final l = await SweepLedger.load(store);
       await l.record(LedgerVerdict.ingested, 'a');
       await l.record(LedgerVerdict.dismissed, 'b');
       await l.record(const LedgerVerdict.noText(3), 'c');
       await l.record(LedgerVerdict.deferredNotLocal, 'd');
+      await l.record(LedgerVerdict.waiting, 'e');
       await l.setEnabled(true);
       await l.setMode(SweepMode.automatic);
-      await l.setCursor(DateTime.utc(2026, 10, 1));
+      const mark = ChangeMark(token: 'tok', prefilterVersion: 1, backfillStartMs: 1700000000000);
+      await l.setChangeMark(mark);
       await l.setBackfillComplete(true);
       expect(jsonDecode(store.values[SweepLedger.kVerdicts] as String), {
         'a': {'ingested': {}},
@@ -63,13 +67,13 @@ void main() {
           'noText': {'prefilterVersion': 3}
         },
         'd': {'deferredNotLocal': {}},
+        'e': {'waiting': {}},
       });
       final again = await SweepLedger.load(store);
       expect(again.verdicts, l.verdicts);
       expect(again.enabled, isTrue);
       expect(again.mode, SweepMode.automatic);
-      expect(again.cursor!.isAtSameMomentAs(DateTime.utc(2026, 10, 1)), isTrue,
-          reason: '${again.cursor}');
+      expect(again.changeMark, mark);
       expect(again.backfillComplete, isTrue);
     });
 
@@ -113,15 +117,18 @@ void main() {
       await l.record(LedgerVerdict.dismissed, 'x');
       await l.record(const LedgerVerdict.noText(1), 'n');
       await l.record(LedgerVerdict.deferredNotLocal, 'd');
+      await l.record(LedgerVerdict.waiting, 'w');
       bool needs(String id, int v) => l.needsExamination(id, prefilterVersion: v);
       expect(needs('i', 1), isFalse);
       expect(needs('x', 1), isFalse);
       expect(needs('n', 1), isFalse, reason: 'same pre-filter: it stands');
       expect(needs('n', 2), isTrue, reason: 'a better pre-filter revisits it');
       expect(needs('d', 1), isTrue, reason: 'deferred is always retried');
+      expect(needs('w', 1), isTrue, reason: 'waiting decides nothing');
       expect(needs('new', 1), isTrue);
       expect(l.ingestedCount, 1);
       expect(l.deferredCount, 1);
+      expect(l.owedAnotherLook, {'d', 'w'});
     });
 
     test('writes before it moves: a failed write leaves the state as stored', () async {
@@ -130,22 +137,32 @@ void main() {
       store.failWrites = true;
       await expectLater(l.record(LedgerVerdict.ingested, 'a'), throwsStateError);
       await expectLater(l.setEnabled(true), throwsStateError);
-      await expectLater(l.setCursor(DateTime.utc(2026)), throwsStateError);
+      await expectLater(
+          l.setChangeMark(const ChangeMark(token: 't', prefilterVersion: 1, backfillStartMs: 0)),
+          throwsStateError);
       expect(l.verdict('a'), isNull);
       expect(l.enabled, isFalse);
-      expect(l.cursor, isNull);
+      expect(l.changeMark, isNull);
+      store.failWrites = false;
+      await l.record(LedgerVerdict.ingested, 'b');
+      expect(l.verdict('b'), LedgerVerdict.ingested,
+          reason: 'a failed write fails its caller, never the writes after it');
     });
 
-    test('reset forgets verdicts and progress, keeps the setup', () async {
-      final l = await SweepLedger.load(MemoryLedgerStore());
+    test('reset forgets verdicts, progress, the change mark and the old cursor', () async {
+      final store = MemoryLedgerStore({SweepLedger.kRetiredCursor: 1700000000000});
+      final l = await SweepLedger.load(store);
       await l.setEnabled(true);
       await l.setMode(SweepMode.automatic);
       await l.record(LedgerVerdict.ingested, 'a');
-      await l.setCursor(DateTime.utc(2026));
+      await l.setChangeMark(const ChangeMark(token: 't', prefilterVersion: 1, backfillStartMs: 0));
       await l.setBackfillComplete(true);
       await l.reset();
       expect(l.verdicts, isEmpty);
-      expect(l.cursor, isNull);
+      expect(l.changeMark, isNull);
+      expect(store.values.containsKey(SweepLedger.kChangeMark), isFalse);
+      expect(store.values.containsKey(SweepLedger.kRetiredCursor), isFalse,
+          reason: 'the cursor an older build wrote goes too (5.40.0)');
       expect(l.backfillComplete, isFalse);
       expect(l.enabled, isTrue);
       expect(l.mode, SweepMode.automatic);
@@ -292,10 +309,13 @@ void main() {
       expect(ep.puts, isEmpty);
       expect(ledger.verdict('n1'), const LedgerVerdict.noText(1));
       expect(ledger.verdict('d1'), LedgerVerdict.deferredNotLocal);
-      expect(ledger.verdict('p1'), isNull, reason: 'a tray card has no verdict yet');
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting,
+          reason: 'a tray card waits: decided nothing, found again (5.40.0)');
       expect(ledger.backfillComplete, isTrue, reason: 'ran out before the cap');
-      expect(ledger.cursor,
-          DateTime.fromMicrosecondsSinceEpoch(1759309200 * 1000000, isUtc: true));
+      expect(bridge.identifiedIds, ['p1', 'p2'],
+          reason: 'only a candidate\'s key is read (spec §4, 5.40.0)');
+      expect(bridge.fetchedIds, [null], reason: 'the whole library: no history here');
+      expect(pass.fromChangeToken, isFalse);
       expect(pass.handled, 4);
       expect((pass.toTray, pass.noText, pass.deferred), (2, 1, 1));
     });
@@ -381,7 +401,7 @@ void main() {
       expect(ep.puts, isEmpty);
       expect(svc.candidates.length, 2);
       expect(svc.candidateErrors['p1'], DedupeUnsupported.message);
-      expect(ledger.verdict('p1'), isNull);
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting, reason: 'not in: still a card');
     });
 
     test('one refused photo keeps its card and the server\'s sentence', () async {
@@ -407,7 +427,8 @@ void main() {
       ep.putFailsWith = 403;
       await svc.sweep();
       await svc.approveAll();
-      expect(ledger.verdict('p1'), isNull, reason: 'the next pass re-requests a link');
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting,
+          reason: 'not in: the next pass re-requests a link');
       expect(svc.candidateErrors['p1'],
           'A photo’s upload link expired before the transfer finished. '
           'The next sweep starts it again.');
@@ -421,7 +442,7 @@ void main() {
       };
       await svc.sweep();
       await svc.approveAll();
-      expect(ledger.verdict('p1'), isNull);
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting);
       expect(svc.candidateErrors['p1'], isNotNull);
       expect(svc.errorStoppedSweep, isFalse);
     });
@@ -506,7 +527,7 @@ void main() {
       final first = await svc.sweep();
       expect(first.handled, CameraSweepService.backfillBatchLimit);
       expect(ledger.backfillComplete, isFalse, reason: 'something older is waiting');
-      expect(ledger.cursor, assets[199].creationDate);
+      expect(bridge.identifiedIds, isEmpty, reason: 'no candidate, so no key read');
       final second = await svc.sweep();
       expect(second.handled, 50);
       expect(second.settled, 200);
@@ -569,6 +590,229 @@ void main() {
     });
   });
 
+  // ── 5.40.0: a pass reads only what changed (ADR-195, spec §7) ────────────
+
+  group('pass from a change token', () {
+    const noText = SweepVerdict.noText;
+
+    Future<(CameraSweepService, SweepLedger, FakeBridge, FakeEndpoints, MemoryLedgerStore)>
+        history(List<SweepAsset> assets,
+            {Map<String, SweepVerdict>? verdicts, MemoryLedgerStore? store}) async {
+      final r = await rig(assets, verdicts: verdicts ?? {}, store: store);
+      r.$3.keepsHistory = true;
+      return r;
+    }
+
+    test('a walk that finished leaves a mark; then nothing changed is nothing read', () async {
+      final (svc, ledger, bridge, _, _) =
+          await history([asset('n1'), asset('n2')], verdicts: {'n1': noText, 'n2': noText});
+      final first = await svc.sweep();
+      expect(first.fromChangeToken, isFalse);
+      expect(ledger.changeMark,
+          ChangeMark(token: 'g0', prefilterVersion: 1,
+              backfillStartMs: DateTime.utc(2020).millisecondsSinceEpoch));
+      bridge.examinedIds.clear();
+      bridge.fetchedIds.clear();
+      final second = await svc.sweep();
+      expect(second.fromChangeToken, isTrue);
+      expect(bridge.changesAsked, ['g0']);
+      expect(bridge.fetchedIds, isEmpty, reason: 'nothing changed and nothing owed: no listing');
+      expect(bridge.examinedIds, isEmpty);
+      expect(second.settled, 0, reason: 'a settled photo is not even listed');
+    });
+
+    test('a new photo is the only one listed, examined and identified', () async {
+      final (svc, ledger, bridge, _, _) =
+          await history([asset('n1'), asset('n2')], verdicts: {'n1': noText, 'n2': noText});
+      await svc.sweep();
+      bridge.take(asset('p9', seconds: 1759572000));
+      bridge.examinedIds.clear();
+      final pass = await svc.sweep();
+      expect(pass.fromChangeToken, isTrue);
+      expect(bridge.fetchedIds.last, ['p9']);
+      expect(bridge.examinedIds, ['p9']);
+      expect(bridge.identifiedIds, ['p9']);
+      expect(svc.candidates.map((a) => a.localIdentifier), ['p9']);
+      expect(ledger.changeMark!.token, 'g1');
+    });
+
+    test('a photo taken during a walk is read by the next pass, never skipped', () async {
+      final (svc, ledger, bridge, _, _) = await history([asset('n1')], verdicts: {'n1': noText});
+      final gate = Completer<void>();
+      bridge.examineGate = gate.future;
+      final walking = svc.sweep();
+      await Future<void>.delayed(Duration.zero);
+      bridge.take(asset('p9', seconds: 1759572000));
+      gate.complete();
+      await walking;
+      bridge.examineGate = null;
+      expect(ledger.changeMark!.token, 'g0', reason: 'read BEFORE the walk');
+      final next = await svc.sweep();
+      expect(next.fromChangeToken, isTrue);
+      expect(bridge.examinedIds, contains('p9'));
+    });
+
+    test('a capped walk leaves no mark; the walk that finishes does', () async {
+      final assets = [
+        for (var i = 0; i < 250; i++) asset('a$i', seconds: 1759568400.0 - i * 60)
+      ];
+      final (svc, ledger, _, _, _) = await history(assets,
+          verdicts: {for (final a in assets) a.localIdentifier: noText});
+      await svc.sweep();
+      expect(ledger.changeMark, isNull, reason: 'fifty photos were never reached');
+      final second = await svc.sweep();
+      expect(second.fromChangeToken, isFalse);
+      expect(ledger.changeMark, isNotNull);
+    });
+
+    test('a stopped pass keeps the mark it had, so the changes are read again', () async {
+      final (svc, ledger, bridge, _, _) = await history([asset('n1')], verdicts: {'n1': noText});
+      await svc.sweep();
+      bridge.take(asset('p8', seconds: 1759571000));
+      bridge.take(asset('p9', seconds: 1759572000));
+      final gate = Completer<void>();
+      bridge.examineGate = gate.future;
+      final stopped = svc.sweep();
+      await Future<void>.delayed(Duration.zero);
+      svc.stop();
+      gate.complete();
+      await stopped;
+      bridge.examineGate = null;
+      expect(ledger.changeMark!.token, 'g0', reason: 'the stopped pass never reached p8');
+      bridge.examinedIds.clear();
+      final next = await svc.sweep();
+      expect(next.fromChangeToken, isTrue);
+      expect(bridge.examinedIds, ['p8'], reason: 'p9 is already in the tray');
+      expect(svc.candidates.map((a) => a.localIdentifier).toSet(), {'p8', 'p9'});
+      expect(ledger.changeMark!.token, 'g2');
+    });
+
+    test('a relaunch forgets the tray; a pass from the token finds the card again', () async {
+      final store = MemoryLedgerStore();
+      final (svc, ledger, bridge, ep, _) =
+          await history([asset('p1'), asset('n1')], verdicts: {'n1': noText}, store: store);
+      await svc.sweep();
+      expect(svc.candidates, hasLength(1));
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting);
+      final relaunched = CameraSweepService(
+          bridge: bridge,
+          ledger: await SweepLedger.load(store),
+          endpoints: ep,
+          uploader: ep.uploader);
+      final pass = await relaunched.sweep();
+      expect(pass.fromChangeToken, isTrue);
+      expect(bridge.fetchedIds.last, ['p1'], reason: 'waiting: owed another look');
+      expect(relaunched.candidates.map((a) => a.localIdentifier), ['p1']);
+    });
+
+    test('an upload that failed is offered again by a pass from the token', () async {
+      final (svc, ledger, bridge, ep, _) = await history([asset('n1')], verdicts: {'n1': noText});
+      await ledger.setMode(SweepMode.automatic);
+      await svc.sweep();
+      bridge.take(asset('p9', seconds: 1759572000));
+      ep.putFailsWith = 500;
+      final failed = await svc.sweep();
+      expect(failed.fromChangeToken, isTrue);
+      expect(failed.failed.keys, ['p9']);
+      expect(ledger.verdict('p9'), LedgerVerdict.waiting);
+      ep.putFailsWith = null;
+      final again = await svc.sweep();
+      expect(again.fromChangeToken, isTrue);
+      expect(again.ingested, 1);
+      expect(ledger.verdict('p9'), LedgerVerdict.ingested);
+    });
+
+    test('a deferred photo is read again, changed or not', () async {
+      final (svc, ledger, bridge, _, _) =
+          await history([asset('d1')], verdicts: {'d1': SweepVerdict.notLocallyAvailable});
+      await svc.sweep();
+      expect(ledger.verdict('d1'), LedgerVerdict.deferredNotLocal);
+      bridge.verdicts['d1'] = noText; // it finished downloading
+      final pass = await svc.sweep();
+      expect(pass.fromChangeToken, isTrue);
+      expect(ledger.verdict('d1'), const LedgerVerdict.noText(1));
+    });
+
+    test('an expired token: the whole library, and a fresh mark', () async {
+      final (svc, ledger, bridge, _, _) = await history([asset('n1')], verdicts: {'n1': noText});
+      await svc.sweep();
+      bridge.expiredTokens.add('g0');
+      bridge.generation = 5;
+      final pass = await svc.sweep();
+      expect(pass.fromChangeToken, isFalse);
+      expect(bridge.fetchedIds.last, isNull);
+      expect(ledger.changeMark!.token, 'g5');
+    });
+
+    test('a better pre-filter, or a moved start date: the whole library', () async {
+      final (svc, ledger, bridge, _, _) = await history([asset('n1')], verdicts: {'n1': noText});
+      await svc.sweep();
+      bridge.version = 2;
+      bridge.examinedIds.clear();
+      final better = await svc.sweep();
+      expect(better.fromChangeToken, isFalse);
+      expect(bridge.examinedIds, ['n1'], reason: 'its no-text verdict is revisited');
+      expect(ledger.changeMark!.prefilterVersion, 2);
+      await ledger.setBackfillStart(DateTime.utc(2019));
+      final moved = await svc.sweep();
+      expect(moved.fromChangeToken, isFalse);
+      expect(ledger.changeMark!.backfillStartMs, DateTime.utc(2019).millisecondsSinceEpoch);
+    });
+
+    test('Start over: the next pass walks the whole library', () async {
+      final (svc, ledger, bridge, _, _) = await history([asset('n1')], verdicts: {'n1': noText});
+      await svc.sweep();
+      await ledger.reset();
+      final pass = await svc.sweep();
+      expect(pass.fromChangeToken, isFalse);
+      expect(bridge.fetchedIds.last, isNull);
+    });
+
+    test('no history on this platform: every pass walks, and no mark is kept', () async {
+      final (svc, ledger, bridge, _, _) = await rig([asset('n1')], verdicts: {'n1': noText});
+      await svc.sweep();
+      await svc.sweep();
+      expect(bridge.fetchedIds, [null, null]);
+      expect(bridge.changesAsked, isEmpty);
+      expect(ledger.changeMark, isNull);
+    });
+
+    test('an upload in flight from an older build is recorded waiting first', () async {
+      final (svc, ledger, _, ep, _) = await history([asset('n1')], verdicts: {'n1': noText});
+      await ledger.record(LedgerVerdict.ingested, 'landed');
+      ep.uploader.elsewhere
+        ..add(const SweepUploadInFlight(uploadId: 'old', localIdentifier: 'p0', assetKey: 'v1:x'))
+        ..add(const SweepUploadInFlight(uploadId: 'old2', localIdentifier: 'landed', assetKey: 'v1:y'));
+      await svc.sweep();
+      expect(ledger.verdict('p0'), LedgerVerdict.waiting);
+      expect(ledger.verdict('landed'), LedgerVerdict.ingested, reason: 'a verdict is never overwritten');
+    });
+
+    test('two verdicts written at once both stand', () async {
+      final store = MemoryLedgerStore();
+      final l = await SweepLedger.load(store);
+      await Future.wait([
+        l.record(LedgerVerdict.ingested, 'a'),
+        l.record(LedgerVerdict.waiting, 'b'),
+        l.record(LedgerVerdict.deferredNotLocal, 'c'),
+      ]);
+      final want = {
+        'a': LedgerVerdict.ingested,
+        'b': LedgerVerdict.waiting,
+        'c': LedgerVerdict.deferredNotLocal,
+      };
+      expect(l.verdicts, want);
+      expect((await SweepLedger.load(store)).verdicts, want, reason: 'and on disk');
+    });
+
+    test('an unreadable mark reads as none: a walk, never a skipped photo', () async {
+      for (final raw in ['not json', '{"token": 3}', '{}']) {
+        final l = await SweepLedger.load(MemoryLedgerStore({SweepLedger.kChangeMark: raw}));
+        expect(l.changeMark, isNull, reason: raw);
+      }
+    });
+  });
+
   // ── The dry run ────────────────────────────────────────────────────────────
 
   group('dry run', () {
@@ -593,7 +837,7 @@ void main() {
 
       final run = await svc.dryRun();
 
-      expect(snapshot(store), before, reason: 'no verdict, cursor or flag written');
+      expect(snapshot(store), before, reason: 'no verdict, flag or change mark written');
       expect(ep.sessions, isEmpty, reason: 'no session: that call FILES the photo');
       expect(ep.puts, isEmpty);
       expect(svc.candidates, isEmpty, reason: 'the tray is untouched');

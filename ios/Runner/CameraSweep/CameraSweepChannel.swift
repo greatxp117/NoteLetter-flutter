@@ -71,21 +71,46 @@ enum CameraSweepChannel {
         }
     }
 
-    /// One enumerated asset. Every field is metadata: no pixel is read, so this
-    /// is as free for an iCloud-only asset as for a local one.
-    static func describe(_ asset: PHAsset) -> [String: Any] {
+    /// One listed asset (5.40.0, ADR-195): what deciding whether to look at it
+    /// needs, read off the `PHAsset` alone. No key and no filename: both are a
+    /// `PHAssetResource` lookup, and most listed assets are skipped by the
+    /// ledger. `describe` adds them, for a candidate.
+    static func listing(_ asset: PHAsset) -> [String: Any] {
         [
             "localIdentifier": asset.localIdentifier,
-            "assetKey": AssetIdentity.assetKey(for: asset),
-            // The exact Double the key's millisecond figure was derived from,
+            // The exact Double the key's millisecond figure is derived from,
             // so a caller can recompute the key and get the same bytes.
             "creationSeconds": asset.creationDate.map { $0.timeIntervalSince1970 } as Any? ?? NSNull(),
             "pixelWidth": asset.pixelWidth,
             "pixelHeight": asset.pixelHeight,
-            "originalFilename": AssetIdentity.originalFilename(for: asset) as Any? ?? NSNull(),
             "isScreenshot": PhotoLibraryAccess.isScreenshot(asset),
             "isRepresentative": PhotoLibraryAccess.isRepresentative(asset),
         ]
+    }
+
+    /// One identified asset: its listing, the INV-14 key and the original
+    /// filename. Every field is metadata: no pixel is read, so this is as free
+    /// for an iCloud-only asset as for a local one.
+    static func describe(_ asset: PHAsset) -> [String: Any] {
+        var described = listing(asset)
+        described["assetKey"] = AssetIdentity.assetKey(for: asset)
+        described["originalFilename"] = AssetIdentity.originalFilename(for: asset) as Any? ?? NSNull()
+        return described
+    }
+
+    /// `PhotoLibraryAccess.fetchImages`' filter and order over the named assets
+    /// only (a pass from a change token, 5.40.0). That file is the Swift app's,
+    /// verbatim, so its options are restated here rather than edited there.
+    static func fetchImages(localIdentifiers: [String], since: Date?, until: Date?) -> PHFetchResult<PHAsset> {
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+        var predicates = [NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)]
+        if let since { predicates.append(NSPredicate(format: "creationDate >= %@", since as NSDate)) }
+        if let until { predicates.append(NSPredicate(format: "creationDate < %@", until as NSDate)) }
+        options.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+
+        return PHAsset.fetchAssets(withLocalIdentifiers: localIdentifiers, options: options)
     }
 
     // MARK: - Dispatch
@@ -124,7 +149,8 @@ enum CameraSweepChannel {
              "finishedUploads", "acknowledgeUploads":
             upload(call.method, args, result)
 
-        case "fetchImages", "examine", "renderedJpeg", "thumbnail":
+        case "fetchImages", "identify", "examine", "renderedJpeg", "thumbnail",
+             "changeToken", "changesSince":
             let access = PhotoLibraryAccess.current
             if let code = refusal(for: access) {
                 return result(FlutterError(
@@ -132,8 +158,11 @@ enum CameraSweepChannel {
             }
             switch call.method {
             case "fetchImages":  fetchImages(args, result)
+            case "identify":     identify(args, result)
             case "examine":      examine(args, result)
             case "thumbnail":    thumbnail(args, result)
+            case "changeToken":  result(LibraryHistory.token())
+            case "changesSince": changesSince(args, result)
             default:             renderedJpeg(args, result)
             }
 
@@ -197,7 +226,8 @@ enum CameraSweepChannel {
     }
 
     /// A page of `PhotoLibraryAccess.fetchImages` — images only, newest first —
-    /// with every asset's key. Bursts are NOT filtered here: each asset says
+    /// as listings, with no key (5.40.0). With `localIdentifiers`, only those
+    /// assets. Bursts are NOT filtered here: each asset says
     /// `isRepresentative`, and the sweep skips the rest, as the Swift loop did.
     private static func fetchImages(_ args: [String: Any], _ result: @escaping FlutterResult) {
         let offset = (args["offset"] as? NSNumber)?.intValue ?? 0
@@ -208,13 +238,15 @@ enum CameraSweepChannel {
         }
         let since = date(args["sinceMs"])
         let until = date(args["untilMs"])
+        let ids = args["localIdentifiers"] as? [String]
         DispatchQueue.global(qos: .userInitiated).async {
-            let fetched = PhotoLibraryAccess.fetchImages(since: since, until: until)
+            let fetched = ids.map { fetchImages(localIdentifiers: $0, since: since, until: until) }
+                ?? PhotoLibraryAccess.fetchImages(since: since, until: until)
             let total = fetched.count
             var assets: [[String: Any]] = []
             if offset < total {
                 for index in offset..<min(offset + limit, total) {
-                    assets.append(describe(fetched.object(at: index)))
+                    assets.append(listing(fetched.object(at: index)))
                 }
             }
             DispatchQueue.main.async { result(["total": total, "assets": assets]) }
@@ -231,6 +263,29 @@ enum CameraSweepChannel {
             return nil
         }
         return asset
+    }
+
+    /// A candidate's key and filename, with the rest of its listing: since
+    /// 5.40.0 the only call that derives the key.
+    private static func identify(_ args: [String: Any], _ result: @escaping FlutterResult) {
+        guard let asset = asset(args, result) else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let described = describe(asset)
+            DispatchQueue.main.async { result(described) }
+        }
+    }
+
+    /// What changed since a token, or nil when only a walk will do.
+    private static func changesSince(_ args: [String: Any], _ result: @escaping FlutterResult) {
+        guard let token = args["token"] as? String, !token.isEmpty else {
+            return result(FlutterError(code: "badArgs", message: "token is required", details: nil))
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let changes = LibraryHistory.changes(since: token)
+            DispatchQueue.main.async {
+                result(changes.map { ["token": $0.token, "localIdentifiers": $0.localIdentifiers] })
+            }
+        }
     }
 
     /// The on-device text check. Never downloads an original: an asset that is
@@ -302,6 +357,53 @@ enum CameraSweepChannel {
                 result(data.map { FlutterStandardTypedData(bytes: $0) })
             }
         }
+    }
+}
+
+/// The library's persistent change history (5.40.0, ADR-195; spec §7): after
+/// a walk that finished, a pass reads only the assets inserted or updated
+/// since it. iOS 16 and later; before that Photos keeps no history, both
+/// calls answer nil, and every pass walks the library.
+enum LibraryHistory {
+    /// The current token, archived for the Dart side to keep.
+    static func token() -> String? {
+        guard #available(iOS 16, *) else { return nil }
+        return archive(PHPhotoLibrary.shared().currentChangeToken)
+    }
+
+    /// Inserted or updated assets since `wire`, and the token to keep next;
+    /// nil when the token cannot answer (unreadable, expired, history
+    /// unavailable) and only a walk will do. Deletions are not reported: the
+    /// sweep needs nothing for them.
+    static func changes(since wire: String) -> (token: String, localIdentifiers: [String])? {
+        guard #available(iOS 16, *) else { return nil }
+        guard let data = Data(base64Encoded: wire),
+              let since = try? NSKeyedUnarchiver.unarchivedObject(
+                  ofClass: PHPersistentChangeToken.self, from: data),
+              // Read BEFORE the changes: one landing between the two is read
+              // again by the next pass, never missed.
+              let next = archive(PHPhotoLibrary.shared().currentChangeToken)
+        else { return nil }
+        let history: PHPersistentChangeFetchResult
+        do {
+            history = try PHPhotoLibrary.shared().fetchPersistentChanges(since: since)
+        } catch {
+            // `persistentChangeTokenExpired` or `persistentChangeDetailsUnavailable`.
+            return nil
+        }
+        var ids = Set<String>()
+        for change in history {
+            guard let details = try? change.changeDetails(for: .asset) else { return nil }
+            ids.formUnion(details.insertedLocalIdentifiers)
+            ids.formUnion(details.updatedLocalIdentifiers)
+        }
+        return (next, Array(ids))
+    }
+
+    @available(iOS 16, *)
+    private static func archive(_ token: PHPersistentChangeToken) -> String? {
+        (try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true))?
+            .base64EncodedString()
     }
 }
 

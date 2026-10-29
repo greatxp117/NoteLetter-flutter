@@ -36,6 +36,15 @@ SweepAsset asset(
       isRepresentative: representative,
     );
 
+SweepListing listingOf(SweepAsset a) => SweepListing(
+      localIdentifier: a.localIdentifier,
+      creationSeconds: a.creationSeconds,
+      pixelWidth: a.pixelWidth,
+      pixelHeight: a.pixelHeight,
+      isScreenshot: a.isScreenshot,
+      isRepresentative: a.isRepresentative,
+    );
+
 class FakeBridge implements CameraSweepBridge {
   FakeBridge(this.assets, {this.verdicts = const {}, this.version = 1});
 
@@ -47,6 +56,66 @@ class FakeBridge implements CameraSweepBridge {
   final Set<String> notRenderable = {};
   final List<String> examinedIds = [];
   final List<String> renderedPaths = [];
+
+  /// Every asset whose key was read ([identify]).
+  final List<String> identifiedIds = [];
+
+  /// Each fetch's `localIdentifiers`: null for a walk of the whole library.
+  final List<List<String>?> fetchedIds = [];
+
+  // ── The library's change history (5.40.0) ─────────────────────────────────
+
+  /// Off by default: the S2–S5 tests are a walk's (iOS 15, Android 10); the
+  /// change-token tests turn it on.
+  bool keepsHistory = false;
+
+  /// The library's generation; a token is `g<n>`. [take] and [touch] move it.
+  int generation = 0;
+
+  /// Each asset's last change. One the test started with never changed.
+  final Map<String, int> changedAt = {};
+
+  /// Tokens the platform can no longer answer from.
+  final Set<String> expiredTokens = {};
+  final List<String> changesAsked = [];
+
+  /// A photo is taken: newest first, changed now.
+  void take(SweepAsset a) {
+    assets.insert(0, a);
+    changedAt[a.localIdentifier] = ++generation;
+  }
+
+  /// An asset is edited (or finishes downloading).
+  void touch(String id) => changedAt[id] = ++generation;
+
+  @override
+  Future<String?> changeToken() async {
+    _guard();
+    return keepsHistory ? 'g$generation' : null;
+  }
+
+  @override
+  Future<SweepChanges?> changesSince(String token) async {
+    _guard();
+    changesAsked.add(token);
+    if (!keepsHistory || expiredTokens.contains(token)) return null;
+    final since = int.parse(token.substring(1));
+    return SweepChanges(
+      token: 'g$generation',
+      localIdentifiers: [
+        for (final e in changedAt.entries)
+          if (e.value > since) e.key
+      ],
+    );
+  }
+
+  @override
+  Future<SweepAsset> identify(String localIdentifier) async {
+    _guard();
+    identifiedIds.add(localIdentifier);
+    return assets.firstWhere((a) => a.localIdentifier == localIdentifier,
+        orElse: () => throw PlatformException(code: 'notFound', message: 'no asset $localIdentifier'));
+  }
   final Directory tmp = Directory.systemTemp.createTempSync('sweep-test');
 
   void _guard() {
@@ -77,9 +146,13 @@ class FakeBridge implements CameraSweepBridge {
     DateTime? until,
     int offset = 0,
     int limit = CameraSweepBridge.defaultPageSize,
+    List<String>? localIdentifiers,
   }) async {
     _guard();
+    if (offset == 0) fetchedIds.add(localIdentifiers);
+    final only = localIdentifiers?.toSet();
     final inWindow = assets
+        .where((a) => only == null || only.contains(a.localIdentifier))
         .where((a) =>
             since == null ||
             a.creationDate == null ||
@@ -87,7 +160,7 @@ class FakeBridge implements CameraSweepBridge {
         .toList();
     return SweepPage(
       total: inWindow.length,
-      assets: inWindow.skip(offset).take(limit).toList(),
+      assets: [for (final a in inWindow.skip(offset).take(limit)) listingOf(a)],
     );
   }
 

@@ -18,8 +18,16 @@ import 'sweep_words.dart';
 ///
 /// One pass: enumerate newest first from the backfill start, skip what the
 /// ledger has settled, run the on-device text check, and for a candidate
-/// either hold it in the review tray or — automatic mode, once the first
-/// backfill is done — render the JPEG, open a capture session and PUT it.
+/// read its key, then either hold it in the review tray or — automatic mode,
+/// once the first backfill is done — render the JPEG, open a capture session
+/// and PUT it.
+///
+/// **Two kinds of pass (5.40.0, ADR-195; spec §7).** Until a walk has
+/// reached the start date with nothing left over, a pass walks the whole
+/// library. After one has, a pass reads only what changed since the change
+/// token that walk left ([ChangeMark]), plus what the ledger owes another
+/// look ([SweepLedger.owedAnotherLook]). A token is kept only from a pass
+/// that finished.
 ///
 /// What it never does: upload an asset the pre-filter rejected, upload
 /// anything in review mode before the user approves it, or request sessions
@@ -76,7 +84,8 @@ class CameraSweepService extends ChangeNotifier {
   /// Waiting on the user in the review tray. Client-local and in memory, as
   /// in Swift: these are not documents yet and nothing has been sent. A
   /// relaunch forgets the tray; the next pass finds them again, because a
-  /// candidate gets no verdict until it is approved or dismissed.
+  /// candidate stays `waiting` until it is in or dismissed — which is what a
+  /// pass from a change token reads (5.40.0).
   List<SweepAsset> get candidates => List.unmodifiable(_candidates);
 
   bool _isSweeping = false;
@@ -265,17 +274,32 @@ class CameraSweepService extends ChangeNotifier {
       // A result that came back while the app was away is recorded before
       // the walk, so its photo is skipped, not examined again.
       await drainUploads();
+      await _recordInFlightAsWaiting();
       final version = (await bridge.constants()).prefilterVersion;
-      // One newest-first walk covers both passes: photos taken since the
-      // last run sort to the front, and everything the ledger has a standing
-      // verdict for is skipped without touching a pixel, which is what makes
-      // re-walking from the top cheap enough to do every time.
-      await _walk(version, (asset) async {
-        await _examine(asset, pass);
-      }, pass);
-      if (pass.handled < backfillBatchLimit && !_cancelled && !_errorStoppedSweep) {
-        // Ran out of work before the cap: nothing older is waiting.
-        await ledger.setBackfillComplete(true);
+      final since = ledger.backfillStart;
+      final changes = await _changesSinceMark(version, since);
+      if (changes != null) {
+        // Only what changed since the last pass that finished, and what the
+        // ledger owes another look; a deletion needs nothing.
+        pass.fromChangeToken = true;
+        final ids = {...changes.localIdentifiers, ...ledger.owedAnotherLook};
+        if (ids.isNotEmpty) {
+          await _walk(version, (listing) => _examine(listing, pass), pass,
+              only: ids.toList());
+        }
+        if (_finished(pass)) await ledger.setChangeMark(_mark(changes.token, version, since));
+      } else {
+        // The whole library. Its token is read FIRST, so a photo that lands
+        // during the walk is read by the next pass, never skipped. Everything
+        // the ledger has a standing verdict for is skipped without touching a
+        // pixel, which is also what makes an interrupted walk resume (§7).
+        final token = await _changeTokenNow();
+        await _walk(version, (listing) => _examine(listing, pass), pass);
+        if (_finished(pass)) {
+          // Ran out of work before the cap: nothing older is waiting.
+          await ledger.setBackfillComplete(true);
+          if (token != null) await ledger.setChangeMark(_mark(token, version, since));
+        }
       }
       // An automatic pass ends when what it sent has landed or failed, so
       // its counts are outcomes — unless it was stopped: an upload outlives
@@ -288,6 +312,61 @@ class CameraSweepService extends ChangeNotifier {
       pass.refused = e;
     }
     return pass;
+  }
+
+  /// Got through everything it was given: not capped, not stopped, not
+  /// ended by the sweep stopping. Only such a pass may move the change mark,
+  /// so nothing a pass did not reach is ever skipped (spec §7 rule 2).
+  bool _finished(SweepPass pass) =>
+      pass.handled < backfillBatchLimit && !_cancelled && !_errorStoppedSweep;
+
+  static ChangeMark _mark(String token, int version, DateTime since) => ChangeMark(
+        token: token,
+        prefilterVersion: version,
+        backfillStartMs: since.millisecondsSinceEpoch,
+      );
+
+  /// What changed since the mark, or null when this pass walks the whole
+  /// library: no mark, one taken under another pre-filter or start date, or
+  /// one the platform can no longer answer from (spec §7 rule 4).
+  Future<SweepChanges?> _changesSinceMark(int version, DateTime since) async {
+    final mark = ledger.changeMark;
+    if (mark == null || !ledger.backfillComplete) return null;
+    if (!mark.standsFor(prefilterVersion: version, backfillStart: since)) return null;
+    final SweepChanges? changes;
+    try {
+      changes = await bridge.changesSince(mark.token);
+    } on SweepAccessRefused {
+      rethrow;
+    } catch (e) {
+      // A walk is always right; it is only slower.
+      debugPrint('camera sweep: what changed could not be read ($e); '
+          'walking the whole library');
+      return null;
+    }
+    if (changes == null) await ledger.setChangeMark(null);
+    return changes;
+  }
+
+  Future<String?> _changeTokenNow() async {
+    try {
+      return await bridge.changeToken();
+    } on SweepAccessRefused {
+      rethrow;
+    } catch (e) {
+      // No mark from this walk, so the next one walks too.
+      debugPrint('camera sweep: the change token could not be read ($e)');
+      return null;
+    }
+  }
+
+  /// An upload in flight is a candidate's. One handed off before 5.40.0 has
+  /// no verdict, and if it failed no pass from a change token would offer
+  /// it again, so it is recorded `waiting` first (spec §7 rule 5).
+  Future<void> _recordInFlightAsWaiting() async {
+    for (final id in {..._inFlightElsewhere, ..._uploads.keys}) {
+      await ledger.record(LedgerVerdict.waiting, id, ifNone: true);
+    }
   }
 
   Future<void> _refreshInFlight() async {
@@ -304,13 +383,15 @@ class CameraSweepService extends ChangeNotifier {
     }
   }
 
-  /// The walk both the pass and the dry run take. [onAsset] runs for each
-  /// asset that needs examining, at most [backfillBatchLimit] times.
+  /// The walk both the pass and the dry run take: the whole library, or
+  /// [only] those photos. [onAsset] runs for each photo that needs
+  /// examining, at most [backfillBatchLimit] times. A listing carries no key;
+  /// [onAsset] reads one only for a candidate.
   Future<void> _walk(
     int prefilterVersion,
-    Future<void> Function(SweepAsset asset) onAsset,
+    Future<void> Function(SweepListing listing) onAsset,
     SweepTally tally, {
-    bool moveCursor = true,
+    List<String>? only,
   }) async {
     var offset = 0;
     while (true) {
@@ -318,6 +399,7 @@ class CameraSweepService extends ChangeNotifier {
         since: ledger.backfillStart,
         offset: offset,
         limit: CameraSweepBridge.defaultPageSize,
+        localIdentifiers: only,
       );
       for (final asset in page.assets) {
         if (_cancelled || _errorStoppedSweep) return;
@@ -341,37 +423,43 @@ class CameraSweepService extends ChangeNotifier {
         }
         await onAsset(asset);
         tally.handled++;
-        final at = asset.creationDate;
-        // Per asset, so a kill mid-batch resumes rather than restarts.
-        if (moveCursor && at != null) await ledger.setCursor(at);
       }
       offset += page.assets.length;
       if (page.assets.isEmpty || offset >= page.total) return;
     }
   }
 
-  Future<void> _examine(SweepAsset asset, SweepPass pass) async {
+  Future<void> _examine(SweepListing listing, SweepPass pass) async {
     // Already waiting on the user: its verdict cannot have changed, so the
     // text check is not run again. It still counts toward the cap, as in
     // Swift — a tray of 200 is the first backfill's bound. (Swift re-ran
     // Vision on every card each pass; S3 runs a pass on every library change,
     // and a phone syncing iCloud changes its library constantly.)
-    if (_candidates.any((c) => c.localIdentifier == asset.localIdentifier)) {
+    final id = listing.localIdentifier;
+    if (_candidates.any((c) => c.localIdentifier == id)) {
       pass.held++;
       return;
     }
-    final exam = await bridge.examine(asset.localIdentifier);
+    final exam = await bridge.examine(id);
     _examined++;
     switch (exam.verdict) {
       case SweepVerdict.notLocallyAvailable:
         // Never "no text": that verdict would be permanent and wrong.
-        await ledger.record(LedgerVerdict.deferredNotLocal, asset.localIdentifier);
+        await ledger.record(LedgerVerdict.deferredNotLocal, id);
         pass.deferred++;
       case SweepVerdict.noText:
-        await ledger.record(
-            LedgerVerdict.noText(exam.prefilterVersion), asset.localIdentifier);
+        await ledger.record(LedgerVerdict.noText(exam.prefilterVersion), id);
         pass.noText++;
       case SweepVerdict.candidate:
+        // Only now is the key read (spec §4): a candidate is the one photo
+        // that is looked up or sent.
+        final asset = await bridge.identify(id);
+        // Waiting until it is in or dismissed, so a pass from a change token
+        // finds it again however this ends: a tray a relaunch forgets, or an
+        // upload that fails (spec §2).
+        if (ledger.verdict(id) != LedgerVerdict.waiting) {
+          await ledger.record(LedgerVerdict.waiting, id);
+        }
         if (_toTray) {
           // The first backfill always goes through review, whatever mode the
           // user picked, because it is the pass that surfaces everything at
@@ -381,7 +469,6 @@ class CameraSweepService extends ChangeNotifier {
           _candidates.add(asset);
           pass.toTray++;
         } else {
-          final id = asset.localIdentifier;
           // Nobody is looking at a tray, so a refusal goes to the screen's
           // own alert — and it did not stop the sweep, unless the dedupe
           // branch said so.
@@ -565,7 +652,7 @@ class CameraSweepService extends ChangeNotifier {
     } on PlatformException catch (e) {
       // The bridge could not render the photo (deleted since the pass found
       // it, or a write failed), or the uploader could not take it: its own
-      // words, as an envelope's are. Nothing is recorded, so the next pass
+      // words, as an envelope's are. It stays `waiting`, so the next pass
       // offers it again — and a session already opened hands back its link.
       return _Refused(e.message ?? e.code);
     } finally {
@@ -713,8 +800,10 @@ class CameraSweepService extends ChangeNotifier {
   // ── The dry run ────────────────────────────────────────────────────────────
 
   /// What a pass would do, with nothing written: no ledger write (no
-  /// verdict, no cursor, no backfill flag), no capture session, no PUT, no
-  /// tray change. The text check runs and the JPEG is rendered (then
+  /// verdict, no backfill flag, no change mark), no capture session, no PUT,
+  /// no tray change. It always walks the whole library, and reads the key of
+  /// every photo it examines, not only a candidate's: it is a rehearsal, and
+  /// its entries are compared key by key. The text check runs and the JPEG is rendered (then
   /// deleted), so everything up to the upload is exercised. Whether a
   /// candidate is already filed is asked of Firestore by its asset key
   /// ([SweepEndpoints.findCapture]) — a photo the Swift app already swept
@@ -724,16 +813,17 @@ class CameraSweepService extends ChangeNotifier {
     try {
       final version = (await bridge.constants()).prefilterVersion;
       run.prefilterVersion = version;
-      await _walk(version, (asset) async {
-        run.entries.add(await _rehearse(asset));
-      }, run, moveCursor: false);
+      await _walk(version, (listing) async {
+        run.entries.add(await _rehearse(listing));
+      }, run);
     } on SweepAccessRefused catch (e) {
       run.refused = e;
     }
     return run;
   }
 
-  Future<DryRunEntry> _rehearse(SweepAsset asset) async {
+  Future<DryRunEntry> _rehearse(SweepListing listing) async {
+    final asset = await bridge.identify(listing.localIdentifier);
     final exam = await bridge.examine(asset.localIdentifier);
     DryRunOutcome outcome;
     int? bytes;
@@ -781,7 +871,7 @@ class CameraSweepService extends ChangeNotifier {
   /// What to say about a PUT that did not land (Swift
   /// `CameraSweepUploader.failureSentence`). A 403 is overwhelmingly a signed
   /// URL that expired, which is a wait, not a loss. Every branch names the
-  /// retry, because there is one: nothing is recorded on failure.
+  /// retry, because there is one: a failure leaves the photo `waiting`.
   static String uploadFailureSentence({String? transportError, required int statusCode}) {
     if (transportError != null) {
       return 'A photo could not be uploaded — $transportError '
@@ -941,6 +1031,10 @@ class SweepPass extends SweepTally {
   /// is away with no background task).
   bool halted = false;
 
+  /// Read only what changed since the change mark, not the whole library
+  /// (spec §7).
+  bool fromChangeToken = false;
+
   /// Automatic mode's refusals, by `localIdentifier`.
   final Map<String, String> failed = {};
 
@@ -951,6 +1045,7 @@ class SweepPass extends SweepTally {
       'nonRepresentative $nonRepresentative, inFlight $inFlight, noText $noText, '
       'deferred $deferred, toTray $toTray, held $held, uploading $uploading, '
       'ingested $ingested, failed ${failed.length}'
+      '${fromChangeToken ? ', from the change token' : ''}'
       '${halted ? ', halted' : ''}'
       '${refused == null ? '' : ', refused ${refused!.access.name}'})';
 }

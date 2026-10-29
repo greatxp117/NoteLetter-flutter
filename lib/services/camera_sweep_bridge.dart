@@ -10,10 +10,13 @@ import 'package:flutter/services.dart';
 /// Swift app's own code ported verbatim (`ios/Runner/CameraSweep/`):
 /// - the **asset key**, `sha256("v1|<ms>|<w>x<h>|<originalFilename>")` read
 ///   from `PHAssetResource` — byte-identical to the Swift app's, or every
-///   photo it already swept would upload again. This side never recomputes it;
+///   photo it already swept would upload again. This side never recomputes it.
+///   It is derived only by [identify], for a candidate (5.40.0, ADR-195): a
+///   listing carries no key, because most listed photos are skipped;
 /// - the **text check**: Vision `.fast` on a ~1024 px thumbnail with the
 ///   network off, a candidate at 80 characters or more, or any screenshot;
-/// - **enumeration**: images only, newest first.
+/// - **enumeration**: images only, newest first — the whole library, or
+///   only what changed since a change token ([changeToken], [changesSince]).
 ///
 /// This is the bridge and nothing above it: the ledger and the service are
 /// S2's, the screens S3's (which added [thumbnail], [openSettings] and
@@ -57,15 +60,18 @@ class CameraSweepBridge {
   Future<SweepAccess> requestAccess() async =>
       SweepAccess.fromWire(await _channel.invokeMethod<Object?>('requestAccess'));
 
-  /// One page of the library: still images, newest first, each with its key.
-  /// `since` is inclusive and `until` exclusive, as in the Swift fetch. Bursts
-  /// are not filtered: skip any asset whose [SweepAsset.isRepresentative] is
-  /// false.
+  /// One page of the library: still images, newest first, as listings — no
+  /// key, no filename ([identify] reads those). `since` is inclusive and
+  /// `until` exclusive, as in the Swift fetch. With [localIdentifiers], only
+  /// those photos, under the same window and order (a pass from a change
+  /// token). Bursts are not filtered: skip any listing whose
+  /// [SweepListing.isRepresentative] is false.
   Future<SweepPage> fetchImages({
     DateTime? since,
     DateTime? until,
     int offset = 0,
     int limit = defaultPageSize,
+    List<String>? localIdentifiers,
   }) async {
     if (offset < 0 || limit <= 0) {
       throw ArgumentError('offset must be >= 0 and limit > 0 (got $offset, $limit)');
@@ -77,8 +83,39 @@ class CameraSweepBridge {
             'untilMs': until?.millisecondsSinceEpoch,
             'offset': offset,
             'limit': limit,
+            'localIdentifiers': localIdentifiers,
           },
         ))));
+  }
+
+  /// One photo with its INV-14 key and original filename: what a candidate
+  /// needs before it is looked up or sent (spec §4). The derivation is the
+  /// native side's, unchanged.
+  Future<SweepAsset> identify(String localIdentifier) async =>
+      SweepAsset.fromWire(_map(await _guard(() => _channel.invokeMethod<Object?>(
+            'identify',
+            <String, Object?>{'localIdentifier': localIdentifier},
+          ))));
+
+  /// The library's change token now, opaque; null where the platform keeps
+  /// no history (iOS before 16, Android before 11), and every pass walks.
+  Future<String?> changeToken() async {
+    final raw = await _guard(() => _channel.invokeMethod<Object?>('changeToken'));
+    if (raw == null || raw is String) return raw as String?;
+    throw FormatException('camera sweep: changeToken is ${raw.runtimeType}');
+  }
+
+  /// The still images inserted or updated since [token], and the token to
+  /// keep once they are handled — taken BEFORE they were read, so a change
+  /// landing in between is read again, never missed. null when the token can
+  /// no longer answer (expired, unreadable, a rebuilt MediaStore, a volume it
+  /// never saw): only a walk of the whole library will do (spec §7).
+  Future<SweepChanges?> changesSince(String token) async {
+    final raw = await _guard(() => _channel.invokeMethod<Object?>(
+          'changesSince',
+          <String, Object?>{'token': token},
+        ));
+    return raw == null ? null : SweepChanges.fromWire(_map(raw));
   }
 
   /// The on-device text check for one asset. Never downloads an original.
@@ -226,19 +263,82 @@ class SweepPage {
 
   /// Images matching the date window, before paging.
   final int total;
-  final List<SweepAsset> assets;
+  final List<SweepListing> assets;
 
   factory SweepPage.fromWire(Map<Object?, Object?> m) {
     final raw = m['assets'];
     if (raw is! List) throw const FormatException('camera sweep: page without assets');
     return SweepPage(
       total: _int(m, 'total'),
-      assets: [for (final a in raw) SweepAsset.fromWire(_map(a))],
+      assets: [for (final a in raw) SweepListing.fromWire(_map(a))],
     );
   }
 }
 
-/// One enumerated image. Every field is metadata; no pixel was read.
+/// One listed image: what deciding whether to look at it needs, and nothing
+/// derived (5.40.0, ADR-195). Every field is metadata; no pixel was read.
+class SweepListing {
+  const SweepListing({
+    required this.localIdentifier,
+    required this.creationSeconds,
+    required this.pixelWidth,
+    required this.pixelHeight,
+    required this.isScreenshot,
+    required this.isRepresentative,
+  });
+
+  /// This device's id for the asset — a fast ledger key, never the durable
+  /// one (INV-14).
+  final String localIdentifier;
+
+  /// `creationDate.timeIntervalSince1970`; null when the asset has no date.
+  final double? creationSeconds;
+  final int pixelWidth;
+  final int pixelHeight;
+
+  /// Marked a screenshot by the system: a candidate without a text check.
+  final bool isScreenshot;
+
+  /// false for a burst frame the system did not pick; the sweep skips it.
+  final bool isRepresentative;
+
+  DateTime? get creationDate => creationSeconds == null
+      ? null
+      : DateTime.fromMicrosecondsSinceEpoch((creationSeconds! * 1e6).round(), isUtc: true);
+
+  factory SweepListing.fromWire(Map<Object?, Object?> m) => SweepListing(
+        localIdentifier: _str(m, 'localIdentifier'),
+        creationSeconds: _doubleOrNull(m, 'creationSeconds'),
+        pixelWidth: _int(m, 'pixelWidth'),
+        pixelHeight: _int(m, 'pixelHeight'),
+        isScreenshot: _bool(m, 'isScreenshot'),
+        isRepresentative: _bool(m, 'isRepresentative'),
+      );
+}
+
+/// What changed since a change token ([CameraSweepBridge.changesSince]).
+class SweepChanges {
+  const SweepChanges({required this.token, required this.localIdentifiers});
+
+  /// The token to keep once these are handled.
+  final String token;
+
+  /// Inserted or updated assets, any kind: [CameraSweepBridge.fetchImages]
+  /// keeps the still images in the window.
+  final List<String> localIdentifiers;
+
+  factory SweepChanges.fromWire(Map<Object?, Object?> m) {
+    final ids = _req(m, 'localIdentifiers');
+    if (ids is! List || ids.any((id) => id is! String)) {
+      throw const FormatException('camera sweep: "localIdentifiers" is not a list of strings');
+    }
+    return SweepChanges(token: _str(m, 'token'), localIdentifiers: ids.cast<String>());
+  }
+}
+
+/// One identified image ([CameraSweepBridge.identify]): a listing plus its
+/// INV-14 key and original filename. Every field is metadata; no pixel was
+/// read.
 class SweepAsset {
   const SweepAsset({
     required this.localIdentifier,

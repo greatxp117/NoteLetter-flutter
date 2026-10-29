@@ -217,7 +217,10 @@ void main() {
     debugPrint('sweep bg: schedule $schedule; pending ${await background.debugPending()}');
 
     final page = await bridge.fetchImages(since: _since, limit: 200);
-    final photos = page.assets.where((a) => a.isRepresentative).toList();
+    final photos = [
+      for (final l in page.assets.where((a) => a.isRepresentative))
+        await bridge.identify(l.localIdentifier)
+    ];
     debugPrint('sweep bg: ${photos.length} photos in the window');
     final before = await _captures(uid);
 

@@ -1607,7 +1607,11 @@ Future<void> _reachSweep(WidgetTester tester, String state) async {
   // the Swift app swept looks like. Filed through the session, completed
   // through the emulator's REST (owner bearer), as the pipeline would.
   final page = await bridge.fetchImages(since: _pagesSince);
-  final book = page.assets.firstWhere((a) => a.originalFilename == 'sweep-page-book.jpg');
+  // A listing carries no filename (5.40.0): identify each to find the page.
+  final identified = [
+    for (final l in page.assets) await bridge.identify(l.localIdentifier)
+  ];
+  final book = identified.firstWhere((a) => a.originalFilename == 'sweep-page-book.jpg');
   final opened = await Api.instance.createCaptureSession(
     assetKey: book.assetKey,
     filename: 'sweep-page-book.jpg',

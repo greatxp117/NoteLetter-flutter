@@ -54,15 +54,22 @@ const _goldens = <(String, double?, int, int, String?, String)>[
       'v1:5af3cf2ffede13323fb0d5b0615a1c50c103e382a06377a08147c41fa3790f29'),
 ];
 
-Map<String, Object?> _asset(String id, {double? seconds = 1700000000.5}) => {
+/// A listing as the native side sends it (5.40.0): no key, no filename.
+Map<String, Object?> _listing(String id, {double? seconds = 1700000000.5}) => {
       'localIdentifier': id,
-      'assetKey': specKey(seconds, 1170, 2532, 'IMG_$id.PNG'),
       'creationSeconds': seconds,
       'pixelWidth': 1170,
       'pixelHeight': 2532,
-      'originalFilename': 'IMG_$id.PNG',
       'isScreenshot': false,
       'isRepresentative': true,
+    };
+
+/// An identified asset ([CameraSweepBridge.identify]): the listing, the key
+/// and the filename.
+Map<String, Object?> _asset(String id, {double? seconds = 1700000000.5}) => {
+      ..._listing(id, seconds: seconds),
+      'assetKey': specKey(seconds, 1170, 2532, 'IMG_$id.PNG'),
+      'originalFilename': 'IMG_$id.PNG',
     };
 
 void main() {
@@ -116,9 +123,43 @@ void main() {
         'untilMs': until.millisecondsSinceEpoch,
         'offset': 400,
         'limit': 200,
+        'localIdentifiers': null,
       });
-      expect(calls[1].arguments,
-          {'sinceMs': null, 'untilMs': null, 'offset': 0, 'limit': 200});
+      expect(calls[1].arguments, {
+        'sinceMs': null,
+        'untilMs': null,
+        'offset': 0,
+        'limit': 200,
+        'localIdentifiers': null,
+      });
+    });
+
+    test('fetchImages over named photos sends their ids, in the same window', () async {
+      answer((_) async => {'total': 0, 'assets': <Object?>[]});
+      final since = DateTime.utc(2026, 7, 20);
+      await bridge.fetchImages(since: since, localIdentifiers: ['A/L0/001', 'B/L0/001']);
+      expect(calls.single.arguments, {
+        'sinceMs': since.millisecondsSinceEpoch,
+        'untilMs': null,
+        'offset': 0,
+        'limit': 200,
+        'localIdentifiers': ['A/L0/001', 'B/L0/001'],
+      });
+    });
+
+    test('identify, changeToken and changesSince', () async {
+      answer((call) async => switch (call.method) {
+            'identify' => _asset('1'),
+            'changeToken' => 'tok-1',
+            _ => {'token': 'tok-2', 'localIdentifiers': <Object?>[]},
+          });
+      await bridge.identify('A/L0/001');
+      await bridge.changeToken();
+      await bridge.changesSince('tok-1');
+      expect(calls.map((c) => c.method), ['identify', 'changeToken', 'changesSince']);
+      expect(calls[0].arguments, {'localIdentifier': 'A/L0/001'});
+      expect(calls[1].arguments, isNull);
+      expect(calls[2].arguments, {'token': 'tok-1'});
     });
 
     test('a page that cannot exist is refused before the channel', () async {
@@ -148,12 +189,22 @@ void main() {
   });
 
   group('partial access is refused, in the Swift app\'s words', () {
-    for (final method in ['fetchImages', 'examine', 'renderedJpeg']) {
+    for (final method in [
+      'fetchImages',
+      'identify',
+      'examine',
+      'renderedJpeg',
+      'changeToken',
+      'changesSince',
+    ]) {
       test('$method: limited', () async {
         answer((_) async => throw PlatformException(code: 'limited'));
-        final call = switch (method) {
+        final Future<Object?> call = switch (method) {
           'fetchImages' => bridge.fetchImages(),
+          'identify' => bridge.identify('x'),
           'examine' => bridge.examine('x'),
+          'changeToken' => bridge.changeToken(),
+          'changesSince' => bridge.changesSince('t'),
           _ => bridge.renderedJpeg('x'),
         };
         await expectLater(
@@ -197,26 +248,63 @@ void main() {
       await expectLater(bridge.access(), throwsFormatException);
     });
 
-    test('a page decodes every field', () async {
+    test('a page decodes every field of a listing, and carries no key', () async {
       answer((_) async => {
             'total': 2,
             'assets': [
-              _asset('1'),
-              {..._asset('2', seconds: null), 'originalFilename': null, 'isRepresentative': false},
+              _listing('1'),
+              {..._listing('2', seconds: null), 'isRepresentative': false},
             ],
           });
       final page = await bridge.fetchImages();
       expect(page.total, 2);
       final a = page.assets.first;
+      expect(a, isNot(isA<SweepAsset>()));
       expect(a.localIdentifier, '1');
-      expect(a.assetKey, specKey(1700000000.5, 1170, 2532, 'IMG_1.PNG'));
       expect(a.creationDate, DateTime.utc(2023, 11, 14, 22, 13, 20, 500));
       expect(a.isRepresentative, isTrue);
       final b = page.assets.last;
       expect(b.creationSeconds, isNull);
       expect(b.creationDate, isNull);
-      expect(b.originalFilename, isNull);
       expect(b.isRepresentative, isFalse);
+    });
+
+    test('identify decodes the key and the filename', () async {
+      answer((_) async => {..._asset('2', seconds: null), 'originalFilename': null});
+      final a = await bridge.identify('2');
+      expect(a.localIdentifier, '2');
+      expect(a.assetKey, specKey(null, 1170, 2532, 'IMG_2.PNG'));
+      expect(a.originalFilename, isNull);
+      answer((_) async => _asset('1'));
+      expect((await bridge.identify('1')).assetKey,
+          specKey(1700000000.5, 1170, 2532, 'IMG_1.PNG'));
+    });
+
+    test('a change token is a string or null, and nothing else', () async {
+      answer((_) async => 'tok');
+      expect(await bridge.changeToken(), 'tok');
+      answer((_) async => null);
+      expect(await bridge.changeToken(), isNull, reason: 'no history: every pass walks');
+      answer((_) async => 3);
+      await expectLater(bridge.changeToken(), throwsFormatException);
+    });
+
+    test('changesSince: the changes, null for a token that cannot answer, and closed', () async {
+      answer((_) async => {'token': 'tok-2', 'localIdentifiers': ['a', 'b']});
+      final c = await bridge.changesSince('tok-1');
+      expect(c!.token, 'tok-2');
+      expect(c.localIdentifiers, ['a', 'b']);
+      answer((_) async => null);
+      expect(await bridge.changesSince('old'), isNull, reason: 'only a walk will do');
+      for (final bad in [
+        {'localIdentifiers': <Object?>[]},
+        {'token': 'tok'},
+        {'token': 'tok', 'localIdentifiers': 'a'},
+        {'token': 'tok', 'localIdentifiers': [1]},
+      ]) {
+        answer((_) async => bad);
+        await expectLater(bridge.changesSince('t'), throwsFormatException, reason: '$bad');
+      }
     });
 
     test('an examination decodes, and an unknown verdict is a failure', () async {
@@ -243,13 +331,18 @@ void main() {
     });
 
     test('a missing field is a failure, never a default', () async {
-      final full = _asset('1');
-      for (final key in full.keys) {
+      final listed = _listing('1');
+      for (final key in listed.keys) {
         answer((_) async => {
               'total': 1,
-              'assets': [Map.of(full)..remove(key)],
+              'assets': [Map.of(listed)..remove(key)],
             });
         await expectLater(bridge.fetchImages(), throwsFormatException, reason: key);
+      }
+      final identified = _asset('1');
+      for (final key in identified.keys) {
+        answer((_) async => Map.of(identified)..remove(key));
+        await expectLater(bridge.identify('1'), throwsFormatException, reason: key);
       }
     });
 

@@ -33,31 +33,39 @@ class SweepLedger extends ChangeNotifier {
     required bool enabled,
     required SweepMode mode,
     required DateTime backfillStart,
-    required DateTime? cursor,
     required bool backfillComplete,
+    required ChangeMark? changeMark,
     required Map<String, LedgerVerdict> verdicts,
   })  : _enabled = enabled,
         _mode = mode,
         _backfillStart = backfillStart,
-        _cursor = cursor,
         _backfillComplete = backfillComplete,
+        _changeMark = changeMark,
         _verdicts = verdicts;
 
   /// The Swift app's own key names, under this app's suite.
   static const kEnabled = 'sweep.enabled';
   static const kMode = 'sweep.mode';
   static const kBackfillStart = 'sweep.backfillStart';
-  static const kCursor = 'sweep.cursor';
   static const kBackfillComplete = 'sweep.backfillComplete';
   static const kVerdicts = 'sweep.verdicts';
+
+  /// The change token a finished pass left (5.40.0, ADR-195); this app's own
+  /// key, as Swift had no token.
+  static const kChangeMark = 'sweep.changeMark';
   static const keys = {
     kEnabled,
     kMode,
     kBackfillStart,
-    kCursor,
     kBackfillComplete,
     kVerdicts,
+    kChangeMark,
   };
+
+  /// The backfill cursor until 5.40.0. Written after every examined photo and
+  /// never read (spec §7: the verdicts are what resume a walk); Start over
+  /// removes what an older build left.
+  static const kRetiredCursor = 'sweep.cursor';
 
   /// How far back the catch-up pass reaches until the user picks a date: 90
   /// calendar days, recomputed on every load while nothing is stored, as in
@@ -80,8 +88,8 @@ class SweepLedger extends ChangeNotifier {
       backfillStart: _date(raw[kBackfillStart]) ??
           DateTime(n.year, n.month, n.day - defaultBackfillDays, n.hour,
               n.minute, n.second, n.millisecond),
-      cursor: _date(raw[kCursor]),
       backfillComplete: raw[kBackfillComplete] == true,
+      changeMark: ChangeMark.decode(raw[kChangeMark]),
       verdicts: decodeVerdicts(raw[kVerdicts]),
     );
   }
@@ -89,8 +97,8 @@ class SweepLedger extends ChangeNotifier {
   bool _enabled;
   SweepMode _mode;
   DateTime _backfillStart;
-  DateTime? _cursor;
   bool _backfillComplete;
+  ChangeMark? _changeMark;
   Map<String, LedgerVerdict> _verdicts;
 
   bool get enabled => _enabled;
@@ -99,12 +107,12 @@ class SweepLedger extends ChangeNotifier {
   /// How far back the user asked the catch-up pass to reach.
   DateTime get backfillStart => _backfillStart;
 
-  /// The oldest capture date the backfill has walked to. Persisted after
-  /// every examined asset, so an interrupted sweep resumes rather than
-  /// restarts. Progress reporting, not the skip mechanism: the verdicts are
-  /// what prevent rework.
-  DateTime? get cursor => _cursor;
   bool get backfillComplete => _backfillComplete;
+
+  /// Where the last pass that FINISHED left the library: a later pass reads
+  /// only what changed since it (spec §7). null until a walk has finished
+  /// on a platform that keeps a history.
+  ChangeMark? get changeMark => _changeMark;
 
   Future<void> setEnabled(bool value) async {
     await _store.write(kEnabled, value);
@@ -124,15 +132,15 @@ class SweepLedger extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setCursor(DateTime? value) async {
-    await _store.write(kCursor, value?.millisecondsSinceEpoch);
-    _cursor = value;
-    notifyListeners();
-  }
-
   Future<void> setBackfillComplete(bool value) async {
     await _store.write(kBackfillComplete, value);
     _backfillComplete = value;
+    notifyListeners();
+  }
+
+  Future<void> setChangeMark(ChangeMark? value) async {
+    await _store.write(kChangeMark, value?.encode());
+    _changeMark = value;
     notifyListeners();
   }
 
@@ -148,23 +156,50 @@ class SweepLedger extends ChangeNotifier {
   /// A copy: the ledger is the only writer of its own map.
   Map<String, LedgerVerdict> get verdicts => Map.unmodifiable(_verdicts);
 
-  Future<void> record(LedgerVerdict verdict, String localIdentifier) async {
-    final next = Map<String, LedgerVerdict>.of(_verdicts)
-      ..[localIdentifier] = verdict;
-    await _store.write(kVerdicts, encodeVerdicts(next));
-    _verdicts = next;
-    notifyListeners();
+  /// With [ifNone], only a photo that has no verdict yet gets this one.
+  Future<void> record(LedgerVerdict verdict, String localIdentifier, {bool ifNone = false}) =>
+      _serialVerdicts(() async {
+        if (ifNone && _verdicts.containsKey(localIdentifier)) return;
+        final next = Map<String, LedgerVerdict>.of(_verdicts)
+          ..[localIdentifier] = verdict;
+        await _store.write(kVerdicts, encodeVerdicts(next));
+        _verdicts = next;
+        notifyListeners();
+      });
+
+  /// Verdict writes run one at a time, each on the map the last one left.
+  /// Two at once (a pass recording one photo while an upload's result
+  /// records another) each copied the same map, and the later write dropped
+  /// the earlier verdict — a lost `waiting` is a photo no pass from a change
+  /// token would offer again (5.40.0).
+  Future<void> _verdictWrites = Future.value();
+
+  Future<void> _serialVerdicts(Future<void> Function() write) {
+    final done = _verdictWrites.then((_) => write());
+    // A failed write fails its own caller, never the writes queued after it.
+    _verdictWrites = done.catchError((Object _) {});
+    return done;
   }
 
   /// An asset needs looking at unless a verdict that still stands was reached.
   /// A no-text verdict from an OLDER pre-filter is reconsidered, and a
-  /// deferred one always is (Swift `needsExamination`).
+  /// deferred or waiting one always is (Swift `needsExamination`).
   bool needsExamination(String localIdentifier, {required int prefilterVersion}) =>
       switch (_verdicts[localIdentifier]?.kind) {
         SweepVerdictKind.ingested || SweepVerdictKind.dismissed => false,
         SweepVerdictKind.noText =>
           _verdicts[localIdentifier]!.prefilterVersion! < prefilterVersion,
-        SweepVerdictKind.deferredNotLocal || null => true,
+        SweepVerdictKind.deferredNotLocal || SweepVerdictKind.waiting || null => true,
+      };
+
+  /// The photos a pass from a change token reads although they did not
+  /// change: deferred (they may be on the device now) and waiting (in a tray
+  /// a relaunch forgot, or an upload that has not landed). Spec §7 rule 3.
+  Set<String> get owedAnotherLook => {
+        for (final e in _verdicts.entries)
+          if (e.value.kind == SweepVerdictKind.deferredNotLocal ||
+              e.value.kind == SweepVerdictKind.waiting)
+            e.key,
       };
 
   int get ingestedCount =>
@@ -173,17 +208,19 @@ class SweepLedger extends ChangeNotifier {
       .where((v) => v.kind == SweepVerdictKind.deferredNotLocal)
       .length;
 
-  /// Forgets every verdict and the backfill's progress; keeps the setup
-  /// (enabled, mode, start date), as Swift's `reset()` did.
-  Future<void> reset() async {
-    await _store.write(kVerdicts, null);
-    await _store.write(kCursor, null);
-    await _store.write(kBackfillComplete, false);
-    _verdicts = {};
-    _cursor = null;
-    _backfillComplete = false;
-    notifyListeners();
-  }
+  /// Forgets every verdict, the backfill's progress and the change mark, so
+  /// the next pass walks the whole library; keeps the setup (enabled, mode,
+  /// start date), as Swift's `reset()` did.
+  Future<void> reset() => _serialVerdicts(() async {
+        await _store.write(kVerdicts, null);
+        await _store.write(kRetiredCursor, null);
+        await _store.write(kChangeMark, null);
+        await _store.write(kBackfillComplete, false);
+        _verdicts = {};
+        _changeMark = null;
+        _backfillComplete = false;
+        notifyListeners();
+      });
 
   // ── The stored shape ────────────────────────────────────────────────────────
 
@@ -235,6 +272,65 @@ class SweepLedger extends ChangeNotifier {
       raw is int ? DateTime.fromMillisecondsSinceEpoch(raw) : null;
 }
 
+/// The change token a finished pass left, and what that pass walked with
+/// (spec §7 rule 4): it stands only for the same pre-filter version and the
+/// same start date. Client-local, like the rest of the ledger.
+@immutable
+class ChangeMark {
+  const ChangeMark({
+    required this.token,
+    required this.prefilterVersion,
+    required this.backfillStartMs,
+  });
+
+  /// The platform's, opaque.
+  final String token;
+  final int prefilterVersion;
+  final int backfillStartMs;
+
+  bool standsFor({required int prefilterVersion, required DateTime backfillStart}) =>
+      this.prefilterVersion == prefilterVersion &&
+      backfillStartMs == backfillStart.millisecondsSinceEpoch;
+
+  String encode() => jsonEncode({
+        'token': token,
+        'prefilterVersion': prefilterVersion,
+        'backfillStartMs': backfillStartMs,
+      });
+
+  /// An unreadable mark costs a walk of the whole library, never a photo:
+  /// it reads as none, and is said.
+  static ChangeMark? decode(Object? raw) {
+    if (raw == null) return null;
+    try {
+      final m = jsonDecode(raw as String);
+      if (m is Map &&
+          m['token'] is String &&
+          m['prefilterVersion'] is int &&
+          m['backfillStartMs'] is int) {
+        return ChangeMark(
+          token: m['token'] as String,
+          prefilterVersion: m['prefilterVersion'] as int,
+          backfillStartMs: m['backfillStartMs'] as int,
+        );
+      }
+    } catch (_) {}
+    debugPrint('sweep ledger: the change mark is unreadable; the next pass '
+        'walks the whole library');
+    return null;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChangeMark &&
+      other.token == token &&
+      other.prefilterVersion == prefilterVersion &&
+      other.backfillStartMs == backfillStartMs;
+
+  @override
+  int get hashCode => Object.hash(token, prefilterVersion, backfillStartMs);
+}
+
 /// The user's autonomy choice (spec §3). Distinct from the service's dry run.
 enum SweepMode {
   /// Candidates are ingested as they are found — once the first backfill is
@@ -251,7 +347,7 @@ enum SweepMode {
       };
 }
 
-enum SweepVerdictKind { ingested, dismissed, noText, deferredNotLocal }
+enum SweepVerdictKind { ingested, dismissed, noText, deferredNotLocal, waiting }
 
 /// One asset's standing verdict. **Never a boolean** (spec §2): with remote
 /// fetch off the system hands back a low-resolution placeholder for an
@@ -259,8 +355,11 @@ enum SweepVerdictKind { ingested, dismissed, noText, deferredNotLocal }
 /// boolean ledger would record a text-bearing photo as "no text" permanently.
 /// So the ledger records WHY, and stamps the pre-filter version that decided.
 ///
-/// Four states, as in Swift: the spec's three (ingested, no-text@version,
-/// deferred) plus `dismissed`, the review tray's own "not this one".
+/// Five states: the spec's three (ingested, no-text@version, deferred) plus
+/// `dismissed`, the review tray's own "not this one", as in Swift — and
+/// `waiting` (5.40.0, spec §2): a candidate found and not yet in or
+/// dismissed. It decides nothing; it is what lets a pass that reads only what
+/// changed find the photo again.
 @immutable
 class LedgerVerdict {
   const LedgerVerdict._(this.kind, [this.prefilterVersion]);
@@ -272,6 +371,7 @@ class LedgerVerdict {
   static const dismissed = LedgerVerdict._(SweepVerdictKind.dismissed);
   static const deferredNotLocal =
       LedgerVerdict._(SweepVerdictKind.deferredNotLocal);
+  static const waiting = LedgerVerdict._(SweepVerdictKind.waiting);
 
   final SweepVerdictKind kind;
 
@@ -285,7 +385,7 @@ class LedgerVerdict {
         _ => {kind.name: <String, Object?>{}},
       };
 
-  /// Closed: anything but one of the four shapes throws.
+  /// Closed: anything but one of the five shapes throws.
   static LedgerVerdict fromJson(Object? raw) {
     if (raw is! Map || raw.length != 1) {
       throw const FormatException('a verdict is a one-key map');
@@ -299,6 +399,8 @@ class LedgerVerdict {
         return dismissed;
       case 'deferredNotLocal' when value.isEmpty:
         return deferredNotLocal;
+      case 'waiting' when value.isEmpty:
+        return waiting;
       case 'noText' when value.length == 1 && value['prefilterVersion'] is int:
         return LedgerVerdict.noText(value['prefilterVersion'] as int);
     }

@@ -94,7 +94,11 @@ void main() {
     do {
       final page = await bridge.fetchImages(offset: all.length, limit: 25);
       total = page.total;
-      all.addAll(page.assets);
+      // A listing carries no key (5.40.0); identify reads it, as a pass
+      // does for a candidate.
+      for (final l in page.assets) {
+        all.add(await bridge.identify(l.localIdentifier));
+      }
       if (page.assets.isEmpty) break;
     } while (all.length < total);
     expect(all.length, total);
@@ -127,6 +131,19 @@ void main() {
           reason: '$name: one id per copy');
       debugPrint('SWEEP copies of $name: ${copies.length}, one key');
     }
+
+    // 5.40.0 (spec §7): named photos come back as the walk listed them, in
+    // its order, and the library keeps a history to read a pass from.
+    final some = [for (final a in all.take(6)) a.localIdentifier];
+    final named = await bridge.fetchImages(localIdentifiers: some.reversed.toList());
+    expect([for (final l in named.assets) l.localIdentifier], some,
+        reason: 'the walk\'s filter and order, over the named photos only');
+    final token = await bridge.changeToken();
+    expect(token, isNotNull, reason: 'iOS 16+ keeps a persistent change history');
+    final changes = await bridge.changesSince(token!);
+    expect(changes, isNotNull, reason: 'a token just taken can answer');
+    expect(await bridge.changesSince('not a token'), isNull, reason: 'only a walk will do');
+    debugPrint('SWEEP history: ${changes!.localIdentifiers.length} changed since a fresh token');
 
     final first = {
       for (final name in _ours) name: all.firstWhere((a) => _same(a.originalFilename, name))
