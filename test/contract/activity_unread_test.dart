@@ -66,11 +66,13 @@ void main() {
   });
 
   group('the badge label', () {
-    test('caps at 9+', () {
+    // Direction D (kit §1.2): `999+` past 999 — it read `9+` past nine
+    // before; the screen's own folio carries the exact figure.
+    test('caps at 999+', () {
       expect(kitBadgeLabel(1), '1');
-      expect(kitBadgeLabel(9), '9');
-      expect(kitBadgeLabel(10), '9+');
-      expect(kitBadgeLabel(127), '9+');
+      expect(kitBadgeLabel(10), '10');
+      expect(kitBadgeLabel(999), '999');
+      expect(kitBadgeLabel(1000), '999+');
     });
   });
 

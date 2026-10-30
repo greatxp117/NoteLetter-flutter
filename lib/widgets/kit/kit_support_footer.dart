@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 
-import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_d_parts.dart' show KitAttentionPill;
 
 /// §13 — the support footer. **The way out of every screen.**
 ///
@@ -55,76 +55,45 @@ class _KitSupportFooterState extends State<KitSupportFooter> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final compact =
-        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
-    // The shell's own gutter — the footer spans the pane, so it follows the
-    // shell rather than the page frame (§1.5), which it deliberately sits
-    // outside of.
-    final gutter =
-        compact ? AppSpacing.frameGutterCompact : AppSpacing.frameGutter;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        // A band of paper at the end of the scroll (§13), not more of the
-        // checker/grain ground: its surface is explicit, as it always was.
-        color: t.surface,
-        border: Border(top: BorderSide(color: t.rule)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(gutter, 10, gutter, 10),
-        child: Row(
-          children: [
-            Flexible(
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Bugs? Feature Requests? ',
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontSans,
-                        fontSize: 12.5,
-                        height: 18 / 12.5,
-                        color: t.fgSubtle,
-                      ),
-                    ),
-                    WidgetSpan(
-                      alignment: PlaceholderAlignment.baseline,
-                      baseline: TextBaseline.alphabetic,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) => setState(() => _hover = true),
-                        onExit: (_) => setState(() => _hover = false),
-                        child: GestureDetector(
-                          onTap: widget.onOpen,
-                          child: Text(
-                            'Chat with support…',
-                            style: TextStyle(
-                              fontFamily: AppTheme.fontSans,
-                              fontSize: 12.5,
-                              height: 18 / 12.5,
-                              color: _hover ? t.accent : t.link,
-                              decoration: TextDecoration.underline,
-                              decorationColor: t.linkDecor,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+    // Direction D (kit §13): the footer is part of the page, not a band at
+    // its end — on the page's own ground (no fill, no top rule), centred,
+    // `40px 56px 32px` (18 at the sides on a phone, as web's 680 rule).
+    final phone = MediaQuery.sizeOf(context).width <= 680;
+    final copy = TextStyle(
+      fontFamily: AppTheme.fontSans,
+      fontSize: 12.5,
+      height: 18 / 12.5,
+      color: t.fgSubtle,
+    );
+    return Padding(
+      padding: EdgeInsets.fromLTRB(phone ? 18 : 56, 40, phone ? 18 : 56, 32),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          Text('Bugs? Feature Requests?', style: copy),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            onEnter: (_) => setState(() => _hover = true),
+            onExit: (_) => setState(() => _hover = false),
+            child: GestureDetector(
+              onTap: widget.onOpen,
+              child: Text(
+                'Chat with support…',
+                style: copy.copyWith(
+                  color: _hover ? t.accentText : t.link,
+                  decoration: TextDecoration.underline,
+                  decorationColor: _hover ? t.accent : t.linkDecor,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (widget.unread > 0) ...[
-              const SizedBox(width: AppSpacing.s2),
-              Text(
-                '${widget.unread}',
-                style: AppTheme.mono(fontSize: 11, color: t.accent),
-              ),
-            ],
-          ],
-        ),
+          ),
+          // §1.2's attention pill (D), `999+` past 999.
+          if (widget.unread > 0)
+            KitAttentionPill(widget.unread, label: 'unread'),
+        ],
       ),
     );
   }

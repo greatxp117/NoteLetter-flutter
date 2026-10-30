@@ -71,8 +71,8 @@ proportions hold:
 - §6.6/§6.8, §4.2's timestamp, §12's action and a setting row's control strip
   stack, and §4.1's count hides, at 768, not web's 680/640/480 — one breakpoint
 - §16's anchor also opens on **tap**: a coarse pointer has neither trigger
-- touch copy, no keys bound: speed read hints only *Hold to pause & rest*
-  (F-77 (8)); the drop zone says *tap* (F-79)
+- touch copy, no keys bound: speed read hints only *Hold to pause & rest*;
+  the drop zone says *tap*; §27 draws no ⌘K or `A` hint
 - device capabilities web lacks: Sources' *Add an image set* row, §15.1's
   *Share original* (F-124), the camera-roll tray and its settings (F-125)
 

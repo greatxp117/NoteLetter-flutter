@@ -76,6 +76,14 @@ class LocalFlags {
   static const String shelvesViewKey = 'nl-shelves-view';
 
   static const sourcesViews = ['list', 'cards', 'shelf'];
+
+  /// Direction D's ONE choice for every listing of sources (kit §32): `list`
+  /// or `grid`, List by default, kept on this device under `nl-source-view`.
+  /// An unknown or unreadable value reads as List; the pre-D keys above are
+  /// ignored by it, never migrated. A [ValueNotifier], so every toggle and
+  /// every listing on screen follows a change at once (web broadcasts it).
+  static const String sourceViewKey = 'nl-source-view';
+  static final ValueNotifier<String> sourceView = ValueNotifier('list');
   static const recentViews = ['list', 'shelf'];
   static const shelvesViews = ['shelf', 'card'];
 
@@ -155,6 +163,8 @@ class LocalFlags {
     onboardExpanded.value = prefs.getBool(onboardExpandedKey);
     onboardAsked.value = prefs.getBool(onboardAskedKey) ?? false;
     shelfCollapsed.value = {...?prefs.getStringList(shelfCollapsedKey)};
+    sourceView.value =
+        prefs.getString(sourceViewKey) == 'grid' ? 'grid' : 'list';
   }();
 
   /// Forget the one-time load, so a test can seed the store and read it again.
@@ -172,6 +182,15 @@ class LocalFlags {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(key, view);
     which.value = view;
+  }
+
+  /// List / Grid (kit §32). Write before you move: the stored word lands
+  /// first, then the notifier every toggle and listing reads.
+  static Future<void> setSourceView(String view) async {
+    final next = view == 'grid' ? 'grid' : 'list';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(sourceViewKey, next);
+    sourceView.value = next;
   }
 
   /// Write before you move: the stored value lands first, then the notifier —

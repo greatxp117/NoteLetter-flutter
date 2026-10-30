@@ -4,25 +4,20 @@ import 'package:provider/provider.dart';
 
 import '../pages/tags/shelf_sheet.dart';
 import '../shared/local_flags.dart';
-import '../shared/shelf_tree.dart';
 import '../state/tags_notifier.dart';
-import '../theme/app_colors.dart';
-import '../theme/tokens.dart';
-import '../models/document.dart';
 import '../state/activity_notifier.dart';
 import '../state/review_inbox.dart';
 import '../state/auth_notifier.dart';
 import '../state/documents_notifier.dart';
-import '../state/theme_notifier.dart';
 import 'kit/kit.dart';
 
 /// The chrome rail (`component-kit.md` §1.2), composed from the kit.
 ///
 /// Structure mirrors the web reference (`shell/AppShell.jsx`): **Home leads the
 /// rail unlabelled** — a group label above a single destination names a
-/// category the user is not choosing between — then Knowledge, Study and
-/// Letters as labelled groups, with Activity and Settings pinned to the bottom
-/// above the identity footer.
+/// category the user is not choosing between — and since direction D it is the
+/// COMPACT rail (Xavier, 2026-10-30): Knowledge and Practice as labelled groups,
+/// and the Reader's card (Settings and Activity) pinned to the bottom.
 ///
 /// Two things that were here and are deliberately gone:
 ///
@@ -108,24 +103,28 @@ class _RailContentState extends State<RailContent> {
       context.go(path);
     }
 
+    final aiOn = shellAiOn(context);
     return Consumer2<DocumentsNotifier, ActivityNotifier>(
       builder: (context, docs, activity, _) {
         // The corpus at a glance, derived from the documents subscription that
         // is already open (INV-02) — no extra read. All three figures are
         // measured: volumes and passages from the indexed documents, unread
         // from `view_count`, which INV-03a bumps on an open and nothing else.
-        //
-        // Until 4.5.1 the rail read the activity merge, whose `ActivityItem`
-        // carries no `tag_ids` and no `view_count`, so two of the three cells
-        // had no signal and the card showed one figure. `DocumentsNotifier`
-        // supplies them.
         final done = docs.complete;
         final volumes = done.length;
         final passages =
             done.fold<int>(0, (n, d) => n + (d.chunkCount ?? 0));
         final unread = done.where((d) => d.viewCount == 0).length;
         final ok = docs.measured;
+        final shelfCount = context.watch<TagsNotifier>().tags.length;
+        final shelfRoute = route == '/shelves' || route.startsWith('/shelves/');
 
+        // THE COMPACT RAIL (direction D, Xavier 2026-10-30; kit §1.2): Home
+        // and For your review; Knowledge — the library card, Ask, Shelves with
+        // its `+`; Practice — Letters, Study. No Search row (the header's pill
+        // and every masthead's Search), no shelf tree (the Shelves page), no
+        // Letter settings row, no Activity or Settings rows (the Reader's
+        // card), no theme row (Settings), no build line.
         return KitChromeRail(
           brand: const KitBrand(),
           items: [
@@ -165,80 +164,42 @@ class _RailContentState extends State<RailContent> {
                     highlight: unread > 0),
               ],
             ),
+            // Absent while generative AI is off or not yet read — absent,
+            // never disabled (5.29.0, ADR-186, INV-34).
+            if (aiOn)
+              KitNavItem(
+                icon: Icons.chat_bubble_outline,
+                label: 'Ask',
+                active: route.startsWith('/ask'),
+                onTap: () => go('/ask'),
+              ),
+            // Always drawn with its `+` (4.83.0, ADR-117): the `+` is how a
+            // first shelf gets made, so it cannot wait for a source to exist.
+            KitRailShelvesRow(
+              active: shelfRoute,
+              count: shelfCount > 0 ? '$shelfCount' : null,
+              onTap: () => go('/shelves'),
+              onAdd: () => _newShelf(context, docs.complete.isNotEmpty),
+            ),
+            const KitRailGroupLabel('Practice'),
             KitNavItem(
-              icon: Icons.search,
-              label: 'Search',
-              active: route == '/search',
-              onTap: () => go('/search'),
+              icon: Icons.mail_outlined,
+              label: 'Letters',
+              // Active on Letter settings too (kit §1.2).
+              active: route == '/letters' || route.startsWith('/letters/'),
+              onTap: () => go('/letters'),
             ),
             KitNavItem(
-              icon: Icons.chat_bubble_outline,
-              label: 'Ask',
-              active: route == '/ask',
-              onTap: () => go('/ask'),
-            ),
-            const KitRailGroupLabel('Study'),
-            KitNavItem(
-              icon: Icons.school_outlined,
+              icon: KitCardsGlyph.icon,
               label: 'Study',
               active: route.startsWith('/study'),
               onTap: () => go('/study'),
             ),
-            const KitRailGroupLabel('Letters'),
-            KitNavItem(
-              icon: Icons.mail_outlined,
-              label: 'Letters',
-              active: route == '/letters',
-              onTap: () => go('/letters'),
-            ),
-            // Always drawn (4.83.0, ADR-117): the `+` is how a first shelf
-            // gets made, so it cannot wait for a source to exist.
-            KitRailGroupLabel(
-              'Shelves',
-              addLabel: 'New shelf',
-              onAdd: () => _newShelf(context, docs.complete.isNotEmpty),
-            ),
-            KitNavItem(
-              icon: Icons.label_outline,
-              label: 'All shelves',
-              active: route == '/shelves' || route == '/shelves/map',
-              onTap: () => go('/shelves'),
-            ),
-            // The shelf tree (5.28.0, ADR-185; kit §1.2).
-            _ShelfRail(route: route, complete: done, measured: ok, go: go),
           ],
-          footer: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _ActivityNavItem(
-                activity: activity,
-                onActivity: route == '/activity',
-                onTap: () => go('/activity'),
-              ),
-              const SizedBox(height: 4),
-              KitNavItem(
-                icon: Icons.settings_outlined,
-                label: 'Settings',
-                active: route.startsWith('/settings'),
-                onTap: () => go('/settings'),
-              ),
-              const SizedBox(height: 4),
-              Consumer<ThemeNotifier>(
-                builder: (context, notifier, _) => KitNavItem(
-                  icon: notifier.modeIcon,
-                  label: notifier.modeLabel,
-                  onTap: notifier.toggle,
-                ),
-              ),
-              // §1.2's pinned bottom region — the part the rail had never
-              // rendered. `KitRailFooter` has been in the kit since 4.5.0 with
-              // no call site: a kit widget nothing mounts reads as a built
-              // pattern to everyone after, which is the dead-class trap with
-              // the repo's own component layer standing in for the stylesheet.
-              const SizedBox(height: 6),
-              const _RailIdentity(),
-            ],
+          footer: _ReaderCard(
+            route: route,
+            activity: activity,
+            go: go,
           ),
         );
       },
@@ -246,128 +207,59 @@ class _RailContentState extends State<RailContent> {
   }
 }
 
-/// The rail's shelf tree (kit §1.2, 5.28.0, ADR-185): tree order, a child
-/// indented under its parent, a parent collapsible (the viewer's own state,
-/// [LocalFlags.shelfCollapsed]). Each count is the subtree's complete volumes,
-/// and none while the documents read is not a measurement (ADR-109).
-class _ShelfRail extends StatelessWidget {
+/// Whether Ask is drawn — in the rail and in the tab bar's last slot.
+///
+/// This client reads no generative-AI setting yet: the switch (5.29.0,
+/// ADR-186) is F-133's, folded into F-144. Until it lands Ask stays where it
+/// has always been here, which is web's behaviour with AI on; the tab bar and
+/// the rail both ask THIS function, so the day it reads the setting both move.
+bool shellAiOn(BuildContext context) => true;
+
+/// §1.2's **Reader's card** in the rail's pinned bottom region: the account
+/// (opens Settings) over its perforated Activity stub — the newest event and
+/// the unread count from the ONE activity subscription the rail opened.
+///
+/// The count is EVENTS newer than the client-local last-seen mark the feed
+/// writes while it is open, zero while the feed is the route (the reader is
+/// looking at it), the dash while the feed has not answered or refused —
+/// never a zero it did not measure (ADR-109).
+class _ReaderCard extends StatelessWidget {
   final String route;
-  final List<Document> complete;
-  final bool measured;
-  final void Function(String) go;
-  const _ShelfRail(
-      {required this.route,
-      required this.complete,
-      required this.measured,
-      required this.go});
-
-  @override
-  Widget build(BuildContext context) {
-    final tags = context.watch<TagsNotifier>().tags;
-    final tree = ShelfTree(tags);
-    final dark = Tokens.of(context).isDark;
-    return ValueListenableBuilder<Set<String>>(
-      valueListenable: LocalFlags.shelfCollapsed,
-      builder: (context, collapsed, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final r in tree.ordered())
-            if (!r.path.any((a) => collapsed.contains(a.id)))
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Builder(builder: (context) {
-                  final s = r.shelf;
-                  final kids = tree.childrenOf(s.id).isNotEmpty;
-                  final ids = tree.subtreeIds(s.id);
-                  final n =
-                      complete.where((d) => inSubtree(d.tagIds, ids)).length;
-                  return KitRailShelfRow(
-                    label: s.title.isEmpty ? 'Untitled' : s.title,
-                    dot: AppColors.shelfColor(s.color, dark: dark) ?? // pair-ok: a shelf's stored colour is a fixed data token
-                        Tokens.of(context).chromeSubtle,
-                    depth: r.depth,
-                    active: route == '/shelves/${s.id}',
-                    expanded: kids ? !collapsed.contains(s.id) : null,
-                    onToggle: () => LocalFlags.toggleShelfCollapsed(s.id),
-                    count: measured && n > 0 ? '$n' : null,
-                    onTap: () => go('/shelves/${s.id}'),
-                  );
-                }),
-              ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The Activity entry point and its **unread badge**
-/// (`screens/activity.md` §Toasts and unread).
-///
-/// The badge is a count of EVENTS newer than the client-local last-seen mark;
-/// the feed writes that mark while it is open. Three consequences of the
-/// reference's rule, all deliberate:
-///
-/// * **Zero while the feed is the route.** Not merely "marked on arrival": the
-///   reader is looking at the thing, and an item arriving under their eyes
-///   would otherwise put a `1` on the entry point for the screen they are on.
-/// * The mark is written from the newest event the feed is SHOWING, not from
-///   the clock — see [ActivityNotifier.newestEventAt].
-/// * A never-visited feed shows every event as unread, capped at `9+`. That is
-///   the right answer, not a bug to soften: nothing has been seen.
-class _ActivityNavItem extends StatelessWidget {
   final ActivityNotifier activity;
-  final bool onActivity;
-  final VoidCallback onTap;
+  final void Function(String) go;
 
-  const _ActivityNavItem({
-    required this.activity,
-    required this.onActivity,
-    required this.onTap,
-  });
+  const _ReaderCard(
+      {required this.route, required this.activity, required this.go});
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthNotifier>().user;
+    final display = user?.displayName?.trim() ?? '';
+    final email = user?.email ?? '';
+    final name = display.isNotEmpty ? display : email;
+    final onActivity = route == '/activity';
+    final failed = activity.error != null;
+    final latest = activity.latestEvent;
     return ValueListenableBuilder<int>(
       valueListenable: LocalFlags.activityLastSeen,
-      builder: (context, lastSeen, _) {
-        final unread = onActivity ? 0 : activity.unreadSince(lastSeen);
-        return KitNavItem(
-          icon: Icons.timeline_outlined,
-          label: 'Activity',
-          active: onActivity,
-          onTap: onTap,
-          badge: unread > 0 ? kitBadgeLabel(unread) : null,
-        );
-      },
-    );
-  }
-}
-
-/// §1.2's footer identity: initials, name, and the account line beneath it.
-class _RailIdentity extends StatelessWidget {
-  const _RailIdentity();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AuthNotifier>(
-      builder: (context, auth, _) {
-        final user = auth.user;
-        if (user == null) return const SizedBox.shrink();
-        final name = user.displayName?.trim().isNotEmpty == true
-            ? user.displayName!.trim()
-            : (user.email ?? '');
-        if (name.isEmpty) return const SizedBox.shrink();
-        return KitRailFooter(
-          initials: _initialsOf(name),
-          name: name,
-          // The email only where it is not already the name — the reference
-          // draws a blank second line rather than the address twice.
-          secondary: user.displayName?.trim().isNotEmpty == true
-              ? (user.email ?? '')
-              : '',
-        );
-      },
+      builder: (context, lastSeen, _) => KitReaderCard(
+        initials: _initialsOf(name),
+        name: name,
+        email: email,
+        settingsLit: route.startsWith('/settings'),
+        activityLit: onActivity,
+        onSettings: () => go('/settings'),
+        onActivity: () => go('/activity'),
+        stub: KitActivityStub(
+          answered: activity.answered,
+          failed: failed,
+          unread: failed || !activity.answered
+              ? null
+              : (onActivity ? 0 : activity.unreadSince(lastSeen)),
+          latestTitle: latest?.title,
+          latestAt: latest?.createdAt,
+        ),
+      ),
     );
   }
 }

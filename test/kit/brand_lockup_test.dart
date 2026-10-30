@@ -76,7 +76,9 @@ void main() {
     expect(find.byIcon(Icons.search), findsOneWidget);
   });
 
-  testWidgets('the phone app bar draws the lockup and a search control',
+  // Direction D (kit §30): the app header is the menu, the Search pill and the
+  // page's settings — NO wordmark — and the tab bar sits at the foot.
+  testWidgets('the phone app header: menu, Search pill, no wordmark; the tab bar',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
@@ -96,14 +98,16 @@ void main() {
             MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('menu-attention-dot')), findsNothing);
-    await tester.pumpAndSettle();
 
-    expect(find.byType(KitBrand), findsOneWidget);
-    expect(find.byType(KitQuill), findsOneWidget);
-    final search = find.byWidgetPredicate(
-        (w) => w is KitAppBarButton && w.label == 'Search');
+    expect(find.byType(KitAppHeader), findsOneWidget);
+    expect(find.byType(KitBrand), findsNothing,
+        reason: 'the D app header draws no wordmark');
+    expect(find.byType(KitTabBar), findsOneWidget);
+    expect(tester.getSize(find.byType(KitAppHeader)).height, 54);
+    final search = find.byKey(const ValueKey('d-header-search'));
     expect(search, findsOneWidget);
-    expect(tester.getSize(search), const Size(36, 36));
+    expect(tester.getSize(search).height, 36);
+    expect(find.text('Search your library…'), findsOneWidget);
 
     await tester.tap(search);
     await tester.pumpAndSettle();

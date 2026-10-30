@@ -88,6 +88,33 @@ class AppColors {
   static const chromeActive = Color(0x14FFFFFF); // active fill rgba(255,255,255,.08)
   static const chromeBorder = Color(0x1AFFFFFF); // rules on plum rgba(255,255,255,.10)
   static const chromeAccentBar = _brick400; // active left bar --brick-400
+  // Direction D (kit §1.2 *Rail labels*): every small label on the rail —
+  // group labels, a row's trailing count, the `+`, the library card's figure
+  // labels, the Reader's card's eyebrow, email, age and latest line — takes one
+  // white step, .54 (it was .40/.38), and an unread numeral the chrome unread
+  // step, which web declares as `--chrome-unread` (5.42.0). Neither flips.
+  static const chromeLabel = Color(0x8AFFFFFF); // rail labels rgba(255,255,255,.54)
+  static const chromeUnread = Color(0xFFF8846A); // --chrome-unread (both themes)
+  // The D chrome's other white steps (§1.2's Reader's card, §30's header).
+  static const chromeCard = Color(0x0FFFFFFF); // .sb-rcard fill rgba(255,255,255,.06)
+  static const chromeRaised = Color(0x24FFFFFF); // open/hover pill rgba(255,255,255,.14)
+  static const chromeEdge = Color(0x29FFFFFF); // perforation rgba(255,255,255,.16)
+  static const chromeGearHover = Color(0x2EFFFFFF); // gear hover rgba(255,255,255,.18)
+  static const chromeStub = Color(0xB8FFFFFF); // stub text rgba(255,255,255,.72)
+  static const chromeSearch = Color(0xBDFFFFFF); // search pill text rgba(255,255,255,.74)
+  static const chromeAvatar = _brick500; // .sb-rcard .avatar, --brick-500 (both themes)
+  // Direction D's covers (kit §33): raw colour that does not flip — a cover
+  // keeps its cloth and its paper type in both themes, as §21's spines do.
+  static const coverInk300 = _ink300;
+  static const coverInk400 = _ink400;
+  static const coverInk500 = _ink500;
+  static const coverInk600 = _ink600;
+  static const coverInk700 = _ink700;
+  static const coverInk800 = _ink800;
+  static const coverPaper50 = _paper50;
+  static const coverPaper100 = _paper100;
+  static const coverPaper200 = _paper200;
+  static const coverRibbon = _brick400; // the unread ribbon, --brick-400
   // `.ask-msg .avatar.you { background: var(--sage-700) }` — the reader's own
   // disc on Ask, a raw step pinned in BOTH themes as the reference pins it,
   // carrying --chrome-fg like the chrome does (F-78 (3)). Never a page fg.
@@ -103,6 +130,10 @@ class AppColors {
   // it has no palette identity and does not flip: a scrim that lightened in
   // dark mode would stop separating the overlay from the page.
   static const scrim = Color(0x800B0D13); // rgba(11,13,19,0.50)
+  // Direction D's two: the settings panel's light scrim (§28, .24) and the
+  // running head's (§30, .42).
+  static const scrimPanel = Color(0x3D0B0D13); // rgba(11,13,19,0.24)
+  static const scrimSheet = Color(0x6B0B0D13); // rgba(11,13,19,0.42)
 
   // ── Semantic — Dark ──────────────────────────────────────────────────────
   static const backgroundDark = _ink700; // --bg (dark)

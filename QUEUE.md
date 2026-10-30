@@ -2302,7 +2302,7 @@ a new obligation on a finished screen is a new item.
 - notes: Lane A of direction D. The ten new cloths and their dark pairs in wheel order with the picker labels; palette B's solid dark greys, brick-300 accent, critical #F37469. Lands at the held pin. Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-140 · Direction D: the frame, the listing parts and the shell (5.42.0, ADR-197)
-- status: open
+- status: done 2026-10-30
 - screen: every screen (shell)
 - route: all
 - spec: spec/component-kit.md

@@ -32,7 +32,9 @@ import 'package:flutter_app/pages/reader/summary_panel.dart';
 import 'package:flutter_app/pages/search/reading_pane.dart';
 import 'package:flutter_app/pages/search/result_card.dart';
 import 'package:flutter_app/pages/search/search_field.dart';
+import 'package:flutter_app/widgets/app_layout.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
+import 'package:flutter_app/widgets/support_shell.dart';
 import 'package:flutter_app/site/signin_page.dart';
 import 'package:flutter_app/site/landing_page.dart';
 import 'package:flutter_app/site/auth_modal.dart';
@@ -1065,8 +1067,10 @@ void main() {
         reason: 'the drawer is not the kit rail — the second nav is back');
     expect(find.byType(KitRailCard), findsOneWidget,
         reason: '§1.2s library card is missing from the compact rail');
-    expect(find.byType(KitRailFooter), findsOneWidget,
-        reason: '§1.2 requires a pinned identity footer');
+    // Direction D: the pinned identity is the Reader's card (kit §1.2), and
+    // its stub carries the unread count the old Activity row did.
+    expect(find.byType(KitReaderCard), findsOneWidget,
+        reason: '§1.2 requires the Reader\'s card in the pinned bottom region');
     expect(find.text('Daily Digest'), findsNothing,
         reason: 'a nav vocabulary that is in no spec and no reference');
 
@@ -2672,6 +2676,290 @@ void main() {
       await rest.delete('/config/plans');
     }
   });
+  // F-140 (5.42.0, direction D; kit §1.2, §26–§30): the D shell on a phone.
+  // The first half drives the REAL app: the app header (menu, Search pill, no
+  // wordmark), the tab bar and its default middle action, and the drawer's
+  // compact rail with the Reader's card. The second half mounts a D page inside
+  // the real shell widgets (SupportShell → AppLayout) with the app's own
+  // providers, because no screen is ported to D yet (F-141..F-145): the page's
+  // registered action reaches the tab bar's centre, its settings panel drops
+  // from the header, and the running head opens and folds by real taps.
+  testWidgets(
+      "the app header, the tab bar's middle action, the running head opening "
+      "and folding, the drawer's compact rail and Reader's card",
+      (tester) async {
+    await LocalFlags.setOnboarded(true);
+    KitPageTools.instance.reset();
+    final router = await pumpApp(tester);
+    router.go('/');
+    for (var i = 0; i < 60; i++) {
+      if (find.byType(KitAppHeader).evaluate().isNotEmpty) break;
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+
+    // ── the app header (§30): menu · Search pill · (the page's settings) ──
+    expect(find.byType(KitAppHeader), findsOneWidget,
+        reason: 'the D app header replaces the pre-D phone app bar');
+    expect(tester.getSize(find.byType(KitAppHeader)).height,
+        greaterThanOrEqualTo(54));
+    expect(find.byType(KitBrand), findsNothing,
+        reason: 'the D app header draws no wordmark');
+    final pill = find.byKey(const ValueKey('d-header-search'));
+    expect(pill, findsOneWidget);
+    expect(find.text('Search your library…'), findsOneWidget);
+
+    // ── the tab bar (§30): Home, Library, the action, Letters, Ask ──
+    final bar = find.byType(KitTabBar);
+    expect(bar, findsOneWidget);
+    for (final l in ['Home', 'Library', 'Add', 'Letters', 'Ask']) {
+      expect(find.descendant(of: bar, matching: find.text(l)), findsOneWidget,
+          reason: 'the tab bar has no "$l"');
+    }
+    final barRect = tester.getRect(bar);
+    final view = tester.view.physicalSize / tester.view.devicePixelRatio;
+    expect(barRect.bottom, closeTo(view.height, 1),
+        reason: 'the tab bar is fixed at the foot');
+    debugPrint('DEVICE-RUN F-140 header ${tester.getSize(find.byType(KitAppHeader))} '
+        'tabbar $barRect view $view');
+
+    // The Search pill opens Search (this client has no quick-search overlay).
+    await tester.tap(pill);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/search');
+
+    // A destination tab, and the active tab's colour.
+    await tester.tap(find.byKey(const ValueKey('d-tab-Letters')));
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/letters');
+
+    // The middle action: no page registers one yet, so it is Add — named
+    // "Add a source" — and it opens Add a source (the Library's uploader).
+    final centre = find.byKey(const ValueKey('d-tab-action'));
+    expect(find.descendant(of: centre, matching: find.text('Add')),
+        findsOneWidget);
+    await tester.tap(centre);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/sources',
+        reason: "the tab bar's default action is Add a source");
+
+    // ── the drawer: the compact rail and the Reader's card (§1.2) ──
+    Future<void> openDrawer() async {
+      await tester.tap(find.byIcon(Icons.menu));
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      expect(find.byType(KitChromeRail), findsOneWidget);
+    }
+
+    await openDrawer();
+    final rail = find.byType(KitChromeRail);
+    Finder inRail(String t) =>
+        find.descendant(of: rail, matching: find.text(t));
+    for (final l in [
+      'Home',
+      'For your review',
+      'KNOWLEDGE',
+      'Library',
+      'Ask',
+      'Shelves',
+      'PRACTICE',
+      'Letters',
+      'Study',
+    ]) {
+      expect(inRail(l), findsWidgets, reason: 'the compact rail has no "$l"');
+    }
+    for (final gone in ['Search', 'All shelves', 'Settings', 'Letter settings']) {
+      expect(inRail(gone), findsNothing,
+          reason: 'the compact rail draws no "$gone" row');
+    }
+    expect(find.descendant(of: rail, matching: find.byType(KitRailShelfRow)),
+        findsNothing,
+        reason: 'the compact rail draws no shelf tree');
+    expect(find.bySemanticsLabel('New shelf'), findsOneWidget,
+        reason: "the Shelves row's + is drawn whatever the library holds");
+    final card = find.byType(KitReaderCard);
+    expect(card, findsOneWidget);
+    expect(find.descendant(of: card, matching: find.text('READER’S CARD')),
+        findsOneWidget);
+    // Its stub: the count from the ONE activity subscription — measured once
+    // the feed has answered (a number), the dash before it and when refused.
+    final ctx = tester.element(rail);
+    final activity = Provider.of<ActivityNotifier>(ctx, listen: false);
+    for (var i = 0; i < 40 && !activity.answered; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    final count = tester.widget<Text>(find.descendant(
+        of: find.byKey(const ValueKey('reader-card-count')),
+        matching: find.byType(Text)));
+    final expected = activity.error != null || !activity.answered
+        ? '—'
+        : (() {
+            final n = activity.unreadSince(LocalFlags.activityLastSeen.value);
+            return n > 999 ? '999+' : '$n';
+          })();
+    debugPrint('DEVICE-RUN F-140 reader card count="${count.data}" '
+        'expected="$expected" answered=${activity.answered} '
+        'latest="${activity.latestEvent?.title}"');
+    expect(count.data, expected,
+        reason: 'the stub shows the count the feed computes (the dash, never 0, '
+            'when it cannot)');
+
+    // The main part opens Settings; the stub opens Activity.
+    await tester.tap(find.byKey(const ValueKey('reader-card-settings')));
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/settings');
+    await openDrawer();
+    await tester.tap(find.byKey(const ValueKey('reader-card-activity')));
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/activity');
+
+    // ── a D page in the real shell: the action, the panel, the running head ──
+    final sec = KitSections(['first', 'second']);
+    const items = [
+      KitContentsItem('first', 'First section', count: '12'),
+      KitContentsItem('second', 'Second section'),
+    ];
+    var acted = 0;
+    final auth = AuthNotifier();
+    final dRouter = GoRouter(routes: [
+      ShellRoute(
+        builder: (context, state, child) =>
+            SupportShell(route: state.matchedLocation, child: child),
+        routes: [
+          ShellRoute(
+            builder: (context, state, child) => AppLayout(child: child),
+            routes: [
+              GoRoute(
+                path: '/',
+                builder: (context, state) => KitDPage(
+                  folio: '§ Device run · two sections',
+                  title: 'The *running* head',
+                  stand: 'A D page inside the real shell.',
+                  action: KitPageAction(
+                      label: 'Write a letter',
+                      short: 'Write',
+                      icon: Icons.edit_outlined,
+                      onPressed: () => acted++),
+                  settings: KitPageSettings(
+                    label: 'Page settings',
+                    body: (context, close) => const Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        KitDLabel('Show sources as', top: 18),
+                        KitViewToggle(),
+                      ],
+                    ),
+                  ),
+                  sections: sec,
+                  sheet: KitDSheet(
+                    label: 'On this page',
+                    foldOnPick: true,
+                    peek: KitSecPeek(items: items, sections: sec),
+                    body: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const KitDLabel('Contents', first: true),
+                        KitContents(items: items, sections: sec),
+                        const KitFigures(
+                            rows: [('Sources', '41'), ('Unread', '—')]),
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      KitSecHead(
+                          key: sec.keyOf('first'), n: 0, title: 'First section'),
+                      const SizedBox(height: 1400),
+                      KitSecHead(
+                          key: sec.keyOf('second'),
+                          n: 1,
+                          title: 'Second section'),
+                      const SizedBox(height: 1400),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ]);
+    await tester.pumpWidget(MultiProvider(
+      providers: appProviders(auth),
+      child: NoteLetterApp(router: dRouter),
+    ));
+    await pumpFor(tester, total: const Duration(seconds: 3));
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.byType(KitSearchField), findsNothing,
+        reason: 'at 1024 and under the masthead rail keeps only its folio');
+    expect(find.text('§ DEVICE RUN · TWO SECTIONS'), findsOneWidget);
+
+    // The page's action at the tab bar's centre, by its short label.
+    expect(find.descendant(of: centre, matching: find.text('Write')),
+        findsOneWidget,
+        reason: "the tab bar's centre is the page's registered action");
+    await tester.tap(centre);
+    await tester.pump();
+    expect(acted, 1, reason: "the centre called the page's handler");
+
+    // Its settings: the gear in the header opens the panel; the scrim closes.
+    final gear = find.descendant(
+        of: find.byType(KitAppHeader),
+        matching: find.bySemanticsLabel('Page settings'));
+    expect(gear, findsOneWidget,
+        reason: "the header draws the page's settings it registered");
+    await tester.tap(gear);
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    expect(find.byKey(const ValueKey('d-panel')), findsOneWidget);
+    expect(find.byType(KitViewToggle), findsOneWidget);
+    final panelTop = tester.getTopLeft(find.byKey(const ValueKey('d-panel'))).dy;
+    final headerBottom = tester.getBottomLeft(find.byType(KitAppHeader)).dy;
+    expect(panelTop, closeTo(headerBottom, 1),
+        reason: 'the panel drops from the app header, full width');
+    await tester.tapAt(Offset(view.width / 2, view.height - 140));
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    expect(find.byKey(const ValueKey('d-panel')), findsNothing,
+        reason: 'the scrim closes the panel');
+
+    // The running head: one line under the header, `§ I · … · 1 of 2`.
+    final peek = find.byKey(const ValueKey('d-peek'));
+    expect(peek, findsOneWidget);
+    expect(tester.getTopLeft(peek).dy, closeTo(headerBottom, 1),
+        reason: 'the running head is fixed under the app header');
+    expect(tester.getSize(peek).height, greaterThanOrEqualTo(46));
+    expect(find.textContaining('1 of 2', findRichText: true), findsOneWidget);
+    final row2 = find.bySemanticsLabel('II Second section');
+    expect(row2, findsNothing, reason: 'folded, its body is inert');
+
+    Future<void> drop() async {
+      await tester.tap(peek);
+      await pumpFor(tester, total: const Duration(milliseconds: 750));
+      expect(row2, findsOneWidget, reason: 'tapping the line drops the sheet');
+    }
+
+    // The line folds it.
+    await drop();
+    await tester.tap(peek);
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
+    expect(row2, findsNothing, reason: 'the line folds it');
+
+    // The scrim folds it.
+    await drop();
+    await tester.tapAt(Offset(view.width / 2, view.height - 140));
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
+    expect(row2, findsNothing, reason: 'the scrim folds it');
+
+    // A Contents row folds it AND moves the page to its section.
+    await drop();
+    await tester.tap(row2);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(row2, findsNothing, reason: 'choosing a row the page names folds it');
+    expect(sec.current, 'second');
+    expect(find.textContaining('2 of 2', findRichText: true), findsOneWidget,
+        reason: 'the line says where the reader is now');
+    expect(tester.takeException(), isNull);
+  });
 }
 
 /// The reader's own vertical scroller — the first Scrollable under its
@@ -2698,6 +2986,7 @@ Future<void> _dragUntilFound(WidgetTester tester, Finder finder,
   }
   expect(finder, findsWidgets,
       reason: 'not reached after $maxDrags drags of ${step.dy}');
+
 }
 
 /// Drags the screen with REAL gestures until its primary scroll is at the end

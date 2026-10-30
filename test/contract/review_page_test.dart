@@ -256,10 +256,11 @@ void main() {
     });
   });
 
-  testWidgets('the rail attention count: 9+ past nine, the muted dash unmeasured',
+  testWidgets('the rail attention count: 999+ past 999 (D), the muted dash unmeasured',
       (tester) async {
     expect(kitAttentionLabel(0), isNull);
-    expect(kitAttentionLabel(12), '9+');
+    expect(kitAttentionLabel(12), '12');
+    expect(kitAttentionLabel(1200), '999+');
     expect(kitAttentionLabel(null), '—');
     Future<Color?> pill(bool unmeasured) async {
       await tester.pumpWidget(MaterialApp(
@@ -281,8 +282,9 @@ void main() {
       return (box.decoration as BoxDecoration?)?.color;
     }
 
+    // Direction D draws web's `.count.attn`: --accent under --accent-fg.
     final t = Tokens.light;
-    expect(await pill(false), t.chromeAccentBar);
+    expect(await pill(false), t.accent);
     expect(await pill(true), t.chromeBorder,
         reason: 'a failed read is not work waiting: no accent fill');
   });

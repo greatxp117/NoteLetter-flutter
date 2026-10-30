@@ -37,6 +37,21 @@ class ActivityNotifier extends ChangeNotifier {
   StreamSubscription<List<ActivityItem>>? _sub;
 
   List<ActivityItem> get items => List.unmodifiable(_items);
+
+  /// The feed has answered at least once (direction D's Reader's card draws
+  /// *Nothing new* only for a feed that ANSWERED empty — never before).
+  bool _answered = false;
+  bool get answered => _answered;
+
+  /// The newest EVENT on the feed, or null (the Reader's card's stub).
+  ActivityItem? get latestEvent {
+    ActivityItem? best;
+    for (final i in _items) {
+      if (i.kind != 'event') continue;
+      if (best == null || (i.createdAt ?? 0) > (best.createdAt ?? 0)) best = i;
+    }
+    return best;
+  }
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -67,6 +82,7 @@ class ActivityNotifier extends ChangeNotifier {
         .listen((items) {
       _items = items;
       _error = null;
+      _answered = true;
       _isLoading = false;
       notifyListeners();
     }, onError: (e) {

@@ -4,6 +4,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_d_parts.dart' show KitDScope, KitRowHover;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 
@@ -150,8 +151,79 @@ class KitEmptyState extends StatelessWidget {
   /// the kit and web stand). This widget drew 34/25 everywhere until then.
   bool get _studyForm => suggestions.isNotEmpty && _movesOnly;
 
+  /// §37 — an empty D page is still a D page: the SAME component, set on the
+  /// column's leading edge (≤640), its mark a seal (a round `--accent-soft`
+  /// disc, an `--accent-chip-border` edge, the glyph in `--seal`), its offers a
+  /// ruled list (a `--fg` rule on top, a rule under each, upright serif). Web
+  /// does it with `.hx-d` rules over `shared/EmptyState.jsx`; here [KitDScope]
+  /// asks, so a screen never chooses the form.
+  Widget _d(BuildContext context) {
+    final t = Tokens.of(context);
+    return LayoutBuilder(builder: (context, c) {
+      final size = (0.026 * c.maxWidth).clamp(26.0, 32.0);
+      final sub = KitText.lede(context, fontSize: 17, height: 27, opsz: 18);
+      return Align(
+        alignment: Alignment.topLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: t.accentSoft,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: t.accentChipBorder),
+                ),
+                child: KitGlyph(icon, size: 22, color: t.seal),
+              ),
+              SizedBox(height: quiet ? 0 : 18),
+              AccentTitle(
+                title,
+                style: AppTheme.serif(
+                  fontSize: size,
+                  height: 1.12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.02 * size,
+                  color: t.fg,
+                  opsz: 30,
+                ).copyWith(shadows: AppShadows.letterpress),
+              ),
+              SizedBox(height: quiet ? 8 : 10),
+              ConstrainedBox(
+                constraints:
+                    BoxConstraints(maxWidth: 58 * KitText.ch(context, sub)),
+                child: Text(standfirst, style: sub),
+              ),
+              if (suggestions.isNotEmpty && !quiet) ...[
+                const SizedBox(height: 24),
+                Container(
+                  decoration: BoxDecoration(
+                      border: Border(top: BorderSide(color: t.fg))),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: suggestions,
+                  ),
+                ),
+              ],
+              if (actions.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.s6),
+                Wrap(spacing: 10, runSpacing: 10, children: actions),
+              ],
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (KitDScope.of(context)) return _d(context);
     final t = Tokens.of(context);
     // `.empty-state-sub` names its optical size, "opsz" 18 (Study's keeps it);
     // the quiet form's `inherit` leaves the browser's own, the size's.
@@ -282,6 +354,30 @@ class _KitSuggestionState extends State<KitSuggestion> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    if (KitDScope.of(context)) {
+      // §37's offer in D: a ruled row (`14px 8px 14px 0`, a rule under), no
+      // radius, fill or shadow, upright serif 17/23 in `--fg`; §36's hover.
+      return KitRowHover(
+        onTap: widget.onTap,
+        label: widget.label,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(0, 14, 8, 14),
+          decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: t.rule))),
+          child: Row(
+            children: [
+              KitGlyph(widget.icon, size: 15, color: t.seal),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(widget.label,
+                    style: AppTheme.serif(
+                        fontSize: 17, height: 23 / 17, color: t.fg)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),

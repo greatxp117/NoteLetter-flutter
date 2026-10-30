@@ -701,7 +701,8 @@ class KitRailGroupLabel extends StatelessWidget {
         style: AppTheme.mono(
           fontSize: 10,
           letterSpacing: 0.14 * 10,
-          color: t.chromeSubtle,
+          // Direction D: every small label on the rail is .54 (kit §1.2).
+          color: t.chromeLabel,
         ),
       ),
     );
@@ -713,23 +714,27 @@ class KitRailGroupLabel extends StatelessWidget {
         Expanded(child: text),
         Padding(
           padding: const EdgeInsets.only(right: 6, bottom: 2),
-          child: _RailGroupAdd(onTap: add, label: addLabel ?? 'Add'),
+          child: KitRailAddButton(onTap: add, label: addLabel ?? 'Add'),
         ),
       ],
     );
   }
 }
 
-class _RailGroupAdd extends StatefulWidget {
+/// The rail's `+` (`.sb-group-add`): 22 square, `--r-sm`, the glyph at the
+/// rail label's .54; hover fills white .08 and lifts it to `--paper-50`. It
+/// names what it makes ([label]) — the glyph alone names nothing. Direction D
+/// draws it beside the Shelves row (kit §1.2's compact rail).
+class KitRailAddButton extends StatefulWidget {
   final VoidCallback onTap;
   final String label;
-  const _RailGroupAdd({required this.onTap, required this.label});
+  const KitRailAddButton({super.key, required this.onTap, required this.label});
 
   @override
-  State<_RailGroupAdd> createState() => _RailGroupAddState();
+  State<KitRailAddButton> createState() => _KitRailAddButtonState();
 }
 
-class _RailGroupAddState extends State<_RailGroupAdd> {
+class _KitRailAddButtonState extends State<KitRailAddButton> {
   bool _hover = false;
 
   @override
@@ -752,13 +757,13 @@ class _RailGroupAddState extends State<_RailGroupAdd> {
             height: 22,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: _hover ? t.chromeHover : const Color(0x00000000),
+              color: _hover ? t.chromeActive : const Color(0x00000000),
               borderRadius: AppRadius.smR,
             ),
             child: Icon(
               Icons.add,
               size: 14,
-              color: _hover ? t.chromeFg : t.chromeSubtle,
+              color: _hover ? t.chromeFg : t.chromeLabel,
             ),
           ),
         ),
@@ -768,17 +773,14 @@ class _RailGroupAddState extends State<_RailGroupAdd> {
 }
 
 /// How many unread a badge says (`shell/notify.jsx`): the count, capped at
-/// `9+`.
-///
-/// The cap is the whole reason this is a function. A badge is a glyph, not a
-/// figure — it says *there is something here*, and the rail item is 10px of
-/// mono wide at the trailing edge. `127` there is not a more precise badge,
-/// it is a broken one; the feed is where the number lives.
-String kitBadgeLabel(int count) => count > 9 ? '9+' : '$count';
+/// `999+` (direction D, kit §1.2 — it was `9+` before; the screen's own folio
+/// carries the exact figure). Thousands are grouped as web's `toLocaleString`
+/// groups them.
+String kitBadgeLabel(int count) => count > 999 ? '999+' : '$count';
 
 /// §1.2 attention count (4.100.0, ADR-135): the pill's text for [count] —
-/// null (no pill) at zero, `9+` past nine, and the em dash while the count is
-/// unmeasured (null). Pair it with [KitNavItem.badgeUnmeasured].
+/// null (no pill) at zero, `999+` past 999 (direction D), and the em dash while
+/// the count is unmeasured (null). Pair it with [KitNavItem.badgeUnmeasured].
 String? kitAttentionLabel(int? count) => count == null
     ? '—'
     : count > 0
@@ -853,7 +855,7 @@ class _KitNavItemState extends State<KitNavItem> {
               ),
               child: Row(
                 children: [
-                  Icon(widget.icon, size: 16, color: fg),
+                  KitGlyph(widget.icon, size: 16, color: fg),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -875,7 +877,7 @@ class _KitNavItemState extends State<KitNavItem> {
                       widget.count!,
                       style: AppTheme.mono(
                         fontSize: 11,
-                        color: widget.active ? t.chromeFg : t.chromeSubtle,
+                        color: widget.active ? t.chromeFg : t.chromeLabel,
                       ),
                     ),
                 ],
@@ -1045,12 +1047,10 @@ class _KitRailShelfRowState extends State<KitRailShelfRow> {
 
 /// The filled pill a [KitNavItem] wears when something is unread.
 ///
-/// **The fill is the chrome's accent, not `--accent`.** The rail is plum in
-/// both themes, so a page token flips underneath a surface that does not:
-/// `--accent`'s light half froze the drawer's avatar to a colour nobody chose,
-/// and the same half would land here. `--brick-400` is the accent this surface
-/// already draws — the active item's bar is it — and white is its foreground,
-/// as everywhere else on the chrome.
+/// Direction D draws it as web's `.count.attn`: `--accent` under `--accent-fg`,
+/// reached through the theme ([Tokens.of]), so it takes the theme's own step —
+/// never a frozen light half, which is what once froze the drawer's avatar.
+/// Unmeasured: white .10 under the rail label's .54 (kit §1.2).
 class _KitNavBadge extends StatelessWidget {
   final String label;
   final bool unmeasured;
@@ -1063,11 +1063,11 @@ class _KitNavBadge extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(minWidth: 16),
       margin: const EdgeInsets.only(left: AppSpacing.s2),
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        // Unmeasured: `rgba(255,255,255,.10)` under the label's `.40`.
-        color: unmeasured ? t.chromeBorder : t.chromeAccentBar,
+        // Unmeasured: `rgba(255,255,255,.10)` under the label's `.54`.
+        color: unmeasured ? t.chromeBorder : t.accent,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1075,8 +1075,8 @@ class _KitNavBadge extends StatelessWidget {
         textAlign: TextAlign.center,
         style: AppTheme.mono(
             fontSize: 11,
-            height: 1.2,
-            color: unmeasured ? t.chromeSubtle : t.chromeFg),
+            height: 16 / 11,
+            color: unmeasured ? t.chromeLabel : t.accentFg),
       ),
     );
   }
@@ -1177,9 +1177,10 @@ class _KitRailCardState extends State<KitRailCard> {
                                   // The highlight is a state the VALUE decides,
                                   // so it cannot fire on a dash (ADR-109).
                                   color: !kitFigure(f.value).measured
-                                      ? t.chromeSubtle
+                                      ? t.chromeLabel
                                       : f.highlight
-                                          ? t.chromeAccentBar
+                                          // --chrome-unread (direction D).
+                                          ? t.chromeUnread
                                           : t.chromeFg,
                                 ),
                               ),
@@ -1190,7 +1191,7 @@ class _KitRailCardState extends State<KitRailCard> {
                                 style: AppTheme.mono(
                                   fontSize: 9,
                                   letterSpacing: 0.1 * 9,
-                                  color: const Color(0x61FFFFFF),
+                                  color: t.chromeLabel,
                                 ),
                               ),
                             ],
@@ -1222,7 +1223,7 @@ class _KitRailCardState extends State<KitRailCard> {
 }
 
 /// One figure in a [KitRailCard]. [highlight] paints the numeral in
-/// `--brick-400` — used for a non-zero unread count.
+/// `--chrome-unread` (direction D) — used for a non-zero unread count.
 class KitRailFigure {
   /// Null means NOT MEASURED — drawn by [kitFigure], the one rule (ADR-109).
   final String? value;

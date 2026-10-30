@@ -197,6 +197,18 @@ class Tokens {
   Color get chromeActive => AppColors.chromeActive;
   Color get chromeBorder => AppColors.chromeBorder;
 
+  /// Direction D's rail labels (.54) and the rail's unread numeral.
+  Color get chromeLabel => AppColors.chromeLabel;
+  Color get chromeUnread => AppColors.chromeUnread;
+  Color get chromeCard => AppColors.chromeCard;
+  Color get chromeRaised => AppColors.chromeRaised;
+  Color get chromeEdge => AppColors.chromeEdge;
+  Color get chromeGearHover => AppColors.chromeGearHover;
+  Color get chromeStub => AppColors.chromeStub;
+  Color get chromeSearch => AppColors.chromeSearch;
+  Color get scrimPanel => AppColors.scrimPanel;
+  Color get scrimSheet => AppColors.scrimSheet;
+
   /// The backdrop behind an overlay (§9's phone form, §15). Fixed, not paired.
   Color get scrim => AppColors.scrim;
   Color get chromeAccentBar => AppColors.chromeAccentBar;

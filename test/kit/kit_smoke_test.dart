@@ -1005,7 +1005,7 @@ void main() {
                 KitNavItem(
                   icon: Icons.timeline_outlined,
                   label: 'Activity',
-                  badge: kitBadgeLabel(12),
+                  badge: kitBadgeLabel(1200),
                   onTap: () {},
                 ),
                 // Both given: the badge takes the slot. A count says how many
@@ -1029,7 +1029,7 @@ void main() {
         ),
       );
       expect(find.text('Library'), findsWidgets);
-      expect(find.text('9+'), findsOneWidget);
+      expect(find.text('999+'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
       expect(find.text('4'), findsNothing,
           reason: 'the count drew beside the badge instead of yielding to it');
@@ -2018,7 +2018,9 @@ void main() {
       expect(find.text('0'), findsOneWidget);
       final t = Tokens.of(tester.element(find.byType(KitRailCard)));
       for (final dash in tester.widgetList<Text>(find.text('—'))) {
-        expect(dash.style!.color, t.chromeSubtle,
+        // Direction D: the rail's labels and its unmeasured figures take one
+        // white step, .54 (kit §1.2 *Rail labels*).
+        expect(dash.style!.color, t.chromeLabel,
             reason: 'an unread dash is neither the figure colour nor the '
                 'unread highlight');
       }
