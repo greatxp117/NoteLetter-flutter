@@ -12,7 +12,6 @@ import '../shared/local_flags.dart';
 import '../shared/plan.dart';
 import '../shared/plan_limit_signal.dart';
 import '../state/auth_notifier.dart';
-import '../state/camera_sweep_host.dart';
 import '../state/theme_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
@@ -35,11 +34,6 @@ class SettingsPage extends StatefulWidget {
   final bool focusSources;
 
   const SettingsPage({super.key, this.focusSources = false});
-
-  /// The Camera roll row's description (settings.md §Camera-roll sweep card).
-  static const cameraRollDescription =
-      'Screenshots, photos of documents and handwritten notes on this phone, '
-      'found and added to your library.';
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -217,30 +211,6 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-
-          // ── Camera roll (settings.md §Camera-roll sweep card; F-125 S3) ──
-          // Only on a device with a photo library this client can sweep: the
-          // retired iOS app's Settings → Camera roll. Client-local and
-          // per-device, so it is a screen of its own rather than a row of
-          // this one's account settings.
-          if (context.watch<CameraSweepHost?>()?.available ?? false) ...[
-            const SectionHeader('Camera roll'),
-            KitRowList(
-              raised: true,
-              rows: [
-                KitSettingRow(
-                  icon: Icons.photo_library_outlined,
-                  title: 'Camera roll',
-                  description: SettingsPage.cameraRollDescription,
-                  wideControl: true,
-                  trailing: [
-                    KitSettingLink('Open camera roll settings',
-                        onTap: () => context.go('/settings/camera-roll')),
-                  ],
-                ),
-              ],
-            ),
-          ],
 
           // ── Sources (settings.md §Sources section, ruled 2026-10-09) ──────
           // The auto-organization settings' one home. Between Notifications

@@ -212,9 +212,9 @@ void main() {
           throwsA(isA<SweepAccessRefused>()
               .having((e) => e.access, 'access', SweepAccess.limited)
               .having((e) => e.sentence, 'sentence',
-                  'NoteLetter has access to a few hand-picked photos, not your '
-                  'library. A sweep needs the whole library to be useful — '
-                  'otherwise it would quietly find nothing.')),
+                  'NoteLetter can see only the photos you picked, not your '
+                  'library. Looking through your camera roll needs all of it, '
+                  'or it would quietly find nothing.')),
         );
       });
     }
@@ -226,7 +226,8 @@ void main() {
         throwsA(isA<SweepAccessRefused>()
             .having((e) => e.access, 'access', SweepAccess.denied)
             .having((e) => e.sentence, 'sentence',
-                'Photo access is off, so nothing can be swept.')),
+                'NoteLetter can’t see your photos, so nothing new is looked at. '
+                'Allow Photos for NoteLetter in your phone’s settings.')),
       );
     });
 

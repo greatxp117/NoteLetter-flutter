@@ -157,13 +157,13 @@ void main() {
         (
           403,
           'A photo’s upload link expired before the transfer finished. '
-              'The next sweep starts it again.'
+              'The next look starts it again.'
         ),
-        (500, 'A photo could not be uploaded (HTTP 500). The next sweep tries again.'),
+        (500, 'A photo could not be uploaded (HTTP 500). The next look tries again.'),
         (
           'The network connection was lost.',
           'A photo could not be uploaded — The network connection was lost. '
-              'The next sweep tries again.'
+              'The next look tries again.'
         ),
       ]) {
         final (svc, ledger, _, ep, _) = await rig([asset('p1')]);
@@ -285,7 +285,7 @@ void main() {
       await svc.drainUploads();
       expect(svc.errorMessage,
           'A photo’s upload link expired before the transfer finished. '
-          'The next sweep starts it again.');
+          'The next look starts it again.');
       expect(svc.errorStoppedSweep, isFalse, reason: 'one photo, not the sweep');
       expect(ledger.verdict('p9'), isNull);
       expect(ep.uploader.acknowledged, ['old']);

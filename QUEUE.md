@@ -2381,7 +2381,7 @@ a new obligation on a finished screen is a new item.
 - notes: Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-146 · Direction D: the camera roll's setup, review and settings, on today's signals (5.43.0, ADR-198)
-- status: open
+- status: in-progress
 - screen: sources, settings
 - route: /sources, /settings/camera-roll
 - spec: spec/features/camera-roll-sweep.md; spec/screens/sources.md; spec/screens/settings.md

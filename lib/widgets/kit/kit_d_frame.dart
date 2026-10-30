@@ -1995,6 +1995,13 @@ class KitDPage extends StatefulWidget {
   final KitPageAction? action;
   final KitPageSettings? settings;
 
+  /// A panel the page opens from a control of its own rather than the gear
+  /// (the camera roll's row opens *Camera roll settings*, sources.md §Camera
+  /// roll; web renders a second `Panel`): drawn in the gear's layer and
+  /// place while non-null. [onPanelClose] is its Escape, scrim and Close.
+  final KitPageSettings? panel;
+  final VoidCallback? onPanelClose;
+
   /// A node between the masthead and the grid.
   final Widget? under;
   final KitDSheet? sheet;
@@ -2039,6 +2046,8 @@ class KitDPage extends StatefulWidget {
     this.actions = const [],
     this.action,
     this.settings,
+    this.panel,
+    this.onPanelClose,
     this.under,
     this.sheet,
     this.sections,
@@ -2072,6 +2081,18 @@ class _KitDPageState extends State<KitDPage> {
 
   void _close() => _setOpen(false);
 
+  void _closePanel() => widget.onPanelClose?.call();
+
+  /// The page's own panel covers the tab bar as the gear's does.
+  void _scrimPanel() {
+    final tools = KitPageTools.instance;
+    if (widget.panel != null && KitD.chrome(context)) {
+      tools.scrim.value = (_closePanel, AppColorsScrim.panel);
+    } else if (widget.panel == null && tools.scrim.value?.$1 == _closePanel) {
+      tools.scrim.value = null;
+    }
+  }
+
   KitSettingsHandle? _handle() {
     final s = widget.settings;
     if (s == null) return null;
@@ -2094,6 +2115,11 @@ class _KitDPageState extends State<KitDPage> {
   @override
   void didUpdateWidget(KitDPage old) {
     super.didUpdateWidget(old);
+    if ((old.panel == null) != (widget.panel == null)) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrimPanel();
+      });
+    }
     if (old.sections != widget.sections) {
       old.sections?.detach(_sc);
       widget.sections?.attach(_sc, still: KitD.still(context));
@@ -2104,9 +2130,10 @@ class _KitDPageState extends State<KitDPage> {
   void dispose() {
     widget.sections?.detach(_sc);
     final tools = KitPageTools.instance..clear(this);
-    if (tools.scrim.value?.$1 == _close) {
+    if (tools.scrim.value?.$1 == _close || tools.scrim.value?.$1 == _closePanel) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (tools.scrim.value?.$1 == _close) tools.scrim.value = null;
+        final mine = tools.scrim.value?.$1;
+        if (mine == _close || mine == _closePanel) tools.scrim.value = null;
       });
     }
     _own?.dispose();
@@ -2115,9 +2142,13 @@ class _KitDPageState extends State<KitDPage> {
 
   /// The panel's place: dropped from the app header at 1024 and under; under
   /// the masthead's gear wider than that.
-  Widget _panelLayer(BuildContext context, BoxConstraints c) {
+  Widget _panelLayer(
+    BuildContext context,
+    BoxConstraints c,
+    KitPageSettings s,
+    VoidCallback close,
+  ) {
     final t = Tokens.of(context);
-    final s = widget.settings!;
     final chrome = KitD.chrome(context);
     final w = c.maxWidth;
     final h = c.maxHeight;
@@ -2165,10 +2196,10 @@ class _KitDPageState extends State<KitDPage> {
             : const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: KitSettingsPanel(
           title: s.label,
-          onClose: _close,
+          onClose: close,
           child: KitScrollView.secondary(
             reason: 'the settings panel scrolls inside itself (§28)',
-            child: KitPanelScope(child: s.body(context, _close)),
+            child: KitPanelScope(child: s.body(context, close)),
           ),
         ),
       ),
@@ -2184,7 +2215,7 @@ class _KitDPageState extends State<KitDPage> {
             child: GestureDetector(
               key: const ValueKey('d-panel-scrim'),
               behavior: HitTestBehavior.opaque,
-              onTap: _close,
+              onTap: close,
               child: ColoredBox(color: t.scrimPanel),
             ),
           ),
@@ -2193,7 +2224,7 @@ class _KitDPageState extends State<KitDPage> {
           top: top,
           right: chrome ? 0 : right,
           left: chrome ? 0 : null,
-          child: _EscapeCloses(onEscape: _close, child: panel),
+          child: _EscapeCloses(onEscape: close, child: panel),
         ),
       ],
     );
@@ -2343,10 +2374,18 @@ class _KitDPageState extends State<KitDPage> {
                     maxBodyHeight: math.max(160, c.maxHeight - 70),
                   ),
                 ),
-              if (_open && widget.settings != null)
+              if (widget.panel != null)
                 Positioned.fill(
                   child: LayoutBuilder(
-                    builder: (context, cc) => _panelLayer(context, cc),
+                    builder: (context, cc) =>
+                        _panelLayer(context, cc, widget.panel!, _closePanel),
+                  ),
+                )
+              else if (_open && widget.settings != null)
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, cc) =>
+                        _panelLayer(context, cc, widget.settings!, _close),
                   ),
                 ),
             ],

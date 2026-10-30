@@ -25,7 +25,9 @@ import 'auth_notifier.dart';
 ///    [debounce] so a burst of changes (iCloud syncing) is one pass;
 ///  * **when the app returns to the foreground**, which is also how a grant
 ///    made in the system settings is noticed;
-///  * when the user asks (Settings → Camera roll → Check for new photos).
+///  * when the user asks (the camera roll's panel → *Look now*, its setup's
+///    last step, *Look further back*, or the end page's *Done* while the walk
+///    has photos left — 5.43.0, ADR-198).
 ///
 /// A change that arrives while a pass runs is not dropped: one more pass runs
 /// after it.
@@ -40,8 +42,8 @@ import 'auth_notifier.dart';
 /// whenever they come back.
 ///
 /// **It never asks for access at launch** (spec §1): [access] reads the
-/// status without prompting, and the prompt fires only in [enable], which the
-/// user's switch calls.
+/// status without prompting, and the prompt fires only in [requestAccess],
+/// which the setup's *Allow access* calls (and [enable], its one-step form).
 class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
   CameraSweepHost({
     required Listenable session,
@@ -108,9 +110,9 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
 
   final bool available;
 
-  /// A write to this device's store that did not land — the switch, the
-  /// mode, the date, a skip, Start over. The control stays where the store
-  /// is (screens/settings.md §Camera-roll sweep card).
+  /// A write to this device's store that did not land — turning it on or
+  /// off, the mode, the reach, a pass-over, Start over. The control stays
+  /// where the store is (screens/sources.md §Camera roll).
   static const notSaved = 'This phone could not save that. Please try again.';
 
   /// How long the library must be quiet before a change starts a pass.
@@ -428,8 +430,132 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
 
   // ── What the settings screen does ───────────────────────────────────────────
 
-  /// The switch turned on. The system prompt fires HERE, on the user's
-  /// affirmative action, and only here (spec §1). Full access turns the sweep
+  /// The setup's *Allow access* (5.43.0, ADR-198; feature §1): the system
+  /// prompt fires HERE, on the reader's affirmative action. It turns
+  /// nothing on — the setup's last step does ([turnOn]). Partial or no
+  /// access is [refused], with its sentence.
+  Future<SweepAccess?> requestAccess() async {
+    final bridge = _bridge;
+    if (bridge == null) return null;
+    final got = await bridge.requestAccess();
+    _accessEpoch++;
+    _access = got;
+    _refused = got == SweepAccess.granted
+        ? null
+        : got == SweepAccess.limited
+            ? SweepAccessRefused.limited
+            : SweepAccessRefused.denied;
+    if (!_disposed) notifyListeners();
+    return got;
+  }
+
+  /// The setup's last button (5.43.0, ADR-198): writes the mode, the start
+  /// date with its [reach], then on — each before anything moves, so a
+  /// refused write throws and the camera roll stays as the store has it.
+  /// Then it watches the library and runs a pass.
+  Future<void> turnOn({
+    required SweepMode mode,
+    required DateTime start,
+    required SweepReach reach,
+  }) async {
+    final ledger = _ledger;
+    if (ledger == null) return;
+    await ledger.setMode(mode);
+    await ledger.setBackfillStart(start, reach: reach);
+    await ledger.setEnabled(true);
+    _launched = _signedIn;
+    notifyListeners();
+    unawaited(_syncSchedule());
+    if (_signedIn) {
+      _watch();
+      kick();
+    }
+    unawaited(refreshInRange());
+  }
+
+  /// The start date each reach means NOW (setup step 3): now, a month ago, a
+  /// year ago, or the oldest photo's date — the epoch when the library is
+  /// empty or its oldest photo carries no date, which reaches as far. null
+  /// only when the library could not be read.
+  Future<DateTime?> startFor(SweepReach reach, {DateTime? now}) async {
+    final n = now ?? DateTime.now();
+    switch (reach) {
+      case SweepReach.fromNow:
+        return n;
+      case SweepReach.month:
+        return DateTime(n.year, n.month - 1, n.day, n.hour, n.minute, n.second);
+      case SweepReach.year:
+        return DateTime(n.year - 1, n.month, n.day, n.hour, n.minute, n.second);
+      case SweepReach.everything:
+        final bridge = _bridge;
+        if (bridge == null) return null;
+        try {
+          final all = await bridge.fetchImages(limit: 1);
+          final oldest = all.total == 0
+              ? null
+              : await bridge.fetchImages(offset: all.total - 1, limit: 1);
+          final s = oldest == null || oldest.assets.isEmpty
+              ? null
+              : oldest.assets.single.creationSeconds;
+          return DateTime.fromMillisecondsSinceEpoch(s == null ? 0 : (s * 1000).floor());
+        } catch (e) {
+          debugPrint('camera sweep: the oldest photo could not be read ($e)');
+          return null;
+        }
+    }
+  }
+
+  /// The photos in range from [start] to now, counted by the library —
+  /// never estimated. null when they could not be counted.
+  Future<int?> countSince(DateTime start) async {
+    final bridge = _bridge;
+    if (bridge == null) return null;
+    try {
+      return (await bridge.fetchImages(since: start, limit: 1)).total;
+    } catch (e) {
+      debugPrint('camera sweep: photos since $start could not be counted ($e)');
+      return null;
+    }
+  }
+
+  /// The reach *Look further back* moves to: the next one whose start date
+  /// is earlier than the one set. null at *Everything* (it is not drawn).
+  SweepReach? get furtherReach {
+    final ledger = _ledger;
+    if (ledger == null) return null;
+    return switch (ledger.reach) {
+      SweepReach.fromNow => SweepReach.month,
+      SweepReach.month => SweepReach.year,
+      SweepReach.year => SweepReach.everything,
+      SweepReach.everything => null,
+      // A date set before D: the first reach that reaches further than it.
+      null => _furtherThan(ledger.backfillStart),
+    };
+  }
+
+  SweepReach _furtherThan(DateTime start) {
+    final n = DateTime.now();
+    if (DateTime(n.year, n.month - 1, n.day).isBefore(start)) return SweepReach.month;
+    if (DateTime(n.year - 1, n.month, n.day).isBefore(start)) return SweepReach.year;
+    return SweepReach.everything;
+  }
+
+  /// *Look further back* (5.43.0, ADR-198): the start date moves to the next
+  /// reach — which clears the walk's done mark, so its finds wait for review
+  /// whatever the mode — and a pass runs. Throws when the store refused it.
+  Future<void> lookFurtherBack() async {
+    final ledger = _ledger, next = furtherReach;
+    if (ledger == null || next == null) return;
+    final start = await startFor(next);
+    if (start == null) return;
+    await ledger.setBackfillStart(start, reach: next);
+    kick();
+    unawaited(refreshInRange());
+  }
+
+  /// The one-step form of the setup (until 5.43.0 the Settings switch; the
+  /// device holds still call it). The system prompt fires HERE, on the
+  /// user's affirmative action, and only here (spec §1). Full access turns the sweep
   /// on and runs a pass; partial or no access leaves it off and says why
   /// ([refused]). A failed ledger write throws, and the switch stays where
   /// the store is (write before move).
@@ -472,8 +598,8 @@ class CameraSweepHost extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> setMode(SweepMode mode) async => _ledger?.setMode(mode);
 
-  Future<void> setBackfillStart(DateTime start) async {
-    await _ledger?.setBackfillStart(start);
+  Future<void> setBackfillStart(DateTime start, {SweepReach? reach}) async {
+    await _ledger?.setBackfillStart(start, reach: reach);
     await refreshInRange();
   }
 

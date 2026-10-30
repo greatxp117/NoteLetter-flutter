@@ -1,14 +1,16 @@
 #!/bin/sh
-# The camera-roll sweep's SCREENS on the simulator, against the EMULATOR suite
-# (F-125 S3).
+# The camera roll's SCREENS on the simulator, against the EMULATOR suite:
+# direction D's row, four-step setup, Looking back, review, end page and
+# panel since 5.43.0 (F-146, ADR-198); F-125 S3's Settings screen and tray
+# before it.
 #
 #   eval "$(tool/emu_alt.sh env)"           # after `tool/emu_alt.sh up`
 #   tool/sweep_tray_test.sh                  # integration_test/sweep_tray_test.dart
 #   tool/sweep_tray_test.sh frames <list>    # tool/shots_batch.sh <list>, with access
 #
 # It
-#   1. proves the emulator on the exported ports is ours (emu_assert_ours) — an
-#      Add opens a capture session, which WRITES a document;
+#   1. proves the emulator on the exported ports is ours (emu_assert_ours) — a
+#      filing opens a capture session, which WRITES a document;
 #   2. adds the test photos with simctl addmedia (the four of
 #      tool/sweep_test_photos.py for the test; its three pages for frames);
 #   3. installs the app and sets FULL photo access in the simulator's own TCC
@@ -93,6 +95,6 @@ set +e
 wait "$pid"
 rc=$?
 set -e
-grep -E 'sweep tray:|SWEEP:|tests? passed|Some tests failed|EXCEPTION|Expected|Actual|reason|timed out' "$log" | cut -c1-400
+grep -E 'sweep tray:|SWEEP:|DEVICE-RUN|tests? passed|Some tests failed|EXCEPTION|Expected|Actual|reason|timed out' "$log" | cut -c1-400
 echo "tool: log kept at $log (exit $rc)"
 exit "$rc"

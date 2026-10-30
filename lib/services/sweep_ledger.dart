@@ -36,12 +36,16 @@ class SweepLedger extends ChangeNotifier {
     required bool backfillComplete,
     required ChangeMark? changeMark,
     required Map<String, LedgerVerdict> verdicts,
+    required SweepReach? reach,
+    required DateTime? lastLookedAt,
   })  : _enabled = enabled,
         _mode = mode,
         _backfillStart = backfillStart,
         _backfillComplete = backfillComplete,
         _changeMark = changeMark,
-        _verdicts = verdicts;
+        _verdicts = verdicts,
+        _reach = reach,
+        _lastLookedAt = lastLookedAt;
 
   /// The Swift app's own key names, under this app's suite.
   static const kEnabled = 'sweep.enabled';
@@ -53,6 +57,16 @@ class SweepLedger extends ChangeNotifier {
   /// The change token a finished pass left (5.40.0, ADR-195); this app's own
   /// key, as Swift had no token.
   static const kChangeMark = 'sweep.changeMark';
+
+  /// Which of the setup's reaches set the start date (5.43.0, ADR-198): the
+  /// panel names the reach as set ("The last year · done"), and a date
+  /// cannot say which reach it was once time has moved on. Absent for a
+  /// date set before D, which the panel reads as "Since {date}".
+  static const kReach = 'sweep.reach';
+
+  /// When the last pass ended without an error (5.43.0, ADR-198 decision 7):
+  /// the panel's "looked {ago}". Never drawn before one has.
+  static const kLastLookedAt = 'sweep.lastLookedAt';
   static const keys = {
     kEnabled,
     kMode,
@@ -60,6 +74,8 @@ class SweepLedger extends ChangeNotifier {
     kBackfillComplete,
     kVerdicts,
     kChangeMark,
+    kReach,
+    kLastLookedAt,
   };
 
   /// The backfill cursor until 5.40.0. Written after every examined photo and
@@ -91,6 +107,8 @@ class SweepLedger extends ChangeNotifier {
       backfillComplete: raw[kBackfillComplete] == true,
       changeMark: ChangeMark.decode(raw[kChangeMark]),
       verdicts: decodeVerdicts(raw[kVerdicts]),
+      reach: SweepReach.fromStored(raw[kReach]),
+      lastLookedAt: _date(raw[kLastLookedAt]),
     );
   }
 
@@ -100,6 +118,8 @@ class SweepLedger extends ChangeNotifier {
   bool _backfillComplete;
   ChangeMark? _changeMark;
   Map<String, LedgerVerdict> _verdicts;
+  SweepReach? _reach;
+  DateTime? _lastLookedAt;
 
   bool get enabled => _enabled;
   SweepMode get mode => _mode;
@@ -126,9 +146,38 @@ class SweepLedger extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setBackfillStart(DateTime value) async {
+  /// The reach the start date was set by, or null for a date set before D
+  /// (5.43.0).
+  SweepReach? get reach => _reach;
+
+  /// When the last pass ended without an error; null until one has.
+  DateTime? get lastLookedAt => _lastLookedAt;
+
+  /// A start date that MOVES clears the walk's done mark (5.43.0, ADR-198
+  /// decision 4; feature §3): the whole walk §7 rule 4 then requires sets it
+  /// again when it reaches the date, and until then every find waits for
+  /// review — the first look back and each *Look further back* alike. Until
+  /// 5.43.0 the mark stood, so a date moved earlier in Automatic mode filed
+  /// its finds unreviewed. [reach] is what set it; null clears it (a date
+  /// set any other way). Each value is written before any moves.
+  Future<void> setBackfillStart(DateTime value, {SweepReach? reach}) async {
+    final moved = value.millisecondsSinceEpoch != _backfillStart.millisecondsSinceEpoch;
+    if (moved && _backfillComplete) {
+      // First, so a store that takes this and refuses the date is left
+      // walking (to review) rather than trusting a mark for another date.
+      await _store.write(kBackfillComplete, false);
+      _backfillComplete = false;
+    }
     await _store.write(kBackfillStart, value.millisecondsSinceEpoch);
+    await _store.write(kReach, reach?.name);
     _backfillStart = value;
+    _reach = reach;
+    notifyListeners();
+  }
+
+  Future<void> setLastLookedAt(DateTime value) async {
+    await _store.write(kLastLookedAt, value.millisecondsSinceEpoch);
+    _lastLookedAt = value;
     notifyListeners();
   }
 
@@ -206,6 +255,13 @@ class SweepLedger extends ChangeNotifier {
       _verdicts.values.where((v) => v.kind == SweepVerdictKind.ingested).length;
   int get deferredCount => _verdicts.values
       .where((v) => v.kind == SweepVerdictKind.deferredNotLocal)
+      .length;
+
+  /// "Passed over" (5.43.0, ADR-198): photos the pre-filter found no text in,
+  /// and those the reader passed over in review.
+  int get passedOverCount => _verdicts.values
+      .where((v) =>
+          v.kind == SweepVerdictKind.noText || v.kind == SweepVerdictKind.dismissed)
       .length;
 
   /// Forgets every verdict, the backfill's progress and the change mark, so
@@ -329,6 +385,24 @@ class ChangeMark {
 
   @override
   int get hashCode => Object.hash(token, prefilterVersion, backfillStartMs);
+}
+
+/// How far back the setup's look back reaches (5.43.0, ADR-198; sources.md
+/// §Camera roll, setup step 3). Each is a start date when it is chosen: now,
+/// a month ago, a year ago, or the oldest photo.
+enum SweepReach {
+  fromNow,
+  month,
+  year,
+  everything;
+
+  static SweepReach? fromStored(Object? raw) => switch (raw) {
+        'fromNow' => fromNow,
+        'month' => month,
+        'year' => year,
+        'everything' => everything,
+        _ => null,
+      };
 }
 
 /// The user's autonomy choice (spec §3). Distinct from the service's dry run.

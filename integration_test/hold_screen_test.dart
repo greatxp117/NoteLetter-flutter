@@ -55,6 +55,8 @@ import 'package:flutter_app/state/theme_notifier.dart';
 import 'package:flutter_app/state/camera_sweep_host.dart';
 import 'package:flutter_app/services/camera_sweep_bridge.dart';
 import 'package:flutter_app/services/sweep_ledger.dart';
+import 'package:flutter_app/pages/sources/camera_roll.dart';
+import 'package:flutter_app/pages/sources_page.dart';
 
 const seedEmail = 'seed@noteletter.test';
 const seedPassword = 'seed-password-1';
@@ -258,10 +260,10 @@ const int _dragPointer = 9142;
 /// show High lit.
 Future<void> leaveState(WidgetTester tester, String holdState) async {
   switch (holdState) {
-    case 'sweep-tray':
-    case 'sweep-tray-failed':
-    case 'sweep-settings':
-    case 'sweep-status':
+    case 'camera-setup':
+    case 'camera-looking-back':
+    case 'camera-review':
+    case 'camera-panel':
       // OFF and empty: no later hold, and no device run, starts a pass.
       final host = _sweepHost(tester);
       await host.disable();
@@ -488,15 +490,15 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       await tester.ensureVisible(dz.first);
       await settle();
       return;
-    // The camera-roll sweep (F-125 S3) — `tool/sweep_tray_test.sh frames`
-    // adds the three pages and sets full photo access first. Its frames pair
-    // with the retired iOS app's (`NoteLetter/screenshots/sweep-tray*.ios.*`):
-    // web has no sweep.
-    case 'sweep-tray':
-    case 'sweep-tray-failed':
-    case 'sweep-settings':
-    case 'sweep-status':
-      await _reachSweep(tester, holdState);
+    // The camera roll in D (F-146, 5.43.0) on /sources —
+    // `tool/sweep_tray_test.sh frames` adds the three pages and sets full
+    // photo access first. Web has no camera roll: the reference is the
+    // prototype (`app-camera.jsx`), so these frames pair with nothing.
+    case 'camera-setup':
+    case 'camera-looking-back':
+    case 'camera-review':
+    case 'camera-panel':
+      await _reachCamera(tester, holdState);
       return;
     // The landing below its fold (F-68) — for LOOKING only: the reference's
     // frames are the page top, so these are never checked in.
@@ -1823,7 +1825,7 @@ class _RewriteLetterMode implements HttpClientAdapter {
 }
 
 
-// ── The camera-roll sweep's holds (F-125 S3) ─────────────────────────────────
+// ── The camera roll's holds (F-146, 5.43.0; F-125 S3's until then) ───────────
 
 CameraSweepHost _sweepHost(WidgetTester tester) => Provider.of<CameraSweepHost>(
     tester.element(find.byType(NoteLetterApp)),
@@ -1834,7 +1836,10 @@ CameraSweepHost _sweepHost(WidgetTester tester) => Provider.of<CameraSweepHost>(
 /// the pages.
 final _pagesSince = DateTime.utc(2026, 10, 10);
 
-Future<void> _reachSweep(WidgetTester tester, String state) async {
+/// The camera roll's D states on /sources: the setup's first step (off),
+/// Looking back once its pass stopped, the review (its first photo already
+/// in NoteLetter), and the settings panel.
+Future<void> _reachCamera(WidgetTester tester, String state) async {
   Future<void> pumpFor(int ms) async {
     for (var i = 0; i < ms ~/ 200; i++) {
       await tester.pump(const Duration(milliseconds: 200));
@@ -1848,13 +1853,19 @@ Future<void> _reachSweep(WidgetTester tester, String state) async {
     throw StateError('no full photo access — run through '
         'tool/sweep_tray_test.sh frames');
   }
-  await host.setBackfillStart(_pagesSince);
+  final library = tester.element(find.byType(SourcesPage));
+  if (state == 'camera-setup') {
+    if (host.ledger!.enabled) await host.disable();
+    await pumpFor(600);
+    unawaited(CameraRollFlow.open(library, CameraRollStep.intro));
+    await pumpFor(2000);
+    return;
+  }
 
   // The book page is ALREADY IN NoteLetter, its bytes landed: what a photo
-  // the Swift app swept looks like. Filed through the session, completed
+  // another install filed looks like. Filed through the session, completed
   // through the emulator's REST (owner bearer), as the pipeline would.
   final page = await bridge.fetchImages(since: _pagesSince);
-  // A listing carries no filename (5.40.0): identify each to find the page.
   final identified = [
     for (final l in page.assets) await bridge.identify(l.localIdentifier)
   ];
@@ -1878,47 +1889,40 @@ Future<void> _reachSweep(WidgetTester tester, String state) async {
         'fields': {'status': {'stringValue': 'complete'}},
       });
 
-  await host.enable();
+  // On, Ask me first, looking back to the pages (a date set as D's "The last
+  // month" would be — named so the frame reads as D does).
+  await host.turnOn(mode: SweepMode.review, start: _pagesSince, reach: SweepReach.month);
   final svc = host.service!;
   for (var i = 0; i < 300 && (svc.isSweeping || svc.candidates.isEmpty); i++) {
     await tester.pump(const Duration(milliseconds: 200));
   }
   if (svc.candidates.isEmpty) throw StateError('the pass found no candidates');
-  if (state == 'sweep-settings' || state == 'sweep-status') {
-    for (var i = 0; i < 50 && host.inRange == null; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-    }
-    await pumpFor(1000);
-    if (state == 'sweep-status') {
-      // The lower half: Catch up's figure, Status and Start over.
-      await Scrollable.ensureVisible(
-          tester.element(find.text('Photos in range').first),
-          alignment: 0.1, duration: Duration.zero);
-      await pumpFor(1000);
-    }
-    return;
+  await pumpFor(1000);
+  switch (state) {
+    case 'camera-looking-back':
+      unawaited(CameraRollFlow.open(library, CameraRollStep.lookingBack));
+    case 'camera-review':
+      // The already-in page first, so the frame shows its note.
+      if (!svc.alreadyIn(svc.candidates.first.localIdentifier)) {
+        for (final a in List.of(svc.candidates)) {
+          if (svc.alreadyIn(a.localIdentifier)) break;
+          if (svc.candidates.length == 1) break;
+          await svc.dismiss(a);
+        }
+      }
+      unawaited(CameraRollFlow.open(library, CameraRollStep.review));
+    case 'camera-panel':
+      // The row's Settings, once nothing waits.
+      for (final a in List.of(svc.candidates)) {
+        await svc.dismiss(a);
+      }
+      await pumpFor(600);
+      final settings = find.descendant(
+          of: find.byKey(const ValueKey('camera-roll-row')),
+          matching: find.text('Settings'));
+      await tester.ensureVisible(settings);
+      await pumpFor(400);
+      await tester.tap(settings);
   }
-  if (!svc.candidates.any((a) => svc.alreadyIn(a.localIdentifier))) {
-    throw StateError('no card is already in — this frame would not show it');
-  }
-  if (state == 'sweep-tray-failed') {
-    final fresh = svc.candidates.firstWhere((a) => !svc.alreadyIn(a.localIdentifier));
-    final add = find.descendant(
-        of: find.byKey(ValueKey(fresh.localIdentifier)),
-        matching: find.byTooltip('Add this photo'));
-    await tester.ensureVisible(add);
-    await pumpFor(400);
-    await tester.tap(add);
-    for (var i = 0; i < 150 && svc.candidateErrors.isEmpty; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-    }
-    if (svc.candidateErrors.isEmpty) throw StateError('the add was not refused');
-  }
-  await pumpFor(600);
-  // The tray at the top of the frame, as the iOS frames have it: on Sources
-  // it closes "Add to your library", below the drop zone.
-  final head = find.textContaining('FROM YOUR CAMERA ROLL');
-  await Scrollable.ensureVisible(tester.element(head.first),
-      alignment: 0.0, duration: Duration.zero);
-  await pumpFor(2000);
+  await pumpFor(2500);
 }

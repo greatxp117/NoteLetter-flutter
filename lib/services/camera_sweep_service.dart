@@ -94,6 +94,23 @@ class CameraSweepService extends ChangeNotifier {
   int _examined = 0;
   int get examined => _examined;
 
+  /// The walk's position (5.43.0, ADR-198): photos the current or last
+  /// whole-library walk has gone through, newest first — the ones settled on
+  /// an earlier pass included, as each is passed on the way. null until a
+  /// walk has begun in this launch. A pass from a change token reads only
+  /// what changed and moves it not at all. *Looking back · {n} of {N}*.
+  int? _walkPosition;
+  int? get walkPosition => _walkPosition;
+
+  /// The photos in range as that walk's listing counted them: its *N*.
+  int? _walkTotal;
+  int? get walkTotal => _walkTotal;
+
+  /// The last pass stopped at its per-pass bound with photos left
+  /// (feature §3): *Looking back* says when the rest is read.
+  bool _capped = false;
+  bool get capped => _capped;
+
   /// Counted when the bytes LANDED (or the server already had them), never
   /// when a request was merely sent (Swift D5).
   int _ingestedThisSession = 0;
@@ -129,6 +146,14 @@ class CameraSweepService extends ChangeNotifier {
 
   final Map<String, CaptureMatch> _filed = {};
 
+  /// Tray cards a look back found — the walk had not reached its start date
+  /// — as against Ask me first's. The review says which (5.43.0, ADR-198).
+  final Set<String> _byLookBack = {};
+
+  /// Whether this waiting photo was found by a look back, which keeps
+  /// everything for review whatever the mode; false: Ask me first held it.
+  bool foundByLookBack(String localIdentifier) => _byLookBack.contains(localIdentifier);
+
   /// A tray card whose photo is ALREADY IN NoteLetter (screens/sources.md
   /// §Camera-roll sweep, 5.23.0): a document carries its asset key and its
   /// bytes landed — any status but `pending_upload` and `error`. Asked once,
@@ -145,9 +170,12 @@ class CameraSweepService extends ChangeNotifier {
   /// in the tray, carrying the sentence, until a later attempt settles it.
   Map<String, String> get candidateErrors => Map.unmodifiable(_candidateErrors);
 
-  /// The alert's title is a CLAIM (Swift D5).
+  /// The alert's title is a CLAIM (Swift D5); D's words since 5.43.0.
   String get failureTitle =>
-      _errorStoppedSweep ? 'Sweep stopped' : 'A photo couldn’t be added';
+      _errorStoppedSweep ? stoppedTitle : oneFailedTitle;
+
+  static const stoppedTitle = 'The camera roll stopped';
+  static const oneFailedTitle = 'A photo couldn’t be added';
 
   /// The one place that sets the pair, so they cannot disagree.
   void presentFailure(String sentence, {required bool stopsSweep}) {
@@ -172,6 +200,7 @@ class CameraSweepService extends ChangeNotifier {
       _candidates.removeWhere((c) => c.localIdentifier == localIdentifier);
       _candidateErrors.remove(localIdentifier);
       _filed.remove(localIdentifier);
+      _byLookBack.remove(localIdentifier);
     }
     notifyListeners();
   }
@@ -183,6 +212,7 @@ class CameraSweepService extends ChangeNotifier {
     _candidates.clear();
     _candidateErrors.clear();
     _filed.clear();
+    _byLookBack.clear();
     _errorMessage = null;
     _errorStoppedSweep = false;
     _accessRefused = null;
@@ -311,7 +341,21 @@ class CameraSweepService extends ChangeNotifier {
       _accessRefused = e;
       pass.refused = e;
     }
+    _capped = pass.handled >= backfillBatchLimit && !_cancelled;
+    if (pass.refused == null && _errorMessage == null) await _looked();
     return pass;
+  }
+
+  /// The end of a pass that finished without an error: the panel's "looked
+  /// {ago}" (5.43.0, ADR-198 decision 7). Stopped or capped still counts —
+  /// neither is an error. A write that fails keeps the last time the store
+  /// holds, and is said in the log: it is a status line, never a photo.
+  Future<void> _looked() async {
+    try {
+      await ledger.setLastLookedAt(DateTime.now());
+    } catch (e) {
+      debugPrint('camera sweep: when this pass ended could not be saved ($e)');
+    }
   }
 
   /// Got through everything it was given: not capped, not stopped, not
@@ -394,6 +438,10 @@ class CameraSweepService extends ChangeNotifier {
     List<String>? only,
   }) async {
     var offset = 0;
+    // A pass's whole-library walk is the look back a screen counts; a dry
+    // run's rehearsal and a pass from a change token are not.
+    final counts = only == null && tally is SweepPass;
+    if (counts) _walkPosition = 0;
     while (true) {
       final page = await bridge.fetchImages(
         since: ledger.backfillStart,
@@ -401,9 +449,11 @@ class CameraSweepService extends ChangeNotifier {
         limit: CameraSweepBridge.defaultPageSize,
         localIdentifiers: only,
       );
+      if (counts) _walkTotal = page.total;
       for (final asset in page.assets) {
         if (_cancelled || _errorStoppedSweep) return;
         if (tally.handled >= backfillBatchLimit) return;
+        if (counts) _walkPosition = _walkPosition! + 1;
         // A burst contributes only its representative frame (spec §8).
         if (!asset.isRepresentative) {
           tally.nonRepresentative++;
@@ -467,6 +517,7 @@ class CameraSweepService extends ChangeNotifier {
           // asked first, so the card arrives saying so.
           await _lookUp(asset);
           _candidates.add(asset);
+          if (!ledger.backfillComplete) _byLookBack.add(id);
           pass.toTray++;
         } else {
           // Nobody is looking at a tray, so a refusal goes to the screen's
@@ -560,6 +611,7 @@ class CameraSweepService extends ChangeNotifier {
     _candidates.removeWhere((c) => c.localIdentifier == asset.localIdentifier);
     _candidateErrors.remove(asset.localIdentifier);
     _filed.remove(asset.localIdentifier);
+    _byLookBack.remove(asset.localIdentifier);
     notifyListeners();
   }
 
@@ -869,20 +921,20 @@ class CameraSweepService extends ChangeNotifier {
   static final iCloudSentence = SweepWords.ios.deferredSentence;
 
   /// What to say about a PUT that did not land (Swift
-  /// `CameraSweepUploader.failureSentence`). A 403 is overwhelmingly a signed
+  /// `CameraSweepUploader.failureSentence`, "sweep" made "look" in D). A 403 is overwhelmingly a signed
   /// URL that expired, which is a wait, not a loss. Every branch names the
   /// retry, because there is one: a failure leaves the photo `waiting`.
   static String uploadFailureSentence({String? transportError, required int statusCode}) {
     if (transportError != null) {
       return 'A photo could not be uploaded — $transportError '
-          'The next sweep tries again.';
+          'The next look tries again.';
     }
     if (statusCode == 403) {
       return 'A photo’s upload link expired before the transfer finished. '
-          'The next sweep starts it again.';
+          'The next look starts it again.';
     }
     return 'A photo could not be uploaded (HTTP $statusCode). '
-        'The next sweep tries again.';
+        'The next look tries again.';
   }
 }
 
@@ -981,10 +1033,12 @@ class CaptureSession {
 class DedupeUnsupported implements Exception {
   const DedupeUnsupported();
 
-  /// The Swift app's sentence, verbatim.
+  /// The Swift app's sentence, "sweeping" made "looking through them" in D
+  /// (5.43.0, ADR-198 decision 8).
   static const message =
       "This version of NoteLetter's server doesn't recognize camera-roll photos yet, "
-      'so sweeping would add the same photos again. Try again after the next update.';
+      'so looking through them would add the same photos again. Try again after '
+      'the next update.';
 
   String get sentence => message;
 

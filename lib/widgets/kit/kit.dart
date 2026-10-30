@@ -23,6 +23,7 @@ export 'kit_composer.dart';
 export 'kit_config.dart';
 export 'kit_confirm.dart';
 export 'kit_controls.dart';
+export 'kit_d_camera.dart';
 export 'kit_d_catalogue.dart';
 export 'kit_d_chrome.dart';
 export 'kit_d_covers.dart';

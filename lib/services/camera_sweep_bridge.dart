@@ -208,17 +208,25 @@ class SweepAccessRefused implements Exception {
   /// [SweepAccess.limited] or [SweepAccess.denied]; full access never refuses.
   final SweepAccess access;
 
-  /// Why, in the retired Swift app's words (`CameraSweepSettingsView.swift`),
-  /// verbatim. The spec asks for an explanation (feature spec §1, settings
-  /// §Camera-roll sweep card) but owns no sentence: a SPEC GAP, reported in
-  /// F-125 S1, not invented here.
+  /// Why, in direction D's words (5.43.0, ADR-198; feature §1): the
+  /// partial-access refusal, and no access once the camera roll is on. The
+  /// setup's own no-access sentence is [deniedAtSetupSentence]. (Until
+  /// 5.43.0 these were the retired Swift app's, `CameraSweepSettingsView`.)
   final String sentence;
 
   static const limitedSentence =
-      'NoteLetter has access to a few hand-picked photos, not your library. '
-      'A sweep needs the whole library to be useful — otherwise it would '
-      'quietly find nothing.';
-  static const deniedSentence = 'Photo access is off, so nothing can be swept.';
+      'NoteLetter can see only the photos you picked, not your library. '
+      'Looking through your camera roll needs all of it, or it would quietly '
+      'find nothing.';
+  static const deniedSentence =
+      'NoteLetter can’t see your photos, so nothing new is looked at. '
+      'Allow Photos for NoteLetter in your phone’s settings.';
+
+  /// No access at the setup's *Allow access*: the prompt was refused, or
+  /// access is restricted (feature §1).
+  static const deniedAtSetupSentence =
+      'NoteLetter can’t see your photos. To turn this on later, allow Photos '
+      'for NoteLetter in your phone’s settings.';
 
   static const limited = SweepAccessRefused._(SweepAccess.limited, limitedSentence);
   static const denied = SweepAccessRefused._(SweepAccess.denied, deniedSentence);

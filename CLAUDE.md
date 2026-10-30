@@ -74,7 +74,7 @@ proportions hold:
 - touch copy, no keys bound: speed read hints only *Hold to pause & rest*;
   the drop zone says *tap*; §27 draws no ⌘K or `A` hint
 - device capabilities web lacks: Sources' *Add an image set* row, §15.1's
-  *Share original* (F-124), the camera-roll tray and its settings (F-125)
+  *Share original* (F-124), the camera roll's row, flow and panel (F-146)
 
 ## Rules that are easy to break here
 

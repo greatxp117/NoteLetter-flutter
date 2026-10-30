@@ -1,19 +1,19 @@
-// F-125 S3: the camera-roll sweep's screens and what starts it in the
-// foreground — lib/state/camera_sweep_host.dart,
-// lib/pages/settings/camera_sweep_page.dart, lib/pages/sources/sweep_tray.dart,
-// lib/widgets/kit/kit_capture.dart — against the fakes the service's own
-// tests use (sweep_fakes.dart). The retired Swift app's CameraSweepSettingsView
-// and SweepReviewSection (NoteLetter 910864a) are the behaviour ported.
+// F-125 S3, F-146: the camera roll's screens and what starts it in the
+// foreground — lib/state/camera_sweep_host.dart and, since 5.43.0 (ADR-198),
+// direction D's row, flow and panel in lib/pages/sources/camera_roll.dart over
+// lib/widgets/kit/kit_d_camera.dart — against the fakes the service's own
+// tests use (sweep_fakes.dart). Until 5.43.0 the screens were Settings →
+// Camera roll and Sources' tray (the retired Swift app's
+// CameraSweepSettingsView and SweepReviewSection).
 import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'package:flutter_app/pages/settings/camera_sweep_page.dart';
-import 'package:flutter_app/pages/settings_page.dart';
-import 'package:flutter_app/pages/sources/sweep_tray.dart';
+import 'package:flutter_app/pages/sources/camera_roll.dart';
 import 'package:flutter_app/services/camera_sweep_bridge.dart';
 import 'package:flutter_app/services/camera_sweep_service.dart';
 import 'package:flutter_app/services/firestore_service.dart' show CaptureMatch;
@@ -21,7 +21,6 @@ import 'package:flutter_app/services/sweep_ledger.dart';
 import 'package:flutter_app/services/sweep_words.dart';
 import 'package:flutter_app/state/camera_sweep_host.dart';
 import 'package:flutter_app/theme/app_theme.dart';
-import 'package:flutter_app/widgets/kit/kit.dart';
 
 import 'sweep_fakes.dart';
 
@@ -308,11 +307,11 @@ void main() {
     });
   });
 
-  // ── The screens ────────────────────────────────────────────────────────────
+  // ── The screens (direction D, 5.43.0, ADR-198) ─────────────────────────────
 
   Future<void> pump(WidgetTester tester, CameraSweepHost host, Widget child,
-      {ThemeData? theme}) async {
-    tester.view.physicalSize = const Size(402, 1400);
+      {ThemeData? theme, Size size = const Size(402, 874)}) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ChangeNotifierProvider<CameraSweepHost>.value(
@@ -324,158 +323,444 @@ void main() {
     ));
   }
 
-  group('the tray', () {
-    testWidgets('cards, the count, already-in, a refusal, Add all', (tester) async {
-      late _Rig r;
-      await tester.runAsync(() async {
-        r = await _rig([
-          asset('a', seconds: _recent(1)),
-          asset('b', seconds: _recent(2)),
-          asset('c', seconds: _recent(3)),
-        ]);
-        r.endpoints.filed[asset('b').assetKey] =
-            const CaptureMatch(docId: 'cam-b', status: 'complete');
-        await _until(() => r.host.service!.candidates.length == 3);
-        r.host.service!.record('Your library is full.', 'c');
-      });
-      await pump(tester, r.host, const SingleChildScrollView(child: SweepTraySection()));
-      await tester.pump();
-      expect(find.text('FROM YOUR CAMERA ROLL · 3'), findsOneWidget);
-      expect(find.byType(KitCaptureCard), findsNWidgets(3));
-      expect(find.text(KitCaptureCard.alreadyInLabel), findsOneWidget);
-      expect(find.text('Your library is full.'), findsOneWidget);
-      expect(find.text('Add all 3'), findsOneWidget);
-      expect(find.byTooltip('Skip this photo'), findsNWidgets(3));
-      expect(find.byTooltip('Add this photo'), findsNWidgets(3));
-      expect(r.bridge.thumbnailsAsked.toSet(), {'a', 'b', 'c'});
-    });
+  /// A few frames, never `pumpAndSettle`: the flow's bar eases.
+  Future<void> frames(WidgetTester tester, [int n = 8]) async {
+    for (var i = 0; i < n; i++) {
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+  }
 
-    testWidgets('Skip removes the card and sends nothing', (tester) async {
-      late _Rig r;
-      await tester.runAsync(() async {
-        r = await _rig([asset('a', seconds: _recent(1)), asset('b', seconds: _recent(2))]);
-        await _until(() => r.host.service!.candidates.length == 2);
-      });
-      await pump(tester, r.host, const SingleChildScrollView(child: SweepTraySection()));
-      await tester.runAsync(() async {
-        await tester.tap(find.byTooltip('Skip this photo').first);
-        await _settle();
-      });
-      await tester.pump();
-      expect(find.byType(KitCaptureCard), findsOneWidget);
-      expect(r.endpoints.sessions, isEmpty);
-      expect(r.host.ledger!.verdict('a'), LedgerVerdict.dismissed);
-    });
+  Future<void> tapText(WidgetTester tester, String text) async {
+    final f = find.text(text);
+    await tester.ensureVisible(f.last);
+    await tester.tap(f.last);
+  }
 
-    testWidgets('hidden while off, and with nothing to show', (tester) async {
+  /// The row, and a button that opens the flow at [step] — what the Library
+  /// does.
+  Widget library({VoidCallback? onSettings}) => Builder(
+        builder: (context) => ListView(children: [
+          CameraRollRow(onSettings: onSettings ?? () {}),
+        ]),
+      );
+
+  group('the row', () {
+    testWidgets('off: the D line and Connect', (tester) async {
       late _Rig r;
       await tester.runAsync(() async {
         r = await _rig([asset('a', seconds: _recent(1))], enabled: false);
       });
-      await pump(tester, r.host, const SingleChildScrollView(child: SweepTraySection()));
-      expect(find.textContaining('FROM YOUR CAMERA ROLL'), findsNothing);
+      await pump(tester, r.host, library());
+      expect(find.text(CameraRollCopy.name), findsOneWidget);
+      expect(find.text(CameraRollCopy.rowOff), findsOneWidget);
+      expect(find.text('Connect'), findsOneWidget);
     });
 
-    testWidgets('a stopped sweep is said, with no retry', (tester) async {
+    testWidgets('waiting: the tray\'s count and Review; on: what is taken in',
+        (tester) async {
+      late _Rig r;
+      await tester.runAsync(() async {
+        r = await _rig([asset('a', seconds: _recent(1)), asset('b', seconds: _recent(2))]);
+        await _until(() => r.host.service!.candidates.length == 2 &&
+            !r.host.service!.isSweeping);
+      });
+      await pump(tester, r.host, library());
+      expect(find.text('2 waiting for your review'), findsOneWidget);
+      expect(find.text('Review'), findsOneWidget);
+      await tester.runAsync(() async {
+        for (final a in List.of(r.host.service!.candidates)) {
+          await r.host.service!.dismiss(a);
+        }
+      });
+      await tester.pump();
+      expect(find.text('On · 0 taken in'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+    });
+
+    testWidgets('a failure stands, in critical text; access lost; unreadable',
+        (tester) async {
       late _Rig r;
       await tester.runAsync(() async {
         r = await _rig([asset('a', seconds: _recent(1))]);
-        await _until(() => r.host.service!.candidates.isNotEmpty);
-        r.host.service!
-            .presentFailure(DedupeUnsupported.message, stopsSweep: true);
+        await _until(() => !r.host.service!.isSweeping &&
+            r.host.service!.candidates.isNotEmpty);
+        r.host.service!.presentFailure(DedupeUnsupported.message, stopsSweep: true);
       });
-      await pump(tester, r.host, const SingleChildScrollView(child: SweepTraySection()));
-      expect(find.text('Sweep stopped'), findsOneWidget);
-      expect(find.text(DedupeUnsupported.message), findsOneWidget);
-      expect(find.text('Check again'), findsNothing);
+      await pump(tester, r.host, library());
+      expect(find.text(CameraSweepService.stoppedTitle), findsOneWidget);
+      r.host.service!.clearError();
+      await tester.runAsync(() async {
+        r.bridge.accessNow = SweepAccess.limited;
+        await r.host.refreshAccess();
+      });
+      await tester.pump();
+      expect(find.text(CameraRollCopy.rowNoAccess), findsOneWidget);
+
+      final bad = CameraSweepHost(
+        session: _Session(true),
+        isSignedIn: () => true,
+        bridge: FakeBridge([]),
+        store: _Unreadable(),
+        endpoints: FakeEndpoints(),
+        uploader: FakeUploader(),
+        background: null,
+        observeLifecycle: false,
+      );
+      await tester.runAsync(() => bad.ready);
+      await pump(tester, bad, library());
+      expect(find.text(CameraRollCopy.rowUnreadable), findsOneWidget);
+      expect(find.text('Connect'), findsNothing, reason: 'no action');
     });
   });
 
-  group('the settings screen', () {
-    testWidgets('off: the switch alone; turned on with full access, the rest',
-        (tester) async {
+  group('the setup', () {
+    testWidgets(
+        'four steps: Connect, a refusal, full access, the reach counted, the mode, '
+        'then on and Looking back', (tester) async {
       late _Rig r;
       await tester.runAsync(() async {
-        r = await _rig([asset('a', seconds: _recent(1))], enabled: false)
+        r = await _rig([
+          asset('new', seconds: _recent(60)),
+          asset('older', seconds: _recent(60 * 24 * 40)),
+          asset('oldest', seconds: _recent(60 * 24 * 500)),
+        ], enabled: false)
           ..bridge.accessNow = SweepAccess.denied
-          ..bridge.promptAnswers = SweepAccess.granted;
+          ..bridge.promptAnswers = SweepAccess.limited;
       });
-      await pump(tester, r.host, const CameraSweepPage());
-      await tester.runAsync(_settle);
-      await tester.pump();
-      expect(find.text(CameraSweepPage.switchTitle), findsOneWidget);
-      expect(find.text(CameraSweepPage.modeTitle), findsNothing);
-      expect(find.text(SweepAccessRefused.deniedSentence), findsNothing,
-          reason: 'never asked, never on: nothing to refuse yet');
-      expect(r.bridge.accessRequests, 0, reason: 'opening the screen asks nothing');
+      await pump(tester, r.host, library());
+      await tester.tap(find.text('Connect'));
+      await frames(tester);
+      // 1 · what it does
+      expect(find.text('CAMERA ROLL · 1 OF 4'), findsOneWidget);
+      expect(find.text(CameraRollCopy.introTitle), findsOneWidget);
+      for (final (t, d) in CameraRollCopy.introRows) {
+        expect(find.text(t), findsOneWidget);
+        expect(find.text(d), findsOneWidget);
+      }
+      expect(r.bridge.accessRequests, 0, reason: 'opening the setup asks nothing');
+      await tapText(tester, CameraRollCopy.continueLabel);
+      await frames(tester);
+      // 2 · access: the prompt fires on Allow access, and only there
+      expect(find.text('CAMERA ROLL · 2 OF 4'), findsOneWidget);
+      expect(find.text(CameraRollCopy.accessStand), findsOneWidget);
       await tester.runAsync(() async {
-        await tester.tap(find.byType(KitSwitch));
-        await _until(() => r.host.ledger!.enabled);
+        await tester.tap(find.text(CameraRollCopy.allowAccess));
+        await _settle();
       });
-      await tester.pump();
+      await frames(tester);
       expect(r.bridge.accessRequests, 1);
-      expect(find.text(CameraSweepPage.modeTitle), findsOneWidget);
-      expect(find.text(CameraSweepPage.automaticLabel), findsOneWidget);
-      expect(find.text(CameraSweepPage.reviewLabel), findsOneWidget);
-      expect(find.text(CameraSweepPage.firstCatchUpNote), findsOneWidget,
-          reason: 'before the first catch-up, the review promise');
-      expect(find.text(CameraSweepPage.goBackTitle), findsOneWidget);
-      expect(find.text(CameraSweepPage.addedTitle), findsOneWidget);
-      expect(find.text(CameraSweepPage.startOverTitle), findsOneWidget);
+      expect(find.text(SweepAccessRefused.limitedSentence), findsOneWidget,
+          reason: 'partial access is refused: the step stays, saying why');
+      expect(find.text(CameraRollCopy.openSettings), findsOneWidget);
+      expect(r.host.ledger!.enabled, isFalse);
+      r.bridge.promptAnswers = SweepAccess.granted;
+      await tester.runAsync(() async {
+        await tester.tap(find.text(CameraRollCopy.allowAccess));
+        await _settle(120);
+      });
+      await frames(tester);
+      // 3 · what to take in: no kind switches; each reach counted
+      expect(find.text('CAMERA ROLL · 3 OF 4'), findsOneWidget);
+      expect(find.text(CameraRollCopy.keptCards), findsOneWidget);
+      expect(find.textContaining('never uploaded'), findsOneWidget,
+          reason: 'only the standfirst\'s "the rest are never uploaded"');
+      expect(find.textContaining('cards or IDs'), findsNothing);
+      expect(find.text('1 photo'), findsOneWidget, reason: 'the last month');
+      expect(find.text('2 photos'), findsOneWidget, reason: 'the last year');
+      expect(find.text('3 photos'), findsOneWidget, reason: 'everything');
+      await tapText(tester, 'The last month');
+      await tester.pump();
+      await tapText(tester, CameraRollCopy.continueLabel);
+      await frames(tester);
+      // 4 · where it goes: the mode, never a confidence
+      expect(find.text('CAMERA ROLL · 4 OF 4'), findsOneWidget);
+      expect(find.text(CameraRollCopy.automatically), findsOneWidget);
+      expect(find.text(CameraRollCopy.askFirst), findsOneWidget);
+      expect(find.text(CameraRollCopy.askNote), findsOneWidget,
+          reason: 'Ask me first until chosen (Swift\'s default)');
+      expect(find.text(CameraRollCopy.lookBackNote), findsOneWidget);
+      expect(find.text('Balanced'), findsNothing);
+      await tapText(tester, CameraRollCopy.automatically);
+      await tester.pump();
+      expect(find.text(CameraRollCopy.automaticNote), findsOneWidget);
+      expect(r.store.values[SweepLedger.kMode], isNull,
+          reason: 'nothing is written before the last button');
+      await tester.runAsync(() async {
+        await tapText(tester, CameraRollCopy.startLooking);
+        await _until(() => r.host.ledger!.enabled && !r.host.service!.isSweeping &&
+            r.host.service!.candidates.isNotEmpty);
+        await _settle();
+      });
+      await frames(tester);
+      final ledger = r.host.ledger!;
+      expect(ledger.enabled, isTrue);
+      expect(ledger.mode, SweepMode.automatic);
+      expect(ledger.reach, SweepReach.month);
+      expect(r.store.values[SweepLedger.kReach], 'month');
+      expect(r.host.service!.candidates.single.localIdentifier, 'new',
+          reason: 'the look back waits for review even in Automatic mode');
+      expect(r.endpoints.sessions, isEmpty, reason: 'nothing sent unreviewed');
+      // Looking back, stopped: the figures and Review it now
+      expect(find.text('CAMERA ROLL · LOOKING BACK'), findsOneWidget);
+      expect(find.text('Looking Through the Last Month'), findsOneWidget);
+      expect(find.text('THE LAST MONTH · 1 PHOTO'), findsOneWidget);
+      expect(find.text('1'), findsWidgets);
+      expect(find.text('of 1 photos'), findsOneWidget);
+      expect(find.text(CameraRollCopy.forReview), findsOneWidget);
+      expect(find.text(CameraRollCopy.passedOver), findsOneWidget);
+      expect(find.text('waiting for iCloud'), findsOneWidget);
+      expect(find.text(CameraRollCopy.justFound.toUpperCase()), findsOneWidget);
+      expect(find.text(CameraRollCopy.photoWithText), findsOneWidget);
+      expect(find.text('taken in'), findsNothing,
+          reason: 'a look back files nothing until it is reviewed');
+      expect(find.text('Review it now'), findsOneWidget);
     });
 
-    for (final (got, sentence) in [
-      (SweepAccess.limited, SweepAccessRefused.limitedSentence),
-      (SweepAccess.denied, SweepAccessRefused.deniedSentence),
-    ]) {
-      testWidgets('${got.name} at the prompt: the sentence, and Open Settings',
-          (tester) async {
-        late _Rig r;
-        await tester.runAsync(() async {
-          r = await _rig([], enabled: false)
-            ..bridge.accessNow = SweepAccess.denied
-            ..bridge.promptAnswers = got;
-        });
-        await pump(tester, r.host, const CameraSweepPage());
-        await tester.runAsync(() async {
-          await tester.tap(find.byType(KitSwitch));
-          await _until(() => r.bridge.accessRequests == 1);
-          await _settle();
-        });
-        await tester.pump();
-        expect(find.text(sentence), findsOneWidget);
-        expect(find.byType(KitNotice), findsOneWidget);
-        expect(r.host.ledger!.enabled, isFalse);
-        expect(find.text(CameraSweepPage.modeTitle), findsNothing);
-        await tester.tap(find.text('Open Settings'));
-        expect(r.bridge.settingsOpened, 1);
+    testWidgets('From now on: Turn it on, and the flow closes', (tester) async {
+      late _Rig r;
+      await tester.runAsync(() async {
+        r = await _rig([asset('a', seconds: _recent(60))], enabled: false);
       });
-    }
+      await pump(tester, r.host, library());
+      await tester.tap(find.text('Connect'));
+      await frames(tester);
+      await tapText(tester, CameraRollCopy.continueLabel);
+      await frames(tester);
+      await tester.runAsync(() async {
+        await tester.tap(find.text(CameraRollCopy.allowAccess));
+        await _settle(120);
+      });
+      await frames(tester);
+      await tapText(tester, 'From now on');
+      await tester.pump();
+      await tapText(tester, CameraRollCopy.continueLabel);
+      await frames(tester);
+      expect(find.text(CameraRollCopy.lookBackNote), findsNothing);
+      expect(find.text(CameraRollCopy.startLooking), findsNothing);
+      await tester.runAsync(() async {
+        await tapText(tester, CameraRollCopy.turnItOn);
+        await _until(() => r.host.ledger!.enabled && !r.host.service!.isSweeping);
+        await _settle();
+      });
+      await frames(tester, 12);
+      expect(find.byType(CameraRollFlow), findsNothing);
+      expect(r.host.ledger!.reach, SweepReach.fromNow);
+      expect(r.host.service!.candidates, isEmpty, reason: 'nothing since now');
+    });
 
-    testWidgets('Start over asks first (§18), naming what comes back',
+    testWidgets('a refused write says so above the foot, and stays off', (tester) async {
+      final store = FlakyStore();
+      final bridge = FakeBridge([asset('a', seconds: _recent(60))]);
+      final host = CameraSweepHost(
+        session: _Session(true),
+        isSignedIn: () => true,
+        bridge: bridge,
+        store: store,
+        endpoints: FakeEndpoints(),
+        uploader: FakeUploader(),
+        background: null,
+        observeLifecycle: false,
+      );
+      await tester.runAsync(() => host.ready);
+      await pump(tester, host,
+          const CameraRollFlow(start: CameraRollStep.where));
+      store.failWrites = true;
+      await tester.runAsync(() async {
+        await tapText(tester, CameraRollCopy.startLooking);
+        await _settle();
+      });
+      await frames(tester);
+      expect(find.text(CameraSweepHost.notSaved), findsOneWidget);
+      expect(host.ledger!.enabled, isFalse);
+      expect(find.text('CAMERA ROLL · 4 OF 4'), findsOneWidget, reason: 'it did not move');
+    });
+
+    testWidgets('Escape closes the flow', (tester) async {
+      late _Rig r;
+      await tester.runAsync(() async {
+        r = await _rig([], enabled: false);
+      });
+      await pump(tester, r.host, library());
+      await tester.tap(find.text('Connect'));
+      await frames(tester);
+      expect(find.byType(CameraRollFlow), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await frames(tester, 12);
+      expect(find.byType(CameraRollFlow), findsNothing);
+    });
+  });
+
+  group('the review', () {
+    testWidgets(
+        'one at a time: k of N, the summary, already in, pass over, file it, '
+        'and Everything Is Filed', (tester) async {
+      late _Rig r;
+      await tester.runAsync(() async {
+        r = await _rig([
+          asset('a', seconds: _recent(1), screenshot: true),
+          asset('b', seconds: _recent(2)),
+          asset('n', seconds: _recent(3)),
+        ], verdicts: {'n': SweepVerdict.noText});
+        r.endpoints.filed[asset('b').assetKey] =
+            const CaptureMatch(docId: 'cam-b', status: 'complete');
+        r.endpoints.answers[asset('b').assetKey] = {
+          'docId': 'cam-b',
+          'duplicate': true,
+          'status': 'complete',
+          'uploadUrl': null,
+        };
+        await _until(() => r.host.service!.candidates.length == 2 &&
+            !r.host.service!.isSweeping);
+      });
+      await pump(tester, r.host, library());
+      await tester.tap(find.text('Review'));
+      await frames(tester);
+      expect(find.text('CAMERA ROLL · REVIEW · 1 OF 2'), findsOneWidget);
+      expect(find.text('Filed 0 · Waiting 2 · Passed over 1'), findsOneWidget);
+      expect(find.text('SCREENSHOT'), findsOneWidget);
+      expect(find.textContaining('Taken on '), findsOneWidget);
+      expect(find.text(CameraRollCopy.lookBackKeeps), findsOneWidget);
+      expect(find.text(CameraRollCopy.filingLine), findsOneWidget);
+      expect(find.text('File all 2'), findsOneWidget);
+      expect(find.textContaining('File on'), findsNothing);
+      expect(find.text('Another shelf'), findsNothing);
+      await tester.runAsync(() async {
+        await tapText(tester, CameraRollCopy.passOver);
+        await _settle();
+      });
+      await frames(tester);
+      expect(r.host.ledger!.verdict('a'), LedgerVerdict.dismissed);
+      expect(r.endpoints.sessions, isEmpty, reason: 'passing over sends nothing');
+      expect(find.text('CAMERA ROLL · REVIEW · 2 OF 2'), findsOneWidget);
+      expect(find.text('Filed 0 · Waiting 1 · Passed over 2'), findsOneWidget);
+      expect(find.text(CameraRollCopy.alreadyIn), findsOneWidget);
+      expect(find.text('PHOTO WITH TEXT'), findsOneWidget);
+      expect(find.text('File all 1'), findsNothing, reason: 'only while more than one waits');
+      await tester.runAsync(() async {
+        await tapText(tester, CameraRollCopy.fileIt);
+        await _until(() => r.host.service!.candidates.isEmpty);
+        await _settle();
+      });
+      await frames(tester);
+      expect(r.endpoints.sessions, hasLength(1));
+      expect(r.endpoints.puts, isEmpty, reason: 'already in: nothing uploads');
+      expect(find.text(CameraRollCopy.endTitle), findsOneWidget);
+      expect(find.text('CORRESPONDENCE · CAMERA ROLL · ON'), findsOneWidget);
+      expect(
+          find.text('1 photo is in your library and 2 were passed over. '
+              '${CameraRollCopy.endAsk}'),
+          findsOneWidget);
+      await tapText(tester, CameraRollCopy.done);
+      await frames(tester, 12);
+      expect(find.byType(CameraRollFlow), findsNothing);
+    });
+
+    testWidgets('a refused filing stays, with its sentence in the note\'s slot',
         (tester) async {
       late _Rig r;
       await tester.runAsync(() async {
-        r = await _rig([asset('n1', seconds: _recent(1))],
-            verdicts: {'n1': SweepVerdict.noText});
-        await _until(() => r.host.ledger!.verdicts.isNotEmpty);
+        r = await _rig([asset('a', seconds: _recent(1))]);
+        r.endpoints.putFailsWith = 500;
+        await _until(() => r.host.service!.candidates.isNotEmpty &&
+            !r.host.service!.isSweeping);
       });
-      await pump(tester, r.host, const CameraSweepPage());
-      await tester.runAsync(_settle);
-      await tester.pump();
-      await tester.ensureVisible(find.byType(KitFormDangerButton));
-      await tester.tap(find.byType(KitFormDangerButton));
-      await tester.pumpAndSettle();
-      expect(find.text(CameraSweepPage.confirmTitle), findsOneWidget);
-      expect(find.text(CameraSweepPage.keepLabel), findsOneWidget);
-      expect(r.host.ledger!.verdicts, isNotEmpty, reason: 'nothing until confirmed');
+      await pump(tester, r.host,
+          const CameraRollFlow(start: CameraRollStep.review));
+      await tester.runAsync(() async {
+        await tapText(tester, CameraRollCopy.fileIt);
+        await _until(() => r.host.service!.candidateErrors.isNotEmpty);
+        await _settle();
+      });
+      await frames(tester);
+      expect(find.text('A photo could not be uploaded (HTTP 500). The next look tries again.'),
+          findsOneWidget);
+      expect(find.text(CameraRollCopy.lookBackKeeps), findsNothing);
+      expect(r.host.service!.candidates, hasLength(1), reason: 'it stays');
+    });
+  });
+
+  group('the panel', () {
+    testWidgets('status, takes in, the mode written before it moves, the reach, '
+        'and Turn off behind its confirm', (tester) async {
+      late _Rig r;
+      await tester.runAsync(() async {
+        r = await _rig([asset('a', seconds: _recent(1))], stored: {
+          SweepLedger.kReach: 'month',
+          SweepLedger.kMode: 'review',
+        });
+        await _until(() => !r.host.service!.isSweeping &&
+            r.host.ledger!.lastLookedAt != null);
+      });
+      var closed = 0, further = 0;
+      await pump(
+          tester,
+          r.host,
+          SingleChildScrollView(
+            child: CameraRollSettings(
+              close: () => closed++,
+              onLookFurther: () => further++,
+            ),
+          ));
+      await frames(tester);
+      expect(find.text('On · looked just now'), findsOneWidget);
+      expect(find.text(CameraRollCopy.takesIn), findsOneWidget);
+      expect(find.text(CameraRollCopy.takesInCards), findsOneWidget);
+      expect(find.textContaining('always passed over'), findsNothing);
+      expect(find.text('The last month · done'), findsOneWidget);
+      expect(find.text(CameraRollCopy.lookFurther), findsOneWidget);
+      expect(find.text(CameraRollCopy.startOver), findsOneWidget);
+      expect(find.text(CameraRollCopy.lookNow), findsOneWidget);
+      expect(find.text('Pause'), findsNothing);
+      await tester.runAsync(() async {
+        await tapText(tester, CameraRollCopy.automatically);
+        await _settle();
+      });
+      await frames(tester);
+      expect(r.store.values[SweepLedger.kMode], 'automatic');
+      expect(r.host.ledger!.mode, SweepMode.automatic);
+
+      // Look further back: the start date moves, the done mark clears.
+      await tester.runAsync(() async {
+        await tapText(tester, CameraRollCopy.lookFurther);
+        await _settle();
+      });
+      await frames(tester);
+      expect(r.host.ledger!.reach, SweepReach.year);
+      expect(r.store.values[SweepLedger.kReach], 'year');
+      expect((closed, further), (1, 1));
+      // Its pass ran; the walk to the new date is done again (the clearing
+      // itself: camera_sweep_service_test, "a start date that moves").
+      expect(find.textContaining('The last year'), findsOneWidget);
+
+      await tapText(tester, CameraRollCopy.turnOff);
+      await frames(tester);
+      expect(find.text(CameraRollCopy.turnOffTitle), findsOneWidget);
+      expect(find.text(CameraRollCopy.turnOffBody), findsOneWidget);
+      expect(find.text(CameraRollCopy.keepItOn), findsOneWidget);
+      await tester.runAsync(() async {
+        await tester.tap(find.text(CameraRollCopy.turnOffConfirm));
+        await _settle();
+      });
+      await frames(tester);
+      expect(r.host.ledger!.enabled, isFalse);
+      expect(r.host.ledger!.mode, SweepMode.automatic, reason: 'kept');
+      expect(r.host.ledger!.reach, SweepReach.year, reason: 'kept');
+      expect(closed, 2);
     });
   });
 
   // ── The sentences are the spec's ───────────────────────────────────────────
 
   group('copy', () {
-    final contracts = Directory('../NoteLetter-contracts/spec');
+    // D's camera roll is specified on the contracts D branch until the
+    // coordinator merges it (5.43.0): read whichever tree carries §9.
+    final dTree = Directory('../NoteLetter-contracts-d/spec');
+    final contracts = File('${dTree.path}/features/camera-roll-sweep.md').existsSync() &&
+            File('${dTree.path}/features/camera-roll-sweep.md')
+                .readAsStringSync()
+                .contains('What a screen may claim')
+        ? dTree
+        : Directory('../NoteLetter-contracts/spec');
     String read(String rel) => File('${contracts.path}/$rel').readAsStringSync();
     // Markdown wraps lines; compare on single spaces.
     String flat(String s) => s.replaceAll(RegExp(r'\s+'), ' ');
@@ -488,46 +773,105 @@ void main() {
       expect(flat(read('features/camera-roll-sweep.md')), contains(m!.group(1)!));
     });
 
-    test('every sentence the two screens draw is in the spec, verbatim', () {
-      final spec = flat('${read('screens/settings.md')}\n${read('screens/sources.md')}'
+    test('every sentence the camera roll draws is in the spec, verbatim', () {
+      final spec = flat('${read('screens/sources.md')}'
           '\n${read('features/camera-roll-sweep.md')}');
+      final at = DateTime(2026, 3, 14);
       for (final s in [
-        CameraSweepPage.standfirst,
-        CameraSweepPage.switchTitle,
-        CameraSweepPage.modeTitle,
-        CameraSweepPage.automaticLabel,
-        CameraSweepPage.reviewLabel,
-        CameraSweepPage.firstCatchUpNote,
-        CameraSweepPage.automaticNote,
-        CameraSweepPage.goBackTitle,
-        CameraSweepPage.catchUpNote,
-        CameraSweepPage.inRangeTitle,
-        CameraSweepPage.addedTitle,
-        CameraSweepPage.iCloudTitle,
-        CameraSweepPage.waitingTitle,
-        CameraSweepPage.checkTitle,
-        CameraSweepPage.startOverTitle,
-        CameraSweepPage.confirmTitle,
-        ...CameraSweepPage.confirmBody.split('\n\n'),
-        CameraSweepPage.keepLabel,
+        CameraRollCopy.rowOff,
+        CameraRollCopy.rowNoAccess,
+        CameraRollCopy.rowUnreadable,
+        CameraRollCopy.rowWaiting(7).replaceFirst('7', '{N}'),
+        CameraRollCopy.rowOn(7).replaceFirst('7', '{N}'),
+        CameraRollCopy.step(2).replaceFirst('2', '{n}'),
+        CameraRollCopy.folio,
+        CameraRollCopy.introTitle,
+        CameraRollCopy.introStand,
+        CameraRollCopy.introLabel,
+        for (final (t, d) in CameraRollCopy.introRows) ...[t, d],
+        CameraRollCopy.accessTitle,
+        CameraRollCopy.accessStand,
+        CameraRollCopy.allowAccess,
+        CameraRollCopy.whatTitle,
+        CameraRollCopy.whatStand,
+        CameraRollCopy.keptLabel,
+        CameraRollCopy.keptCards,
+        CameraRollCopy.reachLabel,
+        ...CameraRollCopy.reaches.values,
+        CameraRollCopy.whereTitle,
+        CameraRollCopy.whereStand,
+        CameraRollCopy.modeLabel,
+        CameraRollCopy.automatically,
+        CameraRollCopy.askFirst,
+        CameraRollCopy.automaticNote,
+        CameraRollCopy.askNote,
+        CameraRollCopy.lookBackNote,
+        CameraRollCopy.startLooking,
+        CameraRollCopy.turnItOn,
+        CameraRollCopy.lookingHead,
+        'Looking Through the Last Month',
+        'Looking Through the Last Year',
+        'Looking Through Everything',
+        CameraRollCopy.lookingStand,
+        CameraRollCopy.cappedStand,
+        CameraRollCopy.trayFullStand,
+        CameraRollCopy.forReview,
+        CameraRollCopy.passedOver,
+        CameraRollCopy.justFound,
+        CameraRollCopy.screenshot,
+        CameraRollCopy.photoWithText,
+        CameraRollCopy.taken(at).replaceFirst('14 March', '{14 March}'),
+        CameraRollCopy.takenOn(at).replaceFirst('14 March', '{14 March}'),
+        CameraRollCopy.since(at).replaceFirst('14 March 2026', '{14 March 2026}'),
+        CameraRollCopy.goToLibrary,
+        CameraRollCopy.reviewNow(1),
+        CameraRollCopy.reviewNow(2),
+        CameraRollCopy.reviewHead(3, 9).replaceFirst('3', '{k}').replaceFirst('9', '{N}'),
+        CameraRollCopy.summary(1, 2, 3)
+            .replaceFirst('1', '{N}')
+            .replaceFirst('2', '{N}')
+            .replaceFirst('3', '{N}'),
+        CameraRollCopy.alreadyIn,
+        CameraRollCopy.lookBackKeeps,
+        CameraRollCopy.youAsked,
+        CameraRollCopy.filingLine,
+        CameraRollCopy.fileIt,
+        CameraRollCopy.fileAll(4).replaceFirst('4', '{N}'),
+        CameraRollCopy.passOver,
+        CameraRollCopy.endFolio,
+        CameraRollCopy.endTitle,
+        CameraRollCopy.endCounts(4, 5).replaceFirst('4', '{N}').replaceFirst('5', '{N}'),
+        CameraRollCopy.endWalkLeft,
+        CameraRollCopy.endAutomatic,
+        CameraRollCopy.endAsk,
+        CameraRollCopy.panelTitle,
+        CameraRollCopy.takesInLabel,
+        CameraRollCopy.takesIn,
+        CameraRollCopy.takesInCards,
+        CameraRollCopy.lookFurther,
+        CameraRollCopy.startOver,
+        CameraRollCopy.startOverTitle,
+        CameraRollCopy.startOverBody,
+        CameraRollCopy.startOverBody2,
+        CameraRollCopy.keepProgress,
+        CameraRollCopy.lookNow,
+        CameraRollCopy.turnOff,
+        CameraRollCopy.turnOffTitle,
+        CameraRollCopy.turnOffBody,
+        CameraRollCopy.turnOffConfirm,
+        CameraRollCopy.keepItOn,
+        CameraRollCopy.checkAgain,
+        CameraRollCopy.openSettings,
         SweepAccessRefused.limitedSentence,
         SweepAccessRefused.deniedSentence,
-        SweepTraySection.looking,
-        KitCaptureCard.alreadyInLabel,
+        SweepAccessRefused.deniedAtSetupSentence,
+        CameraSweepService.stoppedTitle,
+        CameraSweepService.oneFailedTitle,
         CameraSweepService.iCloudSentence,
-        SweepWords.android.automaticNote,
         SweepWords.android.deferredTitle,
         SweepWords.android.deferredSentence,
         DedupeUnsupported.message,
         CameraSweepHost.notSaved,
-        SettingsPage.cameraRollDescription,
-        'Sweep stopped',
-        'A photo couldn’t be added',
-        'Open Settings',
-        'Skip this photo',
-        'Add this photo',
-        'Open camera roll settings',
-        'This phone’s sweep settings could not be read.',
         CameraSweepService.uploadFailureSentence(statusCode: 403),
         CameraSweepService.uploadFailureSentence(statusCode: 501)
             .replaceFirst('501', '{status}'),
@@ -535,5 +879,44 @@ void main() {
         expect(spec, contains(flat(s)), reason: s);
       }
     });
+
+    test('never the claims D declined (feature §9)', () {
+      final drawn = [
+        CameraRollCopy.introStand,
+        for (final (t, d) in CameraRollCopy.introRows) ...[t, d],
+        CameraRollCopy.accessStand,
+        CameraRollCopy.whatStand,
+        CameraRollCopy.keptCards,
+        CameraRollCopy.whereStand,
+        CameraRollCopy.automaticNote,
+        CameraRollCopy.askNote,
+        CameraRollCopy.lookBackNote,
+        CameraRollCopy.takesIn,
+        CameraRollCopy.takesInCards,
+        CameraRollCopy.endAutomatic,
+        CameraRollCopy.endAsk,
+      ].join(' ').toLowerCase();
+      for (final no in [
+        'cards or ids',
+        'never uploaded: people',
+        'always passed over',
+        'faces',
+        'is sure',
+        'cautious',
+        'trusting',
+        'as you take them',
+        'for your review',
+        'sweep',
+      ]) {
+        expect(drawn, isNot(contains(no)), reason: no);
+      }
+    });
   });
+}
+
+/// A store whose read fails: the camera roll's settings could not be read.
+class _Unreadable extends MemoryLedgerStore {
+  @override
+  Future<Map<String, Object?>> read(Set<String> keys) async =>
+      throw StateError('unreadable');
 }

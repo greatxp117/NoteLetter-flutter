@@ -395,7 +395,7 @@ void main() {
       await svc.sweep();
       await svc.approveAll();
       expect(svc.errorStoppedSweep, isTrue);
-      expect(svc.failureTitle, 'Sweep stopped');
+      expect(svc.failureTitle, 'The camera roll stopped');
       expect(svc.errorMessage, DedupeUnsupported.message);
       expect(ep.sessions, hasLength(1), reason: 'approveAll stops with the sweep');
       expect(ep.puts, isEmpty);
@@ -431,7 +431,7 @@ void main() {
           reason: 'not in: the next pass re-requests a link');
       expect(svc.candidateErrors['p1'],
           'A photo’s upload link expired before the transfer finished. '
-          'The next sweep starts it again.');
+          'The next look starts it again.');
       expect(svc.ingestedThisSession, 0, reason: 'only an upload that landed counts');
     });
 
@@ -456,7 +456,7 @@ void main() {
       expect(ledger.verdict('p1'), LedgerVerdict.deferredNotLocal);
       expect(svc.candidateErrors['p1'],
           'This photo couldn’t be opened on this phone. '
-          'It stays here and the next sweep will try again.');
+          'It stays here and the next look will try again.');
       expect(ep.sessions, isEmpty);
     });
 
@@ -464,7 +464,7 @@ void main() {
       expect(SweepWords.forPlatform(TargetPlatform.android), same(SweepWords.android));
       expect(SweepWords.forPlatform(TargetPlatform.iOS), same(SweepWords.ios));
       expect(SweepWords.ios.deferredSentence, CameraSweepService.iCloudSentence);
-      for (final w in [SweepWords.android.automaticNote, SweepWords.android.deferredTitle,
+      for (final w in [SweepWords.android.deferredFigure, SweepWords.android.deferredTitle,
           SweepWords.android.deferredSentence]) {
         expect(w.contains('iOS') || w.contains('iCloud'), isFalse, reason: w);
       }
@@ -503,7 +503,7 @@ void main() {
       expect(svc.failureTitle, 'A photo couldn’t be added',
           reason: 'one photo\'s refusal is not the sweep ending');
       expect(svc.errorMessage,
-          'A photo could not be uploaded (HTTP 500). The next sweep tries again.');
+          'A photo could not be uploaded (HTTP 500). The next look tries again.');
       ep.putFailsWith = null;
       final again = await svc.sweep();
       expect(again.ingested, 2);
@@ -886,15 +886,107 @@ void main() {
     });
   });
 
+  // ── Direction D's signals (5.43.0, ADR-198) ───────────────────────────────
+
+  group('D: what the camera roll\'s screens read', () {
+    test('a start date that moves clears the done mark; the same date keeps it',
+        () async {
+      final (svc, ledger, _, _, store) = await rig([asset('p1')]);
+      await svc.sweep();
+      expect(ledger.backfillComplete, isTrue);
+      await ledger.setBackfillStart(ledger.backfillStart);
+      expect(ledger.backfillComplete, isTrue, reason: 'not moved');
+      await ledger.setBackfillStart(DateTime.utc(2019), reach: SweepReach.everything);
+      expect(ledger.backfillComplete, isFalse);
+      expect(store.values[SweepLedger.kBackfillComplete], false, reason: 'written');
+      expect(ledger.reach, SweepReach.everything);
+      expect(store.values[SweepLedger.kReach], 'everything');
+      await ledger.setBackfillStart(DateTime.utc(2018));
+      expect(ledger.reach, isNull, reason: 'a date set any other way names no reach');
+      expect(store.values.containsKey(SweepLedger.kReach), isFalse);
+    });
+
+    test('Look further back in Automatic mode: its finds wait for review (decision 4)',
+        () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('new')]);
+      await ledger.setMode(SweepMode.automatic);
+      await svc.sweep();
+      await svc.approve(svc.candidates.single);
+      expect(ledger.backfillComplete, isTrue);
+      // An older photo, reached only once the start date moves earlier.
+      bridge.assets.add(asset('old', seconds: DateTime.utc(2019, 6).millisecondsSinceEpoch / 1000));
+      await ledger.setBackfillStart(DateTime.utc(2019), reach: SweepReach.everything);
+      final sessions = ep.sessions.length;
+      await svc.sweep();
+      expect(svc.candidates.map((c) => c.localIdentifier), ['old'],
+          reason: 'until 5.43.0 it was filed unreviewed');
+      expect(ep.sessions.length, sessions, reason: 'nothing sent');
+      expect(svc.foundByLookBack('old'), isTrue);
+      expect(ledger.backfillComplete, isTrue, reason: 'the walk reached the new date');
+    });
+
+    test('Ask me first after the walk: a waiting photo is not the look back\'s',
+        () async {
+      final (svc, ledger, bridge, _, _) = await rig([asset('a')]);
+      await svc.sweep();
+      expect(svc.foundByLookBack('a'), isTrue);
+      bridge.assets.insert(0, asset('b', seconds: 1759568400.0 + 60));
+      await svc.sweep();
+      expect(ledger.backfillComplete, isTrue);
+      expect(svc.foundByLookBack('b'), isFalse);
+    });
+
+    test('the walk\'s position counts every photo it passes, settled ones too',
+        () async {
+      final assets = [
+        for (var i = 0; i < 250; i++) asset('a$i', seconds: 1759568400.0 - i * 60)
+      ];
+      final (svc, _, _, _, _) = await rig(assets,
+          verdicts: {for (final a in assets) a.localIdentifier: SweepVerdict.noText});
+      expect(svc.walkPosition, isNull, reason: 'no walk yet');
+      await svc.sweep();
+      expect((svc.walkPosition, svc.walkTotal), (200, 250));
+      expect(svc.capped, isTrue, reason: 'stopped at its bound with photos left');
+      await svc.sweep();
+      expect((svc.walkPosition, svc.walkTotal), (250, 250),
+          reason: 'the 200 settled on the first pass are passed on the way');
+      expect(svc.capped, isFalse);
+    });
+
+    test('passed over: no text and dismissed', () async {
+      final (svc, ledger, _, _, _) = await rig([asset('t'), asset('n1'), asset('n2')],
+          verdicts: {'n1': SweepVerdict.noText, 'n2': SweepVerdict.noText});
+      await svc.sweep();
+      expect(ledger.passedOverCount, 2);
+      await svc.dismiss(svc.candidates.single);
+      expect(ledger.passedOverCount, 3);
+      expect(ledger.ingestedCount, 0);
+    });
+
+    test('a pass that ended without an error is when it last looked', () async {
+      final (svc, ledger, bridge, _, store) = await rig([asset('p1')]);
+      expect(ledger.lastLookedAt, isNull, reason: 'never drawn before one has');
+      await svc.sweep();
+      expect(ledger.lastLookedAt, isNotNull);
+      expect(store.values[SweepLedger.kLastLookedAt], isA<int>());
+      final at = ledger.lastLookedAt;
+      bridge.accessNow = SweepAccess.limited;
+      await svc.sweep();
+      expect(ledger.lastLookedAt, at, reason: 'a refused pass is an error');
+      final again = await SweepLedger.load(store);
+      expect(again.lastLookedAt!.millisecondsSinceEpoch, at!.millisecondsSinceEpoch);
+    });
+  });
+
   // ── Sentences ──────────────────────────────────────────────────────────────
 
-  group('sentences (the Swift app\'s, verbatim)', () {
+  group('sentences (the Swift app\'s, "sweep" made "look" in D)', () {
     test('upload failures each name the retry', () {
       expect(
           CameraSweepService.uploadFailureSentence(
               transportError: 'The network connection was lost.', statusCode: 0),
           'A photo could not be uploaded — The network connection was lost. '
-          'The next sweep tries again.');
+          'The next look tries again.');
       final expired = CameraSweepService.uploadFailureSentence(statusCode: 403);
       expect(expired, contains('expired'));
       expect(expired, isNot(contains('403')),
@@ -905,11 +997,11 @@ void main() {
     test('the iCloud and dedupe sentences', () {
       expect(CameraSweepService.iCloudSentence,
           'This photo hasn’t finished downloading from iCloud. '
-          'It stays here and the next sweep will try again.');
+          'It stays here and the next look will try again.');
       expect(DedupeUnsupported.message,
           "This version of NoteLetter's server doesn't recognize camera-roll "
-          'photos yet, so sweeping would add the same photos again. Try again '
-          'after the next update.');
+          'photos yet, so looking through them would add the same photos again. '
+          'Try again after the next update.');
     });
   });
 }

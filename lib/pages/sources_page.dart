@@ -8,7 +8,6 @@ import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/document.dart';
 import '../models/import_job.dart';
-import '../services/camera_sweep_bridge.dart';
 import '../shared/cloud_providers.dart';
 import '../shared/cloud_return.dart';
 import '../shared/cooldown.dart';
@@ -37,7 +36,7 @@ import 'sources/import_review_queue.dart';
 import 'sources/source_facets.dart';
 import 'sources/suggestion_queue.dart';
 import 'sources/organization_settings_panel.dart';
-import 'sources/sweep_tray.dart';
+import 'sources/camera_roll.dart';
 import 'sources/sync_settings_panel.dart';
 import 'reader/supersession_confirm.dart';
 
@@ -95,12 +94,18 @@ class SourcesPage extends StatefulWidget {
   final String? cloudConnectReason;
   final String? cloudConnectClaim;
 
+  /// Arrived from the retired `/settings/camera-roll` (5.43.0, ADR-198
+  /// decision 6): the camera roll's panel opens — or, while it is off, its
+  /// setup, which is what that screen's switch began.
+  final bool openCameraRoll;
+
   const SourcesPage({
     super.key,
     this.cloudConnectResult,
     this.cloudConnectProvider,
     this.cloudConnectReason,
     this.cloudConnectClaim,
+    this.openCameraRoll = false,
   });
 
   @override
@@ -140,8 +145,8 @@ class _SourcesPageState extends State<SourcesPage> {
   String? _shelf;
   String _sort = 'recent';
 
-  /// The camera roll's tray, revealed by its row's *Review*.
-  bool _trayOpen = false;
+  /// The camera roll's settings panel, opened by its row's *Settings*.
+  bool _cameraPanel = false;
 
   // ── Just catalogued (§Document processing: held briefly as Done) ──────────
   final Map<String, Timer> _justDone = {};
@@ -168,7 +173,20 @@ class _SourcesPageState extends State<SourcesPage> {
       context.read<UploadNotifier>().clearAnswered();
       CloudReturn.pending.addListener(_onReturn);
       _handleOAuthReturn();
+      if (widget.openCameraRoll) unawaited(_openCameraRoll());
     });
+  }
+
+  Future<void> _openCameraRoll() async {
+    final host = context.read<CameraSweepHost?>();
+    if (host == null || !host.available) return;
+    await host.ready;
+    if (!mounted) return;
+    if (host.ledger?.enabled ?? false) {
+      setState(() => _cameraPanel = true);
+    } else if (host.ledger != null) {
+      unawaited(CameraRollFlow.open(context, CameraRollStep.intro));
+    }
   }
 
   @override
@@ -582,6 +600,19 @@ class _SourcesPageState extends State<SourcesPage> {
         icon: Icons.add,
         onPressed: () => context.go('/sources/add'),
       ),
+      panel: _cameraPanel
+          ? KitPageSettings(
+              label: CameraRollCopy.panelTitle,
+              body: (context, close) => CameraRollSettings(
+                close: close,
+                onLookFurther: () => CameraRollFlow.open(
+                  this.context,
+                  CameraRollStep.lookingBack,
+                ),
+              ),
+            )
+          : null,
+      onPanelClose: () => setState(() => _cameraPanel = false),
       settings: KitPageSettings(
         label: 'Library settings',
         // Summaries only while generative AI is on (5.29.0, ADR-186): with it
@@ -693,11 +724,7 @@ class _SourcesPageState extends State<SourcesPage> {
               : 'Imports · filing · folders',
           flushTop: true,
         ),
-        _CameraRollRow(
-          open: _trayOpen,
-          onReview: () => setState(() => _trayOpen = !_trayOpen),
-        ),
-        if (_trayOpen) const SweepTraySection(),
+        CameraRollRow(onSettings: () => setState(() => _cameraPanel = true)),
         // A row's whole meaning is whether that service is connected, and an
         // unread list answers "no" for all of them (C4). The rows are
         // withheld rather than drawn wrong: inviting someone to connect a
@@ -776,90 +803,6 @@ class _SourcesPageState extends State<SourcesPage> {
         const _OrganizationSection(),
         const OrganizedFoldersSection(),
       ],
-    );
-  }
-}
-
-// ── Correspondence: the camera roll ─────────────────────────────────────────
-
-/// The camera roll's row (screens/sources.md §Camera roll, *The row*, 5.43.0,
-/// ADR-198): the camera glyph, *Camera roll*, a line and one action, the
-/// first state that holds deciding it — for the states this client can
-/// measure today. *Settings* and *Connect* open its settings; *Review*
-/// reveals the tray under the row. Drawn only where there is a photo library
-/// this client can sweep. (The look-back walk's position is not measured
-/// yet: its *Looking back · n of N* line is F-146's, with the D flow.)
-class _CameraRollRow extends StatelessWidget {
-  final bool open;
-  final VoidCallback onReview;
-
-  const _CameraRollRow({required this.open, required this.onReview});
-
-  @override
-  Widget build(BuildContext context) {
-    final host = context.watch<CameraSweepHost?>();
-    if (!CameraSweepBridge.isAvailable || host == null || !host.available) {
-      return const SizedBox.shrink();
-    }
-    if (host.loadError != null) {
-      return const KitServiceRow(
-        glyph: Icons.photo_camera_outlined,
-        name: 'Camera roll',
-        failure: KitFailureInline(
-            'This phone’s camera roll settings could not be read.',
-            dense: true),
-      );
-    }
-    final ledger = host.ledger, service = host.service;
-    if (ledger == null || service == null) return const SizedBox.shrink();
-    void settings() => context.go('/settings/camera-roll');
-    return ListenableBuilder(
-      listenable: Listenable.merge([ledger, service]),
-      builder: (context, _) {
-        final waiting = service.candidates.length;
-        final (String line, bool critical, Widget action) = service
-                    .errorMessage !=
-                null
-            ? (
-                service.errorStoppedSweep
-                    ? 'The camera roll stopped'
-                    : 'A photo couldn’t be added',
-                true,
-                KitLibAct('Settings', onTap: settings),
-              )
-            : ledger.enabled &&
-                    host.access != null &&
-                    host.access != SweepAccess.granted
-                ? (
-                    'NoteLetter can’t see your photos',
-                    false,
-                    KitLibAct('Settings', onTap: settings),
-                  )
-                : waiting > 0
-                    ? (
-                        '$waiting waiting for your review',
-                        false,
-                        KitLibAct('Review', strong: true, onTap: onReview),
-                      )
-                    : ledger.enabled
-                        ? (
-                            'On · ${kitThousands(ledger.ingestedCount)} taken in',
-                            false,
-                            KitLibAct('Settings', onTap: settings),
-                          )
-                        : (
-                            'Pages, screenshots and notes from your photos',
-                            false,
-                            KitLibAct('Connect', strong: true, onTap: settings),
-                          );
-        return KitServiceRow(
-          glyph: Icons.photo_camera_outlined,
-          name: 'Camera roll',
-          line: line,
-          critical: critical,
-          action: action,
-        );
-      },
     );
   }
 }

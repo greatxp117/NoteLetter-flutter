@@ -14,7 +14,6 @@ import 'pages/activity_page.dart';
 import 'pages/review_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/settings_page.dart';
-import 'pages/settings/camera_sweep_page.dart';
 import 'services/camera_sweep_bridge.dart';
 import 'pages/notification_settings_page.dart';
 import 'pages/not_found_page.dart';
@@ -233,12 +232,14 @@ List<RouteBase> appRoutes() {
               builder: (context, state) => const NotificationSettingsPage(),
             ),
             GoRoute(
-              // The camera-roll sweep's settings (F-125 S3) — only where there
-              // is a photo library this client can sweep.
+              // The camera roll's settings were a Settings sub-screen until
+              // 5.43.0 (F-125 S3). In D they are the panel its Library row
+              // opens (ADR-198 decision 6): a kept link lands in the Library
+              // with the panel open — only where there is a photo library.
               path: '/settings/camera-roll',
-              redirect: (context, state) =>
-                  CameraSweepBridge.isAvailable ? null : '/settings',
-              builder: (context, state) => const CameraSweepPage(),
+              redirect: (context, state) => CameraSweepBridge.isAvailable
+                  ? '/sources?camera_roll=settings'
+                  : '/settings',
             ),
             GoRoute(
               // Settings opened at its Sources section (ruled 2026-10-09;
@@ -265,6 +266,8 @@ List<RouteBase> appRoutes() {
                 cloudConnectProvider: state.uri.queryParameters['provider'],
                 cloudConnectReason: state.uri.queryParameters['reason'],
                 cloudConnectClaim: state.uri.queryParameters['claim'],
+                openCameraRoll:
+                    state.uri.queryParameters['camera_roll'] == 'settings',
               ),
             ),
             GoRoute(
