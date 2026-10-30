@@ -33,7 +33,8 @@ import 'sources/browse_section.dart' show runSourcePrimary;
 ///   running head: the sliders, the chosen kind and `{shown} of {all}`.
 /// * **Column** one section per day under a small SectionHead (§31), over the
 ///   timeline (§4.2) — its row hover kit §36's reference. Skeleton lines while
-///   the feed is out, never *Nothing of that kind yet.*
+///   the feed is out, never a sentence; an answered empty feed says *No
+///   activity yet.*, an empty kind *Nothing of that kind yet.*
 class ActivityPage extends StatefulWidget {
   const ActivityPage({super.key});
 
@@ -235,7 +236,14 @@ class _ActivityPageState extends State<ActivityPage> {
                   ],
                 )
               else if (buckets.isEmpty && !failed)
-                const KitDNone('Nothing of that kind yet.')
+                // Under All the feed itself is empty, so the sentence is about
+                // the account; *Nothing of that kind yet.* answers a kind the
+                // reader chose (web, the release lane's QA FOUND 4).
+                KitDNone(
+                  _filter == 'all'
+                      ? 'No activity yet.'
+                      : 'Nothing of that kind yet.',
+                )
               else
                 for (var i = 0; i < buckets.length; i++) ...[
                   // `.dp-act-g + .dp-act-g { margin-top: 48px }` — outside

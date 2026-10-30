@@ -111,6 +111,7 @@ void main() {
         reason: '§7 is an offer; drawn here it asserts an empty account');
     expect(find.text('Nothing of that kind yet.'), findsNothing,
         reason: 'nor does a refused feed claim there is nothing of a kind');
+    expect(find.text('No activity yet.'), findsNothing);
     expect(find.text('ACTIVITY\u00a0· — EVENTS'), findsOneWidget,
         reason: 'the folio\'s figure is unmeasured, never a zero');
     expect(find.textContaining('permission-denied'), findsOneWidget,
@@ -145,7 +146,8 @@ void main() {
   // with it). Still never while anything failed.
   testWidgets('the empty line still speaks when nothing failed', (tester) async {
     await _pump(tester, _StubActivity());
-    expect(find.text('Nothing of that kind yet.'), findsOneWidget);
+    // Under All the sentence is about the account (web, QA FOUND 4).
+    expect(find.text('No activity yet.'), findsOneWidget);
     expect(find.byType(KitFailureBlock), findsNothing);
   });
 

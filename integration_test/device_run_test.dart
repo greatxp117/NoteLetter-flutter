@@ -1159,7 +1159,7 @@ void main() {
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
       if (find.byType(KitTimeline).evaluate().isNotEmpty ||
-          find.text('Nothing of that kind yet.').evaluate().isNotEmpty) {
+          find.text('No activity yet.').evaluate().isNotEmpty) {
         break;
       }
     }
@@ -1176,7 +1176,7 @@ void main() {
     final seeded = find.byType(KitTimeline).evaluate().isNotEmpty;
     if (!seeded) {
       // An answered feed with nothing in it says so in one line.
-      expect(find.text('Nothing of that kind yet.'), findsOneWidget);
+      expect(find.text('No activity yet.'), findsOneWidget);
       return;
     }
 
@@ -3558,9 +3558,15 @@ void main() {
       await pumpFor(tester, total: const Duration(milliseconds: 1200));
     }
 
-    bool headOpen() =>
-        find.byKey(const ValueKey('d-dock-scrim')).hitTestable().evaluate()
-            .isNotEmpty;
+    // Open is the scrim taking pointers (folded, its IgnorePointer ignores
+    // them). Not a hit test at its centre: a dropped sheet covers that.
+    bool headOpen() => !tester
+        .widget<IgnorePointer>(find
+            .ancestor(
+                of: find.byKey(const ValueKey('d-dock-scrim')),
+                matching: find.byType(IgnorePointer))
+            .first)
+        .ignoring;
 
     /// The top of [f] below the top of the primary scroller it sits in.
     double underTop(Finder f) {
@@ -3708,9 +3714,20 @@ void main() {
       expect(headOpen(), isFalse, reason: 'a question row folds the head');
       final third = find.byType(KitStudyQuestionCard).at(2);
       final top = underTop(third);
+      final pos = tester
+          .state<ScrollableState>(find
+              .ancestor(of: third, matching: find.byType(Scrollable))
+              .first)
+          .position;
       debugPrint('DEVICE-RUN F-145 question 3 lands ${top.toStringAsFixed(1)} '
-          'under the scroller top');
-      expect(top, closeTo(24, 6), reason: 'a question row jumps 24 under the top');
+          'under the scroller top; scrolled ${pos.pixels.toStringAsFixed(0)} '
+          'of ${pos.maxScrollExtent.toStringAsFixed(0)}');
+      // 24 under the top — or, the last question, as far as the page goes.
+      expect(pos.pixels, greaterThan(0), reason: 'the row moved the column');
+      expect(
+          (top - 24).abs() <= 6 || (pos.maxScrollExtent - pos.pixels).abs() < 1,
+          isTrue,
+          reason: 'a question row jumps its question 24 under the top');
     } finally {
       await rest.delete('/study_sessions/$sessionId');
       if (programId != null) await Api.instance.deleteStudyProgram(programId);
@@ -3767,10 +3784,39 @@ void main() {
         .createUserWithEmailAndPassword(email: email, password: 'f145-run-1');
     try {
       KitPageTools.instance.reset();
+      // Onboarded, as the hold's empty account is: the first-run wizard is
+      // a DEVICE flag's gate, and this test is about For your review.
+      await LocalFlags.setOnboarded(true);
       await FirebaseAuth.instance.currentUser!.getIdToken(true);
       await pumpFor(tester, total: const Duration(seconds: 2));
       final fresh = await pumpApp(tester);
       fresh.go('/review');
+      for (var i = 0; i < 80; i++) {
+        if (find.text('Nothing waiting for you').evaluate().isNotEmpty) break;
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      final m = find.byType(KitMasthead).evaluate();
+      debugPrint('DEVICE-RUN F-145 fresh account at '
+          '${fresh.state.matchedLocation}: '
+          '${m.isEmpty ? 'no masthead' : (m.first.widget as KitMasthead).folio}');
+      final refused = tester
+          .widgetList<KitFailureBlock>(find.byType(KitFailureBlock))
+          .toList();
+      for (final b in refused) {
+        debugPrint('DEVICE-RUN F-145 fresh account refused: "${b.sentence}" '
+            '— ${b.detail}');
+      }
+      if (refused.isNotEmpty) {
+        // The in-process switch's credential beat (F-141): the reads opened
+        // as the OLD user. Never the empty state while refused (INV-24) —
+        // asserted here — and the page's own Retry re-subscribes all four.
+        expect(find.text('Nothing waiting for you'), findsNothing);
+        expect(find.textContaining('— WAITING'), findsOneWidget);
+        await tester.tap(find.descendant(
+            of: find.byType(KitFailureBlock).first,
+            matching: find.text('Try again')));
+        await pumpFor(tester, total: const Duration(seconds: 3));
+      }
       await waitFor(find.text('Nothing waiting for you'), 'the empty state');
       expect(find.text('FOR YOUR REVIEW\u00a0· NOTHING WAITING'),
           findsOneWidget);

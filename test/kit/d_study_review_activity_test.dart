@@ -518,6 +518,7 @@ void main() {
       expect(find.text('ACTIVITY\u00a0· …'), findsOneWidget);
       expect(find.byType(KitSkeletonLines), findsOneWidget);
       expect(find.text('Nothing of that kind yet.'), findsNothing);
+      expect(find.text('No activity yet.'), findsNothing);
       await _unmount(tester);
     });
 
@@ -550,6 +551,33 @@ void main() {
         ('Earlier', '2'),
       ]);
       expect(find.byType(KitSectionHead), findsNWidgets(2));
+      await _unmount(tester);
+    });
+
+    testWidgets('an empty feed under All says No activity yet.; a kind the '
+        'reader chose, emptied, says Nothing of that kind yet. (web 22f9461, '
+        'activity.md §Composition 5.42.0)', (tester) async {
+      final a = _Activity();
+      await pump(tester, a);
+      expect(find.text('No activity yet.'), findsOneWidget);
+      expect(find.text('Nothing of that kind yet.'), findsNothing,
+          reason: 'it names a filter nobody chose');
+      await _unmount(tester);
+
+      final b = _Activity(items: [
+        item('a', 'doc_indexed', now),
+        item('b', 'service_connected', old),
+      ]);
+      await pump(tester, b);
+      await tester.tap(find.descendant(
+          of: find.byType(KitFacet), matching: find.text('Sources')));
+      await _settle(tester, 6);
+      expect(find.text('Event b'), findsOneWidget);
+      // The reader's kind empties under them (the event aged out).
+      b.set([item('a', 'doc_indexed', now)]);
+      await _settle(tester, 6);
+      expect(find.text('Nothing of that kind yet.'), findsOneWidget);
+      expect(find.text('No activity yet.'), findsNothing);
       await _unmount(tester);
     });
 
@@ -703,8 +731,14 @@ class _Activity extends ActivityNotifier {
   _Activity({List<ActivityItem> items = const [], bool loading = false})
     : _items = items,
       _loading = loading;
-  final List<ActivityItem> _items;
+  List<ActivityItem> _items;
   final bool _loading;
+
+  /// A new snapshot.
+  void set(List<ActivityItem> items) {
+    _items = items;
+    notifyListeners();
+  }
 
   @override
   void start({int limit = 100}) {}

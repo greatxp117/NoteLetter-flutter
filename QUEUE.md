@@ -2368,7 +2368,7 @@ a new obligation on a finished screen is a new item.
 - notes: Folds F-133 (the generative-AI switch and Video reading) into D's Settings. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-145 · Direction D: Deep study, Activity and For your review (5.42.0, ADR-197)
-- status: in-progress
+- status: done 2026-10-30
 - screen: study, activity, review
 - route: /study, /study/session/{id}, /activity, /review
 - spec: spec/screens/study.md; spec/screens/activity.md; spec/screens/review.md
@@ -2378,7 +2378,7 @@ a new obligation on a finished screen is a new item.
 - device_test: integration_test: study programs and a session's sheet, Activity's When filter, the review empty state
 - shots: study; activity; review; review-empty
 - extra_gates: flutter test test/contract
-- notes: Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+- notes: Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/. Built 2026-10-30 on web redesign-d (W5) and the released 5.42.0 (web 22f9461: Activity's empty All says 'No activity yet.', a chosen kind 'Nothing of that kind yet.'). How Deep Study Works is not built (study.md: design-only, no entry point). The session player now carries web's column (marks, reveal, grades held while written, the server's return, excerpts batched per document) and binds Space / 1-4, so the sheet's Keys figure is true. Pairs also re-shot here because these screens changed under them: study-new, study-edit (F-108), study-wait (F-110), activity-stalled, activity-retry-error. Report: ../.claude/redesign-d-2026/reports/F-145.md.
 
 ## F-146 · Direction D: the camera roll's setup, review and settings, on today's signals (5.43.0, ADR-198)
 - status: done 2026-10-30
