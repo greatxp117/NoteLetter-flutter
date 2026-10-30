@@ -388,6 +388,24 @@ class FirestoreService {
     });
   }
 
+  /// `/users/{uid}/settings/ai` (5.29.0, ADR-186; 5.33.0, ADR-190) — the ONE
+  /// app-wide subscription every generated surface and the Settings rows read
+  /// (web `subscribeAiSettings`). An absent document is `{}`: absent means
+  /// generative AI on and video reading OpenAI (api/ai.md). The mapping of
+  /// the raw fields is [AiSettingsNotifier]'s, so the reading rule has one
+  /// home.
+  Stream<Map<String, dynamic>> subscribeAiSettings() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const {});
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('settings')
+        .doc('ai')
+        .snapshots()
+        .map((snap) => snap.exists ? (snap.data() ?? const {}) : const {});
+  }
+
   /// Canonical activity merge (spec/screens/activity.md): activity_events +
   /// documents not covered by an event's `metadata.doc_id`, sorted by
   /// `created_at desc`, capped at [maxItems].

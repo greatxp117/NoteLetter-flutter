@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -1773,33 +1775,27 @@ void main() {
     await _dragToFooter(tester, '/activity');
     await tester.tap(find.text('Chat with support…'));
     await pumpFor(tester);
-    expect(
-      find.text('SUPPORT'),
-      findsOneWidget,
-      reason: 'the eyebrow renders uppercased',
-    );
 
-    // Composition (QUEUE F-03, `screens/support.md` §Composition): the
-    // required parts, in the kit's roles, in the spec's order — the one layer
-    // no other gate looks at. §2.2 header · §7 offer (the seed holds no
-    // thread, or the transcript) · §10 dock pinned below both · §13 footer
-    // from the shell, still there.
-    expect(find.byType(SubScreenHeader), findsOneWidget);
-    expect(find.byType(ChapterOpening), findsNothing,
-        reason: 'a sub-screen does not open a chapter');
-    expect(find.byType(KitComposerDock), findsOneWidget);
-    expect(find.byType(KitSupportFooter), findsOneWidget,
-        reason: 'INV-22: the footer is the shell\'s and survives this screen');
-    final headerY = tester.getTopLeft(find.byType(SubScreenHeader)).dy;
-    final dockY = tester.getTopLeft(find.byType(KitComposerDock)).dy;
-    expect(dockY, greaterThan(headerY));
-    final hasThread = find.byType(KitMessageCard).evaluate().isNotEmpty;
-    if (!hasThread) {
-      expect(find.byType(KitEmptyState), findsOneWidget,
-          reason: 'no thread is the §7 offer, not a failure');
-      expect(find.byType(KitButton), findsNothing,
-          reason: 'the composer IS the action; the offer carries no CTA');
-    }
+    // Composition (direction D since F-144, `screens/support.md`): the D
+    // frame with §39's crumb back to Settings, the correspondence as a ruled
+    // register, the §38 composer docked at the column's foot, and the §13
+    // footer from the shell, still there.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.byType(SubScreenHeader), findsNothing);
+    expect(
+        find.byWidgetPredicate(
+            (w) => w is KitDBackControl && w.label == 'Settings'),
+        findsOneWidget);
+    final folio = tester.widget<KitMasthead>(find.byType(KitMasthead)).folio;
+    debugPrint('DEVICE-RUN support folio "$folio"');
+    expect(folio, matches(RegExp(r'^Support · \d+ messages?$')),
+        reason: 'the folio counts the thread once it is read');
+    final composer = find.byKey(const ValueKey('support-composer'));
+    expect(composer, findsOneWidget);
+    expect(find.byType(KitSupportFooter, skipOffstage: false), findsOneWidget,
+        reason: "INV-22: the footer is the shell's and survives this screen");
+    expect(tester.getTopLeft(composer).dy,
+        greaterThan(tester.getTopLeft(find.byType(KitMasthead)).dy));
 
     // The route the user came from travels with the message — the shell
     // supplied it, which is the practical half of why the footer is the
@@ -1810,108 +1806,76 @@ void main() {
     );
 
     // A marker unique to this run. The probe STAYS in the thread — nothing a
-    // client may do deletes it (INV-04) — so a fixed string is findsOneWidget
-    // on the first run against a seed import and findsNWidgets(2) on the
-    // second, a red that describes the run before it rather than the code.
+    // client may do deletes it (INV-04) — so a fixed string would be
+    // findsNWidgets(2) on a second run against the same import.
     final probe =
         'Device-run probe ${DateTime.now().millisecondsSinceEpoch}: ignore.';
-    final composer = find.byType(TextField).last;
-    await tester.enterText(composer, probe);
+    final field = find.descendant(
+        of: find.byKey(const ValueKey('support-field')),
+        matching: find.byType(TextField));
+    await tester.enterText(field, probe);
     await pumpFor(tester, total: const Duration(seconds: 1));
-    await tester.tap(find.bySemanticsLabel('Send'));
-    // The send control spins while the request is in flight — another widget a
-    // settle would wait on forever if the call never resolved.
+    await tester.tap(find.byKey(const ValueKey('support-send')));
+    // The send control is busy while the request is in flight — a settle
+    // would wait on it forever if the call never resolved.
     await pumpFor(tester, total: const Duration(seconds: 8));
 
     // Write BEFORE you move (ADR-022): the box clears only once the endpoint
-    // has accepted. A composer that clears optimistically loses the user's bug
-    // report on the one path where they most need it kept — and the failure is
-    // invisible, because the screen looks identical either way.
-    expect(
-      find.text(probe),
-      findsOneWidget,
-      reason: 'the sent message is in the transcript',
-    );
-    expect(
-      tester.widget<TextField>(composer).controller?.text,
-      '',
-      reason: 'the composer cleared only after the 201',
-    );
-    // The sent message is a §5.2 reduced-emphasis card on the trailing edge,
-    // and the thread now awaits an answer (derived from last_sender).
+    // has accepted. A composer that clears optimistically loses the user's
+    // bug report on the one path where they most need it kept.
+    expect(find.text(probe), findsOneWidget,
+        reason: 'the sent message is in the transcript');
+    expect(tester.widget<TextField>(field).controller?.text, '',
+        reason: 'the composer cleared only after the 201');
+    // The thread now awaits an answer (derived from last_sender).
     expect(find.byType(KitMessageCard), findsWidgets);
-    expect(find.byType(KitEmptyState), findsNothing);
     expect(find.byType(KitThreadNote), findsOneWidget,
         reason: 'last_sender == user ⇒ the awaiting line, exactly once');
     expect(find.byType(SnackBar), findsNothing);
   });
 
   testWidgets('notifications composes from the kit', (tester) async {
-    // Screen 5/11 (QUEUE F-02). The assertions are about the REQUIRED PARTS
-    // being present, in the roles the kit gives them and in the order the
-    // spec lists them (`screens/notifications.md` §Composition) — the one
-    // layer no other gate looks at.
+    // Screen 5/11 (QUEUE F-02), in direction D since F-144
+    // (`screens/notifications.md` §Composition): the required parts, in the
+    // kit's roles and the spec's order.
     final router = await pumpApp(tester);
     router.go('/settings/notifications');
-    // Bounded pumps: the channel list is a live subscription.
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
       if (find.byType(KitSettingRow).evaluate().isNotEmpty) break;
     }
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
 
-    // §2.2 — back control naming the parent · eyebrow · sans standfirst.
-    expect(find.byType(SubScreenHeader), findsOneWidget);
-    expect(find.text('Settings'), findsWidgets);
-    expect(find.text('NOTIFICATIONS'), findsOneWidget);
+    // The D frame: §39's crumb back to Settings, the folio counting the
+    // channels the read returned.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.byType(SubScreenHeader), findsNothing);
     expect(
-      find.byType(ChapterOpening),
-      findsNothing,
-      reason: 'a sub-screen does not open a chapter',
-    );
+        find.byWidgetPredicate(
+            (w) => w is KitDBackControl && w.label == 'Settings'),
+        findsOneWidget);
+    final folio = tester.widget<KitMasthead>(find.byType(KitMasthead)).folio;
+    debugPrint('DEVICE-RUN notifications folio "$folio"');
+    expect(folio, 'Settings · Notifications · 3 channels',
+        reason: 'the seed holds three channels, one per type');
 
-    // The channel list: one raised row list of setting rows — the seed holds
-    // three channels, one per type, and the push one is DISABLED and says so.
-    expect(find.byType(KitRowList), findsOneWidget);
+    // The channels as Settings' ruled rows: three, the push one PAUSED and
+    // saying so, each with its switch and its levels as a multi-select.
     expect(find.byType(KitSettingRow), findsNWidgets(3));
     expect(find.textContaining('(paused)'), findsOneWidget);
     expect(find.byType(KitSwitch), findsNWidgets(3));
-    expect(
-      find.byType(KitSegmentedMulti),
-      findsWidgets,
-      reason: 'each row carries its level picker as a §6.8 track',
-    );
-    expect(
-      find.byType(FilterChip),
-      findsNothing,
-      reason: 'levels are the segmented control, not Material chips',
-    );
-    final headerY = tester.getTopLeft(find.byType(SubScreenHeader)).dy;
-    final listY = tester.getTopLeft(find.byType(KitRowList)).dy;
-    expect(listY, greaterThan(headerY));
+    expect(find.byType(KitSegmentedMulti), findsWidgets,
+        reason: "a channel's levels stay a multi-select, not a Switch");
+    expect(find.byType(FilterChip), findsNothing);
 
-    // Scroll to the form — below the fold on a phone.
-    final scrollable = find.byType(Scrollable);
-    for (var i = 0; i < 8; i++) {
-      if (find.byType(KitButton).evaluate().isNotEmpty) break;
-      await tester.drag(scrollable.first, const Offset(0, -400));
-      await tester.pump(const Duration(milliseconds: 400));
-    }
-    expect(find.text('ADD A CHANNEL'), findsOneWidget);
-    expect(find.byType(KitFieldGroup), findsWidgets);
-    expect(
-      find.byType(KitSegmented),
-      findsOneWidget,
-      reason: 'the type choice is a §6.8 segmented control',
-    );
+    // Add a channel — below the fold on a phone: Type is a §34 Switch.
+    final add = find.byKey(const ValueKey('notif-add-channel'));
+    await tester.scrollUntilVisible(add, 400, scrollable: _dPageScrollable);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.byKey(const ValueKey('notif-type')), findsOneWidget);
     expect(find.text('Add channel'), findsOneWidget);
-    expect(
-      find.byType(SnackBar),
-      findsNothing,
-      reason: 'a rejection is a §14.2 line beside the control, never a toast',
-    );
+    expect(find.byType(SnackBar), findsNothing,
+        reason: 'a rejection is a §14.2 line beside the control, never a toast');
   });
 
   testWidgets('settings shows the Summaries section', (tester) async {
@@ -1919,61 +1883,48 @@ void main() {
     router.go('/settings');
     await pumpFor(tester, total: const Duration(seconds: 3));
 
-    // Scroll to it — 4.3.1 was a settings page that could not scroll to its own
-    // new section, and the same section is the one being checked here.
-    final scrollable = find.byType(Scrollable);
-    for (var i = 0; i < 6; i++) {
-      if (find.text('Summaries').evaluate().isNotEmpty) break;
-      await tester.drag(scrollable.first, const Offset(0, -400));
-      await pumpFor(tester, total: const Duration(seconds: 1));
-    }
-    expect(find.text('SUMMARIES'), findsOneWidget,
-        reason: 'the section eyebrow renders uppercased');
-    expect(find.text('Save style'), findsOneWidget);
-
-    // Composition (QUEUE F-04, `screens/settings.md` §Composition): the
-    // required parts, in the kit's roles, in the spec's order. §2.1 chapter
-    // opening with the Account folio · §3 section headers · raised row lists
-    // of setting rows · §6.8 segmented controls in the control strips · no
-    // Material card, tile or switch anywhere on the screen.
-    expect(find.byType(ChapterOpening), findsOneWidget);
-    expect(find.textContaining('ACCOUNT ·'), findsOneWidget,
+    // Direction D since F-144 (`screens/settings.md` §Composition): the D
+    // frame, the folio carrying the account, setting rows in a ruled
+    // register under §31 heads, the Summary style on §34 Switches.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsNothing);
+    final folio = tester.widget<KitMasthead>(find.byType(KitMasthead)).folio;
+    expect(folio, startsWith('Settings · Account · '),
         reason: 'the folio carries the account');
-    expect(find.byType(SectionHeader), findsWidgets);
-    expect(find.byType(KitRowList), findsWidgets);
     expect(find.byType(KitSettingRow), findsWidgets);
-    expect(find.byType(KitSegmented), findsWidgets,
-        reason: 'summary style / length / tone are §6.8 tracks');
+
+    // Scroll to Summaries — 4.3.1 was a settings page that could not scroll
+    // to its own new section, and it is the one being checked here. The seed
+    // has generative AI on, so the section is drawn.
+    final save = find.text('Save style');
+    await tester.scrollUntilVisible(save, 400, scrollable: _dPageScrollable);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(save, findsOneWidget);
+    expect(find.byType(KitWrapSwitch<String>), findsWidgets,
+        reason: 'summary style / length / tone are §34 Switches in D');
     expect(find.byType(Card), findsNothing);
     expect(find.byType(ListTile), findsNothing);
     expect(find.byType(SwitchListTile), findsNothing);
-    expect(find.byType(ChoiceChip), findsNothing,
-        reason: 'the style positions are a segmented control, not chips');
+    expect(find.byType(ChoiceChip), findsNothing);
     expect(find.byType(SnackBar), findsNothing);
 
     // §Scripture (F-12, ADR-027 §7) — the control that writes the client-local
-    // `nl-scripture` flag. Without it the flag has a reader and no writer, and
-    // the whole citation branch on Search is code nothing can reach: the
-    // dark-feature shape, in one screen. It sits below the fold, so the pair's
-    // frame cannot show it and this is what says it is there.
-    await tester.scrollUntilVisible(find.text('SCRIPTURE'), 300,
-        scrollable: find.byType(Scrollable).first);
+    // `nl-scripture` flag: without it the flag has a reader and no writer.
+    final verse = find.text('Verse search');
+    await tester.scrollUntilVisible(verse, 300, scrollable: _dPageScrollable);
     await pumpFor(tester, total: const Duration(seconds: 1));
-    expect(find.text('SCRIPTURE'), findsOneWidget);
-    expect(find.text('Verse search'), findsOneWidget);
+    expect(verse, findsOneWidget);
     expect(find.byType(KitSwitch), findsWidgets,
         reason: 'the flag has a control, not just a reader');
-    // Off by default, as the reference has it — a citation is only a different
-    // question for someone who reads scripture.
     expect(LocalFlags.scripture.value, isFalse);
   });
 
   testWidgets('letters composes from the kit and opens a letter', (
     tester,
   ) async {
-    // Screen 7/11 (QUEUE F-05). Seed the letters FIRST — the canonical seed's
-    // two records predate 2.0.0 and carry no `html_body`, so without this
-    // there is no letter to open and nothing here is exercised:
+    // Screen 7/11 (QUEUE F-05), in direction D since F-144. Seed the letters
+    // FIRST — the canonical seed's two records predate 2.0.0 and carry no
+    // `html_body`, so without this there is no letter to open:
     //   FIRESTORE_EMULATOR_HOST=localhost:8080 \
     //     ../NoteLetter-Firebase-Functions/functions/venv/bin/python \
     //     tool/seed_letters.py
@@ -1981,133 +1932,130 @@ void main() {
     router.go('/letters');
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
-      if (find.byType(KitLetterRow).evaluate().isNotEmpty) break;
+      if (find.byType(KitLetterArchiveRow).evaluate().isNotEmpty) break;
     }
     await pumpFor(tester, total: const Duration(seconds: 1));
 
-    // §Composition — the bespoke header (§2 names letters, ask and search as
-    // the three that do not open a chapter), then §3 section headers over the
-    // cards and the archive.
-    expect(find.byType(ScreenHeader), findsOneWidget);
-    expect(find.byType(ChapterOpening), findsNothing,
-        reason: 'letters has a bespoke header, not a chapter opening');
-    expect(find.text('Letters'), findsWidgets);
-    expect(find.text('LATEST LETTER'), findsOneWidget);
-    expect(find.byType(SectionHeader), findsWidgets);
-    expect(find.byType(KitCard), findsWidgets);
+    // §Composition (direction D) — the D frame: a masthead whose folio counts
+    // the archive the read returned, the latest letter under its kicker, and
+    // the archive by month in letter rows. No pre-D header, card or tile.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsNothing);
+    expect(find.byType(ScreenHeader), findsNothing);
+    final folio = tester.widget<KitMasthead>(find.byType(KitMasthead)).folio;
+    debugPrint('DEVICE-RUN letters folio "$folio"');
+    expect(folio, matches(RegExp(r'^Letters · \d+\+? letters?')),
+        reason: 'the folio counts the archive the read returned');
+    expect(find.byKey(const ValueKey('d-letters-latest')), findsOneWidget);
+    expect(find.byType(KitLetterKicker), findsOneWidget);
+    expect(find.byType(KitLetterMonthHead), findsWidgets,
+        reason: 'the archive is filed by month');
+    expect(find.byType(KitLetterArchiveRow), findsWidgets);
     expect(find.byType(Card), findsNothing);
     expect(find.byType(ListTile), findsNothing);
 
-    // 2.29.0 rule 3 — the schedule is STATED from what was read. The seed's
-    // settings say 08:00 America/Chicago, so that is what the card says; a
-    // client that had not read them would have to say nothing.
-    expect(find.textContaining('ARRIVES EVERY DAY AT 08:00'), findsOneWidget);
-    expect(find.byType(KitSwitch), findsWidgets);
-
-    // The archive rows, and the two axes on them (INV-23). `delivered` is the
-    // ONLY state that may read as "Delivered"; the deferred letter says it is
-    // still going, and the `empty` row is informational and NOT openable.
-    // The §6.3 pill sets its label in mono caps, so these are the rendered
-    // strings, not the table's.
-    expect(find.text('DELIVERED'), findsOneWidget);
-    expect(find.text('STILL SENDING…'), findsOneWidget);
-    expect(find.text('NOTHING NEW'), findsOneWidget);
-    expect(find.text('FAILED'), findsNothing,
+    // The two axes on the rows (INV-23): `delivered` is the ONLY state that
+    // may read as "Delivered"; an `empty` row is informational, not a failure.
+    expect(find.text('DELIVERED', skipOffstage: false), findsWidgets);
+    expect(find.text('NOTHING NEW', skipOffstage: false), findsOneWidget);
+    expect(find.text('FAILED', skipOffstage: false), findsNothing,
         reason: 'an empty result is not a failure (2.2.0, ADR-011)');
 
     // The readings letter — a SECOND letter beside the first, never a mode of
-    // it, and with no send action of its own: its builder is an OIDC-only
-    // worker that answers a client with 403 (the 1.5.1 defect).
-    expect(find.text('THE READINGS LETTER'), findsOneWidget);
-    expect(find.textContaining('Thursday of week 23'), findsWidgets);
-    expect(find.text('Send now'), findsOneWidget,
-        reason: 'exactly one Send now on this screen, and it is the daily '
-            'letter\'s');
+    // it, and with no send action of its own (its builder is OIDC-only).
+    expect(find.text('The readings letter', skipOffstage: false), findsWidgets);
+    expect(
+        find.descendant(
+            of: find.byType(KitTabBar), matching: find.text('Send now')),
+        findsOneWidget,
+        reason: "the page's one action is the daily letter's Send now");
 
-    // Open the letter. `warnIfMissed` stays on: a tap that lands on nothing
-    // is silent, and everything below would then be asserting the LIST.
-    await tester.tap(find.text('Preview').first);
+    // Open the letter: the letterheaded body is hosted BARE (ADR-087).
+    // *Read the letter* sits under ALL the latest letter's passages, below
+    // the fold on a phone: a tap at an off-screen offset lands on nothing.
+    final read = find.byKey(const ValueKey('d-letters-read'));
+    await tester.scrollUntilVisible(read, 300, scrollable: _dPageScrollable);
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
+    await tester.tap(read);
     await pumpFor(tester, total: const Duration(seconds: 3));
-
-    // The letter is hosted BARE (4.50.0, ADR-087) — the app draws no frame
-    // around a body that brought its own, so the §11 sheet is ABSENT here and
-    // the letter is the web view holding the object that was sent.
-    expect(find.text('All letters'), findsOneWidget);
+    final back = find.byWidgetPredicate(
+        (w) => w is KitDBackControl && w.label == 'All letters');
+    expect(back, findsOneWidget,
+        reason: 'the letter did not open — this would be the list');
     expect(find.byType(KitLetterPaper), findsOneWidget);
     expect(find.byType(KitLetterSheet), findsNothing,
-        reason: 'a letterheaded body is not framed — that would draw the '
-            'app\'s masthead above the letter\'s own');
+        reason: "a letterheaded body is not framed — that would draw the "
+            "app's masthead above the letter's own");
+    expect(
+        find.descendant(
+            of: find.byType(KitTabBar), matching: find.text('Email')),
+        findsOneWidget,
+        reason: "a letter's one action is Open in email");
 
     // …and the way back out of it works.
-    await tester.tap(find.text('All letters'));
+    await tester.tap(back);
     await pumpFor(tester, total: const Duration(seconds: 1));
-    expect(find.text('LATEST LETTER'), findsOneWidget);
+    expect(find.byKey(const ValueKey('d-letters-latest')), findsOneWidget);
   });
 
   testWidgets('the readings day view opens from a letter and composes from '
       'the kit', (tester) async {
-    // QUEUE F-33. The live "See all" (ADR-029 §5) — the screen this client did
-    // not have. Needs the same `tool/seed_letters.py` run the letters test
-    // above documents: the canonical seed holds no `kind: "scripture"` record,
-    // so without it there is no readings letter to open and nothing here runs.
+    // QUEUE F-33, in direction D since F-144. Needs `tool/seed_letters.py`
+    // (the canonical seed holds no `kind: "scripture"` record).
     final router = await pumpApp(tester);
     router.go('/letters');
-    for (var i = 0; i < 40; i++) {
+    final row = find.byWidgetPredicate(
+        (w) => w is KitLetterRow && w.title.contains('Thursday of week 23'),
+        skipOffstage: false);
+    for (var i = 0; i < 40 && row.evaluate().isEmpty; i++) {
       await tester.pump(const Duration(milliseconds: 200));
-      if (find.text('THE READINGS LETTER').evaluate().isNotEmpty) break;
     }
     await pumpFor(tester, total: const Duration(seconds: 1));
-
-    // Open the readings letter from its ARCHIVE ROW — by the row's own type,
-    // not by the text, which also appears in the card above it and is not a
-    // control there. The row is far down a phone screen, and a tap at an
-    // off-screen offset lands on whatever IS there, silently.
-    final row = find.byWidgetPredicate((w) =>
-        w is KitLetterRow && w.title.contains('Thursday of week 23'));
     expect(row, findsOneWidget,
         reason: 'run tool/seed_letters.py first — no readings letter to open');
-    await tester.ensureVisible(row);
+    // Its row under *Readings sent*, far down a phone: a tap at an off-screen
+    // offset lands on whatever IS there, silently.
+    await tester.scrollUntilVisible(row, 400, scrollable: _dPageScrollable);
     await pumpFor(tester, total: const Duration(seconds: 1));
     await tester.tap(row);
     await pumpFor(tester, total: const Duration(seconds: 2));
-    expect(find.text('All letters'), findsOneWidget,
+    Finder backTo(String label) => find.byWidgetPredicate(
+        (w) => w is KitDBackControl && w.label == label);
+    expect(backTo('All letters'), findsOneWidget,
         reason: 'the letter did not open — everything below would be the list');
+    expect(tester.widget<KitMasthead>(find.byType(KitMasthead)).folio,
+        startsWith('The readings letter'));
 
-    // The control that did not exist here. The seed's letter found 6.
+    // The live day (ADR-029 §5). The seed's letter found 6.
     final seeAll = find.textContaining('See all 6 passages for this day');
-    expect(seeAll, findsOneWidget,
-        reason: 'the letter offers its live day (ADR-029 §5)');
-    await tester.ensureVisible(seeAll);
+    await tester.scrollUntilVisible(seeAll, 300, scrollable: _dPageScrollable);
     await pumpFor(tester, total: const Duration(seconds: 1));
     await tester.tap(seeAll);
     // Three live searches, not a replay of the stored passages.
     await pumpFor(tester, total: const Duration(seconds: 6));
 
-    // §Composition — §1.3 utility bar naming where it returns to, then the
-    // chapter opening. Not the bespoke Letters header: this is a document
-    // view, not an index.
-    expect(find.text('Back to the letter'), findsOneWidget);
-    expect(find.byType(ChapterOpening), findsOneWidget);
+    // §Composition (direction D) — one column: the crumb naming where it
+    // returns, the folio, the day as the title. No sheet, no action.
+    expect(backTo('Back to the letter'), findsOneWidget);
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(tester.widget<KitMasthead>(find.byType(KitMasthead)).folio,
+        startsWith('Readings · '));
+    expect(find.byKey(const ValueKey('d-peek')), findsNothing,
+        reason: 'the readings day has no sheet, so no running head');
     expect(find.textContaining('Thursday of week 23'), findsWidgets);
     expect(find.byType(Card), findsNothing);
-    expect(find.byType(ListTile), findsNothing);
 
-    // The Live statement is present and states a MEASURED count — the page
-    // says what it just found, never what the letter stored.
-    // The tag is set in caps by its source string (`.sc-live-tag`), so the
-    // tree holds `LIVE` — matching the sentence-case word finds nothing.
+    // The Live statement states a MEASURED count, and one section per
+    // reading names its own citation.
     expect(find.text('LIVE'), findsOneWidget);
-    expect(find.textContaining('passages'), findsWidgets);
-
-    // One section per reading, each naming its own citation.
     expect(find.text('Col 3:12-17'), findsOneWidget);
     expect(find.text('Ps 150'), findsOneWidget);
     expect(find.text('Lk 6:27-38'), findsOneWidget);
 
-    // …and the way back out of it returns to the LETTER, not the index.
-    await tester.tap(find.text('Back to the letter'));
+    // …and the way back returns to the LETTER, not the index.
+    await tester.tap(backTo('Back to the letter'));
     await pumpFor(tester, total: const Duration(seconds: 2));
-    expect(find.text('All letters'), findsOneWidget);
+    expect(backTo('All letters'), findsOneWidget);
   });
 
   testWidgets('shelves composes from the kit', (tester) async {
@@ -3865,7 +3813,200 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      "Letters' Contents jump to each section, Send now is held while it "
+      "sends, Support's composer grows; generative AI off and back on",
+      (tester) async {
+    final router = await pumpApp(tester);
+
+    // ── Letters: every Contents row moves the page to its section ──────────
+    // Run tool/seed_letters.py first (the letters with bodies and numbers).
+    router.go('/letters');
+    final latestRow = find.descendant(
+        of: find.byType(KitContents), matching: find.text('The latest letter'),
+        skipOffstage: false);
+    for (var i = 0; i < 60 && latestRow.evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    final peek = find.byKey(const ValueKey('d-peek'));
+    expect(peek, findsOneWidget, reason: 'a phone runs the sheet as a head');
+    await _dropHead(tester);
+    // The rows, by their section ids (`d-contents-<id>`): the latest letter,
+    // the readings letter, one per month, Readings sent.
+    final rows = [
+      for (final w in tester.widgetList<KitDTap>(find.descendant(
+          of: find.byType(KitContents), matching: find.byType(KitDTap))))
+        if (w.key case ValueKey<String>(:final value)
+            when value.startsWith('d-contents-'))
+          (value.substring('d-contents-'.length), w.label ?? ''),
+    ];
+    debugPrint('DEVICE-RUN F-144 letters contents $rows');
+    expect(rows.first.$1, 'latest');
+    expect(rows.any((r) => r.$1.startsWith('m')), isTrue,
+        reason: 'no month row — the archive by month is the Contents');
+    String name(String label) => label.substring(label.indexOf(' ') + 1);
+    final pos = tester
+        .state<ScrollableState>(_dPageScrollable)
+        .position;
+    for (var i = 0; i < rows.length; i++) {
+      final (id, label) = rows[i];
+      final row = find.byKey(ValueKey('d-contents-$id'));
+      if (row.hitTestable().evaluate().isEmpty) await _dropHead(tester);
+      await tester.tap(row);
+      await pumpFor(tester, total: const Duration(milliseconds: 1500));
+      final line = _peekText(tester);
+      final atEnd = pos.pixels >= pos.maxScrollExtent - 1;
+      debugPrint('DEVICE-RUN F-144 jump ${i + 1}/${rows.length} $id: '
+          '"$line"${atEnd ? ' (scroll end)' : ''}');
+      // A section too near the end to reach the top reports the last one
+      // there (kit §29's rule, as web's useSections; W4 NOT PROVEN 3).
+      expect(
+          line.contains(name(label)) ||
+              (atEnd && line.contains(name(rows.last.$2))),
+          isTrue,
+          reason: 'the running head does not report the section jumped to');
+    }
+
+    // ── Send now: held while the request is out, then the send line ───────
+    final gate = _Gate('/fn_request_newsletter');
+    ApiService.instance.httpClientAdapter = gate;
+    final centre = find.byKey(const ValueKey('d-tab-action'));
+    expect(
+        find.descendant(of: find.byType(KitTabBar), matching: find.text('Send now')),
+        findsOneWidget,
+        reason: "the tab bar's centre is Letters' action, Send now");
+    await tester.tap(centre);
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
+    expect(gate.waiting, isTrue, reason: 'Send now sent nothing');
+    expect(
+        find.descendant(of: find.byType(KitTabBar), matching: find.text('Sending')),
+        findsOneWidget,
+        reason: 'the action does not say it is sending');
+    expect(tester.widget<KitDTap>(centre).onTap, isNull,
+        reason: 'Send now is not held while its request is out');
+    debugPrint('DEVICE-RUN F-144 send held: "Sending", centre onTap=null');
+    gate.release();
+    await pumpFor(tester, total: const Duration(seconds: 3));
+    ApiService.instance.resetTestSeams();
+    // What Send now answered stands UNDER the masthead (the send line), not
+    // at the foot of the latest letter a screen below the button.
+    final sendLine = find.byKey(const ValueKey('d-letters-send-line'));
+    expect(sendLine, findsOneWidget,
+        reason: 'Send now answered, and nothing said what happened');
+    final said = [
+      for (final t in tester.widgetList<Text>(
+          find.descendant(of: sendLine, matching: find.byType(Text))))
+        t.data ?? t.textSpan?.toPlainText() ?? '',
+    ].join(' ');
+    expect(tester.getTopLeft(sendLine).dy,
+        lessThan(tester.getTopLeft(find.byKey(const ValueKey('d-letters-latest'))).dy),
+        reason: 'the send line is not under the masthead');
+    debugPrint('DEVICE-RUN F-144 send line: "$said"');
+
+    // ── Support: the composer starts one line tall and grows to 172 ──────
+    router.go('/support');
+    await pumpFor(tester, total: const Duration(seconds: 3));
+    final grow = find.byKey(const ValueKey('support-field'));
+    final field = find.descendant(of: grow, matching: find.byType(TextField));
+    expect(field, findsOneWidget, reason: 'Support has no §38 composer');
+    double h() => tester.getSize(grow).height;
+    final rest = h();
+    await tester.enterText(field, 'One line.');
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+    expect(h(), closeTo(rest, 1), reason: 'one line grew the field');
+    await tester.enterText(field, List.filled(4, 'A line of the report.').join('\n'));
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+    final grown = h();
+    expect(grown, greaterThan(rest + 40), reason: 'four lines did not grow it');
+    await tester.enterText(field, List.filled(20, 'A line of the report.').join('\n'));
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+    final capped = h();
+    debugPrint('DEVICE-RUN F-144 composer rest=$rest four=$grown twenty=$capped');
+    expect(capped, lessThanOrEqualTo(172 + 1),
+        reason: 'the composer grew past 172 instead of scrolling');
+    await tester.enterText(field, '');
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+
+    // ── Generative AI off: Ask leaves, Shelves takes its slot, /ask says why
+    router.go('/settings');
+    await pumpFor(tester, total: const Duration(seconds: 3));
+    final aiSwitch = find.byKey(const ValueKey('set-ai-switch'));
+    await tester.scrollUntilVisible(aiSwitch, 300, scrollable: _dPageScrollable);
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+    Future<void> flip() async {
+      await tester.tap(aiSwitch);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+    }
+
+    final tabAsk = find.descendant(
+        of: find.byType(KitTabBar), matching: find.text('Ask'));
+    final tabShelves = find.descendant(
+        of: find.byType(KitTabBar), matching: find.text('Shelves'));
+    expect(tabAsk, findsOneWidget, reason: 'the seed has generative AI on');
+    await flip();
+    expect(tabAsk, findsNothing, reason: 'Ask stayed in the tab bar while off');
+    expect(tabShelves, findsOneWidget, reason: "Shelves did not take Ask's slot");
+    expect(find.textContaining('NoteLetter still uses AI to read'), findsOneWidget,
+        reason: "the off caption is the switch's honest half");
+    router.go('/ask');
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(find.textContaining('Ask is off.'), findsOneWidget);
+    router.go('/reader/seed-doc-pdf-complete');
+    await pumpFor(tester, total: const Duration(seconds: 4));
+    await _dropHead(tester);
+    expect(
+        find.descendant(of: find.byType(KitContents), matching: find.text('Summary')),
+        findsNothing,
+        reason: 'the reader drew its Summary while generative AI is off');
+    debugPrint('DEVICE-RUN F-144 ai off: tab=Shelves, /ask notice, reader without Summary');
+
+    router.go('/settings');
+    await pumpFor(tester, total: const Duration(seconds: 3));
+    await tester.scrollUntilVisible(aiSwitch, 300, scrollable: _dPageScrollable);
+    await flip();
+    expect(tabAsk, findsOneWidget, reason: 'Ask did not come back');
+    debugPrint('DEVICE-RUN F-144 ai back on: tab=Ask');
+    expect(tester.takeException(), isNull);
+  });
 }
+
+/// An adapter that holds every request to [path] until [release], then sends
+/// it for real — a request in flight for as long as a test needs to look at
+/// what the screen draws meanwhile.
+class _Gate implements HttpClientAdapter {
+  final String path;
+  final HttpClientAdapter _real = IOHttpClientAdapter();
+  final Completer<void> _open = Completer<void>();
+  bool waiting = false;
+  _Gate(this.path);
+
+  void release() {
+    if (!_open.isCompleted) _open.complete();
+  }
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    if (options.uri.path.endsWith(path)) {
+      waiting = true;
+      await _open.future;
+    }
+    return _real.fetch(options, requestStream, cancelFuture);
+  }
+
+  @override
+  void close({bool force = false}) => _real.close(force: force);
+}
+
+/// A D page's primary scroller: the first Scrollable under its [KitDPage]
+/// (the running head's dropped body comes after it in the page's stack).
+final Finder _dPageScrollable = find
+    .descendant(of: find.byType(KitDPage), matching: find.byType(Scrollable))
+    .first;
 
 /// The source page's primary scroller — the first Scrollable under its D page
 /// (the running head's dropped body comes after it in the page's stack).
@@ -3978,19 +4119,27 @@ Future<void> _dragToFooter(WidgetTester tester, String route,
   final scroller = scrollable ??
       find.ancestor(of: footer, matching: find.byType(Scrollable)).first;
   ScrollPosition pos() => tester.state<ScrollableState>(scroller).position;
-  for (var i = 0; i < 40; i++) {
-    await tester.dragFrom(Offset(view.width / 2, view.height * 0.45),
-        const Offset(0, -500));
-    await tester.pump(const Duration(milliseconds: 300));
+  // A lazily drawn page can grow AFTER the drags reach its end — a section
+  // mounting on approach, a read answering late (the reader's long document
+  // grew 522px past the end on a loaded machine, F-144). So drag, let the
+  // bounce settle, and drag again while the end has moved: still only real
+  // gestures, and the footer must still be the last thing once it holds.
+  for (var round = 0; round < 4; round++) {
+    for (var i = 0; i < 40; i++) {
+      await tester.dragFrom(Offset(view.width / 2, view.height * 0.45),
+          const Offset(0, -500));
+      await tester.pump(const Duration(milliseconds: 300));
+      if (pos().pixels >= pos().maxScrollExtent - 1) break;
+    }
+    // Let an iOS overscroll bounce come back to rest before measuring.
+    double? last;
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      final p = pos().pixels;
+      if (last != null && (p - last).abs() < 0.01) break;
+      last = p;
+    }
     if (pos().pixels >= pos().maxScrollExtent - 1) break;
-  }
-  // Let an iOS overscroll bounce come back to rest before measuring.
-  double? last;
-  for (var i = 0; i < 30; i++) {
-    await tester.pump(const Duration(milliseconds: 100));
-    final p = pos().pixels;
-    if (last != null && (p - last).abs() < 0.01) break;
-    last = p;
   }
   expect(pos().pixels, closeTo(pos().maxScrollExtent, 1.0),
       reason: '$route: the primary scroll reached its end by real drags');

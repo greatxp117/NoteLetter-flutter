@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
@@ -24,11 +23,15 @@ import '../../services/error_text.dart';
 /// control that adopted the new value first would hide a failed save
 /// completely — it would revert only on reload.
 ///
-/// Composition (settings.md §Composition): one §3 section header over a
-/// raised row list holding one setting row, whose control strip is the mode's
-/// own controls. The rejection is a §14.2 line at the control; a failed READ
-/// of the stored style is a §14.1 block (INV-24), never the default rendered
-/// as if it were the reader's choice.
+/// Composition (settings.md §Composition (direction D)): one setting row,
+/// whose control strip is the mode's own controls — the three dimensions as
+/// §34 Switches that fill their row and wrap on a narrow phone
+/// ([KitWrapSwitch]), a draft until *Save style*. On Settings the page draws
+/// the group's §31 head and the row is in the ruled register; in a §28 panel
+/// (the Library's *Library settings*, the source page's *Source details*) the
+/// panel's label names it and the row is flat. The rejection is a §14.2 line
+/// at the control; a failed READ of the stored style is a §14.1 block
+/// (INV-24), never the default rendered as if it were the reader's choice.
 class SummariesSection extends StatefulWidget {
   const SummariesSection({super.key});
 
@@ -52,20 +55,23 @@ class _SummariesSectionState extends State<SummariesSection> {
   @override
   void initState() {
     super.initState();
-    _sub = FirestoreService.instance.subscribeSummarySettings().listen((p) {
-      if (!mounted) return;
-      setState(() {
-        _stored = p;
-        _subError = null;
-        _loaded = true;
-      });
-    }, onError: (e) {
-      if (!mounted) return;
-      setState(() {
-        _subError = describeSdkError(e);
-        _loaded = true;
-      });
-    });
+    _sub = FirestoreService.instance.subscribeSummarySettings().listen(
+      (p) {
+        if (!mounted) return;
+        setState(() {
+          _stored = p;
+          _subError = null;
+          _loaded = true;
+        });
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() {
+          _subError = describeSdkError(e);
+          _loaded = true;
+        });
+      },
+    );
   }
 
   @override
@@ -120,13 +126,16 @@ class _SummariesSectionState extends State<SummariesSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-                'Your summary style, as written, is deleted and the default '
-                'takes its place for sources you add from now on. Nothing '
-                'else keeps a copy of it.',
-                style: KitText.meta(context)),
+              'Your summary style, as written, is deleted and the default '
+              'takes its place for sources you add from now on. Nothing '
+              'else keeps a copy of it.',
+              style: KitText.meta(context),
+            ),
             const SizedBox(height: 8),
-            Text('Summaries already written keep their text.',
-                style: KitText.meta(context)),
+            Text(
+              'Summaries already written keep their text.',
+              style: KitText.meta(context),
+            ),
           ],
         ),
       ),
@@ -180,7 +189,8 @@ class _SummariesSectionState extends State<SummariesSection> {
         raised: true,
         rows: [
           KitSettingRow(
-            icon: Icons.edit_outlined,
+            // web `IcoFeather` (the plate is hidden inside a panel).
+            icon: KitQuill.icon,
             title: 'Summary style',
             description:
                 'How each new source’s summary is written. It applies to '
@@ -197,7 +207,9 @@ class _SummariesSectionState extends State<SummariesSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Summaries'),
+        // D's Settings draws the group's §31 head itself; the group's own
+        // eyebrow is not drawn (`.dp-set .d-main .lib-section-h`).
+        if (!KitDSetScope.of(context)) const SectionHeader('Summaries'),
         body,
       ],
     );
@@ -213,20 +225,21 @@ class _SummariesSectionState extends State<SummariesSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // A draft until Save style, so each Switch moves with the press;
+        // Save is the write, and every Switch is held while it runs.
         for (final dim in styleDimensions) ...[
           const SizedBox(height: 4),
           KitRowNote(dim.label),
           const SizedBox(height: 5),
-          KitSegmented(
-            groupLabel: dim.label,
-            segments: [for (final o in dim.options) KitSegment(o.label)],
-            selected: dim.options.indexWhere((o) => o.id == choices[dim.id]),
-            onChanged: _busy
-                ? null
-                : (i) => setState(() => _draftChoices = {
-                      ...choices,
-                      dim.id: dim.options[i].id,
-                    }),
+          KitWrapSwitch<String>(
+            label: dim.label,
+            value: choices[dim.id] ?? dim.options.first.id,
+            held: _busy,
+            options: [
+              for (final o in dim.options) KitSlideOption(o.id, o.label),
+            ],
+            onChanged: (v) =>
+                setState(() => _draftChoices = {...choices, dim.id: v}),
           ),
           const SizedBox(height: 8),
         ],
@@ -244,18 +257,23 @@ class _SummariesSectionState extends State<SummariesSection> {
           runSpacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            KitButton.primary(_busy ? 'Saving…' : 'Save style',
-                onPressed: (_busy || !dirty) ? null : () => _put(composed)),
+            KitButton.primary(
+              _busy ? 'Saving…' : 'Save style',
+              onPressed: (_busy || !dirty) ? null : () => _put(composed),
+            ),
             if (_draftChoices != null)
               KitButton.ghost('Cancel', onPressed: _busy ? null : _clearEdits),
-            KitSettingLink('Fine-tune by hand', onTap: () {
-              // Switching mode writes nothing.
-              _textCtrl.text = composed ?? effectiveText;
-              setState(() {
-                _draftText = _textCtrl.text;
-                _modeOverride = 'custom';
-              });
-            }),
+            KitSettingLink(
+              'Fine-tune by hand',
+              onTap: () {
+                // Switching mode writes nothing.
+                _textCtrl.text = composed ?? effectiveText;
+                setState(() {
+                  _draftText = _textCtrl.text;
+                  _modeOverride = 'custom';
+                });
+              },
+            ),
           ],
         ),
       ],
@@ -269,8 +287,7 @@ class _SummariesSectionState extends State<SummariesSection> {
       _textCtrl.text = effectiveText;
     }
     final shownText = _draftText ?? effectiveText;
-    final textDirty =
-        _draftText != null && _draftText!.trim() != effectiveText;
+    final textDirty = _draftText != null && _draftText!.trim() != effectiveText;
     final sendable = sendablePrompt(shownText);
 
     return Column(
@@ -298,10 +315,12 @@ class _SummariesSectionState extends State<SummariesSection> {
           runSpacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            KitButton.primary(_busy ? 'Saving…' : 'Save style',
-                onPressed: (_busy || !textDirty || sendable == null)
-                    ? null
-                    : () => _put(sendable)),
+            KitButton.primary(
+              _busy ? 'Saving…' : 'Save style',
+              onPressed: (_busy || !textDirty || sendable == null)
+                  ? null
+                  : () => _put(sendable),
+            ),
             if (textDirty)
               KitButton.ghost('Cancel', onPressed: _busy ? null : _clearEdits),
             // Reset sends null — there is no "empty prompt" state to offer.
@@ -309,19 +328,24 @@ class _SummariesSectionState extends State<SummariesSection> {
             // offered only while a custom style is stored — with none there is
             // nothing to discard and no confirm is owed.
             if (custom)
-              KitButton.danger('Reset to default',
-                  onPressed: _busy ? null : _confirmReset),
-            KitSettingLink('Use simple controls', onTap: () {
-              // Adopt matching positions when the text is (or reverts to) a
-              // composed shape; otherwise start from the stored positions or
-              // the defaults. Nothing is written by switching modes.
-              final parsed = parsePrompt(shownText.trim());
-              setState(() {
-                _draftChoices = parsed ?? storedChoices ?? defaultChoices;
-                _draftText = null;
-                _modeOverride = 'simple';
-              });
-            }),
+              KitButton.danger(
+                'Reset to default',
+                onPressed: _busy ? null : _confirmReset,
+              ),
+            KitSettingLink(
+              'Use simple controls',
+              onTap: () {
+                // Adopt matching positions when the text is (or reverts to) a
+                // composed shape; otherwise start from the stored positions or
+                // the defaults. Nothing is written by switching modes.
+                final parsed = parsePrompt(shownText.trim());
+                setState(() {
+                  _draftChoices = parsed ?? storedChoices ?? defaultChoices;
+                  _draftText = null;
+                  _modeOverride = 'simple';
+                });
+              },
+            ),
           ],
         ),
       ],

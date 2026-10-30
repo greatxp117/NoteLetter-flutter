@@ -25,7 +25,6 @@
 /// not load.
 library;
 
-import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 
 import '../../models/newsletter.dart';
@@ -154,88 +153,69 @@ class _ScriptureDayViewState extends State<ScriptureDayView> {
         for (final p in r.passages) p.chunkId,
     }..remove('');
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        KitUtilityBar(
-          leading: KitButton('Back to the letter',
-              icon: Icons.chevron_left,
-              variant: KitButtonVariant.ghost,
-              onPressed: widget.onBack),
-          // The reference's crumb is `§ Letters · Readings · <date>`. At phone
-          // width the bar carries a back control AND an action, and the kit
-          // ellipsises what is left — the first frame read `§ LET…`, which
-          // says nothing. Shortened to the SIBLING's spelling
-          // (`LetterReaderView`, one screen up the same path): the back
-          // control already names where it returns to, and the folio under
-          // the bar carries the full line.
-          crumb: 'Readings · ${longDate(n.generatedAt)}',
-          actions: [
-            KitButton('Library',
-                icon: Icons.menu_book_outlined,
-                variant: KitButtonVariant.ghost,
-                onPressed: widget.onLibrary),
-          ],
-        ),
-        Expanded(
-          child: KitScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s6, vertical: AppSpacing.s6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ChapterOpening(
-                    folio: 'Readings · ${longDate(n.generatedAt)}',
-                    title: n.liturgicalDay?.title ?? 'Today',
-                    standfirst: 'Everything on your shelves that answers this '
-                        'day, searched now.',
-                    footnote: (n.liturgicalDay?.cycleLine ?? '').isEmpty
-                        ? null
-                        : n.liturgicalDay!.cycleLine,
-                  ),
-                  _LiveBanner(
-                    loading: live == null,
-                    failed: failed,
-                    partial: partial,
-                    busy: busyCount > 0,
-                    unanswered: unanswered,
-                    liveTotal: liveTotal,
-                    sentTotal: sentTotal,
-                    drift: drift,
-                  ),
-                  // The letter matched against the verse TEXT and this page
-                  // matches on the CITATION, so saying so is what keeps the
-                  // count above from reading as a straight before/after. Only
-                  // `none` makes the two comparable.
-                  if (n.verseSource != null &&
-                      n.verseSource != 'none' &&
-                      live != null &&
-                      !failed)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.s3),
-                      child: Text(
-                        'Your letter matched against the verse text '
-                        '${n.verseSource == 'user' ? 'from the bible on your shelves' : 'of ${n.verseEdition ?? 'a public-domain edition'}'}'
-                        '; this page searches by the citation, so the two '
-                        'counts are not measured the same way.',
-                        style: KitText.meta(context),
-                      ),
-                    ),
-                  for (var i = 0; i < _readings.length; i++)
-                    _ReadingSection(
-                      reading: _readings[i],
-                      row: live == null ? null : live[i],
-                      sentIds: sentIds,
-                      onRetry: () => _retry(i),
-                      onLibrary: widget.onLibrary,
-                    ),
-                ],
+    // Direction D (screens/letters.md §Composition *The readings day*): the
+    // D frame with one column — back to the letter, the folio, the day as the
+    // title, the standfirst and the day's cycle line under it, the rule. No
+    // sheet (no sections to list) and no action; the Library is on the rail.
+    // Until D this was §2.1's chapter opening under the letter bar (F-60).
+    final cycle = n.liturgicalDay?.cycleLine ?? '';
+    return KitDPage(
+      key: ValueKey('d-scday-${n.id}'),
+      back: KitDBackControl('Back to the letter', onTap: widget.onBack),
+      // On a phone the back control stands over the folio (web's phone frame).
+      crumbStacks: true,
+      folio: 'Readings · ${longDate(n.generatedAt)}',
+      title: n.liturgicalDay?.title ?? 'Today',
+      stand: 'Everything on your shelves that answers this day, searched now.',
+      byline: cycle.isEmpty ? null : KitDayCycle(cycle),
+      child: Align(
+        alignment: Alignment.topLeft,
+        // `.sc-day-inner { max-width: 860px }`.
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _LiveBanner(
+                loading: live == null,
+                failed: failed,
+                partial: partial,
+                busy: busyCount > 0,
+                unanswered: unanswered,
+                liveTotal: liveTotal,
+                sentTotal: sentTotal,
+                drift: drift,
               ),
-            ),
+              // The letter matched against the verse TEXT and this page
+              // matches on the CITATION, so saying so is what keeps the count
+              // above from reading as a straight before/after. Only `none`
+              // makes the two comparable.
+              if (n.verseSource != null &&
+                  n.verseSource != 'none' &&
+                  live != null &&
+                  !failed)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.s3),
+                  child: Text(
+                    'Your letter matched against the verse text '
+                    '${n.verseSource == 'user' ? 'from the bible on your shelves' : 'of ${n.verseEdition ?? 'a public-domain edition'}'}'
+                    '; this page searches by the citation, so the two '
+                    'counts are not measured the same way.',
+                    style: KitText.meta(context),
+                  ),
+                ),
+              for (var i = 0; i < _readings.length; i++)
+                _ReadingSection(
+                  reading: _readings[i],
+                  row: live == null ? null : live[i],
+                  sentIds: sentIds,
+                  onRetry: () => _retry(i),
+                  onLibrary: widget.onLibrary,
+                ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

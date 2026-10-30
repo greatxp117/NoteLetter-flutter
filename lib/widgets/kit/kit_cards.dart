@@ -932,23 +932,24 @@ class KitCardGrid extends StatelessWidget {
   }
 }
 
-/// §5.2 at **reduced emphasis** — one message of a conversation
-/// (`screens/support.md` §Composition). A variant of the passage card, not a
-/// new card: the same `--r-md` sheet with a 1px border, tightened to
-/// `11px 14px`, no hover shadow, and its meta row lifted **outside** the sheet
-/// as the message's own mono caps timestamp+sender line.
+/// One message of the support correspondence (`screens/support.md`
+/// §Composition, direction D; web `.dp-sup .sup-msg`): a row of the ruled
+/// register [KitDThread] draws — padded 18 over a `--rule`, its mono caps
+/// sender and timestamp line (10.5/`0.12em`, `--fg-subtle`; support's in
+/// `--accent-text`), then the body 8 under it in serif 17/28 at `--fg`, at
+/// most 68ch, its own line breaks kept.
 ///
-/// The two sides are told apart by surface, never by alignment alone: a
-/// support message takes the accent-chip roles, a user message
-/// `--surface-raised`. Body sans 14/24 — this is the reader's own words to a
-/// person, not a quotation from a document, so it does not take the reading
-/// serif.
+/// Until direction D this was §5.2 at reduced emphasis: a bordered sheet on
+/// alternate edges, the reader's in `--surface-raised`, support's in the
+/// accent-chip roles, the body in sans 14/24. The two sides are now told
+/// apart by the sender line's ink and its words, never by alignment.
 class KitMessageCard extends StatelessWidget {
-  /// The mono caps line above the sheet: `You · 9:41 AM · /activity`.
+  /// The mono caps line: `You · 9:41 AM · /activity`.
   final List<String> meta;
   final String body;
 
-  /// `true` for the reader's own message (trailing edge, `--surface-raised`).
+  /// `true` for the reader's own message; false for support's, whose sender
+  /// line takes `--accent-text`.
   final bool mine;
 
   const KitMessageCard({
@@ -961,65 +962,63 @@ class KitMessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: FractionallySizedBox(
-        widthFactor: 0.9,
-        child: Column(
-          crossAxisAlignment:
-              mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            if (meta.isNotEmpty) ...[
-              Text(
-                meta.where((s) => s.isNotEmpty).join(' · ').toUpperCase(),
-                textAlign: mine ? TextAlign.right : TextAlign.left,
-                style: KitText.capsLabel(context,
-                    fontSize: 10, letterSpacing: 0.12, color: t.fgSubtle),
-              ),
-              const SizedBox(height: 6),
-            ],
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-              decoration: BoxDecoration(
-                color: mine ? t.surfaceRaised : t.accentChipBg,
-                borderRadius: AppRadius.mdR,
-                border: Border.all(color: mine ? t.border : t.accentChipBorder),
-              ),
-              child: Text(
-                body,
-                style: TextStyle(
-                  fontFamily: AppTheme.fontSans,
-                  fontSize: 14,
-                  height: 24 / 14,
-                  color: mine ? t.fg : t.accentChipFg,
-                ),
+    final prose = AppTheme.serif(
+      fontSize: 17,
+      height: 28 / 17,
+      color: t.fg,
+      opsz: 18,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: t.rule)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (meta.isNotEmpty)
+            Text(
+              meta.where((s) => s.isNotEmpty).join(' · ').toUpperCase(),
+              style: AppTheme.mono(
+                fontSize: 10.5,
+                height: 14 / 10.5,
+                letterSpacing: 0.12 * 10.5,
+                color: mine ? t.fgSubtle : t.accentText,
               ),
             ),
-          ],
-        ),
+          Padding(
+            padding: EdgeInsets.only(top: meta.isEmpty ? 0 : 8),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 68 * KitText.ch(context, prose),
+              ),
+              child: Text(body, style: prose),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// The one-line note that closes a thread awaiting an answer — sans 12/17 at
-/// `--fg-subtle`, on the trailing edge like the message it follows.
+/// The line under the last message while the thread awaits an answer (web
+/// `.dp-sup .sup-awaiting`): serif italic 15/23 in `--fg-lede`, 16 under the
+/// register, on its leading edge.
 class KitThreadNote extends StatelessWidget {
   final String text;
 
   const KitThreadNote(this.text, {super.key});
 
   @override
-  Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerRight,
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 16),
         child: Text(
           text,
-          textAlign: TextAlign.right,
-          style: TextStyle(
-            fontFamily: AppTheme.fontSans,
-            fontSize: 12,
-            height: 17 / 12,
-            color: Tokens.of(context).fgSubtle,
+          style: AppTheme.serif(
+            fontSize: 15,
+            height: 23 / 15,
+            fontStyle: FontStyle.italic,
+            color: Tokens.of(context).fgLede,
           ),
         ),
       );

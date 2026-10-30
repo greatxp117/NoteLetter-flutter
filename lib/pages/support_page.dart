@@ -5,25 +5,26 @@ import 'package:provider/provider.dart';
 import '../models/support.dart';
 import '../shared/cooldown.dart';
 import '../state/support_notifier.dart';
-import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
 import '../services/analytics.dart';
 
 /// Support — the conversation between one user and a human (contract 4.18.0,
-/// ADR-054; `spec/screens/support.md`).
+/// ADR-054; `spec/screens/support.md`), in direction D (§Composition; web
+/// `SupportView.jsx`).
 ///
 /// Reached from the **support footer**, which the shell composes once and every
 /// screen's primary scroll ends with (INV-22, ADR-173) — never from a
-/// per-screen link. This screen therefore knows
-/// nothing about how it was reached except [fromRoute], which the shell passed.
+/// per-screen link. This screen therefore knows nothing about how it was
+/// reached except [fromRoute], which the shell passed.
 ///
 /// The reply arrives through the notification channels the user already
 /// configured (ADR-014/ADR-015). This screen does not have to be open, and
 /// never claims to be the only place an answer lands.
 ///
-/// Composition (ADR-041): Reading frame (760) inside a scroll container (§1.4)
-/// · sub-screen header (§2.2) · the transcript as passage cards (§5.2) ·
-/// composer dock (§10), pinned to the frame.
+/// Composition: the D frame — the crumb back to *Settings*, the folio
+/// counting the messages, the sheet *The thread* (its figures, the note, Also)
+/// — the correspondence as a ruled register in the column, and the §38
+/// composer docked at the column's foot ([KitDPage.dock]).
 class SupportPage extends StatefulWidget {
   /// The screen the user was on when they opened support.
   final String? fromRoute;
@@ -44,25 +45,15 @@ class _SupportPageState extends State<SupportPage> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
 
-  /// The floating dock's height, measured (§10): the thread reserves it and
-  /// the dock's scrim, so the support footer that ends this scroll rests above
-  /// the composer (ADR-173).
-  double _dock = 0;
-  void _onDock(Size s) {
-    if (mounted && s.height != _dock) setState(() => _dock = s.height);
-  }
+  /// Whether this visit has asked for the thread to be marked read.
+  bool _markAsked = false;
+
+  /// The count the page last scrolled to the end for.
+  int _shown = 0;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      // Opening the screen marks it read — once, and only when there is
-      // something to clear. The notifier holds both guards; this is a call, not
-      // a decision. The SUBSCRIPTION is the shell's (it feeds the badge on
-      // every screen), so this screen never starts one.
-      context.read<SupportNotifier>().markRead();
-    });
     _controller.addListener(() {
       // Editing withdraws the last rejection, as the reference does — the
       // text it referred to is being changed.
@@ -76,6 +67,19 @@ class _SupportPageState extends State<SupportPage> {
     _controller.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Opening the screen marks it read — once a visit, and only when there is
+  /// something to clear. The notifier holds the write's own guards; this is a
+  /// call, not a decision. The SUBSCRIPTION is the shell's (it feeds the
+  /// footer's count on every screen), so this screen never starts one — and a
+  /// thread that answers after the screen opened is still marked.
+  void _markRead(SupportNotifier support) {
+    if (_markAsked || support.unreadForUser == 0) return;
+    _markAsked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<SupportNotifier>().markRead();
+    });
   }
 
   Future<void> _send() async {
@@ -93,12 +97,16 @@ class _SupportPageState extends State<SupportPage> {
     // point — this is the one screen where losing what the user typed is
     // unforgivable.
     if (ok) _controller.clear();
-    if (mounted) _scrollToEnd();
   }
 
-  void _scrollToEnd() {
+  /// A new message brings the page's own scroller to its end — the composer
+  /// is docked at the column's foot, so the last message sits just above it.
+  void _scrollToEnd(int count) {
+    if (count == _shown) return;
+    _shown = count;
+    if (count == 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) return;
+      if (!mounted || !_scroll.hasClients) return;
       _scroll.jumpTo(_scroll.position.maxScrollExtent);
     });
   }
@@ -107,110 +115,150 @@ class _SupportPageState extends State<SupportPage> {
   Widget build(BuildContext context) {
     final support = context.watch<SupportNotifier>();
     final messages = support.messages;
+    _markRead(support);
+    _scrollToEnd(messages.length);
 
-    return Stack(
-      children: [
-        KitPage(
-          width: KitFrameWidth.reading,
-          controller: _scroll,
-          dockReserve: _dock == 0 ? 0 : _dock + KitComposerDock.scrimRise,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SubScreenHeader(
-                parentLabel: 'Settings',
-                onBack: () => context.go('/settings'),
-                eyebrow: 'Support',
-                standfirst:
-                    'Found a bug, or want something NoteLetter doesn’t do '
-                    'yet? Tell us here. $_answerWindow',
-              ),
-              if (support.loading && messages.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.s6),
-                  child: Text('Loading…', style: KitText.meta(context)),
-                )
-              // INV-24 (ADR-071): the empty state below is an OFFER — it
-              // invites the reader to write. A thread we failed to READ is not
-              // an invitation.
-              else if (support.subError != null)
-                KitFailureBlock(
-                  sentence: 'Your support thread could not be read.',
-                  detail: support.subError!,
-                )
-              else if (messages.isEmpty)
-                // The empty state IS the offer: the composer below is the
-                // action, so this pattern carries no call-to-action button.
-                const KitEmptyState(
-                  quiet: true,
-                  icon: Icons.chat_bubble_outline,
-                  title: 'Nothing sent yet',
-                  standfirst:
-                      'Describe what happened, or what you wish it did. '
-                      'Screens, steps and what you expected all help — there '
-                      'is no wrong way to write it.',
-                )
-              else ...[
-                // The transcript: §5.2 at reduced emphasis, one per message,
-                // 18px apart, oldest first.
-                for (final m in messages)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.s4),
-                    child: KitMessageCard(
-                      meta: [
-                        m.sender == SupportSender.user ? 'You' : 'Support',
-                        _stamp(m.createdAt),
-                        if (m.route != null && m.route!.isNotEmpty) m.route!,
-                      ],
-                      body: m.body,
-                      mine: m.sender == SupportSender.user,
-                    ),
-                  ),
-                // Derived from `last_sender`, never a stored status field.
-                if (support.awaitingAnswer)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.s4),
-                    child: KitThreadNote(
-                      'Received. $_answerWindow You’ll be told through '
-                      'your notification channels when there’s a reply.',
-                    ),
-                  ),
+    // The thread's figures are measurements: the dash until it is read, and
+    // while the read is refused (INV-24).
+    final read = !support.loading && support.subError == null;
+    final last = messages.isEmpty ? null : messages.last;
+    final status = !read
+        ? '—'
+        : support.awaitingAnswer
+        ? 'Awaiting a reply'
+        : messages.isNotEmpty
+        ? 'Answered'
+        : 'Nothing sent yet';
+
+    return KitDPage(
+      folio:
+          'Support · ${read ? kitCounted(messages.length, 'message') : '— messages'}',
+      back: KitDBackControl('Settings', onTap: () => context.go('/settings')),
+      title: 'Support',
+      stand:
+          'Found a bug, or want something NoteLetter doesn’t do yet? Tell us '
+          'here. $_answerWindow',
+      controller: _scroll,
+      sheet: KitDSheet(
+        label: 'The thread',
+        peek: KitDIconPeek(
+          icon: Icons.chat_bubble_outline,
+          title: status,
+          count: read ? '${messages.length}' : null,
+        ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KitFigures(
+              label: 'The thread',
+              rows: [
+                ('Messages', read ? '${messages.length}' : '—'),
+                (
+                  'Last',
+                  last == null
+                      ? '—'
+                      : '${_sender(last)} · ${_stamp(last.createdAt)}',
+                ),
+                ('Status', status),
               ],
-              // Room for the dock, which floats over this scroller, is the
-              // scroller's own [KitPage.dockReserve], below the footer.
-              const SizedBox(height: AppSpacing.s6),
-            ],
-          ),
-        ),
-        Align(
-          alignment: Alignment.bottomCenter,
-          // The 10s send cooldown is the caller's (4.107.0, ADR-140): send is
-          // held for the wait a refusal carried, its title says the time
-          // left, and the server's sentence is the dock's calm caption while
-          // it runs — never its red error line (support.md, 4.108.0,
-          // ADR-145). The draft is kept either way (write before you move).
-          child: KitMeasure(
-            onSize: _onDock,
-            child: KitWait(
-            waitKey: WaitKey.supportSend(),
-            builder: (context, wait) => KitComposerDock(
-              controller: _controller,
-              placeholder: 'What happened?',
-              busy: support.sending,
-              error: support.error,
-              waitNote: wait.sentence,
-              maxLength: 4000,
-              minLines: 2,
-              waitLeft: wait.left,
-              onSend: _controller.text.trim().isEmpty ? null : _send,
             ),
-          ),
-          ),
+            const KitDNote(
+              'Replies reach you through your notification '
+              'channels.',
+            ),
+            KitSheetAlso(
+              children: [
+                KitAlsoButton(
+                  'Notification channels',
+                  icon: Icons.notifications_none,
+                  onTap: () => context.go('/settings/notifications'),
+                ),
+              ],
+            ),
+          ],
         ),
+      ),
+      // The 10s send cooldown is the caller's (4.107.0, ADR-140): send is
+      // held for the wait a refusal carried, its title says the time left, and
+      // the server's sentence is the calm caption while it runs — never the
+      // red §14.2 line (support.md, 4.108.0, ADR-145). The draft is kept
+      // either way (write before you move).
+      dock: KitWait(
+        waitKey: WaitKey.supportSend(),
+        builder: (context, wait) => KitDComposer(
+          key: const ValueKey('support-composer'),
+          fieldKey: const ValueKey('support-field'),
+          sendKey: const ValueKey('support-send'),
+          controller: _controller,
+          placeholder: 'What happened?',
+          label: 'Send to support',
+          busy: support.sending,
+          error: support.error,
+          waitNote: wait.sentence,
+          waitLeft: wait.left,
+          maxLength: 4000,
+          onSend: _controller.text.trim().isEmpty ? null : _send,
+        ),
+      ),
+      child: _thread(support, messages),
+    );
+  }
+
+  Widget _thread(SupportNotifier support, List<SupportMessage> messages) {
+    if (support.loading && messages.isEmpty) {
+      return const KitSkeletonLines(
+        lines: [KitSkelLine(0.4), KitSkelLine(0.7), KitSkelLine(0.6)],
+        top: 0,
+      );
+    }
+    // INV-24 (ADR-071): the empty state below is an OFFER — it invites the
+    // reader to write. A thread we failed to READ is not an invitation.
+    if (support.subError != null) {
+      return KitFailureBlock(
+        sentence: 'Your support thread could not be read.',
+        detail: support.subError!,
+      );
+    }
+    if (messages.isEmpty) {
+      // §7's quiet form: the composer below is the action, so this pattern
+      // carries no call-to-action button.
+      return const KitEmptyState(
+        quiet: true,
+        icon: Icons.chat_bubble_outline,
+        title: 'Nothing sent yet',
+        standfirst:
+            'Describe what happened, or what you wish it did. Screens, steps '
+            'and what you expected all help — there is no wrong way to write '
+            'it.',
+      );
+    }
+    // The correspondence, oldest first, as a ruled register.
+    return KitDThread(
+      children: [
+        for (final m in messages)
+          KitMessageCard(
+            key: ValueKey('support-msg-${m.id}'),
+            meta: [
+              _sender(m),
+              _stamp(m.createdAt),
+              if (m.route != null && m.route!.isNotEmpty) m.route!,
+            ],
+            body: m.body,
+            mine: m.sender == SupportSender.user,
+          ),
+        // Derived from `last_sender`, never a stored status field.
+        if (support.awaitingAnswer)
+          const KitThreadNote(
+            'Received. $_answerWindow You’ll be told through your '
+            'notification channels when there’s a reply.',
+          ),
       ],
     );
   }
 }
+
+String _sender(SupportMessage m) =>
+    m.sender == SupportSender.user ? 'You' : 'Support';
 
 /// The reference's relative stamp: time today, `Mon D · time` otherwise.
 String _stamp(int? ms) {
@@ -225,8 +273,18 @@ String _stamp(int? ms) {
     return time;
   }
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   return '${months[d.month - 1]} ${d.day} · $time';
 }

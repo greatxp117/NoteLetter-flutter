@@ -320,14 +320,17 @@ class KitShelfIdentity extends StatelessWidget {
 }
 
 /// A sheet's quiet sentence (web `.dp-note`): serif italic 14/21 `--fg-lede`,
-/// 10 above — *None yet.* where a list has nothing to say.
+/// 10 above — *None yet.* where a list has nothing to say; also LetterQuick's
+/// activation hint and what the send did, a letter's delivery note (F-144).
+/// [top] is the space above (10; 0 where the host already spaces it).
 class KitDNote extends StatelessWidget {
   final String text;
-  const KitDNote(this.text, {super.key});
+  final double top;
+  const KitDNote(this.text, {super.key, this.top = 10});
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 10),
+    padding: EdgeInsets.only(top: top),
     child: Text(
       text,
       style: AppTheme.serif(

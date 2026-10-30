@@ -195,6 +195,16 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
   // Mark as read's frame is of an UNREAD passage: the dwell clock is paused
   // before the reader opens, or it would count the subject read mid-hold.
   ManuscriptPanel.debugPauseDwell = h.state == 'mark-as-read';
+  // F-144 (folds F-133, 5.29.0 ADR-186): the AI-off frames are of an account
+  // that switched generative AI off — written through the endpoint (its one
+  // writer, the shim's fn_ai_settings) BEFORE the route opens, so the page's
+  // first frame already reads it rather than redrawing under the capture.
+  if (h.state.startsWith('ai-off')) {
+    await Api.instance.updateAiSettings(generativeAI: false);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+  }
   router.go(route);
   for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 200));
@@ -260,6 +270,11 @@ const int _dragPointer = 9142;
 /// every later hold's name — the `reader` frame after `reader-priority` would
 /// show High lit.
 Future<void> leaveState(WidgetTester tester, String holdState) async {
+  // Generative AI back on: every later hold in the batch is of an account
+  // that never switched it off.
+  if (holdState.startsWith('ai-off')) {
+    await Api.instance.updateAiSettings(generativeAI: true);
+  }
   switch (holdState) {
     case 'camera-setup':
     case 'camera-looking-back':
@@ -542,17 +557,61 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // from its archive. The letterheaded letter `tool/seed_letters.py` writes
     // is the top row.
     case 'letter':
-      // Both letters offer a Preview; the daily one is first on the screen.
-      expect(find.text('Preview'), findsWidgets,
+      // Direction D (F-144): *Read the letter* under the latest letter's
+      // kicker opens it (web theme-shots' `letter-reader`).
+      final read = find.byKey(const ValueKey('d-letters-read'));
+      for (var i = 0; i < 60 && read.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(read, findsOneWidget,
           reason: 'run tool/seed_letters.py first — no readable letter to open');
-      final preview = find.text('Preview').first;
       // `warnIfMissed` stays ON, deliberately: a tap that lands on nothing is
       // silent, and the capture would then be the LIST under the name of the
       // reader. The assertion below is the other half of the same point.
-      await tester.tap(preview);
+      await tester.ensureVisible(read);
       await settle();
-      expect(find.text('All letters'), findsOneWidget,
+      await tester.tap(read);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(
+          find.byWidgetPredicate(
+              (w) => w is KitDBackControl && w.label == 'All letters'),
+          findsOneWidget,
           reason: 'the letter did not open — this frame would be the list');
+      return;
+    // F-144 (folds F-133): generative AI is switched off before the route
+    // opens (the main flow). Settings' frame is its Generative AI section,
+    // the caption brought into view as web's `settings-ai-off` does; Ask's
+    // and the reader's are the page at rest.
+    case 'ai-off-settings':
+      final caption = find.textContaining(
+          'NoteLetter still uses AI to read what you add',
+          skipOffstage: false);
+      for (var i = 0; i < 60 && caption.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(caption, findsOneWidget,
+          reason: 'Settings does not read generative AI as off — this frame '
+              'would be the AI-on page under the off name');
+      await Scrollable.ensureVisible(tester.element(caption),
+          alignment: 0.5, duration: Duration.zero);
+      await settle();
+      return;
+    case 'ai-off':
+      await settle();
+      return;
+    // The wizard's Librarian step with its *Use generative AI* check row
+    // (5.29.0): Run setup, Begin, Continue — web's `onboarding-librarian`.
+    case 'onboarding-librarian':
+      await tester.tap(find.widgetWithText(KitButton, 'Run setup'));
+      await settle();
+      await tester.tap(find.text('Begin'));
+      await settle();
+      await tester.tap(find.text('Continue'));
+      await settle();
+      expect(find.byKey(const ValueKey('ob-use-ai')), findsOneWidget,
+          reason: 'setup did not reach its Librarian step');
       return;
     // ask.md — a recorded turn (4.53.0, ADR-090), in direction D (F-143):
     // the conversation is the page, the conversations its running head.

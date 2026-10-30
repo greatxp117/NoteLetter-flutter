@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -5,33 +8,151 @@ import 'package:provider/provider.dart';
 
 import '../models/newsletter.dart';
 import '../models/newsletter_settings.dart';
+import '../services/analytics.dart';
+import '../services/api.dart';
+import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../shared/cooldown.dart';
 import '../shared/dates.dart';
 import '../state/activation_message.dart';
 import '../state/newsletter_notifier.dart';
 import '../state/schedule.dart';
+import '../state/scripture_letter_notifier.dart';
 import '../state/settings_notifier.dart';
-import '../theme/app_spacing.dart';
-import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
 import 'letters/delivery.dart';
 import 'letters/letter_reader.dart';
 import 'letters/pinned_sources.dart';
 import 'letters/readings_letter.dart';
 import 'letters/scripture_day_page.dart';
-import '../services/analytics.dart';
 
-/// Letters (`spec/screens/letters.md` §Composition, ADR-041).
+/// The archive is a WINDOW: the newest records of both letters (INV-09's
+/// recency read, `limit 30`). A count taken from a full window is a floor,
+/// and says so (`30+`), never a total.
+const int lettersArchiveLimit = 30;
+
+/// What a letter being built says about itself (4.76.0, ADR-110) — the
+/// `generating` record's row.
+const String lettersBuildingLede =
+    'Gathering the best passages from your library…';
+
+/// The folio's and the Delivery figures' word for a schedule (direction D).
+const Map<String, String> _cadence = {
+  'daily': 'Daily',
+  'weekdays': 'Weekdays',
+  'weekly': 'Weekly',
+};
+
+/// …and the panel's (kit LetterQuick's *How often* words).
+const Map<String, String> _panelCadence = {
+  'daily': 'Every day',
+  'weekdays': 'Weekdays',
+  'weekly': 'Weekly',
+};
+
+/// `Letters · {N} letters · {when}` (screens/letters.md §Composition
+/// *Letters*): the count is a measurement — the dash until the archive read
+/// answers or while it is refused, a floor once the 30-record window is full —
+/// and `{when}` is absent while delivery is off or unread.
+@visibleForTesting
+String lettersFolio({
+  required bool measured,
+  required int daily,
+  required int window,
+  String? when,
+}) {
+  final full = measured && window >= lettersArchiveLimit;
+  final count = !measured
+      ? '— letters'
+      : full
+      ? '$daily+ letters'
+      : kitCounted(daily, 'letter');
+  return ['Letters', count, ?when].join(' · ');
+}
+
+/// *Letters sent* in the Delivery figures: the folio's count by the same
+/// rules — the dash, or a floor.
+@visibleForTesting
+String lettersSentFigure({
+  required bool measured,
+  required int daily,
+  required int window,
+}) {
+  if (!measured) return '—';
+  return window >= lettersArchiveLimit ? '$daily+' : '$daily';
+}
+
+/// `{Daily | Weekdays | Weekly} at {h:mm AM}` from the settings read; null
+/// while delivery is off or unread.
+@visibleForTesting
+String? lettersWhen(NewsletterSettings? s) {
+  if (s == null || !s.enabled) return null;
+  final time = s.deliveryTime.isEmpty ? '07:00' : s.deliveryTime;
+  return '${_cadence[s.frequency] ?? 'Daily'} at ${kitClock(time) ?? time}';
+}
+
+/// One month of the archive.
+class LettersMonth {
+  final String label;
+  final List<(Newsletter, String)> rows;
+  LettersMonth(this.label) : rows = [];
+}
+
+/// The archive by month, newest first, each row with its number: the
+/// letter's own (its folio's `No.`, blank for a letter without one) — or,
+/// only where NO letter in the window carries a number, its place in the
+/// window. A place set under a real number reads as a second count (W4
+/// FOUND 6).
+@visibleForTesting
+List<LettersMonth> lettersByMonth(List<Newsletter> rows, {DateTime? now}) {
+  final numbered = rows.any((a) => kitLetterHead(a).no != null);
+  final out = <LettersMonth>[];
+  final fallback = (now ?? DateTime.now()).millisecondsSinceEpoch;
+  for (var i = 0; i < rows.length; i++) {
+    final a = rows[i];
+    final k = kitMonthYear(a.generatedAt ?? fallback);
+    if (out.isEmpty || out.last.label != k) out.add(LettersMonth(k));
+    out.last.rows.add((
+      a,
+      numbered ? (kitLetterHead(a).no ?? '') : '${rows.length - i}',
+    ));
+  }
+  return out;
+}
+
+/// **Letters** (`/letters`; screens/letters.md §Composition *Letters*,
+/// direction D). Web `pages/LettersView.jsx` — the prototype's `LettersD`.
 ///
-/// Index frame · a bespoke header (§2 names it so — the serif title, the italic
-/// standfirst, and one ghost Button through to Letter settings) · §3 section
-/// headers opening the pinned block, the latest letter, the readings letter and
-/// the archive · §4.1 row lists for the archive · the letter itself in §11.
+/// The D frame: the masthead (folio `Letters · {N} letters · {when}`, *Letters*,
+/// the standfirst); the page's one action *Send now* — or *Add a delivery
+/// address* with no recipient — and *Letter settings* as its settings (kit
+/// LetterQuick with this page's own delivery row and the readings letter's
+/// rows). What Send now answered stands under the masthead. The sheet
+/// *Contents* (the latest letter, the readings letter, each month, readings
+/// sent), the Delivery figures, what is pinned for the next letter, and *Read
+/// the latest letter*. The column: the latest letter under its kicker, the
+/// readings letter, *Sent* by month, *Readings sent*.
+///
+/// Opening a letter replaces the list with it ([LetterReaderView]); a readings
+/// letter's *See all* replaces that with its live day ([ScriptureDayView]).
 class LettersPage extends StatefulWidget {
-  const LettersPage({super.key});
+  /// The account's own address — the backend's fallback recipient (ADR-010).
+  /// A seam: the default reads the signed-in user.
+  final String? Function()? accountEmail;
+
+  const LettersPage({super.key, this.accountEmail});
 
   @override
   State<LettersPage> createState() => _LettersPageState();
+}
+
+String? _signedInEmail() {
+  try {
+    return AuthService.instance.currentUser?.email;
+  } catch (_) {
+    // No auth in this process (a test) — unknown, never "none".
+    return null;
+  }
 }
 
 class _LettersPageState extends State<LettersPage> {
@@ -39,21 +160,12 @@ class _LettersPageState extends State<LettersPage> {
   /// because the archive row is what opens it — the reference does the same.
   Newsletter? _open;
 
-  /// The readings letter whose LIVE day is being shown (ADR-029 §5). A second
-  /// state rather than a route, for the same reason [_open] is one: the letter
-  /// is what opens it. It takes precedence over [_open] — the day view is
-  /// entered FROM the letter and returns to it.
+  /// The readings letter whose LIVE day is being shown (ADR-029 §5). It takes
+  /// precedence over [_open] — the day view is entered FROM the letter and
+  /// returns to it.
   Newsletter? _dayIssue;
 
-  /// One setter rather than three call sites, so the preview, the archive row
-  /// and anything that opens a letter later count the same way by construction
-  /// — the reference makes the same argument with one effect. What is emitted
-  /// is that A letter was opened, never which one: the archive key is a
-  /// Firestore id (INV-25b).
-  void _openLetter(Newsletter? n) {
-    if (n != null && n != _open) Analytics.track('letter_opened');
-    setState(() => _open = n);
-  }
+  final KitSections _sec = KitSections(const ['latest']);
 
   String? _sendMessage;
   String? _sendError;
@@ -61,19 +173,39 @@ class _LettersPageState extends State<LettersPage> {
   String? _scheduleError;
   bool _scheduleBusy = false;
 
+  // The letter's parts, parsed once per record (the body is read as text).
+  Newsletter? _partsOf;
+  KitLetterParts? _parts;
+
+  /// One setter rather than three call sites, so the latest letter, the
+  /// archive row and the sheet's *Read the latest letter* count the same way
+  /// by construction. What is emitted is that A letter was opened, never which
+  /// one: the archive key is a Firestore id (INV-25b).
+  void _openLetter(Newsletter? n) {
+    if (n != null && n != _open) Analytics.track('letter_opened');
+    setState(() => _open = n);
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<NewsletterNotifier>().load();
+      context.read<NewsletterNotifier>().load(limit: lettersArchiveLimit);
       // The schedule this screen describes is READ, never assumed (2.29.0
       // rule 3), and the pinned block's "how many arrive" sentence is half of
       // `itemsPerNewsletter` — so the settings have to actually be loaded for
       // either line to be allowed to appear.
       final settings = context.read<SettingsNotifier>();
       if (settings.newsletter == null) settings.loadAll();
+      context.read<ScriptureLetterNotifier>().load();
     });
+  }
+
+  @override
+  void dispose() {
+    _sec.dispose();
+    super.dispose();
   }
 
   Future<void> _sendNow() async {
@@ -85,18 +217,26 @@ class _LettersPageState extends State<LettersPage> {
     final error = await notifier.requestNewsletter();
     if (!mounted) return;
     if (error != null) {
-      // A cooldown with its number is the button's wait and says itself
+      // A cooldown with its number is the action's wait and says itself
       // (4.107.0, ADR-140) — the same wait on Letter settings.
-      setState(() => _sendError =
-          Cooldowns.instance.waiting(WaitKey.letterSend()) ? null : error);
+      setState(
+        () => _sendError = Cooldowns.instance.waiting(WaitKey.letterSend())
+            ? null
+            : error,
+      );
       return;
     }
-    setState(() => _sendMessage =
-        'On its way — it shows up here in a few minutes. The email leaves '
-        'with it; the letter’s row shows what happened to it.');
-    // The build is asynchronous and always writes a record (2.2.0, ADR-011).
-    // Re-reading is how it is found; nothing here polls a function (INV-02).
-    await notifier.load();
+    // What is known is that the build was accepted; when the EMAIL lands is
+    // the receiver's decision (INV-23), and the row's badge says it.
+    setState(
+      () => _sendMessage =
+          'On its way — it shows up here in a few minutes. The email leaves '
+          'with it; the letter’s row shows what happened to it.',
+    );
+    // The build is asynchronous and always writes a record (2.2.0, ADR-011),
+    // written BEFORE it is queued (4.76.0): re-reading finds it building.
+    // Nothing here polls a function (INV-02).
+    await notifier.load(limit: lettersArchiveLimit);
   }
 
   Future<void> _toggleSchedule(bool next) async {
@@ -112,7 +252,7 @@ class _LettersPageState extends State<LettersPage> {
     // silently reverts on reload is indistinguishable from one that worked.
     final error = await settings.setScheduledDelivery(
       enabled: next,
-      deliveryTime: stored.deliveryTime,
+      deliveryTime: stored.deliveryTime.isEmpty ? '07:00' : stored.deliveryTime,
       timezone: stored.timezone.isNotEmpty ? stored.timezone : deviceTimezone(),
     );
     if (!mounted) return;
@@ -121,18 +261,50 @@ class _LettersPageState extends State<LettersPage> {
       _scheduleError = error;
       // 2.30.0 (ADR-031) — what the activation send did, read from the
       // response and never assumed. The backend owns the decision.
-      _scheduleOutcome = error == null && next
+      _scheduleOutcome = error == null
           ? activationMessage(settings.lastActivation)
           : null;
     });
-    if (error == null && next) await context.read<NewsletterNotifier>().load();
+    // The activation send's letter is found the way Send now's is: its
+    // record lands in the archive, building (4.76.0).
+    if (error == null && next) {
+      await context.read<NewsletterNotifier>().load(limit: lettersArchiveLimit);
+    }
+  }
+
+  /// One LetterQuick write from the panel: the PUT, then the settings
+  /// document re-read (the panel and this page draw what was read).
+  Future<KitLetterWrite> _writeSettings(
+    SettingsNotifier settings,
+    Map<String, dynamic> patch,
+  ) async {
+    try {
+      final res = await Api.instance.updateNewsletterSettings(patch);
+      unawaited(settings.loadAll());
+      return KitLetterWrite(response: res);
+    } on ApiException catch (e) {
+      return KitLetterWrite(error: e.message);
+    } catch (_) {
+      return const KitLetterWrite(error: 'The change was not saved.');
+    }
+  }
+
+  void _openPanel() {
+    if (!KitPageTools.instance.openSettings('letter')) {
+      context.go('/letters/settings');
+    }
+  }
+
+  KitLetterParts? _partsFor(Newsletter? letter) {
+    if (!identical(letter, _partsOf)) {
+      _partsOf = letter;
+      _parts = kitLetterParts(letter);
+    }
+    return _parts;
   }
 
   @override
   Widget build(BuildContext context) {
-    final letters = context.watch<NewsletterNotifier>();
-    final settings = context.watch<SettingsNotifier>();
-
     final day = _dayIssue;
     if (day != null) {
       return ScriptureDayView(
@@ -153,399 +325,336 @@ class _LettersPageState extends State<LettersPage> {
       );
     }
 
-    final archive = letters.history;
-    final latest = letters.latest;
+    // The page's action carries the cooldown's seconds, so it is rebuilt with
+    // the wait (one clock with Letter settings, 4.107.0).
+    return KitWait(waitKey: WaitKey.letterSend(), builder: _list);
+  }
 
-    return KitPage(
+  Widget _list(BuildContext context, CooldownWait wait) {
+    final letters = context.watch<NewsletterNotifier>();
+    final settings = context.watch<SettingsNotifier>();
+    final rl = context.watch<ScriptureLetterNotifier>();
+    final cfg = settings.newsletter;
+
+    final daily = letters.history;
+    final readingsRows = letters.readings;
+    final latest = letters.latest;
+    final measured = letters.loaded && letters.error == null;
+    final window = daily.length + readingsRows.length;
+    final when = lettersWhen(cfg);
+    final rlShown = rl.settings != null && rl.error == null;
+    final groups = measured ? lettersByMonth(daily) : const <LettersMonth>[];
+
+    // The sheet's Contents: only the sections the page draws.
+    final secs = [
+      const KitContentsItem('latest', 'The latest letter'),
+      if (rlShown) const KitContentsItem('readings', 'The readings letter'),
+      for (var i = 0; i < groups.length; i++)
+        KitContentsItem(
+          'm$i',
+          groups[i].label,
+          count: '${groups[i].rows.length}',
+        ),
+      if (readingsRows.isNotEmpty)
+        KitContentsItem(
+          'rsent',
+          'Readings sent',
+          count: '${readingsRows.length}',
+        ),
+    ];
+    final ids = [for (final s in secs) s.id];
+    if (!listEquals(_sec.ids, ids)) _sec.ids = ids;
+
+    // A recipient is a stored address or the account-email fallback the
+    // backend applies (ADR-010) — Send now works with either. Assumed until
+    // the settings read says otherwise: a failed read must not take Send away.
+    final account = (widget.accountEmail ?? _signedInEmail)() ?? '';
+    final hasRecipient =
+        cfg == null || cfg.emailAddress.isNotEmpty || account.isNotEmpty;
+    final sending = letters.isSending;
+    final action = hasRecipient
+        ? KitPageAction(
+            // The tab bar's accessible name carries the wait's seconds, as
+            // the rail's label does (§Endpoints: one clock).
+            label: sending ? 'Sending…' : 'Send now${waitSuffix(wait.left)}',
+            short: sending ? 'Sending' : 'Send now',
+            // web `IcoSend` is a right arrow, never a paper plane.
+            icon: Icons.arrow_forward,
+            onPressed: _sendNow,
+            disabled: sending || wait.left > 0,
+          )
+        : KitPageAction(
+            label: 'Add a delivery address',
+            short: 'Address',
+            icon: Icons.arrow_forward,
+            onPressed: () => context.go('/letters/settings'),
+          );
+
+    // What Send now answered, under the masthead: while a cooldown runs its
+    // sentence is the line (calm, never §14.2 — 4.108.0); otherwise the
+    // refusal (§14.2) or the queued sentence.
+    final waiting = wait.sentence;
+    final Widget? line = waiting != null
+        ? KitSendLine(key: const ValueKey('d-letters-send-line'), note: waiting)
+        : _sendError != null
+        ? KitSendLine(
+            key: const ValueKey('d-letters-send-line'),
+            failure: _sendError,
+          )
+        : _sendMessage != null
+        ? KitSendLine(
+            key: const ValueKey('d-letters-send-line'),
+            note: _sendMessage,
+          )
+        : null;
+
+    // The panel's delivery row in LetterQuick's own form: the schedule as
+    // read — the dash before the read answers — and the switch, which carries
+    // the activation send. Write before you move: held while the write is
+    // out, it moves only on the re-read.
+    final scheduleRow = KitLetterSwitchRow(
+      key: const ValueKey('d-letters-delivery'),
+      title: 'Scheduled delivery',
+      line: cfg == null
+          ? '—'
+          : cfg.enabled
+          ? '${_panelCadence[cfg.frequency] ?? 'Every day'} at '
+                '${kitClock(cfg.deliveryTime) ?? cfg.deliveryTime}'
+          : 'Paused',
+      value: cfg?.enabled,
+      label: 'Scheduled delivery',
+      onChanged: _scheduleBusy || cfg == null
+          ? null
+          : (v) => _toggleSchedule(v),
+    );
+    // The refusal (§14.2), or what the activation send did, or — while off,
+    // BEFORE the switch is touched — what turning it on will do (2.30.0).
+    final note =
+        _scheduleOutcome ??
+        (cfg != null && !cfg.enabled ? activationHint : null);
+    final Widget? scheduleNotice = _scheduleError != null
+        ? KitDFailureNote(_scheduleError!)
+        : note != null
+        ? KitDNote(note)
+        : null;
+
+    final parts = _partsFor(latest);
+    final latestState = latest != null
+        ? KitLatestState.built
+        : letters.error != null
+        ? KitLatestState.refused
+        : !letters.loaded
+        ? KitLatestState.loading
+        : KitLatestState.none;
+
+    return KitDPage(
+      key: const ValueKey('d-letters'),
+      folio: lettersFolio(
+        measured: measured,
+        daily: daily.length,
+        window: window,
+        when: when,
+      ),
+      title: 'Letters',
+      stand:
+          'Every letter your library has written you, and the one arriving '
+          'next.',
+      action: action,
+      settings: KitPageSettings(
+        label: 'Letter settings',
+        has: const ['letter'],
+        body: (context, close) => KitLetterQuick(
+          settings: settings.newsletter,
+          readError: settings.newsletter == null ? settings.error : null,
+          write: (patch) => _writeSettings(settings, patch),
+          onEverySetting: () {
+            close();
+            GoRouter.maybeOf(context)?.go('/letters/settings');
+          },
+          switchRow: scheduleRow,
+          notice: scheduleNotice,
+          extra: rlShown ? const ReadingsQuick() : null,
+        ),
+      ),
+      under: line,
+      sections: _sec,
+      sheet: KitDSheet(
+        label: 'Contents',
+        foldOnPick: true,
+        peek: KitSecPeek(items: secs, sections: _sec),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const KitDLabel('Contents', first: true),
+            KitContents(items: secs, sections: _sec),
+            KitFigures(
+              label: 'Delivery',
+              rows: [
+                ('Schedule', when ?? (cfg != null ? 'Paused' : '—')),
+                (
+                  'Letters sent',
+                  lettersSentFigure(
+                    measured: measured,
+                    daily: daily.length,
+                    window: window,
+                  ),
+                ),
+              ],
+            ),
+            PinnedSources(
+              settings: cfg,
+              onOpen: (d) => context.push('/reader/${d.id}'),
+            ),
+            if (latest != null)
+              KitSheetAlso(
+                children: [
+                  KitAlsoButton(
+                    'Read the latest letter',
+                    key: const ValueKey('d-letters-read-latest'),
+                    icon: Icons.visibility_outlined,
+                    onTap: () => _openLetter(latest),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ScreenHeader(
-            title: 'Letters',
-            standfirst: 'Every letter your library has written you, and the '
-                'one arriving next.',
-            action: KitButton('Letter settings',
-                icon: Icons.tune,
-                variant: KitButtonVariant.ghost,
-                onPressed: () => context.go('/letters/settings')),
+          KeyedSubtree(
+            key: _sec.keyOf('latest'),
+            child: KitLatestLetter(
+              state: latestState,
+              parts: parts,
+              figures: latest == null ? null : letterFigures(latest),
+              onRead: latest == null ? null : () => _openLetter(latest),
+              onSettings: _openPanel,
+            ),
           ),
 
-          // 2.33.0 — the pin's only surface outside the extension, above the
-          // letter because it describes what the NEXT one will carry.
-          PinnedSources(settings: settings.newsletter),
+          // The readings letter — a second letter beside the one above, never
+          // a mode of it. Hidden until its settings document answers; a
+          // refused read is §14.2 in its place (INV-24).
+          if (rl.error != null)
+            KitDFailureNote(
+              'Your readings-letter settings could not be read — '
+              '${rl.error}',
+              top: 24,
+            ),
+          if (rlShown) ...[
+            const SizedBox(height: 56),
+            KeyedSubtree(
+              key: _sec.keyOf('readings'),
+              child: ReadingsLetterSection(
+                issues: readingsRows,
+                onOpen: _openLetter,
+                onSettings: _openPanel,
+              ),
+            ),
+          ],
 
-          const SectionHeader('Latest letter', first: true),
-          LatestLetterCard(
-            latest: latest,
-            loaded: letters.loaded,
-            archiveError: letters.error,
-            sending: letters.isSending,
-            onSend: _sendNow,
-            onPreview: latest == null
-                ? null
-                : () => _openLetter(latest),
-            onSettings: () => context.go('/letters/settings'),
-            sendMessage: _sendMessage,
-            sendError: _sendError,
-            scheduleOutcome: _scheduleOutcome,
-            scheduleError: _scheduleError,
-            scheduleBusy: _scheduleBusy,
-            onToggleSchedule: _toggleSchedule,
+          KitSectionHead(
+            'Sent',
+            meta: measured ? kitCounted(daily.length, 'letter') : null,
           ),
+          ..._sent(context, letters, groups),
 
-          // The SECOND letter, beside the one above and never a mode of it.
-          ReadingsLetterSection(
-            issues: letters.readings,
-            onOpen: _openLetter,
-            onSettings: () => context.go('/letters/settings'),
-          ),
-
-          SectionHeader(
-              'Sent · ${archive.length} ${archive.length == 1 ? 'letter' : 'letters'}'),
-          _Archive(
-            rows: archive,
-            loaded: letters.loaded,
-            error: letters.error,
-            onRetry: () => context.read<NewsletterNotifier>().load(),
-            onOpen: _openLetter,
-          ),
-          const SizedBox(height: AppSpacing.s8),
+          if (readingsRows.isNotEmpty) ...[
+            const SizedBox(height: 56),
+            KeyedSubtree(
+              key: _sec.keyOf('rsent'),
+              child: ReadingsSentSection(
+                issues: readingsRows,
+                onOpen: _openLetter,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
-}
 
-/// The reference's body line box (theme.css `--lh-base: 24px`), which every
-/// line of the latest-letter card inherits on web.
-const double _lineBox = 24;
-
-/// The latest letter, its schedule and the actions on it (§5.3 hero card).
-class LatestLetterCard extends StatelessWidget {
-  final Newsletter? latest;
-  final bool loaded;
-  final String? archiveError;
-  final bool sending;
-  final Future<void> Function() onSend;
-  final VoidCallback? onPreview;
-  final VoidCallback onSettings;
-  final String? sendMessage;
-  final String? sendError;
-  final String? scheduleOutcome;
-  final String? scheduleError;
-  final bool scheduleBusy;
-  final Future<void> Function(bool) onToggleSchedule;
-
-  const LatestLetterCard({
-    super.key,
-    required this.latest,
-    required this.loaded,
-    required this.archiveError,
-    required this.sending,
-    required this.onSend,
-    required this.onPreview,
-    required this.onSettings,
-    required this.sendMessage,
-    required this.sendError,
-    required this.scheduleOutcome,
-    required this.scheduleError,
-    required this.scheduleBusy,
-    required this.onToggleSchedule,
-  });
-
-  /// The 60s manual-send cooldown is the CALLER's (4.107.0, ADR-140): Send
-  /// now is held for the wait a refusal carried, and the server's sentence is
-  /// the send line while it runs — one clock with Letter settings.
-  @override
-  Widget build(BuildContext context) => KitWait(
-        waitKey: WaitKey.letterSend(),
-        builder: _card,
-      );
-
-  Widget _card(BuildContext context, CooldownWait wait) {
-    final settings = context.watch<SettingsNotifier>();
-    final cfg = settings.newsletter;
-    final n = latest;
-    final passages = n?.chunkIds.length ?? 0;
-    // The cooldown is the calm caption, any other refusal §14.2 (letters.md,
-    // 4.108.0, ADR-145 — calm everywhere).
-    final sendSlot = kitRefusalSlot(wait, sendError);
-    final compact =
-        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
-
-    // Web's card sets every line in the body's 24px line box (theme.css
-    // `--lh-base`, inherited — none of `.nl-status`, `.nl-no` or `.nl-meta`
-    // overrides it) and spaces the parts with `.nl-status`'s 13, the
-    // masthead's 12 gap, `.nl-lede`'s 9/13 and the grid's 18 on a phone. Drawn
-    // at Flutter's natural line heights with 8/12 gaps the card head read ~14%
-    // tighter than the reference (letters pair, 2026-10-07).
-    return KitCard(
-      // `.next-letter` is `24px 26px`, and `padding: 20px` on a phone.
-      padding: compact
-          ? const EdgeInsets.all(20)
-          : const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s6, vertical: AppSpacing.s6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ScheduleRow(
-            cfg: cfg,
-            busy: scheduleBusy,
-            onToggle: onToggleSchedule,
-          ),
-          if (scheduleError != null) ...[
-            const SizedBox(height: AppSpacing.s2),
-            KitFailureInline(scheduleError!),
-          ] else if (scheduleOutcome != null) ...[
-            const SizedBox(height: AppSpacing.s2),
-            KitRowNote(scheduleOutcome!),
-          ] else if (cfg != null && !cfg.enabled) ...[
-            const SizedBox(height: AppSpacing.s2),
-            // Said BEFORE the switch is touched (2.30.0 rule 5): a letter
-            // arriving seconds after a settings change, unannounced, reads as
-            // a bug in the direction that matters.
-            KitRowNote(activationHint),
-          ],
-          // `.nl-schedule { margin-bottom: 13px }`.
-          const SizedBox(height: 13),
-          if (n?.generatedAt != null) ...[
-            // `.nl-status`: mono 10 caps at 0.1em in `--accent-text`, on the
-            // 24px line box, `margin-bottom: 13px`.
-            Text('Last sent · ${longDate(n!.generatedAt)}'.toUpperCase(),
-                style: KitText.capsLabel(context,
-                        fontSize: 10,
-                        letterSpacing: 0.1,
-                        color: Tokens.of(context).accentText)
-                    .copyWith(height: _lineBox / 10)),
-            const SizedBox(height: 13),
-          ],
-          // `.nl-masthead` is flex-wrap (gap 12): on a phone the subject drops
-          // under the title whole rather than ellipsising beside it.
-          // Its `gap: 12px` is both axes: the wrapped subject sits 12 under.
-          Wrap(
-            spacing: AppSpacing.s3,
-            runSpacing: AppSpacing.s3,
-            crossAxisAlignment: WrapCrossAlignment.end,
-            children: [
-              const KitVersal('A Letter', fontSize: 25),
-              if (n?.subject != null && n!.subject!.isNotEmpty)
-                Text(n.subject!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: KitText.capsLabel(context, letterSpacing: 0)
-                        .copyWith(height: _lineBox / 11)),
-            ],
-          ),
-          // `.nl-lede { margin: 9px 0 13px }`.
-          const SizedBox(height: 9),
-          Lede(
-            n != null
-                ? (n.lede.isNotEmpty
-                    ? n.lede
-                    : 'Your daily reading, drawn from your library.')
-                // INV-24 (ADR-071): "no letter yet" is a claim about the
-                // archive, and a read that FAILED is not evidence for it.
-                : archiveError != null
-                    ? 'Your letters could not be read.'
-                    : !loaded
-                        ? 'Loading…'
-                        : "No letter yet — it draws from what's in your "
-                            'library so far.',
-            fontSize: 16,
-            height: 24,
-            maxWidth: double.infinity,
-          ),
-          const SizedBox(height: 13),
-          if (passages > 0) ...[
-            // `chunk_ids` names exactly the passages the body holds (4.39.0),
-            // so this is counted, not estimated.
-            // `.nl-meta`: sans 13 at --fg-muted, not §3's 14 at --fg-subtle.
-            Text(
-                '$passages ${passages == 1 ? 'passage' : 'passages'} · '
-                '~${passages + 1} min read',
-                style: KitText.ui(context, color: Tokens.of(context).fgMuted)
-                    .copyWith(height: _lineBox / 13)),
-          ],
-          if (sendSlot != null) ...[
-            const SizedBox(height: AppSpacing.s2),
-            sendSlot,
-          ] else if (sendMessage != null) ...[
-            const SizedBox(height: AppSpacing.s2),
-            KitRowNote(sendMessage!),
-          ],
-          // The grid's gap: 18 on a phone, 26 beside the actions above it.
-          SizedBox(height: compact ? 18 : AppSpacing.s4),
-          // `.nl-actions` on a phone (web 9a84288): a row that WRAPS, each
-          // button `flex: 1` with its label centred — the three share a line
-          // when they fit and the last drops to its own, full width, when
-          // they do not. Above the breakpoint they keep their own widths.
-          KitActionFlow(
-            grow: compact,
-            children: [
-              // web `IcoSend` is a right arrow (`M5 12h14M13 5l7 7-7 7`), as
-              // the Ask composer's send already draws it — never a paper plane.
-              KitButton(sending ? 'Sending…' : 'Send now',
-                  icon: Icons.arrow_forward,
-                  center: compact,
-                  wait: sending ? 0 : wait.left,
-                  onPressed: sending ? null : () => onSend()),
-              if (onPreview != null)
-                KitButton('Preview',
-                    icon: Icons.visibility_outlined,
-                    variant: KitButtonVariant.secondary,
-                    center: compact,
-                    onPressed: onPreview),
-              KitButton('Settings',
-                  icon: Icons.settings_outlined,
-                  variant: KitButtonVariant.ghost,
-                  center: compact,
-                  onPressed: onSettings),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The schedule, stated from what was READ (2.29.0 rule 3), with the switch
-/// that owns it.
-class _ScheduleRow extends StatelessWidget {
-  final NewsletterSettings? cfg;
-  final bool busy;
-  final Future<void> Function(bool) onToggle;
-
-  const _ScheduleRow({
-    required this.cfg,
-    required this.busy,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    final enabled = cfg?.enabled == true;
-    return Row(
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          margin: const EdgeInsets.only(right: AppSpacing.s2),
-          decoration: BoxDecoration(
-            // Off is a state, not a severity: the dot goes quiet, it does not
-            // go red.
-            color: cfg == null || !enabled ? t.fgSubtle : t.accent,
-            shape: BoxShape.circle,
+  /// *Sent*: the archive by month. INV-24 (ADR-071): "No letters sent yet" is
+  /// a statement about the archive, and a read that failed is not evidence
+  /// for it.
+  List<Widget> _sent(
+    BuildContext context,
+    NewsletterNotifier letters,
+    List<LettersMonth> groups,
+  ) {
+    if (letters.error != null) {
+      return [
+        KitFailureBlock(
+          sentence: 'Your letters could not be read.',
+          detail: letters.error!,
+          onRetry: () => context.read<NewsletterNotifier>().load(
+            limit: lettersArchiveLimit,
           ),
         ),
-        Expanded(
-          child: Text(
-            // Before the read resolves, say NOTHING about arrival — this
-            // screen once read "Arrives tomorrow morning" to every reader,
-            // including accounts with no schedule at all.
-            cfg == null
-                ? 'Loading…'
-                : scheduleSentence(
-                    enabled: cfg!.enabled,
-                    deliveryTime: cfg!.deliveryTime,
-                    timezone: cfg!.timezone,
-                    frequency: cfg!.frequency,
-                  ).toUpperCase(),
-            // No line cap: `.nl-schedule .nl-status { white-space: normal }`
-            // on a phone (web 9a84288). A cap of two cut the sentence's
-            // timezone to an ellipsis on a 320 card.
-            style: KitText.capsLabel(context,
-                    color: t.accentText, fontSize: 10, letterSpacing: 0.1)
-                .copyWith(height: _lineBox / 10),
-          ),
-        ),
-        if (cfg != null) ...[
-          const SizedBox(width: AppSpacing.s3),
-          KitSwitch(
-            value: enabled,
-            tooltip: enabled ? 'Pause scheduled delivery' : activationHint,
-            onChanged: busy ? null : (v) => onToggle(v),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// The archive — letter rows under a §3 header (letters.md §Composition
-/// *Archive* at 4.98.0, ADR-131: not §4.1 source rows).
-class _Archive extends StatelessWidget {
-  final List<Newsletter> rows;
-  final bool loaded;
-  final String? error;
-  final VoidCallback onRetry;
-  final void Function(Newsletter) onOpen;
-
-  const _Archive({
-    required this.rows,
-    required this.loaded,
-    required this.error,
-    required this.onRetry,
-    required this.onOpen,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // INV-24 (ADR-071): "No letters sent yet" is a statement about the
-    // archive, and a read that failed is not evidence for it.
-    if (error != null) {
-      return KitFailureBlock(
-        sentence: 'Your letters could not be read.',
-        detail: error!,
-        onRetry: onRetry,
-      );
+      ];
     }
-    if (!loaded) return KitRowNote('Loading…');
-    if (rows.isEmpty) return KitRowNote('No letters sent yet.');
-
-    return KitLetterRowList(
-      rows: [
-        for (var i = 0; i < rows.length; i++)
-          _archiveRow(context, rows[i], rows.length - i),
-      ],
-    );
+    if (!letters.loaded) {
+      return const [
+        KitSkeletonLines(
+          top: 0,
+          lines: [KitSkelLine(0.7), KitSkelLine(0.6), KitSkelLine(0.7)],
+        ),
+      ];
+    }
+    if (groups.isEmpty) return const [KitDNone('No letters sent yet.')];
+    return [
+      for (var i = 0; i < groups.length; i++)
+        KeyedSubtree(
+          key: _sec.keyOf('m$i'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              KitLetterMonthHead(
+                groups[i].label,
+                key: ValueKey('d-lmonth-$i'),
+                count: kitCounted(groups[i].rows.length, 'letter'),
+                first: i == 0,
+              ),
+              for (final (a, no) in groups[i].rows) _row(a, no),
+            ],
+          ),
+        ),
+    ];
   }
 
-  /// web `BUILDING_LEDE` — a `generating` record has no letter in it yet, and
-  /// says what the optimistic row says for the whole build (4.76.0).
-  static const buildingLede = 'Gathering the best passages from your library…';
-
-  Widget _archiveRow(BuildContext context, Newsletter n, int number) {
+  /// One sent letter. Only a letter that was BUILT has a body to open; a
+  /// bounced one still opens — it exists, it only never reached the mailbox
+  /// (INV-23). A delivery problem outranks the lede: it is the one thing about
+  /// the row a reader cannot find out any other way.
+  Widget _row(Newsletter n, String no) {
     final badge = letterBadge(
       status: n.status,
       deliveryState: n.delivery?.state,
       trigger: n.trigger,
     );
     final count = n.chunkIds.length;
-    // A delivery problem outranks the preview: it is the one thing about this
-    // row a reader cannot find out any other way.
-    final note = n.status == 'generating'
-        ? buildingLede
+    final lede = n.status == 'generating'
+        ? lettersBuildingLede
         : n.errorMessage ??
-            deliveryNote(
-              state: n.delivery?.state,
-              detail: n.delivery?.detail,
-              attempts: n.delivery?.attempts ?? 0,
-            ) ??
-            n.lede;
-    return KitLetterRow(
-      number: number,
-      title: n.subject?.isNotEmpty == true ? n.subject! : 'A Letter',
-      lede: note,
+              deliveryNote(
+                state: n.delivery?.state,
+                detail: n.delivery?.detail,
+                attempts: n.delivery?.attempts ?? 0,
+              ) ??
+              n.lede;
+    return KitLetterArchiveRow(
+      key: ValueKey('d-lrow-${n.id}'),
+      no: no,
+      title: letterTitle(n),
+      lede: lede,
       figures: count > 0
           ? '$count ${count == 1 ? 'passage' : 'passages'} · ~${count + 1} min'
           : null,
       date: shortDate(n.generatedAt),
       badge: badge.text,
       settled: badge.settled,
-      // Only a letter that was BUILT has a body to open. A bounced one still
-      // opens — it exists, it just never reached the mailbox (INV-23).
-      onTap: n.isReadable ? () => onOpen(n) : null,
+      onTap: n.isReadable ? () => _openLetter(n) : null,
     );
   }
 }

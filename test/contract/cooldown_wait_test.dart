@@ -37,7 +37,6 @@ import 'package:flutter_app/models/import_job.dart';
 import 'package:flutter_app/models/newsletter_settings.dart';
 import 'package:flutter_app/models/study.dart';
 import 'package:flutter_app/pages/letters/letter_preview.dart';
-import 'package:flutter_app/pages/letters_page.dart';
 import 'package:flutter_app/pages/reader/summary_panel.dart';
 import 'package:flutter_app/pages/sources/browse_section.dart';
 import 'package:flutter_app/pages/sources/organization_settings_panel.dart';
@@ -54,6 +53,7 @@ import 'package:flutter_app/state/support_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
+import 'letters_harness.dart';
 import 'sources_harness.dart';
 
 /// Answers every request with [reply]; records what was sent.
@@ -934,24 +934,24 @@ void main() {
           .requestNewsletter()
           .then<Object?>((_) => null, onError: (Object x) => x));
 
+      // Letters (direction D): the page's action carries the wait — on the
+      // rail's label and the tab bar's accessible name — and its sentence is
+      // the send line under the masthead.
+      await pumpLetters(tester, LettersReads(), settings: LettersSettings(null));
+      expect(KitPageTools.instance.action?.label, 'Send now · 0:58');
+      expect(KitPageTools.instance.action?.disabled, isTrue);
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('d-letters-send-line')),
+              matching: find.text(sentence)),
+          findsOneWidget);
+      // Calm, never §14.2 (letters.md, 4.108.0, ADR-145).
+      expect(find.byType(KitFailureInline), findsNothing);
+
+      // Letter settings' preview, on the same clock.
       await tester.pumpWidget(ChangeNotifierProvider<SettingsNotifier>.value(
         value: _Settings(),
-        child: _app(Column(children: [
-          LatestLetterCard(
-            latest: null,
-            loaded: true,
-            archiveError: null,
-            sending: false,
-            onSend: () async {},
-            onPreview: null,
-            onSettings: () {},
-            sendMessage: null,
-            sendError: null,
-            scheduleOutcome: null,
-            scheduleError: null,
-            scheduleBusy: false,
-            onToggleSchedule: (_) async {},
-          ),
+        child: _app(
           LetterPreviewPane(
             letter: null,
             loaded: true,
@@ -959,21 +959,25 @@ void main() {
             sending: false,
             onSend: () {},
           ),
-        ])),
+        ),
       ));
       await tester.pump();
 
-      expect(_button('Send now · 0:58'), findsNWidgets(2));
-      expect(find.text(sentence), findsNWidgets(2));
-      // Calm on both screens, never §14.2 (letters.md, 4.108.0, ADR-145).
+      expect(_button('Send now · 0:58'), findsOneWidget);
+      expect(find.text(sentence), findsOneWidget);
       expect(
           find.ancestor(
               of: find.text(sentence), matching: find.byType(KitWaitNote)),
-          findsNWidgets(2));
+          findsOneWidget);
       expect(find.byType(KitFailureInline), findsNothing);
       await step(tester, const Duration(seconds: 58));
-      expect(_button('Send now'), findsNWidgets(2));
+      expect(_button('Send now'), findsOneWidget);
       expect(find.text(sentence), findsNothing);
+
+      await pumpLetters(tester, LettersReads(), settings: LettersSettings(null));
+      expect(KitPageTools.instance.action?.label, 'Send now');
+      expect(KitPageTools.instance.action?.disabled, isFalse);
+      expect(find.byKey(const ValueKey('d-letters-send-line')), findsNothing);
     });
   });
 
@@ -985,39 +989,59 @@ void main() {
       final api = _Canned((_) => (429, _envelope(sentence, 'RATE_LIMITED', 9)));
       ApiService.instance.httpClientAdapter = api;
       final support = SupportNotifier();
+      KitPageTools.instance.reset();
+      // A desk window: the sheet stands beside the column, so the composer
+      // docked at the column's foot is on screen (at 800×600 the sheet stacks
+      // above the column and the dock rests below the window, as CSS sticky
+      // rests inside its column).
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      // Direction D (F-144): the page is a KitDPage whose skeleton lines
+      // shimmer while the thread is unread, so the pumps here are bounded.
+      Future<void> settle() async {
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+      }
+
       await tester.pumpWidget(ChangeNotifierProvider<SupportNotifier>.value(
         value: support,
         child: const MaterialApp(home: Scaffold(body: SupportPage())),
       ));
       await tester.pump();
-      await tester.enterText(find.byType(TextField), 'The rescan does nothing.');
+      await tester.enterText(
+          find.byKey(const ValueKey('support-field')), 'The rescan does nothing.');
       await tester.pump();
-      await tester.tap(find.bySemanticsLabel('Send'));
-      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsLabel('Send to support'));
+      await settle();
 
       expect(api.sent, hasLength(1));
       expect(support.error, isNull,
           reason: 'the wait owns the sentence; a copy would outlive it');
       expect(find.text(sentence), findsOneWidget);
-      // The dock's calm caption, not its red error line (support.md, 4.108.0).
+      // The composer's calm caption, not its red §14.2 line (support.md,
+      // 4.108.0).
       expect(
           find.ancestor(
               of: find.text(sentence), matching: find.byType(KitWaitNote)),
           findsOneWidget);
       expect(find.byType(KitFailureInline), findsNothing);
-      expect(find.bySemanticsLabel('Send · 0:09'), findsOneWidget);
-      expect(tester.widget<KitComposerDock>(find.byType(KitComposerDock)).waitLeft,
+      expect(find.bySemanticsLabel('Send to support · 0:09'), findsOneWidget);
+      expect(tester.widget<KitDComposer>(find.byType(KitDComposer)).waitLeft,
           9);
       expect(find.text('The rescan does nothing.'), findsOneWidget,
           reason: 'write before you move: the draft stays');
 
-      await tester.tap(find.bySemanticsLabel('Send · 0:09'));
+      await tester.tap(find.bySemanticsLabel('Send to support · 0:09'));
       await tester.pump();
       expect(api.sent, hasLength(1), reason: 'a waiting send sends nothing');
 
       await step(tester, const Duration(seconds: 9));
-      expect(find.bySemanticsLabel('Send'), findsOneWidget);
+      expect(find.bySemanticsLabel('Send to support'), findsOneWidget);
       expect(find.text(sentence), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 2));
       support.dispose();
     });
   });

@@ -34,7 +34,7 @@ import '../services/api_service.dart';
 import '../widgets/app_layout.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/kit/kit.dart';
-import '../widgets/sidebar.dart' show shellAiOn;
+import '../widgets/sidebar.dart' show shellAiOn, shellAiUnread;
 import '../services/analytics.dart';
 import '../services/error_text.dart';
 
@@ -381,7 +381,12 @@ class _ReaderPageState extends State<ReaderPage> {
   Widget _page(BuildContext context) {
     final doc = _document;
     if (_notFound || (_error != null && doc == null)) return _notReadable();
-    if (_loading || doc == null) return _readerLoading();
+    // The switch is read before any section renders (INV-34): a Summary
+    // inserted above a Manuscript the reader was already scrolled into (a
+    // letter's passage link) would move the passage out from under the jump.
+    if (_loading || doc == null || shellAiUnread(context)) {
+      return _readerLoading();
+    }
     return _readerPage(doc);
   }
 

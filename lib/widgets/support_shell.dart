@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../state/ai_settings_notifier.dart';
 import '../state/support_notifier.dart';
 import '../theme/tokens.dart';
 import 'kit/kit.dart';
@@ -60,7 +61,12 @@ class _SupportShellState extends State<SupportShell> {
     // the conversation. Starting it from the screen would leave the count at
     // zero until someone happened to visit.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<SupportNotifier>().start();
+      if (!mounted) return;
+      context.read<SupportNotifier>().start();
+      // The generative-AI switch (INV-34) is read app-wide for the same
+      // reason: the rail, the tab bar and every gated surface ask it on every
+      // screen. `start` is idempotent and re-binds on a change of account.
+      context.read<AiSettingsNotifier?>()?.start();
     });
   }
 

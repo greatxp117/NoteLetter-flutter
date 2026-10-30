@@ -5,15 +5,17 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
-import 'kit_text.dart';
+import 'kit_failure.dart' show KitFailureInline;
 
-/// The **letter configuration form** — the reference's `.letter-config`
+/// The **letter configuration form** — the reference's `.cfg-*` groups
 /// (`LetterSettings.jsx`, `app-responsive.css` `.cfg-*`, `app-scripture.css`
-/// `.cfg-rl`). Letter settings is the one screen that draws it, and it draws
-/// every part twice (the daily letter, then the readings letter), which is why
-/// the parts live here rather than on the page. The groups themselves are
-/// [KitFieldGroup] (`kit_controls.dart`), which notification settings and
-/// onboarding already compose from.
+/// `.cfg-rl` / `.rl-*`). Letter settings is the one screen that draws it, and
+/// it draws every part twice (the daily letter, then the readings letter),
+/// which is why the parts live here rather than on the page. The groups
+/// themselves are [KitFieldGroup] (`kit_controls.dart`), which notification
+/// settings and onboarding already compose from. In direction D the form sits
+/// in Letter settings' numbered sections (`kit_d_support.dart`); its heading
+/// is the D masthead's, so this file no longer draws one.
 ///
 /// It is NOT the settings screen's setting row (icon plate + title +
 /// description). This client drew Letter settings as a stack of those, and the
@@ -22,44 +24,6 @@ import 'kit_text.dart';
 /// with a hairline `--rule`, and opens with a tinted **toggle card** for the
 /// schedule. No `component-kit.md` section names this form yet; the metrics
 /// below are the reference stylesheet's.
-
-/// `.letter-config-h h2` + `.letter-config .sub` — serif 24/600 at `-0.015em`
-/// over the italic serif lede. The screen's title is a heading, not an eyebrow.
-class KitConfigHeading extends StatelessWidget {
-  final String title;
-  final String? standfirst;
-
-  const KitConfigHeading(this.title, {super.key, this.standfirst});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: AppTheme.serif(
-            fontSize: 24,
-            height: 1.2,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.015 * 24,
-            color: t.fg,
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (standfirst != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 22),
-            child: Text(
-              standfirst!,
-              style: KitText.lede(context, fontSize: 14, height: 22),
-            ),
-          ),
-      ],
-    );
-  }
-}
 
 /// `.cfg-rl` — the toggle card that opens a letter's group: a whole-card
 /// switch. `--surface-sunken` with a `--border` edge when off; **tinted**
@@ -203,12 +167,15 @@ class KitConfigHint extends StatelessWidget {
 /// `.rl-field` — the readings letter's labelled field: a sans 12.5/600 label,
 /// the control 7px under it, and an optional `.rl-fnote` (sans 11.5/17 at
 /// `--fg-subtle`). [trailing] puts a control on the label's row
-/// (`.rl-toggle-row` — the "Email it to me" switch).
+/// (`.rl-toggle-row` — the "Email it to me" switch). [error] is a refusal of
+/// THIS field's write (`.rl-ferr`, §14.2), drawn under it — beside the
+/// control that refused, never at the foot of the form.
 class KitConfigField extends StatelessWidget {
   final String label;
   final Widget? child;
   final Widget? trailing;
   final String? note;
+  final String? error;
 
   /// Space above the field: 15 in the readings letter's stack; 0 where a
   /// grid places it (`.st-fields`, the program editor).
@@ -220,6 +187,7 @@ class KitConfigField extends StatelessWidget {
     this.child,
     this.trailing,
     this.note,
+    this.error,
     this.top = 15,
   });
 
@@ -260,7 +228,59 @@ class KitConfigField extends StatelessWidget {
               ),
             ),
           ],
+          if (error != null) ...[
+            const SizedBox(height: 7),
+            KitFailureInline(error!),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// A field and the button that saves it, on one line (`.rl-field` with its
+/// own Save): the field takes the line, the button 8 after it.
+class KitConfigInline extends StatelessWidget {
+  final Widget field;
+  final Widget action;
+
+  const KitConfigInline({super.key, required this.field, required this.action});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(child: field),
+      const SizedBox(width: 8),
+      action,
+    ],
+  );
+}
+
+/// `.rl-settings-f` — the readings letter's foot: 14 under a `--rule`, its
+/// sentence in `.rl-fnote` (sans 11.5/17, `--fg-subtle`) — what a save is
+/// doing, else that the daily letter is untouched.
+class KitConfigFoot extends StatelessWidget {
+  final String text;
+
+  const KitConfigFoot(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.only(top: 14),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: t.rule)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: AppTheme.fontSans,
+          fontSize: 11.5,
+          height: 17 / 11.5,
+          color: t.fgSubtle,
+        ),
       ),
     );
   }
@@ -314,16 +334,23 @@ class KitSourceToggle extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: AppColors.shelfColor(colorToken, dark: t.isDark) ?? t.fgSubtle,
+              color:
+                  AppColors.shelfColor(colorToken, dark: t.isDark) ??
+                  t.fgSubtle,
               shape: BoxShape.circle,
               border: Border.all(color: t.border, width: 0.5),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(label,
-                style: TextStyle(
-                    fontFamily: AppTheme.fontSans, fontSize: 14, color: t.fg)),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: AppTheme.fontSans,
+                fontSize: 14,
+                color: t.fg,
+              ),
+            ),
           ),
           const SizedBox(width: 10),
           KitSwitch(value: value, onChanged: onChanged),

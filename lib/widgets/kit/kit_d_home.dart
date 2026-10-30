@@ -658,6 +658,88 @@ class _Passages extends StatelessWidget {
   }
 }
 
+/// Web's kit `LetterPassages` — the letter card's passages, shared by Home's
+/// letter (its first three) and Letters' latest letter (ALL of them, F-144):
+/// this part, not a copy of it. Nothing without passages. Over 900 of letter
+/// `.ed-cols` runs on in rows of three; Home's card never passes more than
+/// three, so only Letters reaches that branch.
+class KitLetterPassages extends StatelessWidget {
+  final List<KitLetterSection> sections;
+  const KitLetterPassages({super.key, required this.sections});
+
+  @override
+  Widget build(BuildContext context) {
+    if (sections.isEmpty) return const SizedBox.shrink();
+    if (sections.length <= 3) return _Passages(sections: sections);
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth <= 900) return _Passages(sections: sections);
+        final t = Tokens.of(context);
+        final cw = c.maxWidth / 3;
+        // Each row of three as `_Passages` draws its one: the 1px `--border`
+        // between cells is drawn over the row, so no cell needs an intrinsic
+        // (the drop cap lays out with a LayoutBuilder).
+        Widget cell(int i) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _PassageMeta(sections[i]),
+            ),
+            _PassageBody(section: sections[i], first: i == 0),
+          ],
+        );
+        return Container(
+          margin: const EdgeInsets.only(top: 32),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: t.fg)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var r = 0; r * 3 < sections.length; r++)
+                Stack(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var j = 0; j < 3; j++)
+                          SizedBox(
+                            width: cw,
+                            child: r * 3 + j >= sections.length
+                                ? const SizedBox.shrink()
+                                : Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      j == 0 ? 0 : 29,
+                                      22,
+                                      j == 2 ? 0 : 28,
+                                      4,
+                                    ),
+                                    child: cell(r * 3 + j),
+                                  ),
+                          ),
+                      ],
+                    ),
+                    for (var j = 1; j < 3 && r * 3 + j < sections.length; j++)
+                      Positioned(
+                        left: cw * j,
+                        top: 0,
+                        bottom: 0,
+                        child: SizedBox(
+                          width: 1,
+                          child: ColoredBox(color: t.border),
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// `.ed-p-meta` — a mono `§ 01` in `--accent-text` over the passage's title.
 class _PassageMeta extends StatelessWidget {
   final KitLetterSection section;

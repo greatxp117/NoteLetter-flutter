@@ -21,8 +21,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/models/newsletter.dart';
-import 'package:flutter_app/models/newsletter_settings.dart';
-import 'package:flutter_app/pages/letters_page.dart';
 import 'package:flutter_app/pages/settings/summary_prompt.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
@@ -53,13 +51,6 @@ Future<void> _loadFonts() async {
   final icons = FontLoader('MaterialIcons')
     ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
   await icons.load();
-}
-
-class _Settings extends SettingsNotifier {
-  final NewsletterSettings value;
-  _Settings(this.value);
-  @override
-  NewsletterSettings? get newsletter => value;
 }
 
 const _phones = [390.0, 320.0];
@@ -94,32 +85,42 @@ void main() {
 
   double right(WidgetTester tester, Finder f) => tester.getTopRight(f).dx;
 
-  group('§6.8 a segmented track wraps only when its labels cannot share a line',
-      () {
+  // F-144 (direction D, settings.md §Composition): the Summary style's three
+  // dimensions are §34 Switches that fill their row and, on a narrow phone,
+  // wrap to a second line rather than run past the page (`.set-sw`) — in
+  // Settings' ruled register, beside the 38px plate.
+  group('§34 a Summary-style Switch wraps only when its labels cannot share a '
+      'line', () {
     for (final w in _phones) {
       testWidgets('Summary style at $w — nothing cut, lines only as needed',
           (tester) async {
         await pumpPhone(
           tester,
           w,
-          KitRowList(raised: true, rows: [
-            KitSettingRow(
-              icon: Icons.edit_outlined,
-              title: 'Summary style',
-              description: 'How each new source’s summary is written.',
-              below: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final d in styleDimensions)
-                    KitSegmented(groupLabel: 'Group', 
-                      segments: [for (final o in d.options) KitSegment(o.label)],
-                      selected: 0,
-                      onChanged: (_) {},
-                    ),
-                ],
+          KitDSetScope(
+            child: KitRowList(rows: [
+              KitSettingRow(
+                icon: Icons.edit_outlined,
+                title: 'Summary style',
+                description: 'How each new source’s summary is written.',
+                below: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final d in styleDimensions)
+                      KitWrapSwitch<String>(
+                        label: d.label,
+                        value: d.options.first.id,
+                        options: [
+                          for (final o in d.options)
+                            KitSlideOption(o.id, o.label),
+                        ],
+                        onChanged: (_) {},
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ]),
+            ]),
+          ),
         );
         for (final d in styleDimensions) {
           final tops = <double>{};
@@ -130,7 +131,7 @@ void main() {
             expect(right(tester, f), lessThanOrEqualTo(w),
                 reason: '${o.label} past a $w phone');
             tops.add(tester.getTopLeft(f).dy);
-            need += tester.getSize(f).width + 20 + 2; // `.seg button` padding + gap
+            need += tester.getSize(f).width + 22 + 2; // `0 11px` + the gap
           }
           // The track's inner width is the widest line any label sits on.
           final track = tester
@@ -251,66 +252,51 @@ void main() {
     });
   });
 
-  group('Letters — the latest-letter card at phone width (.next-letter)', () {
-    final settings = _Settings(const NewsletterSettings(
-      enabled: true,
-      deliveryTime: '08:00',
-      timezone: 'America/Chicago',
-      frequency: 'daily',
-    ));
+  // Direction D (F-144, screens/letters.md §Composition *Letters*): the latest
+  // letter is the letter card under its kicker; the schedule and Send now left
+  // it for the masthead's folio and the page's action.
+  group('Letters — the latest letter at phone width (.ed-letter.dp-latest)', () {
     final latest = Newsletter.fromJson('n1', {
       'subject': 'Your NoteLetter — On Quiet Rooms',
       'status': 'sent',
       'generated_at': '2026-09-10T13:00:00Z',
       'chunk_ids': ['a', 'b', 'c'],
-      'text_body': 'Three passages found each other today.',
+      'text_body': 'NOTELETTER Vol. I · No. 3 · Thursday',
+      'html_body': '<div data-nl-letterhead="1">'
+          '<div><h2>The crowded pan</h2><blockquote>Brown the meat before '
+          'adding liquid, and never crowd the pan.</blockquote></div>'
+          '<p data-nl-lede="1">Three passages found each other today, and '
+          'each of them is about waiting well.</p></div>',
     });
     for (final w in _phones) {
-      testWidgets('at $w: the schedule wraps, the actions wrap and grow',
-          (tester) async {
+      testWidgets('at $w: the kicker\'s figures drop, trailing; the actions '
+          'stay on the phone', (tester) async {
         await pumpPhone(
           tester,
           w,
-          LatestLetterCard(
-            latest: latest,
-            loaded: true,
-            archiveError: null,
-            sending: false,
-            onSend: () async {},
-            onPreview: () {},
+          KitLatestLetter(
+            state: KitLatestState.built,
+            parts: kitLetterParts(latest),
+            figures: letterFigures(latest),
+            onRead: () {},
             onSettings: () {},
-            sendMessage: null,
-            sendError: null,
-            scheduleOutcome: null,
-            scheduleError: null,
-            scheduleBusy: false,
-            onToggleSchedule: (_) async {},
           ),
-          settings: settings,
         );
-        final sched = find.textContaining('CHICAGO');
-        expect(cut(tester, sched), isFalse,
-            reason: 'the schedule sentence was ellipsised at $w');
-        expect(right(tester, sched), lessThanOrEqualTo(w - 20));
-
-        final send = find.widgetWithText(KitButton, 'Send now');
-        final preview = find.widgetWithText(KitButton, 'Preview');
-        final settingsBtn = find.widgetWithText(KitButton, 'Settings');
-        for (final b in [send, preview, settingsBtn]) {
+        expect(tester.takeException(), isNull);
+        final lead = find.text('THE LETTER · NO. 3');
+        final figs = find.text('3 PASSAGES · ~4 MIN READ');
+        expect(cut(tester, figs), isFalse);
+        expect(tester.getTopLeft(figs).dy,
+            greaterThan(tester.getTopLeft(lead).dy),
+            reason: 'margin-left:auto drops the figures to their own line');
+        expect(right(tester, figs), lessThanOrEqualTo(w - 20 + 0.5));
+        for (final b in [
+          find.widgetWithText(KitButton, 'Read the letter'),
+          find.widgetWithText(KitButton, 'Letter settings'),
+        ]) {
           expect(right(tester, b), lessThanOrEqualTo(w - 20),
               reason: 'an action ran past a $w phone');
         }
-        // Three do not share a line on a phone; the last drops, alone, and
-        // `flex: 1` stretches it to the line.
-        expect(tester.getTopLeft(settingsBtn).dy,
-            greaterThan(tester.getTopLeft(send).dy));
-        expect(tester.getTopLeft(preview).dy, tester.getTopLeft(send).dy);
-        final line = right(tester, preview) - tester.getTopLeft(send).dx;
-        expect(tester.getSize(settingsBtn).width, closeTo(line, 1));
-        // The first line is filled too: equal shares, except that a label
-        // wider than its share keeps its width (a flex item's min-content).
-        expect(tester.getSize(send).width + 8 + tester.getSize(preview).width,
-            closeTo(tester.getSize(settingsBtn).width, 2));
       });
     }
   });

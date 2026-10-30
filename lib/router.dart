@@ -13,6 +13,7 @@ import 'pages/search_page.dart';
 import 'pages/activity_page.dart';
 import 'pages/review_page.dart';
 import 'pages/chat_page.dart';
+import 'pages/ask/ask_off_page.dart';
 import 'pages/settings_page.dart';
 import 'services/camera_sweep_bridge.dart';
 import 'pages/notification_settings_page.dart';
@@ -187,19 +188,25 @@ List<RouteBase> appRoutes() {
             // — and every return from a Reader a citation opened — drew the
             // new-conversation state over a transcript the reader was reading
             // a second earlier.
+            //
+            // While generative AI is off (or unread) each form is the §12
+            // Notice instead (5.29.0, INV-34; ask.md §While generative AI is
+            // off) — a bookmark still arrives somewhere that says why.
             GoRoute(
               path: '/ask',
-              builder: (context, state) => const ChatPage(),
+              builder: (context, state) => const AskGate(child: ChatPage()),
             ),
             GoRoute(
               path: '/ask/shelf/:tagId',
-              builder: (context, state) =>
-                  ChatPage(scopeTagId: state.pathParameters['tagId']),
+              builder: (context, state) => AskGate(
+                child: ChatPage(scopeTagId: state.pathParameters['tagId']),
+              ),
             ),
             GoRoute(
               path: '/ask/thread/:threadId',
-              builder: (context, state) =>
-                  ChatPage(threadId: state.pathParameters['threadId']),
+              builder: (context, state) => AskGate(
+                child: ChatPage(threadId: state.pathParameters['threadId']),
+              ),
             ),
             // Study (2.34.0). `/study/session/:id` is where the session
             // email's CTA lands, so it must be a real route, not a tab.
@@ -300,14 +307,15 @@ List<RouteBase> appRoutes() {
             GoRoute(
               path: '/shelves/map',
               builder: (context, state) => ShelfMapPage(
-                focusShelfId: state.extra is String ? state.extra as String : null,
+                focusShelfId: state.extra is String
+                    ? state.extra as String
+                    : null,
               ),
             ),
             GoRoute(
               path: '/shelves/:shelfId',
-              builder: (context, state) => ShelfPage(
-                shelfId: state.pathParameters['shelfId']!,
-              ),
+              builder: (context, state) =>
+                  ShelfPage(shelfId: state.pathParameters['shelfId']!),
             ),
             GoRoute(path: '/tags', redirect: (context, state) => '/shelves'),
             // Support (4.18.0, ADR-054; spec/screens/support.md). `from` is the

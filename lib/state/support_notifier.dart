@@ -24,7 +24,7 @@ class SupportNotifier extends ChangeNotifier {
   List<SupportMessage> _messages = const [];
   bool _loading = true;
   bool _sending = false;
-  String? _error;          // a send that was rejected
+  String? _error; // a send that was rejected
   /// The subscription's failure (INV-24) — a different thing from a rejected
   /// send, and rendered in a different place.
   String? _subError;
@@ -33,9 +33,9 @@ class SupportNotifier extends ChangeNotifier {
   StreamSubscription<SupportThread?>? _threadSub;
   StreamSubscription<List<SupportMessage>>? _messageSub;
 
-  /// Fired at most once per app run, and only when there is something to clear.
-  /// A write per render is how a counter screen becomes a billing surprise
-  /// (`spec/screens/support.md` §Behaviour).
+  /// A mark-read request is in flight (one at a time). Once per visit is the
+  /// page's guard; a write per render is how a counter screen becomes a
+  /// billing surprise (`spec/screens/support.md` §Behaviour).
   bool _marked = false;
 
   SupportThread? get thread => _thread;
@@ -54,29 +54,36 @@ class SupportNotifier extends ChangeNotifier {
     // INV-24 (ADR-071): "Nothing sent yet" is the empty state a failed thread
     // read used to produce — on the one screen whose whole purpose is that the
     // reader can reach a person.
-    _threadSub ??=
-        FirestoreService.instance.subscribeSupportThread().listen((t) {
-      _thread = t;
-      _subError = null;
-      _loading = false;
-      notifyListeners();
-    }, onError: (e) {
-      _subError = describeSdkError(e);
-      _loading = false;
-      notifyListeners();
-    });
-    _messageSub ??=
-        FirestoreService.instance.subscribeSupportMessages().listen((list) {
-      _messages = list;
-      _subError = null;
-      notifyListeners();
-    }, onError: (e) {
-      _subError = describeSdkError(e);
-      notifyListeners();
-    });
+    _threadSub ??= FirestoreService.instance.subscribeSupportThread().listen(
+      (t) {
+        _thread = t;
+        _subError = null;
+        _loading = false;
+        notifyListeners();
+      },
+      onError: (e) {
+        _subError = describeSdkError(e);
+        _loading = false;
+        notifyListeners();
+      },
+    );
+    _messageSub ??= FirestoreService.instance.subscribeSupportMessages().listen(
+      (list) {
+        _messages = list;
+        _subError = null;
+        notifyListeners();
+      },
+      onError: (e) {
+        _subError = describeSdkError(e);
+        notifyListeners();
+      },
+    );
   }
 
-  /// Opening the screen marks it read — once, and only with something to clear.
+  /// Opening the screen marks it read — once a VISIT (the page guards that,
+  /// as web's per-mount ref does), only with something to clear, and never
+  /// twice at once. Until F-144 this guard lasted the app's whole run, so a
+  /// second visit with a new reply was never marked read.
   ///
   /// Failure is swallowed deliberately: the badge is cosmetic and must never
   /// block or redden the screen the user came here to use.
@@ -87,6 +94,8 @@ class SupportNotifier extends ChangeNotifier {
       await Api.instance.markSupportRead();
     } catch (_) {
       // Cosmetic; the subscription still carries the truth.
+    } finally {
+      _marked = false;
     }
   }
 

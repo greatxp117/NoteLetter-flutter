@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../pages/tags/shelf_sheet.dart';
 import '../shared/local_flags.dart';
+import '../state/ai_settings_notifier.dart';
 import '../state/tags_notifier.dart';
 import '../state/activity_notifier.dart';
 import '../state/review_inbox.dart';
@@ -112,8 +114,7 @@ class _RailContentState extends State<RailContent> {
         // from `view_count`, which INV-03a bumps on an open and nothing else.
         final done = docs.complete;
         final volumes = done.length;
-        final passages =
-            done.fold<int>(0, (n, d) => n + (d.chunkCount ?? 0));
+        final passages = done.fold<int>(0, (n, d) => n + (d.chunkCount ?? 0));
         final unread = done.where((d) => d.viewCount == 0).length;
         final ok = docs.measured;
         final shelfCount = context.watch<TagsNotifier>().tags.length;
@@ -137,17 +138,19 @@ class _RailContentState extends State<RailContent> {
             // 4.100.0 (ADR-135): directly under Home, in the unlabelled lead
             // group, carrying §1.2's attention count — the same object the
             // page's folio reads, so the two cannot disagree.
-            Consumer<ReviewInbox>(builder: (context, inbox, _) {
-              final count = inbox.view.count;
-              return KitNavItem(
-                icon: Icons.inbox_outlined,
-                label: 'For your review',
-                active: route == '/review',
-                onTap: () => go('/review'),
-                badge: kitAttentionLabel(count),
-                badgeUnmeasured: count == null,
-              );
-            }),
+            Consumer<ReviewInbox>(
+              builder: (context, inbox, _) {
+                final count = inbox.view.count;
+                return KitNavItem(
+                  icon: Icons.inbox_outlined,
+                  label: 'For your review',
+                  active: route == '/review',
+                  onTap: () => go('/review'),
+                  badge: kitAttentionLabel(count),
+                  badgeUnmeasured: count == null,
+                );
+              },
+            ),
             const KitRailGroupLabel('Knowledge'),
             KitRailCard(
               icon: Icons.menu_book_outlined,
@@ -158,11 +161,16 @@ class _RailContentState extends State<RailContent> {
               figures: [
                 // A refused or unarrived read is the dash, not three zeros
                 // beside a §14 block saying the read failed (ADR-109).
-                KitRailFigure(ok ? '$volumes' : null,
-                    ok && volumes == 1 ? 'Volume' : 'Volumes'),
+                KitRailFigure(
+                  ok ? '$volumes' : null,
+                  ok && volumes == 1 ? 'Volume' : 'Volumes',
+                ),
                 KitRailFigure(ok ? '$passages' : null, 'Passages'),
-                KitRailFigure(ok ? '$unread' : null, 'Unread',
-                    highlight: unread > 0),
+                KitRailFigure(
+                  ok ? '$unread' : null,
+                  'Unread',
+                  highlight: unread > 0,
+                ),
               ],
             ),
             // Absent while generative AI is off or not yet read — absent,
@@ -197,24 +205,45 @@ class _RailContentState extends State<RailContent> {
               onTap: () => go('/study'),
             ),
           ],
-          footer: _ReaderCard(
-            route: route,
-            activity: activity,
-            go: go,
-          ),
+          footer: _ReaderCard(route: route, activity: activity, go: go),
         );
       },
     );
   }
 }
 
-/// Whether Ask is drawn — in the rail and in the tab bar's last slot.
+/// Whether generated surfaces are drawn (5.29.0, ADR-186, INV-34): Ask in the
+/// rail and the tab bar's last slot (Shelves takes it while off), the
+/// reader's Summary, Search's Cohesive mode, *Ask this shelf*, the checklist's
+/// Ask step, Settings' Summaries. Only a READ `on` is on — while the switch
+/// is unread or its read failed, none of them is drawn (web `genAI === 'on'`).
 ///
-/// This client reads no generative-AI setting yet: the switch (5.29.0,
-/// ADR-186) is F-133's, folded into F-144. Until it lands Ask stays where it
-/// has always been here, which is web's behaviour with AI on; the tab bar and
-/// the rail both ask THIS function, so the day it reads the setting both move.
-bool shellAiOn(BuildContext context) => true;
+/// A tree with no [AiSettingsNotifier] is a bare widget-test harness: the
+/// app's tree always provides one (`appProviders`), so there it is never a
+/// guess, and a harness that does not provide it keeps the AI-on screens it
+/// was written against.
+bool shellAiOn(BuildContext context) {
+  final ai = _aiOf(context);
+  return ai == null || ai.aiOn;
+}
+
+/// The notifier, depended on while the framework is building (so the caller
+/// rebuilds when the switch moves) and only read from an event handler —
+/// Search asks `shellAiOn` inside its submit handler, where a `watch` is an
+/// assertion (provider's "listen outside of the widget tree").
+AiSettingsNotifier? _aiOf(BuildContext context) {
+  final building =
+      SchedulerBinding.instance.schedulerPhase ==
+      SchedulerPhase.persistentCallbacks;
+  return Provider.of<AiSettingsNotifier?>(context, listen: building);
+}
+
+/// The switch has not been read yet (never true without a notifier). A screen
+/// whose layout the switch changes waits on it — the reader draws its skeleton
+/// rather than insert a Summary above a Manuscript the reader was already
+/// scrolled into (web ReaderView's `genAI === 'loading'`).
+bool shellAiUnread(BuildContext context) =>
+    _aiOf(context)?.genAI == GenAI.loading;
 
 /// §1.2's **Reader's card** in the rail's pinned bottom region: the account
 /// (opens Settings) over its perforated Activity stub — the newest event and
@@ -229,8 +258,11 @@ class _ReaderCard extends StatelessWidget {
   final ActivityNotifier activity;
   final void Function(String) go;
 
-  const _ReaderCard(
-      {required this.route, required this.activity, required this.go});
+  const _ReaderCard({
+    required this.route,
+    required this.activity,
+    required this.go,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -268,8 +300,11 @@ class _ReaderCard extends StatelessWidget {
 /// `initialsOf` from the reference: one name gives two letters, two or more
 /// give the first and the last.
 String _initialsOf(String name) {
-  final parts =
-      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) {
     return parts.first

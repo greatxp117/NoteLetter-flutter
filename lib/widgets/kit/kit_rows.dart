@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../shared/passage_figure.dart';
 import '../../theme/tokens.dart';
 import 'kit_d_parts.dart' show KitDScope, KitPanelScope;
+import 'kit_d_settings.dart' show KitDSet, KitDSetScope;
 import 'kit_controls.dart';
 import 'kit_shell.dart' show KitGlyph, KitQuill;
 import 'kit_source_link.dart';
@@ -36,6 +37,26 @@ class KitRowList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // Direction D's Settings and Notifications (web `.dp-set .d-main
+    // .set-rows`): a ruled register under a 1px `--fg` rule — no card,
+    // border, shadow or radius; a `--rule` under every row but the group's
+    // last, whose foot the next head's hairline divides.
+    if (KitDSetScope.of(context)) {
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: t.fg)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < rows.length; i++) ...[
+              if (i > 0) Container(height: 1, color: t.rule),
+              rows[i],
+            ],
+          ],
+        ),
+      );
+    }
     // Flat inside a §28 panel (web `.d-pnl :is(.set-rows, .set-row)`).
     if (KitPanelScope.of(context)) {
       return Column(
@@ -643,6 +664,10 @@ class KitSettingRow extends StatelessWidget {
   /// Beside the title, in the description role — "(paused)".
   final String? titleNote;
   final String? description;
+
+  /// A second paragraph in the description role, 3 under the first (web's
+  /// second `.set-row-desc`): the generative-AI switch's caption while off.
+  final String? caption;
   final Widget? below;
   final List<Widget> trailing;
 
@@ -652,6 +677,12 @@ class KitSettingRow extends StatelessWidget {
   /// wrap at 640; a switch or a link stays beside the text.
   final bool wideControl;
 
+  /// D's register centres the plate and the control on the text (`.set-row
+  /// {align-items: center}`) except where the row holds a strip of its own
+  /// (`alignItems: flex-start`: the Summary style, a channel, a provider).
+  /// Null: top-aligned exactly when [below] is given. Before D, always top.
+  final bool? alignTop;
+
   const KitSettingRow({
     super.key,
     required this.icon,
@@ -659,9 +690,11 @@ class KitSettingRow extends StatelessWidget {
     required this.title,
     this.titleNote,
     this.description,
+    this.caption,
     this.below,
     this.trailing = const [],
     this.wideControl = false,
+    this.alignTop,
   });
 
   @override
@@ -672,12 +705,25 @@ class KitSettingRow extends StatelessWidget {
     // the other stacks at this breakpoint.
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
-    final descStyle = TextStyle(
-      fontFamily: AppTheme.fontSans,
-      fontSize: 13,
-      height: 1.45,
-      color: t.fgMuted,
-    );
+    // Direction D's Settings and Notifications (web `.dp-set .d-main
+    // .set-row*`): the title serif 600 18/24, the description sans 13/19 at
+    // most 64ch, the row `18px 0` — the plate, the gap and the control as
+    // before.
+    final d = KitDSetScope.of(context);
+    final descStyle = d
+        ? KitDSet.desc(context)
+        : TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 13,
+            height: 1.45,
+            color: t.fgMuted,
+          );
+    Widget desc(String text) => d
+        ? ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: KitDSet.descMax(context)),
+            child: Text(text, style: descStyle),
+          )
+        : Text(text, style: descStyle);
     final main = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -685,21 +731,34 @@ class KitSettingRow extends StatelessWidget {
         Text.rich(
           TextSpan(
             text: title,
-            style: TextStyle(
-              fontFamily: AppTheme.fontSans,
-              fontSize: 14.5,
-              fontWeight: FontWeight.w600,
-              color: t.fg,
-            ),
+            style: d
+                ? KitDSet.title(context)
+                : TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                    color: t.fg,
+                  ),
             children: [
               if (titleNote != null)
-                TextSpan(text: '  $titleNote', style: descStyle),
+                TextSpan(
+                  text: '  $titleNote',
+                  // In D the note inherits the title's weight in the
+                  // description's face (`.set-row-desc` inside the title).
+                  style: d
+                      ? descStyle.copyWith(fontWeight: FontWeight.w600)
+                      : descStyle,
+                ),
             ],
           ),
         ),
         if (description != null) ...[
           const SizedBox(height: 3),
-          Text(description!, style: descStyle),
+          desc(description!),
+        ],
+        if (caption != null) ...[
+          const SizedBox(height: 3),
+          desc(caption!),
         ],
         // In the text column at every width (`.set-row-main` holds the level
         // picker on web, phone included): beside the icon column, where on a
@@ -712,28 +771,45 @@ class KitSettingRow extends StatelessWidget {
       ],
     );
     final stackTrailing = compact && wideControl && trailing.isNotEmpty;
-    final controls = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < trailing.length; i++) ...[
-          if (i > 0) const SizedBox(width: AppSpacing.s2),
-          trailing[i],
-        ],
-      ],
-    );
+    // In D the cluster is bounded (a Wrap under a 360 cap): a §14.1 block in
+    // it — the Plan row's, the generative-AI switch's — fills the width it is
+    // given, and a Row hands its children none.
+    final Widget controls = d
+        ? ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Wrap(
+              spacing: AppSpacing.s2,
+              runSpacing: AppSpacing.s2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: trailing,
+            ),
+          )
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < trailing.length; i++) ...[
+                if (i > 0) const SizedBox(width: AppSpacing.s2),
+                trailing[i],
+              ],
+            ],
+          );
     // Inside a §28 panel: no inset and no icon plate (web `.d-pnl
     // .set-row-ico { display: none }`, `.d-pnl .set-row { padding: 0 }`).
     final panel = KitPanelScope.of(context);
+    final top = !d || (alignTop ?? below != null);
     return Padding(
       padding: panel
           ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          : (d
+                ? const EdgeInsets.symmetric(vertical: 18)
+                : const EdgeInsets.symmetric(horizontal: 20, vertical: 18)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                top ? CrossAxisAlignment.start : CrossAxisAlignment.center,
             children: [
               if (!panel) ...[
               leading ??
@@ -786,7 +862,10 @@ class KitRowSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        // D's register has no row inset (`.dp-set .d-main .set-row`).
+        padding: KitDSetScope.of(context)
+            ? const EdgeInsets.symmetric(vertical: 18)
+            : const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         child: child,
       );
 }
@@ -947,12 +1026,14 @@ class KitRowNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(text,
-      style: TextStyle(
-        fontFamily: AppTheme.fontSans,
-        fontSize: 13,
-        height: 1.45,
-        color: Tokens.of(context).fgMuted,
-      ));
+      style: KitDSetScope.of(context)
+          ? KitDSet.desc(context)
+          : TextStyle(
+              fontFamily: AppTheme.fontSans,
+              fontSize: 13,
+              height: 1.45,
+              color: Tokens.of(context).fgMuted,
+            ));
 }
 
 /// The build stamp that closes Settings (`BuildStamp.jsx`): mono 11 in the

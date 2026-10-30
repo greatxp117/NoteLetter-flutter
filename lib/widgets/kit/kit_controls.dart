@@ -21,6 +21,8 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_d_parts.dart' show KitDScope;
+import 'kit_d_settings.dart' show KitDSetScope;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 import 'kit_wait.dart';
@@ -1427,20 +1429,186 @@ class KitSegmentedMulti extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
-          return _segTrack(
-            context,
-            segments: segments,
-            fill: (expand || compact) && constraints.hasBoundedWidth,
-            isOn: selected.contains,
-            onTap: onToggle,
-            groupLabel: groupLabel,
-          );
-        },
+  Widget build(BuildContext context) {
+    // Direction D (notifications.md §Composition; web `.seg.seg-multi`): any
+    // subset, so not a §34 Switch — D's outlined track instead of the sunken
+    // one, every pressed segment raised on its own, filling its row.
+    if (KitDScope.of(context)) {
+      return Semantics(
+        container: true,
+        explicitChildNodes: true,
+        label: groupLabel,
+        child: _SegMultiD(
+          segments: segments,
+          isOn: selected.contains,
+          onTap: onToggle,
+        ),
       );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+        return _segTrack(
+          context,
+          segments: segments,
+          fill: (expand || compact) && constraints.hasBoundedWidth,
+          isOn: selected.contains,
+          onTap: onToggle,
+          groupLabel: groupLabel,
+        );
+      },
+    );
+  }
+}
+
+/// [KitSegmentedMulti] in D (web `.seg.seg-multi`): `width: 100%; flex-wrap:
+/// wrap`, no ground, a 1px `--border-strong` inset at the control radius of
+/// 32, 3 inside and 2 between; each segment 26 tall, `0 12px`, at the control
+/// radius of 24, sans 12.5/400 — `--fg-muted`, or raised onto `--surface`
+/// with `--shadow-1` in `--fg` when pressed. Segments grow from their own
+/// width by an equal share of their line (`flex: 1 1 auto`) and wrap when
+/// they cannot share one. Held (no handler): every segment at the token.
+class _SegMultiD extends StatelessWidget {
+  final List<KitSegment> segments;
+  final bool Function(int) isOn;
+  final ValueChanged<int>? onTap;
+
+  const _SegMultiD({
+    required this.segments,
+    required this.isOn,
+    required this.onTap,
+  });
+
+  static const double _gap = 2;
+  static const double _padX = 12;
+
+  static TextStyle _style([Color? fg]) => TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w400,
+        color: fg,
+      );
+
+  Widget _segment(BuildContext context, int i) {
+    final t = Tokens.of(context);
+    final s = segments[i];
+    final on = isOn(i);
+    final held = onTap == null;
+    return Semantics(
+      button: true,
+      selected: on,
+      enabled: !held,
+      label: s.label,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: held ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: held ? null : () => onTap!(i),
+          child: Opacity(
+            opacity: held ? AppSpacing.heldOpacity : 1,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              height: 26,
+              padding: const EdgeInsets.symmetric(horizontal: _padX),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: on ? t.surface : const Color(0x00000000),
+                borderRadius: AppRadius.controlR(24),
+                boxShadow: on ? AppShadows.s1 : null,
+              ),
+              child: Text(
+                s.label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.fade,
+                style: _style(on ? t.fg : t.fgMuted),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        borderRadius: AppRadius.controlR(32),
+        border: Border.all(color: t.borderStrong),
+      ),
+      child: LayoutBuilder(builder: (context, c) {
+        if (!c.hasBoundedWidth) {
+          return Row(mainAxisSize: MainAxisSize.min, children: [
+            for (var i = 0; i < segments.length; i++) ...[
+              if (i > 0) const SizedBox(width: _gap),
+              _segment(context, i),
+            ],
+          ]);
+        }
+        final natural = [
+          for (final s in segments)
+            () {
+              final tp = TextPainter(
+                text: TextSpan(text: s.label, style: _style()),
+                textDirection: TextDirection.ltr,
+                textScaler: scaler,
+                maxLines: 1,
+              )..layout();
+              final w = tp.width;
+              tp.dispose();
+              return (w + 2 * _padX).ceilToDouble();
+            }(),
+        ];
+        final avail = c.maxWidth;
+        final lines = <List<int>>[];
+        var line = <int>[];
+        var used = 0.0;
+        for (var i = 0; i < natural.length; i++) {
+          final need = natural[i] + (line.isEmpty ? 0 : _gap);
+          if (line.isNotEmpty && used + need > avail) {
+            lines.add(line);
+            line = <int>[];
+            used = 0;
+          }
+          used += natural[i] + (line.isEmpty ? 0 : _gap);
+          line.add(i);
+        }
+        if (line.isNotEmpty) lines.add(line);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var l = 0; l < lines.length; l++) ...[
+              if (l > 0) const SizedBox(height: _gap),
+              Row(children: [
+                for (var k = 0; k < lines[l].length; k++) ...[
+                  if (k > 0) const SizedBox(width: _gap),
+                  SizedBox(
+                    width: (natural[lines[l][k]] +
+                            ((avail -
+                                        lines[l].fold<double>(
+                                            0, (a, i) => a + natural[i]) -
+                                        _gap * (lines[l].length - 1)) /
+                                    lines[l].length)
+                                .clamp(0.0, double.infinity))
+                        .clamp(0.0, avail)
+                        .floorToDouble(),
+                    child: _segment(context, lines[l][k]),
+                  ),
+                ],
+              ]),
+            ],
+          ],
+        );
+      }),
+    );
+  }
 }
 
 /// The §6.8 track, drawn once for both arities.
@@ -2000,9 +2168,15 @@ class KitFieldGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // Direction D's Settings and Notifications (web `.dp-set .d-main
+    // .cfg-label .l`): the label mono 10.5/0.14em; the first group under a
+    // §31 head stands on the head's own spacing, unruled
+    // (`.dp-notif .dp-sh + .set-section > .cfg-group:first-child`).
+    final d = KitDSetScope.of(context);
     return Container(
       margin: EdgeInsets.only(top: second ? 4 : 0),
-      padding: EdgeInsets.only(top: second ? 20 : 18, bottom: 18),
+      padding: EdgeInsets.only(
+          top: d && first ? 0 : (second ? 20 : 18), bottom: 18),
       decoration: BoxDecoration(
         border: first
             ? null
@@ -2016,8 +2190,11 @@ class KitFieldGroup extends StatelessWidget {
             children: [
               Text(
                 label.toUpperCase(),
-                style: KitText.capsLabel(context,
-                    fontSize: 10, letterSpacing: 0.12),
+                style: d
+                    ? KitText.capsLabel(context,
+                        fontSize: 10.5, letterSpacing: 0.14, color: t.fgMuted)
+                    : KitText.capsLabel(context,
+                        fontSize: 10, letterSpacing: 0.12),
               ),
               if (note != null)
                 Text(

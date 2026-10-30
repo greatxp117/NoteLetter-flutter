@@ -450,6 +450,23 @@ class Api {
   Future<Map<String, dynamic>> resetSummaryPrompt() =>
       _http.put('/fn_summary_settings', data: {'summaryPrompt': null});
 
+  // ── AI settings (5.29.0, ADR-186, INV-34; 5.33.0, ADR-190, INV-36) ────────
+
+  /// `fn_ai_settings` PUT — its own document and its own closed key set:
+  /// `generativeAI` (bool) and `videoAI` (`openai` | `claude`), each optional,
+  /// at least one. A key not sent is not touched, so each control sends exactly
+  /// its own key and nothing else (api/ai.md). GET is 410 — clients read
+  /// `/users/{uid}/settings/ai` directly, see
+  /// [FirestoreService.subscribeAiSettings]. Web `updateAiSettings(partial)`.
+  Future<Map<String, dynamic>> updateAiSettings({
+    bool? generativeAI,
+    String? videoAI,
+  }) =>
+      _http.put('/fn_ai_settings', data: {
+        'generativeAI': ?generativeAI,
+        'videoAI': ?videoAI,
+      });
+
   /// Re-run `summary`/`key_points`/`themes` for one complete document under the
   /// current prompt. **The response body is the client's update path**: the
   /// reader doc is a one-shot fetch with no subscription to deliver the new

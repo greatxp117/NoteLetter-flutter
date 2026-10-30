@@ -23,7 +23,7 @@
 ///     authoring lectionary knowledge in the one place a reader cannot check.
 library;
 
-import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/material.dart' show Icons, TextEditingController;
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
@@ -50,9 +50,13 @@ const calendarLabel = 'Roman';
 const calendarNote =
     'Revised Common and Anglican aren’t in the lectionary yet.';
 
-/// The Letters screen's readings block: the §3 header, then either the opt-in
-/// or the card, then the archive of what has been sent.
-class ReadingsLetterSection extends StatefulWidget {
+/// Letters' *The readings letter* section (direction D, screens/letters.md
+/// §Composition *Letters*, column 2): a §31 small head with *Settings* (the
+/// page's panel) while on, then the card while on or the opt-in while not.
+/// **Hidden until its settings document answers**, so an opt-in never flashes
+/// for someone already opted in; a refused read draws nothing here — the page
+/// puts §14.2 in its place (INV-24: a failed read is not evidence it is off).
+class ReadingsLetterSection extends StatelessWidget {
   final List<Newsletter> issues;
   final void Function(Newsletter) onOpen;
   final VoidCallback onSettings;
@@ -65,77 +69,79 @@ class ReadingsLetterSection extends StatefulWidget {
   });
 
   @override
-  State<ReadingsLetterSection> createState() => _ReadingsLetterSectionState();
-}
-
-class _ReadingsLetterSectionState extends State<ReadingsLetterSection> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<ScriptureLetterNotifier>().load();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final n = context.watch<ScriptureLetterNotifier>();
-
-    // INV-24 (ADR-071): this whole block says whether the readings letter is
-    // on, and a failed read of that document is not evidence that it is off.
-    if (n.error != null) {
-      return Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.s4),
-        child: KitFailureBlock(
-          sentence: 'Your readings-letter settings could not be read.',
-          detail: n.error!,
-          onRetry: n.load,
-        ),
-      );
-    }
-    // Hidden entirely until the document has loaded, so an opt-in card never
-    // flashes for someone who already opted in.
     final cfg = n.settings;
-    if (cfg == null) return const SizedBox.shrink();
+    if (n.error != null || cfg == null) return const SizedBox.shrink();
 
-    final issues = widget.issues;
     final latest = issues.isEmpty
         ? null
-        : issues.firstWhere((i) => i.status != 'empty',
-            orElse: () => issues.first);
+        : issues.firstWhere(
+            (i) => i.status != 'empty',
+            orElse: () => issues.first,
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader('The readings letter',
-            actionLabel: cfg.enabled ? 'Settings' : null,
-            onAction: cfg.enabled ? widget.onSettings : null),
+        KitSectionHead(
+          'The readings letter',
+          small: true,
+          actions: [if (cfg.enabled) KitHxLink('Settings', onTap: onSettings)],
+        ),
         if (cfg.enabled)
           _OnCard(
             cfg: cfg,
             issue: latest,
-            onPreview: latest == null ? null : () => widget.onOpen(latest),
-            onSettings: widget.onSettings,
+            onPreview: latest == null ? null : () => onOpen(latest),
+            onSettings: onSettings,
           )
         else
           _OptIn(busy: n.isSaving, error: n.saveError, onTurnOn: n.turnOn),
-        if (issues.isNotEmpty) ...[
-          SectionHeader('Readings sent · ${issues.length}'),
-          // The daily archive's own surface and row (`.archive-list`,
-          // `.letter-row.rl-row`) — not §4.1 source rows.
-          KitLetterRowList(
-            rows: [
-              for (var i = 0; i < issues.length; i++)
-                _archiveRow(context, issues[i], issues.length - i),
-            ],
-          ),
-        ],
+      ],
+    );
+  }
+}
+
+/// Letters' *Readings sent* (direction D, column 4): a §31 small head,
+/// counted, over the readings letters' rows as a ruled register. Nothing
+/// without any.
+class ReadingsSentSection extends StatelessWidget {
+  final List<Newsletter> issues;
+  final void Function(Newsletter) onOpen;
+
+  const ReadingsSentSection({
+    super.key,
+    required this.issues,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (issues.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KitSectionHead(
+          'Readings sent',
+          small: true,
+          meta: kitCounted(issues.length, 'letter'),
+        ),
+        // The daily archive's own row (`.letter-row.rl-row`) — not §4.1
+        // source rows — in a register (`.dp-letters .archive-list`).
+        KitLetterRowList(
+          register: true,
+          rows: [
+            for (var i = 0; i < issues.length; i++)
+              _archiveRow(issues[i], issues.length - i),
+          ],
+        ),
       ],
     );
   }
 
   /// A readings letter is filed by its **day**, not by a title.
-  Widget _archiveRow(BuildContext context, Newsletter n, int number) {
+  Widget _archiveRow(Newsletter n, int number) {
     final badge = n.status == 'empty'
         ? const LetterBadge('No readings')
         : letterBadge(
@@ -147,29 +153,164 @@ class _ReadingsLetterSectionState extends State<ReadingsLetterSection> {
     final note = n.status == 'empty'
         ? (n.errorMessage ?? 'No readings for this day')
         : n.status == 'email_failed'
-            ? (n.errorMessage ?? 'The email did not go out.')
-            : (deliveryNote(
-                  state: n.delivery?.state,
-                  detail: n.delivery?.detail,
-                  attempts: n.delivery?.attempts ?? 0,
-                ) ??
-                refs.join('  ·  '));
+        ? (n.errorMessage ?? 'The email did not go out.')
+        : (deliveryNote(
+                state: n.delivery?.state,
+                detail: n.delivery?.detail,
+                attempts: n.delivery?.attempts ?? 0,
+              ) ??
+              refs.join('  ·  '));
     final found = n.passagesFound ?? 0;
     return KitLetterRow(
+      key: ValueKey('d-rlrow-${n.id}'),
       number: number,
       title: n.liturgicalDay?.title ?? 'Readings',
       kind: 'Readings',
       refs: true,
       lede: note,
       // Stored AS SENT, so "5 of 23" stays honest as the library grows.
-      figures: '${n.passagesSent ?? 0} of $found '
+      figures:
+          '${n.passagesSent ?? 0} of $found '
           '${found == 1 ? 'passage' : 'passages'}',
       date: shortDate(n.generatedAt),
       badge: badge.text,
       settled: badge.settled,
       onTap: n.status != 'empty' && n.readings.isNotEmpty
-          ? () => widget.onOpen(n)
+          ? () => onOpen(n)
           : null,
+    );
+  }
+}
+
+/// The readings letter's own rows in the Letters settings panel (web
+/// `ReadingsQuick`; LetterQuick's `extra`), under the daily letter's: *The
+/// readings letter* label, *Daily readings* with its switch — `Arrives at
+/// {time}` / `Off` — and, while on, its hour with its zone. Every control
+/// draws what was STORED and moves only when the write comes back (write
+/// before you move): turning it on writes the whole starting document
+/// ([ScriptureLetterNotifier.turnOn]); off and the hour are writes of the
+/// document with that one change. The hour is a draft committed on blur or
+/// Enter; a refused write puts the field back to what is stored. A refusal is
+/// §14.2 under the rows.
+class ReadingsQuick extends StatefulWidget {
+  const ReadingsQuick({super.key});
+
+  @override
+  State<ReadingsQuick> createState() => _ReadingsQuickState();
+}
+
+class _ReadingsQuickState extends State<ReadingsQuick> {
+  final TextEditingController _time = TextEditingController();
+  final FocusNode _focus = FocusNode();
+  bool _editing = false;
+  late final ScriptureLetterNotifier _n;
+
+  @override
+  void initState() {
+    super.initState();
+    _n = context.read<ScriptureLetterNotifier>();
+    _time.text = _stored;
+    _focus.addListener(_onFocus);
+    _n.addListener(_sync);
+  }
+
+  /// A new read (or an accepted write) is what the field shows, unless the
+  /// reader is typing in it.
+  void _sync() {
+    if (!_editing && !_focus.hasFocus && _time.text != _stored) {
+      _time.text = _stored;
+    }
+  }
+
+  @override
+  void dispose() {
+    _n.removeListener(_sync);
+    _focus.removeListener(_onFocus);
+    _focus.dispose();
+    _time.dispose();
+    super.dispose();
+  }
+
+  String get _stored {
+    final t = _n.settings?.deliveryTime ?? '';
+    return t.isEmpty ? '06:30' : t;
+  }
+
+  void _onFocus() {
+    if (_focus.hasFocus) {
+      _editing = true;
+      return;
+    }
+    if (_editing) _commit();
+  }
+
+  /// `6:5`-shaped input is padded to the stored `HH:MM`; anything else is sent
+  /// as typed, and the endpoint's refusal is what the reader sees.
+  static String _normalise(String raw) {
+    final m = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(raw.trim());
+    if (m == null) return raw.trim();
+    return '${m.group(1)!.padLeft(2, '0')}:${m.group(2)}';
+  }
+
+  Future<void> _commit() async {
+    _editing = false;
+    final cfg = _n.settings;
+    final draft = _normalise(_time.text);
+    if (cfg == null || draft.isEmpty || draft == _stored) {
+      setState(() => _time.text = _stored);
+      return;
+    }
+    // 2.29.0 — the hour goes with its zone, or it is read as UTC.
+    await _n.save(
+      cfg.copyWith(
+        deliveryTime: draft,
+        timezone: cfg.timezone.isEmpty ? deviceTimezone() : cfg.timezone,
+      ),
+    );
+    if (!mounted) return;
+    // What is stored now: the write, or — refused — the last read.
+    if (!_focus.hasFocus) setState(() => _time.text = _stored);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = context.watch<ScriptureLetterNotifier>();
+    final cfg = n.settings;
+    if (cfg == null) return const SizedBox.shrink();
+    final on = cfg.enabled;
+    final time = cfg.deliveryTime.isEmpty ? '06:30' : cfg.deliveryTime;
+    final busy = n.isSaving;
+    return Column(
+      key: const ValueKey('d-lq-rl'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const KitDLabel('The readings letter'),
+        KitLetterSwitchRow(
+          key: const ValueKey('d-lq-rl-switch'),
+          title: 'Daily readings',
+          line: on ? 'Arrives at ${kitClock(time) ?? time}' : 'Off',
+          value: on,
+          label: 'The readings letter',
+          onChanged: busy
+              ? null
+              : (_) => on ? n.save(cfg.copyWith(enabled: false)) : n.turnOn(),
+        ),
+        if (on) ...[
+          const SizedBox(height: 12),
+          KitLetterTimeField(
+            fieldKey: const ValueKey('d-lq-rl-time'),
+            label: 'Readings delivery time',
+            controller: _time,
+            focusNode: _focus,
+            readOnly: busy,
+            zone: cfg.timezone.isEmpty ? null : cfg.timezone,
+          ),
+        ],
+        if (n.saveError != null) ...[
+          const SizedBox(height: 12),
+          KitFailureInline(n.saveError!),
+        ],
+      ],
     );
   }
 }
@@ -181,7 +322,11 @@ class _OptIn extends StatelessWidget {
   final String? error;
   final Future<void> Function() onTurnOn;
 
-  const _OptIn({required this.busy, required this.error, required this.onTurnOn});
+  const _OptIn({
+    required this.busy,
+    required this.error,
+    required this.onTurnOn,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -214,8 +359,10 @@ class _OptIn extends StatelessWidget {
           const SizedBox(height: AppSpacing.s3),
           KitRowNote('$calendarLabel calendar. $calendarNote'),
           const SizedBox(height: AppSpacing.s4),
-          KitButton(busy ? 'Turning on…' : 'Turn on the readings letter',
-              onPressed: busy ? null : () => onTurnOn()),
+          KitButton(
+            busy ? 'Turning on…' : 'Turn on the readings letter',
+            onPressed: busy ? null : () => onTurnOn(),
+          ),
           if (error != null) ...[
             const SizedBox(height: AppSpacing.s3),
             KitFailureInline(error!),
@@ -255,8 +402,10 @@ class _OnCard extends StatelessWidget {
                 width: 7,
                 height: 7,
                 margin: const EdgeInsets.only(right: AppSpacing.s2),
-                decoration:
-                    BoxDecoration(color: t.accent, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: t.accent,
+                  shape: BoxShape.circle,
+                ),
               ),
               Expanded(
                 child: Text(
@@ -269,13 +418,17 @@ class _OnCard extends StatelessWidget {
                   // not this line's.
                   (cfg.emailEnabled
                           ? 'On · arrives ${cfg.deliveryTime} '
-                              '${cfg.timezone.isEmpty ? deviceTimezone() : cfg.timezone}'
+                                '${cfg.timezone.isEmpty ? deviceTimezone() : cfg.timezone}'
                           : 'On · in the app only')
                       .toUpperCase(),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: KitText.capsLabel(context,
-                      color: t.accentText, fontSize: 10, letterSpacing: 0.1),
+                  style: KitText.capsLabel(
+                    context,
+                    color: t.accentText,
+                    fontSize: 10,
+                    letterSpacing: 0.1,
+                  ),
                 ),
               ),
             ],
@@ -291,10 +444,12 @@ class _OnCard extends StatelessWidget {
             children: [
               const KitVersal('The Readings', fontSize: 25),
               if (n?.generatedAt != null)
-                Text(longDate(n!.generatedAt),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: KitText.capsLabel(context, letterSpacing: 0.04)),
+                Text(
+                  longDate(n!.generatedAt),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: KitText.capsLabel(context, letterSpacing: 0.04),
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.s2),
@@ -318,10 +473,9 @@ class _OnCard extends StatelessWidget {
                         Text(r.ref, style: KitText.meta(context)),
                         const SizedBox(width: AppSpacing.s3),
                         Text(
-                            r.passages.isEmpty
-                                ? '—'
-                                : '${r.passages.length}',
-                            style: KitText.capsLabel(context)),
+                          r.passages.isEmpty ? '—' : '${r.passages.length}',
+                          style: KitText.capsLabel(context),
+                        ),
                       ],
                     ),
                   ),
@@ -349,12 +503,17 @@ class _OnCard extends StatelessWidget {
             children: [
               // Deliberately NO send action.
               if (onPreview != null)
-                KitButton('Preview',
-                    icon: Icons.visibility_outlined, onPressed: onPreview),
-              KitButton('Settings',
-                  icon: Icons.settings_outlined,
-                  variant: KitButtonVariant.ghost,
-                  onPressed: onSettings),
+                KitButton(
+                  'Preview',
+                  icon: Icons.visibility_outlined,
+                  onPressed: onPreview,
+                ),
+              KitButton(
+                'Settings',
+                icon: Icons.settings_outlined,
+                variant: KitButtonVariant.ghost,
+                onPressed: onSettings,
+              ),
             ],
           ),
         ],
@@ -373,10 +532,19 @@ class ReadingsLetterDocument extends StatelessWidget {
   /// open into — the control is not drawn rather than drawn inert.
   final VoidCallback? onSeeAll;
 
+  /// A key for each reading's rule (its label) — what a reader's *Passages*
+  /// Contents follows (direction D). Readings with no label are not counted.
+  final Key Function(int i)? headKey;
+
+  /// False in a D column: the sheet takes the column's width.
+  final bool inset;
+
   const ReadingsLetterDocument({
     super.key,
     required this.letter,
     this.onSeeAll,
+    this.headKey,
+    this.inset = true,
   });
 
   @override
@@ -394,39 +562,64 @@ class ReadingsLetterDocument extends StatelessWidget {
     // 4.24.0 — the letter is complete and this IS it; only the mail did not
     // go. Rendered above the readings rather than instead of them.
     if (n.status == 'email_failed') {
-      body.add(KitLetterProse(
-        child: Text('This letter did not reach your inbox. '
-            '${n.errorMessage ?? ''}'.trim()),
-      ));
+      body.add(
+        KitLetterProse(
+          child: Text(
+            'This letter did not reach your inbox. '
+                    '${n.errorMessage ?? ''}'
+                .trim(),
+          ),
+        ),
+      );
     }
 
     if (n.status == 'empty') {
-      body.add(KitLetterProse(
-        child: Text(n.errorMessage ??
-            'No readings are available for this day yet.'),
-      ));
+      body.add(
+        KitLetterProse(
+          child: Text(
+            n.errorMessage ?? 'No readings are available for this day yet.',
+          ),
+        ),
+      );
     } else {
+      var head = 0;
       for (final r in n.readings) {
-        body.add(RuledSectionLabel('${r.label}  ·  ${r.ref}'));
+        final label = RuledSectionLabel('${r.label}  ·  ${r.ref}');
+        body.add(
+          headKey != null && r.label.trim().isNotEmpty
+              ? KeyedSubtree(key: headKey!(head++), child: label)
+              : label,
+        );
         if (r.passages.isEmpty) {
-          body.add(KitLetterProse(
-            child: Text(r.parsed
-                ? 'Nothing on your shelves answers this reading yet.'
-                // A citation that did not parse says so, rather than showing
-                // an empty result — which would read as an empty library.
-                : 'This citation could not be read, so nothing was matched '
-                    'against it.'),
-          ));
+          body.add(
+            KitLetterProse(
+              child: Text(
+                r.parsed
+                    ? 'Nothing on your shelves answers this reading yet.'
+                    // A citation that did not parse says so, rather than showing
+                    // an empty result — which would read as an empty library.
+                    : 'This citation could not be read, so nothing was matched '
+                          'against it.',
+              ),
+            ),
+          );
         } else {
           for (final p in r.passages) {
-            body.add(KitLetterProse(
-              child: KitMarkedText(p.text,
-                  style: DefaultTextStyle.of(context).style),
-            ));
+            body.add(
+              KitLetterProse(
+                child: KitMarkedText(
+                  p.text,
+                  style: DefaultTextStyle.of(context).style,
+                ),
+              ),
+            );
           }
           if (r.matchTotal > r.passages.length) {
-            body.add(KitLetterAttribution(
-                '${r.passages.length} of ${r.matchTotal} matches'));
+            body.add(
+              KitLetterAttribution(
+                '${r.passages.length} of ${r.matchTotal} matches',
+              ),
+            );
           }
         }
       }
@@ -436,21 +629,24 @@ class ReadingsLetterDocument extends StatelessWidget {
     // the ones it sent — that is the number the day view re-measures, and
     // saying "see all 5" under a letter that carried 3 is the whole point.
     if (n.readings.isNotEmpty && onSeeAll != null) {
-      body.add(Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.s6),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: KitButton(
-            'See all ${n.passagesFound ?? 0} passages for this day',
-            variant: KitButtonVariant.ghost,
-            onPressed: onSeeAll,
+      body.add(
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.s6),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: KitButton(
+              'See all ${n.passagesFound ?? 0} passages for this day',
+              variant: KitButtonVariant.ghost,
+              onPressed: onSeeAll,
+            ),
           ),
         ),
-      ));
+      );
     }
 
     return KitLetterSheet(
       title: 'The Readings',
+      inset: inset,
       marker: longDate(n.generatedAt),
       sealText: [
         '${n.status == 'email_failed' ? 'Prepared' : 'Sent'} '

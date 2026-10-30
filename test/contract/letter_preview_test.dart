@@ -125,8 +125,10 @@ void main() {
               error: 'You appear to be offline.',
               sending: false,
               onSend: null));
+      // It names no day (ADR-132; web D's sentence).
       expect(
-          find.text("Today's letter could not be read — You appear to be offline."),
+          find.text(
+              'Your latest letter could not be read — You appear to be offline.'),
           findsOneWidget);
       expect(find.text('No letter has been built yet.'), findsNothing);
     });

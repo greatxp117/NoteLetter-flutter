@@ -80,7 +80,9 @@ void main() {
       ),
     ));
     expect(find.byType(KitSourceToggle), findsNWidgets(2));
-    expect(find.textContaining('1 shelves'), findsOneWidget,
+    // `counted`: a count and its noun agree (web `counted(n, 'shelf',
+    // 'shelves')`; this said "1 shelves" until F-144).
+    expect(find.text('1 shelf'), findsOneWidget,
         reason: 'the deleted shelf is not counted');
     bool on(String title) => tester
         .widget<KitSourceToggle>(find.widgetWithText(KitSourceToggle, title))
@@ -93,7 +95,7 @@ void main() {
         matching: find.byType(KitSwitch)));
     await tester.pump();
     expect(on('Stories'), isTrue);
-    expect(find.textContaining('2 shelves'), findsOneWidget);
+    expect(find.text('2 shelves'), findsOneWidget);
 
     for (final t in ['Pasta', 'Stories']) {
       await tester.tap(find.descendant(
@@ -101,7 +103,7 @@ void main() {
           matching: find.byType(KitSwitch)));
       await tester.pump();
     }
-    expect(find.textContaining('all shelves'), findsOneWidget);
+    expect(find.text('all shelves'), findsOneWidget);
   });
 
   test('the save carries topicFilters in the same PUT', () async {

@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
 import 'state/activity_notifier.dart';
+import 'state/ai_settings_notifier.dart';
 import 'state/auth_notifier.dart';
 import 'state/camera_sweep_host.dart';
 import 'state/chat_notifier.dart';
@@ -45,6 +46,11 @@ List<SingleChildWidget> appProviders(AuthNotifier auth, {ThemeNotifier? theme}) 
       ),
       ChangeNotifierProvider<SettingsNotifier>(
         create: (_) => SettingsNotifier(),
+      ),
+      // The generative-AI switch and Video reading (5.29.0 / 5.33.0, INV-34,
+      // INV-36): ONE subscription every gated surface reads (`shellAiOn`).
+      ChangeNotifierProvider<AiSettingsNotifier>(
+        create: (_) => AiSettingsNotifier(),
       ),
       ChangeNotifierProvider<NewsletterNotifier>(
         create: (_) => NewsletterNotifier(),

@@ -339,7 +339,13 @@ void main() {
       expect(org.writes, [
         {'default_reorg_mode': 'copy'}
       ]);
-      expect(tester.widget<KitSegmented>(find.byType(KitSegmented)).selected, 0);
+      // §34 in D (settings.md §Composition): the STORED mode on the Switch.
+      expect(
+          tester
+              .widget<KitSlideSwitch<String>>(
+                  find.byType(KitSlideSwitch<String>))
+              .value,
+          'split');
 
       // A switch writes the provider ON with its flag, as the reference does.
       final readmes = find.byType(Switch).first;

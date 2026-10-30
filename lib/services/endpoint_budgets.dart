@@ -22,6 +22,7 @@
 /// That is INV-26/ADR-102 read from the other end — there the rule is that an
 /// upstream call must be bounded BELOW the deadline hosting it.
 const Map<String, int> kEndpointDeadlineSeconds = {
+  'fn_ai_settings': 60,
   'fn_analyze_reorganization': 300,
   'fn_apply_syllabus_plan': 120,
   'fn_approve_tags': 120,

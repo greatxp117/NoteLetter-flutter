@@ -24,6 +24,7 @@ import 'kit_d_format.dart';
 import 'kit_d_parts.dart';
 import 'kit_failure.dart' show KitFailureInline;
 import 'kit_d_home.dart' show KitDNone, KitHxLink;
+import 'kit_d_shelf.dart' show KitDNote;
 
 // ── The stored letter, read without opening it ──────────────────────────────
 
@@ -339,6 +340,16 @@ const String _defTime = '07:00';
 const String _defFreq = 'daily';
 const int _defItems = 5;
 
+/// The panel offers 3 · 5 · 7, but Letter settings' stepper stores 1–7 and the
+/// endpoint takes 1–20: a stored count outside the set joins the switch in its
+/// place, so the panel always draws the count the next letter will use (a
+/// switch with nothing chosen says nothing, and reads as the default). Web
+/// `passageOptions` (QA de29288).
+List<int> kitPassageOptions(int items) {
+  const set = [3, 5, 7];
+  return set.contains(items) ? set : ([...set, items]..sort());
+}
+
 /// §28 — the letter's own settings: Scheduled delivery, Arrives at, How often,
 /// Passages in each letter, and the way to every letter setting.
 ///
@@ -353,11 +364,20 @@ const int _defItems = 5;
 /// [settings] is the stored document (null while the read is out),
 /// [readError] its refusal. The host owns the request ([write] — built in
 /// `services/api.dart`) and the re-read that follows it.
+///
+/// Letters hands in its own delivery row ([switchRow], which carries the
+/// activation send and the optimistic letter row) and what it said
+/// ([notice]) in place of the panel's own, and its readings-letter rows
+/// ([extra], after the refusal line, before the foot) — web's `switchRow`,
+/// `notice` and `children`.
 class KitLetterQuick extends StatefulWidget {
   final NewsletterSettings? settings;
   final String? readError;
   final Future<KitLetterWrite> Function(Map<String, dynamic> patch) write;
   final VoidCallback onEverySetting;
+  final Widget? switchRow;
+  final Widget? notice;
+  final Widget? extra;
 
   const KitLetterQuick({
     super.key,
@@ -365,6 +385,9 @@ class KitLetterQuick extends StatefulWidget {
     required this.write,
     required this.onEverySetting,
     this.readError,
+    this.switchRow,
+    this.notice,
+    this.extra,
   });
 
   @override
@@ -498,126 +521,40 @@ class _KitLetterQuickState extends State<KitLetterQuick> {
     final freq = _freq
         .firstWhere((f) => f.$1 == _frequency, orElse: () => _freq[0])
         .$2;
-    final note = AppTheme.serif(
-      fontSize: 14,
-      height: 21 / 14,
-      fontStyle: FontStyle.italic,
-      color: t.fgLede,
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 16, bottom: 2),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Scheduled delivery',
-                      style: AppTheme.serif(
-                        fontSize: 16,
-                        height: 21 / 16,
-                        fontWeight: FontWeight.w600,
-                        color: t.fg,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      enabled ? '$freq at ${kitClock(time) ?? time}' : 'Paused',
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontSans,
-                        fontSize: 13,
-                        height: 18 / 13,
-                        color: t.fgMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              KitSwitch(
-                value: enabled,
-                tooltip: 'Scheduled delivery',
-                onChanged: _busy
-                    ? null
-                    : (_) => _put(
-                        enabled
-                            ? {'enabled': false}
-                            : {
-                                'enabled': true,
-                                'deliveryTime': time,
-                                'timezone': _tz,
-                              },
-                      ),
-              ),
-            ],
-          ),
-        ),
-        if (!enabled && _said == null)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Text(activationHint, style: note),
-          ),
-        if (_said != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Text(_said!, style: note),
-          ),
-        const KitDLabel('Arrives at'),
-        Row(
-          children: [
-            Container(
-              width: 120,
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              alignment: Alignment.centerLeft,
-              decoration: BoxDecoration(
-                color: t.surface,
-                border: Border.all(color: t.borderStrong),
-                borderRadius: AppRadius.controlR(40),
-              ),
-              child: Semantics(
-                label: 'Delivery time',
-                textField: true,
-                child: TextField(
-                  key: const ValueKey('d-lq-time'),
-                  controller: _time,
-                  focusNode: _focus,
-                  readOnly: _busy,
-                  keyboardType: TextInputType.datetime,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _focus.unfocus(),
-                  cursorColor: t.accent,
-                  style: AppTheme.mono(fontSize: 14, color: t.fg),
-                  // The box is the field (`.d-lq-time input`): the theme's
-                  // own input decoration draws nothing inside it.
-                  decoration: const InputDecoration(
-                    isCollapsed: true,
-                    filled: false,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+        if (widget.switchRow != null)
+          widget.switchRow!
+        else ...[
+          KitLetterSwitchRow(
+            title: 'Scheduled delivery',
+            line: enabled ? '$freq at ${kitClock(time) ?? time}' : 'Paused',
+            value: enabled,
+            onChanged: _busy
+                ? null
+                : (_) => _put(
+                    enabled
+                        ? {'enabled': false}
+                        : {
+                            'enabled': true,
+                            'deliveryTime': time,
+                            'timezone': _tz,
+                          },
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Text(
-                _tz.replaceAll('_', ' '),
-                style: AppTheme.mono(
-                  fontSize: 11,
-                  letterSpacing: 0.08 * 11,
-                  color: t.fgSubtle,
-                ),
-              ),
-            ),
-          ],
+          ),
+          if (!enabled && _said == null) KitDNote(activationHint),
+          if (_said != null) KitDNote(_said!),
+        ],
+        ?widget.notice,
+        const KitDLabel('Arrives at'),
+        KitLetterTimeField(
+          fieldKey: const ValueKey('d-lq-time'),
+          label: 'Delivery time',
+          controller: _time,
+          focusNode: _focus,
+          readOnly: _busy,
+          zone: _tz,
         ),
         const KitDLabel('How often'),
         KitSlideSwitch<String>(
@@ -636,7 +573,7 @@ class _KitLetterQuickState extends State<KitLetterQuick> {
           value: _items,
           onChanged: (v) => _put({'itemsPerNewsletter': v}),
           options: [
-            for (final n in const [3, 5, 7]) KitSlideOption(n, '$n'),
+            for (final n in kitPassageOptions(_items)) KitSlideOption(n, '$n'),
           ],
         ),
         if (_err != null)
@@ -644,6 +581,7 @@ class _KitLetterQuickState extends State<KitLetterQuick> {
             padding: const EdgeInsets.only(top: 12),
             child: KitFailureInline(_err!),
           ),
+        ?widget.extra,
         Container(
           margin: const EdgeInsets.only(top: 22),
           padding: const EdgeInsets.only(top: 14),
@@ -656,6 +594,158 @@ class _KitLetterQuickState extends State<KitLetterQuick> {
             onTap: widget.onEverySetting,
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// §28's delivery row (`.d-lq-on`): a serif title over a sans line, and a
+/// switch at the trailing edge — LetterQuick's *Scheduled delivery*, Letters'
+/// own row handed in its place, and the readings letter's *Daily readings*.
+/// [value] null draws no switch (the read has not answered: never a switch at
+/// a guessed position, INV-24). [onChanged] null holds it (a write is out).
+class KitLetterSwitchRow extends StatelessWidget {
+  final String title;
+  final String line;
+  final bool? value;
+  final ValueChanged<bool>? onChanged;
+
+  /// The switch's accessible name; the [title] when absent.
+  final String? label;
+
+  const KitLetterSwitchRow({
+    super.key,
+    required this.title,
+    required this.line,
+    required this.value,
+    required this.onChanged,
+    this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTheme.serif(
+                    fontSize: 16,
+                    height: 21 / 16,
+                    fontWeight: FontWeight.w600,
+                    color: t.fg,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  line,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 13,
+                    height: 18 / 13,
+                    color: t.fgMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (value != null) ...[
+            const SizedBox(width: 16),
+            KitSwitch(
+              value: value!,
+              tooltip: label ?? title,
+              onChanged: onChanged,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// §28's time field (`.d-lq-time`): a 40-tall mono box and, beside it, the
+/// zone it is read in (underscores shown as spaces; none when [zone] is
+/// null). The host owns the draft: commit on blur or Enter, and a refused
+/// write puts the field back to what the last read stored.
+class KitLetterTimeField extends StatelessWidget {
+  final Key? fieldKey;
+  final String label;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool readOnly;
+  final String? zone;
+
+  const KitLetterTimeField({
+    super.key,
+    this.fieldKey,
+    required this.label,
+    required this.controller,
+    required this.focusNode,
+    this.readOnly = false,
+    this.zone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 120,
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+            color: t.surface,
+            border: Border.all(color: t.borderStrong),
+            borderRadius: AppRadius.controlR(40),
+          ),
+          child: Semantics(
+            label: label,
+            textField: true,
+            child: TextField(
+              key: fieldKey,
+              controller: controller,
+              focusNode: focusNode,
+              readOnly: readOnly,
+              keyboardType: TextInputType.datetime,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => focusNode.unfocus(),
+              cursorColor: t.accent,
+              style: AppTheme.mono(fontSize: 14, color: t.fg),
+              // The box is the field (`.d-lq-time input`): the theme's own
+              // input decoration draws nothing inside it.
+              decoration: const InputDecoration(
+                isCollapsed: true,
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ),
+        if (zone != null && zone!.isNotEmpty) ...[
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              zone!.replaceAll('_', ' '),
+              style: AppTheme.mono(
+                fontSize: 11,
+                letterSpacing: 0.08 * 11,
+                color: t.fgSubtle,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

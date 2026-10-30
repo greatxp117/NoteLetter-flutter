@@ -32,17 +32,28 @@ class SourcesSection extends StatefulWidget {
   /// the page's first frame would find nothing to scroll to.
   final bool focus;
 
-  const SourcesSection({super.key, this.focus = false});
+  /// The page's §31 head for this group (D's Settings), drawn only when the
+  /// section is — it exists only with a connected service — and the place a
+  /// `/settings/sources` arrival scrolls to.
+  final Widget? head;
+
+  const SourcesSection({super.key, this.focus = false, this.head});
+
+  /// The reference's order for this section (web `ORG_PROVIDERS`), which is
+  /// not the connect grid's.
+  static const order = ['google_drive', 'onedrive', 'dropbox', 'notion'];
+
+  /// Whether the section is drawn: once a provider is connected. Settings
+  /// reads the same rule for its Contents, so the row and the section cannot
+  /// disagree.
+  static bool shownFor(CloudNotifier? cloud) =>
+      cloud != null && order.any((p) => cloud.integrationFor(p) != null);
 
   @override
   State<SourcesSection> createState() => _SourcesSectionState();
 }
 
 class _SourcesSectionState extends State<SourcesSection> {
-  /// The reference's order for this section (web `ORG_PROVIDERS`), which is
-  /// not the connect grid's.
-  static const _order = ['google_drive', 'onedrive', 'dropbox', 'notion'];
-
   /// The reference's three capabilities (web `ORG_CAPABILITIES`): the flag
   /// each writes, its label, its description.
   static const _capabilities = [
@@ -50,19 +61,19 @@ class _SourcesSectionState extends State<SourcesSection> {
       'readmes_enabled',
       'Folder READMEs',
       'A README.noteletter.md in each organized folder saying what belongs '
-          'there. Your edits always win.'
+          'there. Your edits always win.',
     ),
     (
       'out_of_place_enabled',
       'Out-of-place detection',
       'Files that don’t match their folder get moved when NoteLetter is '
-          'confident, suggested when not.'
+          'confident, suggested when not.',
     ),
     (
       'auto_placement_enabled',
       'Place new uploads',
       'New documents you add to NoteLetter are filed into the right cloud '
-          'folder too.'
+          'folder too.',
     ),
   ];
 
@@ -137,7 +148,7 @@ class _SourcesSectionState extends State<SourcesSection> {
     final cloud = context.watch<CloudNotifier?>();
     if (cloud == null) return const SizedBox.shrink();
     final connected = <(String, CloudIntegration)>[
-      for (final p in _order)
+      for (final p in SourcesSection.order)
         if (cloud.integrationFor(p) case final i?) (p, i),
     ];
     if (connected.isEmpty) return const SizedBox.shrink();
@@ -153,7 +164,10 @@ class _SourcesSectionState extends State<SourcesSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Sources'),
+        if (widget.head != null) widget.head!,
+        // D's Settings draws the group's §31 head ([head]); the group's own
+        // eyebrow is not drawn (`.dp-set .d-main .lib-section-h`).
+        if (!KitDSetScope.of(context)) const SectionHeader('Sources'),
         // §14 before the controls: a failed read drawn as the defaults is a
         // threshold and a mode this reader never chose, and the first nudge
         // would save them.
@@ -170,7 +184,8 @@ class _SourcesSectionState extends State<SourcesSection> {
               KitSettingRow(
                 icon: Icons.tune,
                 title: 'Confidence threshold',
-                description: 'At or above ${(threshold * 100).round()}% '
+                description:
+                    'At or above ${(threshold * 100).round()}% '
                     'NoteLetter acts automatically; below it, it asks first. '
                     'Every automatic action stays reviewable in Sources.',
                 below: Slider(
@@ -189,8 +204,9 @@ class _SourcesSectionState extends State<SourcesSection> {
                   onChangeEnd: (v) {
                     setState(() => _dragThreshold = null);
                     _save({
-                      'confidence_threshold':
-                          double.parse(v.toStringAsFixed(2))
+                      'confidence_threshold': double.parse(
+                        v.toStringAsFixed(2),
+                      ),
                     });
                   },
                 ),
@@ -198,18 +214,25 @@ class _SourcesSectionState extends State<SourcesSection> {
               KitSettingRow(
                 icon: Icons.call_split,
                 title: 'Default reorganize mode',
-                description: 'Where a reorganization plan starts for each '
+                description:
+                    'Where a reorganization plan starts for each '
                     'section. Split moves the section out of its document '
                     'once it is copied (you confirm first); Copy leaves the '
                     'document whole. You can change either one in the plan.',
                 wideControl: true,
                 trailing: [
-                  KitSegmented(
-                    groupLabel: 'Default reorganize mode',
-                    segments: const [KitSegment('Split'), KitSegment('Copy')],
-                    selected: mode == 'copy' ? 1 : 0,
-                    onChanged: (i) {
-                      final next = i == 1 ? 'copy' : 'split';
+                  // §34: the STORED mode, held while any write here is out;
+                  // a press asks for the other one and the Switch moves when
+                  // the notifier does (write before you move).
+                  KitSlideSwitch<String>(
+                    label: 'Default reorganize mode',
+                    value: mode,
+                    held: _busy != null || !loaded,
+                    options: const [
+                      KitSlideOption('split', 'Split'),
+                      KitSlideOption('copy', 'Copy'),
+                    ],
+                    onChanged: (next) {
                       if (_busy == null && next != mode) {
                         _save({'default_reorg_mode': next});
                       }
@@ -229,11 +252,11 @@ class _SourcesSectionState extends State<SourcesSection> {
                 description: i.orgWriteReady
                     ? null
                     : (!i.orgEnabled && i.orgScopeLevel == 'read'
-                        ? 'Write access wasn’t granted — reconnect and approve '
-                            'all permissions to turn organization on.'
-                        : 'Organizing needs permission to move files and '
-                            'write READMEs in your storage. You’ll approve '
-                            'this with the provider.'),
+                          ? 'Write access wasn’t granted — reconnect and approve '
+                                'all permissions to turn organization on.'
+                          : 'Organizing needs permission to move files and '
+                                'write READMEs in your storage. You’ll approve '
+                                'this with the provider.'),
                 below: i.orgWriteReady && loaded
                     ? _Capabilities(
                         provider: p,
@@ -243,18 +266,22 @@ class _SourcesSectionState extends State<SourcesSection> {
                         enabled: _busy == null,
                         onChanged: (flag, v) => _save({
                           'providers': {
-                            p: {'enabled': true, flag: v}
-                          }
+                            p: {'enabled': true, flag: v},
+                          },
                         }),
                       )
                     : null,
                 trailing: [
                   if (i.orgWriteReady)
-                    KitSettingLink('Choose organized folders in Sources',
-                        onTap: () => context.go('/sources'))
+                    KitSettingLink(
+                      'Choose organized folders in Sources',
+                      onTap: () => context.go('/sources'),
+                    )
                   else
-                    KitSettingLink('Enable organizing',
-                        onTap: _busy != null ? null : () => _enable(p)),
+                    KitSettingLink(
+                      'Enable organizing',
+                      onTap: _busy != null ? null : () => _enable(p),
+                    ),
                 ],
               ),
           ],
@@ -315,7 +342,7 @@ class _Capabilities extends StatelessWidget {
                       Text(
                         provider == 'notion' && flag == 'out_of_place_enabled'
                             ? '$desc Notion pages can’t be moved by its API — '
-                                'NoteLetter copies and links back instead.'
+                                  'NoteLetter copies and links back instead.'
                             : desc,
                         style: KitText.meta(context),
                       ),

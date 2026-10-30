@@ -68,7 +68,14 @@ class _Paper {
 class KitLetterPaper extends StatefulWidget {
   final String html;
 
-  const KitLetterPaper(this.html, {super.key});
+  /// A key for each passage heading the letter draws (its `<h2>`s with text,
+  /// in order — the passages `kitLetterSections` reads), placed where the page
+  /// says that heading sits: what lets a reader's Contents follow and jump to
+  /// the passages of a letter drawn inside a web view (screens/letters.md
+  /// §Composition *A letter*). Null draws no markers.
+  final Key Function(int i)? headKey;
+
+  const KitLetterPaper(this.html, {super.key, this.headKey});
 
   /// The letter, wrapped in the minimum a document needs and **nothing else**.
   ///
@@ -97,7 +104,8 @@ class KitLetterPaper extends StatefulWidget {
   /// table's cell — is held to that cell by the host, at most the 640 the
   /// letter declares: the same box the reference's rule produces.
   @visibleForTesting
-  static String documentFor(String body) => '''
+  static String documentFor(String body) =>
+      '''
 <!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;padding:0;background:${_cssHex(_Paper.ground)};-webkit-text-size-adjust:100%}
@@ -118,6 +126,10 @@ class _KitLetterPaperState extends State<KitLetterPaper> {
   /// than guessing a letter's length.
   double? _height;
 
+  /// Where each passage heading sits, in device pixels from the letter's top
+  /// — reported by the page, never estimated.
+  List<double> _heads = const [];
+
   static const _minHeight = 420.0;
 
   @override
@@ -131,22 +143,40 @@ class _KitLetterPaperState extends State<KitLetterPaper> {
       ..setBackgroundColor(_Paper.ground)
       // The one channel this page has, and it carries one number: how tall the
       // letter turned out to be.
-      ..addJavaScriptChannel('LetterHeight',
-          onMessageReceived: (m) {
-            final h = double.tryParse(m.message);
-            if (h != null && h > 0 && mounted) setState(() => _height = h);
-          })
-      ..setNavigationDelegate(NavigationDelegate(
-        // A letter is a document, not a browser. Its own body is the only
-        // thing this view ever loads; every link in it — the reader links
-        // INV-21 puts on each card, the unsubscribe footer — is a navigation
-        // AWAY, and it is refused here rather than replacing the letter with a
-        // web page inside the app.
-        onNavigationRequest: (r) => r.url.startsWith('about:')
-            ? NavigationDecision.navigate
-            : NavigationDecision.prevent,
-        onPageFinished: (_) => _measure(),
-      ))
+      ..addJavaScriptChannel(
+        'LetterHeight',
+        onMessageReceived: (m) {
+          final h = double.tryParse(m.message);
+          if (h != null && h > 0 && mounted) setState(() => _height = h);
+        },
+      )
+      // The second channel, only for a host that follows the passages: one
+      // list of numbers, where each passage heading turned out to be.
+      ..addJavaScriptChannel(
+        'LetterHeads',
+        onMessageReceived: (m) {
+          if (widget.headKey == null || !mounted) return;
+          final tops = <double>[];
+          for (final v in m.message.split(',')) {
+            final d = double.tryParse(v);
+            if (d != null) tops.add(d);
+          }
+          setState(() => _heads = tops);
+        },
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          // A letter is a document, not a browser. Its own body is the only
+          // thing this view ever loads; every link in it — the reader links
+          // INV-21 puts on each card, the unsubscribe footer — is a navigation
+          // AWAY, and it is refused here rather than replacing the letter with a
+          // web page inside the app.
+          onNavigationRequest: (r) => r.url.startsWith('about:')
+              ? NavigationDecision.navigate
+              : NavigationDecision.prevent,
+          onPageFinished: (_) => _measure(),
+        ),
+      )
       ..loadHtmlString(KitLetterPaper.documentFor(widget.html));
   }
 
@@ -200,8 +230,18 @@ class _KitLetterPaperState extends State<KitLetterPaper> {
   var scale = Math.min(1, dw / need);
   LetterHeight.postMessage(
     String(Math.ceil(document.body.scrollHeight * scale)));
+  // The passage headings (the <h2>s with text, as letterSections reads them),
+  // where each sits on the scaled page.
+  if (typeof LetterHeads !== 'undefined') {
+    var tops = [];
+    document.querySelectorAll('h2').forEach(function(h){
+      if ((h.textContent || '').trim()) {
+        tops.push(Math.round((h.getBoundingClientRect().top + window.scrollY) * scale));
+      }
+    });
+    LetterHeads.postMessage(tops.join(','));
+  }
 })();''';
-
 
   @override
   Widget build(BuildContext context) {
@@ -212,9 +252,22 @@ class _KitLetterPaperState extends State<KitLetterPaper> {
       // The letter scrolls with the screen, not inside itself: it sits in the
       // page's own scroll container at its measured height, so there is one
       // scroll and the actions bar above it stays reachable.
-      child: WebViewWidget(
-        controller: _controller,
-        gestureRecognizers: const {},
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: WebViewWidget(
+              controller: _controller,
+              gestureRecognizers: const {},
+            ),
+          ),
+          if (widget.headKey != null)
+            for (var i = 0; i < _heads.length; i++)
+              Positioned(
+                top: _heads[i],
+                left: 0,
+                child: SizedBox(key: widget.headKey!(i), width: 1, height: 1),
+              ),
+        ],
       ),
     );
   }
@@ -245,6 +298,10 @@ class KitLetterSheet extends StatelessWidget {
   /// The seal footer's line. Italic serif, beside the mark.
   final String sealText;
 
+  /// The page gutter each side of the paper. False in a D column, which is
+  /// already the page's width (web `.dp-letter-body>.letter-page{padding:0}`).
+  final bool inset;
+
   const KitLetterSheet({
     super.key,
     required this.title,
@@ -252,6 +309,7 @@ class KitLetterSheet extends StatelessWidget {
     this.standfirst,
     this.children = const [],
     required this.sealText,
+    this.inset = true,
   });
 
   @override
@@ -261,13 +319,15 @@ class KitLetterSheet extends StatelessWidget {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints:
-            const BoxConstraints(maxWidth: AppSpacing.frameSheet),
+        constraints: const BoxConstraints(maxWidth: AppSpacing.frameSheet),
         child: Container(
           margin: EdgeInsets.symmetric(
-              horizontal: compact
-                  ? AppSpacing.frameGutterCompact
-                  : AppSpacing.frameGutter),
+            horizontal: !inset
+                ? 0
+                : compact
+                ? AppSpacing.frameGutterCompact
+                : AppSpacing.frameGutter,
+          ),
           padding: EdgeInsets.fromLTRB(
             compact ? AppSpacing.s5 : AppSpacing.s16,
             compact ? AppSpacing.s8 : AppSpacing.s12 + AppSpacing.s2,
@@ -286,8 +346,7 @@ class KitLetterSheet extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.only(bottom: AppSpacing.s3),
                 decoration: BoxDecoration(
-                  border: Border(
-                      bottom: BorderSide(color: t.borderStrong)),
+                  border: Border(bottom: BorderSide(color: t.borderStrong)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -301,8 +360,11 @@ class KitLetterSheet extends StatelessWidget {
                           textAlign: TextAlign.end,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: KitText.capsLabel(context,
-                              fontSize: 11, letterSpacing: 0.1),
+                          style: KitText.capsLabel(
+                            context,
+                            fontSize: 11,
+                            letterSpacing: 0.1,
+                          ),
                         ),
                       ),
                     ],
@@ -330,9 +392,10 @@ class KitLetterSheet extends StatelessWidget {
                     KitQuill(size: 22, color: t.seal),
                     const SizedBox(width: AppSpacing.s2 + 2),
                     Expanded(
-                      child: Text(sealText,
-                          style: KitText.lede(context,
-                              fontSize: 13, height: 19)),
+                      child: Text(
+                        sealText,
+                        style: KitText.lede(context, fontSize: 13, height: 19),
+                      ),
                     ),
                   ],
                 ),
@@ -364,13 +427,15 @@ class KitVersal extends StatelessWidget {
   final double height;
   final int maxLines;
 
-  const KitVersal(this.text,
-      {super.key,
-      this.fontSize = 36,
-      this.tracking = 0.08,
-      this.capScale = 1.2,
-      this.height = 1,
-      this.maxLines = 2});
+  const KitVersal(
+    this.text, {
+    super.key,
+    this.fontSize = 36,
+    this.tracking = 0.08,
+    this.capScale = 1.2,
+    this.height = 1,
+    this.maxLines = 2,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -385,21 +450,27 @@ class KitVersal extends StatelessWidget {
     var atWordStart = true;
     for (final ch in text.toUpperCase().split('')) {
       final isLetter = RegExp(r'[A-Z]').hasMatch(ch);
-      spans.add(TextSpan(
-        text: ch,
-        // `.versal .cap` — 1.2em at 600, the line's optical size inherited.
-        style: (atWordStart && isLetter)
-            ? base.copyWith(
-                fontSize: fontSize * capScale,
-                fontWeight: FontWeight.w600,
-                fontVariations: AppTheme.serifAxes(FontWeight.w600, fontSize))
-            : null,
-      ));
+      spans.add(
+        TextSpan(
+          text: ch,
+          // `.versal .cap` — 1.2em at 600, the line's optical size inherited.
+          style: (atWordStart && isLetter)
+              ? base.copyWith(
+                  fontSize: fontSize * capScale,
+                  fontWeight: FontWeight.w600,
+                  fontVariations: AppTheme.serifAxes(FontWeight.w600, fontSize),
+                )
+              : null,
+        ),
+      );
       if (isLetter) atWordStart = false;
       if (ch == ' ') atWordStart = true;
     }
-    return Text.rich(TextSpan(style: base, children: spans),
-        maxLines: maxLines, overflow: TextOverflow.ellipsis);
+    return Text.rich(
+      TextSpan(style: base, children: spans),
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+    );
   }
 }
 
@@ -416,38 +487,41 @@ class KitLetterBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return AppTheme.htmlOpticalSize(17, child: Html(
-      data: html,
-      extensions: AppTheme.htmlExtensions,
-      style: {
-        ...AppTheme.htmlStyles(t),
-        'body': Style(
-          margin: Margins.zero,
-          padding: HtmlPaddings.zero,
-          fontFamily: AppTheme.fontSerif,
-          fontSize: FontSize(17),
-          lineHeight: LineHeight(28 / 17),
-          color: t.fg,
-        ),
-        // §11 — marked text in a letter is a SOLID fill, stronger than the
-        // reader's `--highlight` wash, deliberately. Both halves are frozen
-        // steps because the pair has to hold in both themes, and the letter's
-        // own mark is this exact pair.
-        'mark': Style(
-          // literal-ok: --brick-500, §11's letter mark fill
-          backgroundColor: const Color(0xFF9D352D),
-          // literal-ok: --paper-50, the label on that fill
-          color: const Color(0xFFFAFAF7),
-        ),
-        'blockquote': Style(
-          margin: Margins.only(left: 0, bottom: 12),
-          padding: HtmlPaddings.only(left: 14),
-          border: Border(left: BorderSide(color: t.accent, width: 2)),
-        ),
-        'a': Style(color: t.link),
-        'img': Style(width: Width(100, Unit.percent)),
-      },
-    ));
+    return AppTheme.htmlOpticalSize(
+      17,
+      child: Html(
+        data: html,
+        extensions: AppTheme.htmlExtensions,
+        style: {
+          ...AppTheme.htmlStyles(t),
+          'body': Style(
+            margin: Margins.zero,
+            padding: HtmlPaddings.zero,
+            fontFamily: AppTheme.fontSerif,
+            fontSize: FontSize(17),
+            lineHeight: LineHeight(28 / 17),
+            color: t.fg,
+          ),
+          // §11 — marked text in a letter is a SOLID fill, stronger than the
+          // reader's `--highlight` wash, deliberately. Both halves are frozen
+          // steps because the pair has to hold in both themes, and the letter's
+          // own mark is this exact pair.
+          'mark': Style(
+            // literal-ok: --brick-500, §11's letter mark fill
+            backgroundColor: const Color(0xFF9D352D),
+            // literal-ok: --paper-50, the label on that fill
+            color: const Color(0xFFFAFAF7),
+          ),
+          'blockquote': Style(
+            margin: Margins.only(left: 0, bottom: 12),
+            padding: HtmlPaddings.only(left: 14),
+            border: Border(left: BorderSide(color: t.accent, width: 2)),
+          ),
+          'a': Style(color: t.link),
+          'img': Style(width: Width(100, Unit.percent)),
+        },
+      ),
+    );
   }
 }
 
@@ -461,16 +535,16 @@ class KitLetterProse extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.s3),
-        child: DefaultTextStyle(
-          style: AppTheme.serif(
-            fontSize: 17,
-            height: 28 / 17,
-            color: Tokens.of(context).fg,
-          ),
-          child: child,
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: AppSpacing.s3),
+    child: DefaultTextStyle(
+      style: AppTheme.serif(
+        fontSize: 17,
+        height: 28 / 17,
+        color: Tokens.of(context).fg,
+      ),
+      child: child,
+    ),
+  );
 }
 
 /// The line under a passage — its source, or the count it is part of.
@@ -481,35 +555,50 @@ class KitLetterAttribution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.s8 - 4),
-        child: Text(text,
-            style: TextStyle(
-              fontFamily: AppTheme.fontSans,
-              fontSize: 12,
-              color: Tokens.of(context).fgMuted,
-            )),
-      );
+    padding: const EdgeInsets.only(bottom: AppSpacing.s8 - 4),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontFamily: AppTheme.fontSans,
+        fontSize: 12,
+        color: Tokens.of(context).fgMuted,
+      ),
+    ),
+  );
 }
 
 /// The Letters archive's **letter rows** (letters.md §Composition *Archive* at
 /// 4.98.0, ADR-131; web `.archive-list` / `.letter-row`) — one bordered
 /// `--surface`, rows split by `--rule`. Not §4.1 source rows: a letter is not
 /// a volume.
+///
+/// [register]: the card becomes a ruled register — no surface, border or
+/// radius, a 1px `--fg` rule over the rows (direction D's *Readings sent*,
+/// `.dp-letters .d-main .archive-list`).
 class KitLetterRowList extends StatelessWidget {
   final List<Widget> rows;
+  final bool register;
 
-  const KitLetterRowList({super.key, required this.rows});
+  const KitLetterRowList({
+    super.key,
+    required this.rows,
+    this.register = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        border: Border.all(color: t.border),
-        borderRadius: AppRadius.mdR,
-      ),
-      clipBehavior: Clip.antiAlias,
+      decoration: register
+          ? BoxDecoration(
+              border: Border(top: BorderSide(color: t.fg)),
+            )
+          : BoxDecoration(
+              color: t.surface,
+              border: Border.all(color: t.border),
+              borderRadius: AppRadius.mdR,
+            ),
+      clipBehavior: register ? Clip.none : Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -592,13 +681,16 @@ class _KitLetterRowState extends State<KitLetterRow> {
         children: [
           SizedBox(
             width: compact ? 44 : 58,
-            child: Text('№ ${widget.number}',
-                maxLines: 1,
-                softWrap: false,
-                style: AppTheme.mono(
-                    fontSize: 12,
-                    letterSpacing: 0.03 * 12,
-                    color: t.accentText)),
+            child: Text(
+              '№ ${widget.number}',
+              maxLines: 1,
+              softWrap: false,
+              style: AppTheme.mono(
+                fontSize: 12,
+                letterSpacing: 0.03 * 12,
+                color: t.accentText,
+              ),
+            ),
           ),
           gap,
           Expanded(
@@ -606,12 +698,15 @@ class _KitLetterRowState extends State<KitLetterRow> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (widget.kind == null)
-                  Text(widget.title,
-                      style: AppTheme.serif(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          height: 1.15,
-                          color: t.fg))
+                  Text(
+                    widget.title,
+                    style: AppTheme.serif(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      height: 1.15,
+                      color: t.fg,
+                    ),
+                  )
                 else
                   // `.rl-row .lr-title { display: flex; gap: 9px }`.
                   Wrap(
@@ -619,12 +714,15 @@ class _KitLetterRowState extends State<KitLetterRow> {
                     runSpacing: 4,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Text(widget.title,
-                          style: AppTheme.serif(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              height: 1.15,
-                              color: t.fg)),
+                      Text(
+                        widget.title,
+                        style: AppTheme.serif(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          height: 1.15,
+                          color: t.fg,
+                        ),
+                      ),
                       _KindTag(widget.kind!),
                     ],
                   ),
@@ -633,58 +731,57 @@ class _KitLetterRowState extends State<KitLetterRow> {
                   // `.lr-refs`, and `white-space: normal` below 900 on the
                   // reference — a phone wraps the citations rather than
                   // cutting the last one off.
-                  Text(widget.lede,
-                      maxLines: compact ? null : 1,
-                      overflow: compact ? null : TextOverflow.ellipsis,
-                      style: AppTheme.mono(
-                          fontSize: 10.5,
-                          letterSpacing: 0.02 * 10.5,
-                          color: t.fgSubtle)),
+                  Text(
+                    widget.lede,
+                    maxLines: compact ? null : 1,
+                    overflow: compact ? null : TextOverflow.ellipsis,
+                    style: AppTheme.mono(
+                      fontSize: 10.5,
+                      letterSpacing: 0.02 * 10.5,
+                      color: t.fgSubtle,
+                    ),
+                  ),
                 ] else if (widget.lede.isNotEmpty) ...[
                   const SizedBox(height: 3),
-                  Text(widget.lede,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.serif(
-                          fontSize: compact ? 12 : 13,
-                          fontStyle: FontStyle.italic,
-                          color: t.fgLede)),
+                  Text(
+                    widget.lede,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.serif(
+                      fontSize: compact ? 12 : 13,
+                      fontStyle: FontStyle.italic,
+                      color: t.fgLede,
+                    ),
+                  ),
                 ],
               ],
             ),
           ),
           if (!compact && widget.figures != null) ...[
             gap,
-            Text(widget.figures!,
-                style: AppTheme.mono(fontSize: 11, color: t.fgSubtle)),
+            Text(
+              widget.figures!,
+              style: AppTheme.mono(fontSize: 11, color: t.fgSubtle),
+            ),
           ],
           if (!compact) ...[
             gap,
             SizedBox(
               width: 70,
-              child: Text(widget.date,
-                  maxLines: 1,
-                  softWrap: false,
-                  style: TextStyle(
-                      fontFamily: AppTheme.fontSans,
-                      fontSize: 13,
-                      color: t.fgMuted)),
+              child: Text(
+                widget.date,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 13,
+                  color: t.fgMuted,
+                ),
+              ),
             ),
           ],
           gap,
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-            decoration: BoxDecoration(
-              color: widget.settled ? t.positiveChipBg : t.accentSoft,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(widget.badge.toUpperCase(),
-                style: KitText.capsLabel(context,
-                    fontSize: 9,
-                    letterSpacing: 0.08,
-                    color:
-                        widget.settled ? t.positiveChipFg : t.accentChipFg)),
-          ),
+          KitLetterBadge(widget.badge, settled: widget.settled),
         ],
       ),
     );
@@ -697,6 +794,47 @@ class _KitLetterRowState extends State<KitLetterRow> {
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
         child: row,
+      ),
+    );
+  }
+}
+
+/// `.lr-badge` — a letter's pill: mono 9/0.08em caps, `3px 9px`, settled on
+/// the positive chip, open on the accent soft. [lineBox]: the line it sits
+/// in — a D letter row sets it in the body's 24px line (`.dp-lrow` inherits
+/// `font`), so the pill stands 30 tall there.
+class KitLetterBadge extends StatelessWidget {
+  final String text;
+  final bool settled;
+  final double? lineBox;
+
+  const KitLetterBadge(
+    this.text, {
+    super.key,
+    required this.settled,
+    this.lineBox,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final style = KitText.capsLabel(
+      context,
+      fontSize: 9,
+      letterSpacing: 0.08,
+      color: settled ? t.positiveChipFg : t.accentChipFg,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: settled ? t.positiveChipBg : t.accentSoft,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        maxLines: 1,
+        softWrap: false,
+        style: lineBox == null ? style : style.copyWith(height: lineBox! / 9),
       ),
     );
   }
@@ -724,9 +862,15 @@ class _KindTag extends StatelessWidget {
         children: [
           Icon(Icons.menu_book_outlined, size: 11, color: t.accentChipFg),
           const SizedBox(width: 5),
-          Text(label.toUpperCase(),
-              style: KitText.capsLabel(context,
-                  fontSize: 9, letterSpacing: 0.12, color: t.accentChipFg)),
+          Text(
+            label.toUpperCase(),
+            style: KitText.capsLabel(
+              context,
+              fontSize: 9,
+              letterSpacing: 0.12,
+              color: t.accentChipFg,
+            ),
+          ),
         ],
       ),
     );

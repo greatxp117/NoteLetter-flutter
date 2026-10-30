@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_app_installations/firebase_app_installations.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,9 +22,15 @@ import '../services/error_text.dart';
 /// (`fn_notification_channels`, INV-04); the list is a live subscription
 /// (INV-02).
 ///
-/// Composition (§Composition, 4.5.0/ADR-041): the Reading frame, a §2.2
-/// sub-screen header, one raised row list of setting rows, then the "Add a
-/// channel" form as labelled field groups with §6.8 segmented controls.
+/// Composition (§Composition (direction D)): the D frame — the crumb back to
+/// *Settings*, the folio `Settings · Notifications · {N} channels` (the dash
+/// until the channels are read, and while the read is refused), the title and
+/// the standfirst; the sheet *Notifications* (Contents, the Figures once
+/// read, Also *What has been sent to you*); two §31 heads 56 apart —
+/// *Channels* as Settings' ruled setting rows, *Add a channel* as labelled
+/// field groups with the Type as a §34 Switch (a draft until *Add channel*)
+/// and the levels as a multi-select in D's outlined track. On a phone the
+/// sheet is the running head `§ {numeral} · {section} · {i} of 2`.
 ///
 /// Push (4.8.0, ADR-044): creating a push channel registers this install by
 /// its Firebase installation id (`fid`) — an ADDRESS, not a subscription.
@@ -31,6 +39,11 @@ import '../services/error_text.dart';
 /// its description slot rather than rendering as a silently enabled channel.
 class NotificationSettingsPage extends StatefulWidget {
   const NotificationSettingsPage({super.key});
+
+  /// Keys the holds and the device run find.
+  static const addKey = ValueKey('notif-add-channel');
+  static const typeKey = ValueKey('notif-type');
+  static const contentsKey = ValueKey('notif-contents');
 
   @override
   State<NotificationSettingsPage> createState() =>
@@ -64,6 +77,16 @@ const _pushRegisterFailed =
     'Saved, but this device couldn’t be registered for push right now.';
 
 class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
+  final KitSections _sec = KitSections(const ['channels', 'add']);
+
+  /// The channels subscription (INV-02), held here because the folio, the
+  /// Contents count and the Figures all read it. INV-24: until it answers,
+  /// and while it is refused, nothing is counted.
+  StreamSubscription<List<NotificationChannel>>? _sub;
+  List<NotificationChannel> _channels = const [];
+  bool _loading = true;
+  String? _subError;
+
   String _type = 'onscreen';
   final Set<String> _levelsDraft = {..._draftLevels};
   final _destCtrl = TextEditingController();
@@ -78,7 +101,31 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   String? _pushNote;
 
   @override
+  void initState() {
+    super.initState();
+    _sub = FirestoreService.instance.subscribeNotificationChannels().listen(
+      (list) {
+        if (!mounted) return;
+        setState(() {
+          _channels = list;
+          _loading = false;
+          _subError = null;
+        });
+      },
+      onError: (Object e) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _subError = describeSdkError(e);
+        });
+      },
+    );
+  }
+
+  @override
   void dispose() {
+    _sub?.cancel();
+    _sec.dispose();
     _destCtrl.dispose();
     _labelCtrl.dispose();
     super.dispose();
@@ -103,8 +150,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   Future<String?> _registerThisDevice() async {
     try {
       final fid = await FirebaseInstallations.instance.getId();
-      final platform =
-          defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'web';
+      final platform = defaultTargetPlatform == TargetPlatform.iOS
+          ? 'ios'
+          : 'web';
       await Api.instance.registerDevice(fid: fid, platform: platform);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_deviceKey, jsonEncode({'fid': fid}));
@@ -122,8 +170,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       return;
     }
     if (_type == 'email' && !_emailRe.hasMatch(_destCtrl.text.trim())) {
-      setState(() =>
-          _error = 'Enter a valid email address for an email channel.');
+      setState(
+        () => _error = 'Enter a valid email address for an email channel.',
+      );
       return;
     }
     setState(() {
@@ -158,7 +207,10 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 
   // Write before move: the row re-renders from the subscription once the
   // PUT lands; nothing flips locally first.
-  Future<void> _patch(NotificationChannel c, Map<String, dynamic> partial) async {
+  Future<void> _patch(
+    NotificationChannel c,
+    Map<String, dynamic> partial,
+  ) async {
     try {
       await Api.instance.updateNotificationChannel(c.id, partial);
       if (mounted && _error != null) setState(() => _error = null);
@@ -173,7 +225,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   // the row: the LAST push channel also unregisters the device, so one tap
   // could stop every notification reaching it.
   Future<void> _confirmRemove(
-      NotificationChannel c, List<NotificationChannel> all) async {
+    NotificationChannel c,
+    List<NotificationChannel> all,
+  ) async {
     final name = c.label?.isNotEmpty == true
         ? c.label!
         : (_typeLabel[c.type] ?? c.type);
@@ -189,11 +243,12 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       // Quoted, with no appended noun: a channel labelled "Push channel" gave
       // "Delete the Push channel channel?".
       title: 'Delete “$name”?',
-      body: '$lost Your letters keep being built and sent, and nothing in your '
+      body:
+          '$lost Your letters keep being built and sent, and nothing in your '
           'library changes.'
           '${lastPush ? '\n\nThis is your only push channel — this device will '
-              'also stop being registered, so no notification of any level will '
-              'reach it until you add one again.' : ''}',
+                    'also stop being registered, so no notification of any level will '
+                    'reach it until you add one again.' : ''}',
       confirmLabel: 'Delete channel',
       cancelLabel: 'Keep it',
       onConfirm: () => _remove(c, all),
@@ -203,7 +258,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   /// Returns null on success and the server's sentence on a refusal — §18's
   /// contract with the panel, which stays open on one.
   Future<String?> _remove(
-      NotificationChannel c, List<NotificationChannel> all) async {
+    NotificationChannel c,
+    List<NotificationChannel> all,
+  ) async {
     try {
       await Api.instance.deleteNotificationChannel(c.id);
       // Unregister this device once the last push channel is gone.
@@ -212,8 +269,10 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         final ids = await _readDeviceIds();
         if (ids != null) {
           try {
-            await Api.instance
-                .unregisterDevice(token: ids['token'], fid: ids['fid']);
+            await Api.instance.unregisterDevice(
+              token: ids['token'],
+              fid: ids['fid'],
+            );
           } catch (_) {
             // best-effort
           }
@@ -231,76 +290,130 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return KitPage(
-      width: KitFrameWidth.reading,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SubScreenHeader(
-            parentLabel: 'Settings',
-            onBack: () => context.go('/settings'),
-            eyebrow: 'Notifications',
-            standfirst:
-                'Choose how you hear about what NoteLetter does — and at what '
-                'severity. Add as many channels as you like.',
-          ),
-          // notifications.md §Composition: channel groups, each a mono caps
-          // group label over its stack — the screen's own `.cfg-label` shape
-          // (as Type / Notify me about), not the §3 section header. The
-          // group's 18 of top padding stands in for `.set-section`'s 34, of
-          // which the header has paid 20.
-          KitFieldGroup(
-            label: 'Channels',
-            first: true,
-            child: StreamBuilder<List<NotificationChannel>>(
-              stream: FirestoreService.instance.subscribeNotificationChannels(),
-              builder: (context, snap) => _channelList(snap),
+    // The figures are measurements: the dash until the channels are read,
+    // and while the read is refused (INV-24).
+    final read = !_loading && _subError == null;
+    final n = _channels.length;
+    final live = _channels.where((c) => c.enabled).length;
+    final secs = [
+      KitContentsItem('channels', 'Channels', count: read ? '$n' : null),
+      const KitContentsItem('add', 'Add a channel'),
+    ];
+    return KitDPage(
+      back: KitDBackControl('Settings', onTap: () => context.go('/settings')),
+      // On a phone the folio stands under the back control (web's phone
+      // frame), rather than wrapping beside it.
+      crumbStacks: true,
+      folio:
+          'Settings · Notifications · '
+          '${read ? kitCounted(n, 'channel') : '— channels'}',
+      title: 'Notifications',
+      stand:
+          'Choose how you hear about what NoteLetter does — and at what '
+          'severity. Add as many channels as you like.',
+      sections: _sec,
+      sheet: KitDSheet(
+        label: 'Notifications',
+        foldOnPick: true,
+        peek: KitSecPeek(items: secs, sections: _sec),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const KitDLabel('Contents', first: true),
+            KitContents(
+              key: NotificationSettingsPage.contentsKey,
+              items: secs,
+              sections: _sec,
             ),
-          ),
-          // The group's 18 of bottom padding; the section header's own 32
-          // collapses into it.
-          _addForm(),
-        ],
+            if (read)
+              KitFigures(
+                rows: [
+                  ('Channels', '$n'),
+                  ('On', '$live'),
+                  ('Paused', '${n - live}'),
+                ],
+              ),
+            KitSheetAlso(
+              children: [
+                KitAlsoButton(
+                  'What has been sent to you',
+                  icon: Icons.notifications_none,
+                  onTap: () => context.go('/activity'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      child: KitDSetScope(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KitDSetGroup(
+              n: 0,
+              title: 'Channels',
+              headKey: _sec.keyOf('channels'),
+              child: _channelList(),
+            ),
+            KitDSetGroup(
+              n: 1,
+              title: 'Add a channel',
+              headKey: _sec.keyOf('add'),
+              child: _addForm(),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _channelList(AsyncSnapshot<List<NotificationChannel>> snap) {
-    final t = Tokens.of(context);
-    if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-      return KitRowList(raised: true, rows: [
-        KitRowSlot(child: Text('Loading…', style: KitText.meta(context))),
-      ]);
+  Widget _channelList() {
+    if (_loading) {
+      return const KitRowList(
+        rows: [
+          KitRowSlot(
+            child: KitSkeletonLines(
+              top: 0,
+              lines: [KitSkelLine(0.4), KitSkelLine(0.7)],
+            ),
+          ),
+        ],
+      );
     }
     // INV-24 (ADR-071): an unread channel list renders as "no channels",
     // which is the state a reader acts on by creating one they already have.
-    if (snap.hasError) {
-      return KitRowList(raised: true, rows: [
-        KitRowSlot(
-          child: KitFailureInline(
-              'Your channels could not be read — '
-              '${describeSdkError(snap.error!)}'),
-        ),
-      ]);
+    if (_subError != null) {
+      return KitRowList(
+        rows: [
+          KitRowSlot(
+            child: KitFailureInline(
+              'Your channels could not be read — $_subError',
+            ),
+          ),
+        ],
+      );
     }
-    final channels = snap.data ?? const <NotificationChannel>[];
+    final channels = _channels;
     if (channels.isEmpty) {
-      return const KitRowList(raised: true, rows: [
-        KitSettingRow(
-          icon: Icons.notifications_none,
-          title: 'No channels yet',
-          description:
-              'Add one below. An on-screen channel powers the Activity toasts '
-              'and unread badge; email reaches you when you’re away.',
-        ),
-      ]);
+      return const KitRowList(
+        rows: [
+          KitSettingRow(
+            icon: Icons.notifications_none,
+            title: 'No channels yet',
+            description:
+                'Add one below. An on-screen channel powers the Activity toasts '
+                'and unread badge; email reaches you when you’re away.',
+          ),
+        ],
+      );
     }
     return KitRowList(
-      raised: true,
       rows: [
         for (final c in channels)
           KitSettingRow(
-            icon: c.type == 'email' ? Icons.mail_outline : Icons.notifications_none,
+            icon: c.type == 'email'
+                ? Icons.mail_outline
+                : Icons.notifications_none,
             title: (c.label?.isNotEmpty ?? false)
                 ? c.label!
                 : (_typeLabel[c.type] ?? c.type),
@@ -325,7 +438,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     : next.add(_levels[i]);
                 if (next.isEmpty) {
                   setState(
-                      () => _error = 'A channel needs at least one level.');
+                    () => _error = 'A channel needs at least one level.',
+                  );
                   return;
                 }
                 _patch(c, {'levels': next.toList()});
@@ -340,7 +454,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               KitIconButton(
                 Icons.delete_outline,
                 tooltip: 'Delete channel',
-                color: t.fgMuted,
+                color: Tokens.of(context).fgMuted,
                 onPressed: () => _confirmRemove(c, channels),
               ),
             ],
@@ -350,23 +464,23 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   }
 
   Widget _addForm() {
-    final t = Tokens.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Add a channel'),
-        // Ruled above, as the reference draws it: `.cfg-group:first-of-type`
-        // never matches here — the section header is the first `div` of its
-        // section — so web's Type group keeps its top rule (F-80 (2)).
+        // The draft's type (§34): it moves with the choice; Add channel
+        // writes. The first group under the head is unruled.
         KitFieldGroup(
           label: 'Type',
-          child: KitSegmented(
-            groupLabel: 'Type',
-            expand: true,
-            segments: [for (final ty in _types) KitSegment(_typeLabel[ty]!)],
-            selected: _types.indexOf(_type),
-            onChanged: (i) => setState(() {
-              _type = _types[i];
+          first: true,
+          child: KitWrapSwitch<String>(
+            key: NotificationSettingsPage.typeKey,
+            label: 'Type',
+            value: _type,
+            options: [
+              for (final ty in _types) KitSlideOption(ty, _typeLabel[ty]!),
+            ],
+            onChanged: (v) => setState(() {
+              _type = v;
               _error = null;
               _pushNote = null;
             }),
@@ -420,6 +534,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             children: [
               KitButton.primary(
                 _busy ? 'Adding…' : 'Add channel',
+                key: NotificationSettingsPage.addKey,
                 icon: _busy ? null : Icons.add,
                 onPressed: _busy ? null : _add,
               ),
@@ -429,13 +544,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           ),
         ),
         if (_type == 'push')
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.s2),
-            child: Text(
-              'Adding a push channel registers this device by its '
-              'installation id.',
-              style: KitText.meta(context).copyWith(color: t.fgMuted),
-            ),
+          const KitDSetNote(
+            'Adding a push channel registers this device by its '
+            'installation id.',
           ),
       ],
     );

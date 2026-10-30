@@ -761,15 +761,7 @@ void main() {
   // ── The sentences are the spec's ───────────────────────────────────────────
 
   group('copy', () {
-    // D's camera roll is specified on the contracts D branch until the
-    // coordinator merges it (5.43.0): read whichever tree carries §9.
-    final dTree = Directory('../NoteLetter-contracts-d/spec');
-    final contracts = File('${dTree.path}/features/camera-roll-sweep.md').existsSync() &&
-            File('${dTree.path}/features/camera-roll-sweep.md')
-                .readAsStringSync()
-                .contains('What a screen may claim')
-        ? dTree
-        : Directory('../NoteLetter-contracts/spec');
+    final contracts = Directory('../NoteLetter-contracts/spec');
     String read(String rel) => File('${contracts.path}/$rel').readAsStringSync();
     // Markdown wraps lines; compare on single spaces.
     String flat(String s) => s.replaceAll(RegExp(r'\s+'), ' ');

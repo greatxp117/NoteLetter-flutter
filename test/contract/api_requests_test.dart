@@ -220,6 +220,13 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   // the unknown-key case can only be pinned as a server rejection here.
   'fn_summary_settings': (b) =>
       Api.instance.updateSummarySettings(b['summaryPrompt'] as String?),
+  // 5.29.0 (ADR-186) + 5.33.0 (ADR-190): a closed key set of two optional
+  // keys. The typed builder cannot express a non-boolean `generativeAI` or an
+  // unknown key, so those cases pin the server's rejection (a local cast
+  // failure, or the key dropped and the 400 the capture answered).
+  'fn_ai_settings': (b) => Api.instance.updateAiSettings(
+      generativeAI: b['generativeAI'] as bool?,
+      videoAI: b['videoAI'] as String?),
   // The source-file / source-set viewer (4.37.0 ADR-075, 4.38.0 ADR-076). One
   // call answers for BOTH shapes that have bytes: `signed_url` for a `file`,
   // `members` for a `set`.
@@ -332,6 +339,8 @@ const _suites = [
   'api/plans',
   // 4.101.0 (ADR-136) — the background tasks For your review answers (F-72).
   'api/tasks',
+  // 5.29.0 (ADR-186) + 5.33.0 (ADR-190) — the AI settings (F-133, in F-144).
+  'api/ai-settings',
 ];
 
 // ── What this client does NOT drive, declared ───────────────────────────────

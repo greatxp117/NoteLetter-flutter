@@ -19,12 +19,20 @@ import 'delivery.dart';
 class LetterHost extends StatelessWidget {
   final Newsletter letter;
 
-  const LetterHost(this.letter, {super.key});
+  /// A key for each passage heading of a letterheaded letter, where the
+  /// drawn letter says it sits — what a reader's *Passages* Contents follows
+  /// (direction D, screens/letters.md §Composition *A letter*).
+  final Key Function(int i)? headKey;
+
+  /// False in a D column: the frame-less sheet takes the column's width.
+  final bool inset;
+
+  const LetterHost(this.letter, {super.key, this.headKey, this.inset = true});
 
   @override
   Widget build(BuildContext context) {
     final n = letter;
-    if (n.hasLetterhead) return KitLetterPaper(n.htmlBody);
+    if (n.hasLetterhead) return KitLetterPaper(n.htmlBody, headKey: headKey);
     // A record with no `chunk_ids` draws no count rather than a `0` (ADR-109).
     final figures = n.chunkIdsKnown
         ? '${n.chunkIds.length} '
@@ -44,6 +52,7 @@ class LetterHost extends StatelessWidget {
           trigger: n.trigger,
         ).text,
       ].join(' · '),
+      inset: inset,
       children: [KitLetterBody(n.htmlBody)],
     );
   }

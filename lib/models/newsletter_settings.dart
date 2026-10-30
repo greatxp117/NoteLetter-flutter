@@ -33,12 +33,14 @@ class NewsletterSettings {
     this.enabled = true,
     this.emailAddress = '',
     this.deliveryTime = '07:00',
-    // A hardcoded default zone is a wrong promise for everyone outside it —
-    // 2.29.0's whole point. Callers building fresh settings pass
-    // `deviceTimezone()`; this constant only survives where nothing supplied
-    // one, and an empty string would be worse (the orchestrator would read the
-    // stored time as UTC).
-    this.timezone = 'America/New_York',
+    // Empty means NONE IS STORED — the build then reads `deliveryTime` as UTC
+    // (area_letter.py `s.get("timezone", "UTC")`). Every reader of this field
+    // offers the device's zone in its place (`deviceTimezone()`), as web does
+    // (`data.timezone || deviceTimezone()`), and every writer sends one. Until
+    // F-144 this was `America/New_York`, so those empty-branches never ran:
+    // Letter settings drew New York for a reader whose zone was never stored
+    // and its Save then stored New York.
+    this.timezone = '',
     this.frequency = 'daily',
     this.purposeText = '',
     this.sourceTypes = const [],
@@ -48,7 +50,21 @@ class NewsletterSettings {
     this.topicFilters = const [],
   });
 
+  /// A key the stored document does not carry reads as what the BUILD uses
+  /// for it (area_letter.py: `frequency` "daily", `deliveryTime` "07:00",
+  /// `itemsPerNewsletter` 5, `excludeRecentDays` 7; screens/letters.md
+  /// §Composition, *Letter settings*), and an empty value reads the same, as
+  /// web's `||` reads it. `excludeRecentDays` 0 is a real value — passages
+  /// never rest — and stays 0. A zone that is not stored stays empty (see
+  /// [timezone]).
   factory NewsletterSettings.fromJson(Map<String, dynamic> json) {
+    String text(String key, String fallback) {
+      final v = json[key];
+      return v is String && v.isNotEmpty ? v : fallback;
+    }
+
+    int? count(String key) => (json[key] as num?)?.toInt();
+    final items = count('itemsPerNewsletter');
     return NewsletterSettings(
       // Absent is OFF (screens/library.md §The letter chip: "absent is off,
       // as on Letter settings"; web reads `Boolean(data.enabled)` — the
@@ -56,14 +72,14 @@ class NewsletterSettings {
       // without the key — or no doc at all — drew the letter as ON.
       enabled: json['enabled'] == true,
       emailAddress: json['emailAddress'] as String? ?? '',
-      deliveryTime: json['deliveryTime'] as String? ?? '07:00',
-      timezone: json['timezone'] as String? ?? 'America/New_York',
-      frequency: json['frequency'] as String? ?? 'daily',
+      deliveryTime: text('deliveryTime', '07:00'),
+      timezone: text('timezone', ''),
+      frequency: text('frequency', 'daily'),
       purposeText: json['purposeText'] as String? ?? '',
       sourceTypes: (json['sourceTypes'] as List?)?.cast<String>() ?? [],
       dateRangeDays: json['dateRangeDays'] as int? ?? 30,
-      itemsPerNewsletter: json['itemsPerNewsletter'] as int? ?? 5,
-      excludeRecentDays: json['excludeRecentDays'] as int? ?? 7,
+      itemsPerNewsletter: items == null || items == 0 ? 5 : items,
+      excludeRecentDays: count('excludeRecentDays') ?? 7,
       topicFilters: (json['topicFilters'] as List?)?.cast<String>() ?? const [],
     );
   }
@@ -74,7 +90,8 @@ class NewsletterSettings {
     return {
       'enabled': enabled,
       'deliveryTime': deliveryTime,
-      'timezone': timezone,
+      // An empty zone is "none stored", never a value to send (2.29.0).
+      if (timezone.isNotEmpty) 'timezone': timezone,
       'frequency': frequency,
       if (emailAddress.isNotEmpty) 'emailAddress': emailAddress,
       if (purposeText.isNotEmpty) 'purposeText': purposeText,

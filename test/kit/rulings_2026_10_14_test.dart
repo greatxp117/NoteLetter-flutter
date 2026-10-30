@@ -262,10 +262,19 @@ void main() {
       final opacity = tester.widget<Opacity>(find.ancestor(
           of: find.text('Unpinning…'), matching: find.byType(Opacity)).first);
       expect(opacity.opacity, AppSpacing.heldOpacity);
-      final button = tester.widget<TextButton>(find.ancestor(
-          of: find.text('Unpinning…'), matching: find.byType(TextButton)));
-      expect(button.onPressed, isNotNull,
-          reason: 'held, not disabled: Material would grey a null onPressed');
+      // Held, not disabled-and-greyed: the kit's own Unpin (direction D's
+      // sheet row, F-144) at the held opacity, taking no taps.
+      expect(
+          find.ancestor(
+              of: find.text('Unpinning…'), matching: find.byType(TextButton)),
+          findsNothing,
+          reason: 'never Material\'s disabled grey');
+      final hold = tester.widget<IgnorePointer>(find
+          .ancestor(
+              of: find.text('Unpinning…'),
+              matching: find.byType(IgnorePointer))
+          .first);
+      expect(hold.ignoring, isTrue);
       // Steady: no animation runs on it.
       expect(
           find.ancestor(

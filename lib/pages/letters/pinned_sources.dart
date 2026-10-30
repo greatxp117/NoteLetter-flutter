@@ -7,25 +7,30 @@
 /// know, and is the only place a pin can be undone outside the extension.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
 import '../../models/document.dart';
 import '../../models/newsletter_settings.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../services/error_text.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/kit/kit.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_radius.dart';
-import '../../services/error_text.dart';
-import '../../theme/app_spacing.dart';
 
+/// In direction D the block is part of the Letters sheet (screens/letters.md
+/// §Composition *Letters*, sheet 3): sheet rows under a mono caps label —
+/// the source's title (opening it, where the page passes [onOpen]), what is
+/// keeping it, and the labelled *Unpin* (web `PinnedSources.jsx`).
 class PinnedSources extends StatefulWidget {
-  const PinnedSources({super.key, required this.settings});
+  const PinnedSources({super.key, required this.settings, this.onOpen});
 
   /// Read from settings, never defaulted. A letter carries at most HALF its
   /// items as pins, so the count is half of `itemsPerNewsletter` — guessing it
   /// would state a promise the letter does not make.
   final NewsletterSettings? settings;
+
+  /// Opens a pinned source in the reader.
+  final void Function(Document doc)? onOpen;
 
   @override
   State<PinnedSources> createState() => _PinnedSourcesState();
@@ -34,6 +39,11 @@ class PinnedSources extends StatefulWidget {
 class _PinnedSourcesState extends State<PinnedSources> {
   String? _busy;
   String? _error;
+
+  /// One subscription for the block's life (INV-02). Opened in a build it
+  /// was a NEW query on every rebuild of the page around it.
+  late final Stream<List<Document>> _pins = FirestoreService.instance
+      .subscribePinnedDocuments();
 
   Future<void> _unpin(Document doc) async {
     setState(() {
@@ -51,24 +61,38 @@ class _PinnedSourcesState extends State<PinnedSources> {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) {
-        setState(() => _error =
-            'That could not be unpinned. Please check your connection and '
-            'try again.');
+        setState(
+          () => _error =
+              'That could not be unpinned. Please check your connection and '
+              'try again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = null);
     }
   }
 
+  /// What the next letter carries (web, verbatim): all of them, or the cap
+  /// and where the rest go. Null while the cap is unread — a guess there is a
+  /// wrong promise.
+  static String? _sentence(int pinned, int? cap) {
+    if (cap == null || pinned == 0) return null;
+    final arriving = pinned < cap ? pinned : cap;
+    final carried = pinned - arriving;
+    if (arriving == pinned) {
+      return '${pinned == 1 ? 'One source' : 'All $pinned sources'} will be '
+          'carried, ahead of everything else.';
+    }
+    return '$arriving of $pinned will be carried — a letter is never more '
+        'than half pins. The other '
+        '${carried == 1 ? 'one arrives' : '$carried arrive'} in the letter '
+        'after.';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final muted =
-        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
-
     return StreamBuilder<List<Document>>(
-      stream: FirestoreService.instance.subscribePinnedDocuments(),
+      stream: _pins,
       builder: (context, snap) {
         // §14.2 before the empty check (C3). `snap.data ?? const []` made a
         // failed stream and an empty one one value, and the panel's answer to
@@ -77,9 +101,9 @@ class _PinnedSourcesState extends State<PinnedSources> {
         // nothing. A StreamBuilder that never asks `hasError` cannot tell the
         // two apart (INV-24, ADR-071).
         if (snap.hasError) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: KitFailureInline(describeSdkError(snap.error!)),
+          return KitPinnedBlock(
+            rows: const [],
+            error: describeSdkError(snap.error!),
           );
         }
 
@@ -88,106 +112,41 @@ class _PinnedSourcesState extends State<PinnedSources> {
 
         // At most half a letter's items are pins. Absent settings means we do
         // not KNOW the cap, so the sentence about how many arrive is omitted
-        // rather than guessed.
+        // rather than guessed — and no row is called overflow.
         final perLetter = widget.settings?.itemsPerNewsletter;
         final cap = perLetter == null ? null : (perLetter / 2).floor();
-        final overflow = cap != null && pinned.length > cap;
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(
-                color: isDark ? AppColors.borderDark : AppColors.borderLight),
-            borderRadius: AppRadius.mdR,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pinned for the next letter',
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              // What a reader cannot otherwise know: how many will actually
-              // arrive, and that the rest are carried rather than dropped.
-              // Nine pinned and two delivered is the rule, not a bug.
-              if (cap != null)
-                Text(
-                  overflow
-                      ? 'The next letter carries $cap of these. The rest stay '
-                          'pinned and come in the letters after it.'
-                      : 'These come in the next letter.',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                ),
-              const SizedBox(height: 10),
-              for (final doc in pinned)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(doc.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodyMedium),
-                            // A pin on a source still being indexed is a WAIT,
-                            // not a failure — it simply cannot be carried yet.
-                            if (doc.status != DocumentStatus.complete)
-                              Text(
-                                doc.status == DocumentStatus.error
-                                    ? 'This source could not be indexed, so it '
-                                        'cannot be included.'
-                                    : 'Still being indexed — it will be '
-                                        'included once it is ready.',
-                                style: theme.textTheme.bodySmall
-                                    ?.copyWith(color: muted),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // A LABELLED control, not a bare ×. The glyph every
-                      // interface uses for "dismiss this notice" is the wrong
-                      // affordance for the only undo a pin has, and a label is
-                      // also what lets it say "Unpinning…" while in flight.
-                      //
-                      // HELD while its write is in flight (kit §6.1, ruled
-                      // by Xavier 2026-10-14): steady at the held opacity like
-                      // every other held control — not Material's disabled
-                      // grey, a second way to draw a held control (web pulsed
-                      // it; this client greyed it). It ignores taps, and the
-                      // row leaves only when the subscription says so.
-                      Semantics(
-                        enabled: _busy != doc.id,
-                        child: IgnorePointer(
-                          ignoring: _busy == doc.id,
-                          child: Opacity(
-                            opacity: _busy == doc.id
-                                ? AppSpacing.heldOpacity
-                                : 1,
-                            child: TextButton(
-                              onPressed: () => _unpin(doc),
-                              child: Text(
-                                  _busy == doc.id ? 'Unpinning…' : 'Unpin'),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (_error != null) ...[
-                const SizedBox(height: 6),
-                // The kit's §14.2, not a hand-spelled one. A screen drawing
-                // its own failure shape is what ADR-070 exists to stop, and
-                // this one had been spelling the tone by hand.
-                KitFailureInline(_error!),
-              ],
-            ],
-          ),
+        return KitPinnedBlock(
+          sentence: _sentence(pinned.length, cap),
+          error: _error,
+          rows: [
+            for (var i = 0; i < pinned.length; i++)
+              KitPinnedRow(
+                key: ValueKey('d-pin-${pinned[i].id}'),
+                title: pinned[i].title.isEmpty ? 'Untitled' : pinned[i].title,
+                // Overflow is carried, never dropped: dimmed, not struck.
+                overflow: cap != null && i >= cap,
+                // A pin on a source still being read is a WAIT, not a
+                // failure — the build skips it and keeps the pin. One that
+                // could not be read says so.
+                note: pinned[i].status == DocumentStatus.error
+                    ? 'This source could not be indexed, so it cannot be '
+                          'included.'
+                    : pinned[i].status != DocumentStatus.complete
+                    ? 'still being read — it keeps its place'
+                    : (cap != null && i >= cap)
+                    ? 'in the letter after'
+                    : null,
+                onOpen: widget.onOpen == null
+                    ? null
+                    : () => widget.onOpen!(pinned[i]),
+                // HELD while its write is in flight (kit §6.1, ruled by
+                // Xavier 2026-10-14): steady at the held opacity, no taps;
+                // the row leaves only when the subscription says so.
+                busy: _busy == pinned[i].id,
+                onUnpin: () => _unpin(pinned[i]),
+              ),
+          ],
         );
       },
     );

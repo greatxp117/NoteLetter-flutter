@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
 import '../../shared/local_flags.dart';
+import '../../state/ai_settings_notifier.dart';
 import '../../state/documents_notifier.dart';
 import '../../state/schedule.dart';
 import '../../state/scripture_letter_notifier.dart';
@@ -184,11 +185,26 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
   /// second time.
   bool _shelvesMade = false;
 
+  /// *Use generative AI* (5.29.0, ADR-186): ticked by default, and a replay
+  /// starts from the stored value. The stored value can land after the wizard
+  /// mounts, so it seeds the box only until the reader touches it: null is
+  /// "untouched — follow what is stored".
+  bool? _useAIChoice;
+
+  /// Made once: a retry after another write failed does not send it again.
+  bool _aiSaved = false;
+
   bool _saving = false;
   String? _saveError;
 
   /// Which write the error is about — the standfirst says which.
   bool _shelvesFailed = false;
+  bool _aiFailed = false;
+
+  /// The box as drawn: the reader's answer, else the stored value (only a
+  /// stored `false` is off; unread and unreadable are the default, ticked).
+  bool _useAI(BuildContext context) =>
+      _useAIChoice ?? (context.read<AiSettingsNotifier?>()?.genAI != GenAI.off);
 
   void _suggestChanged() {
     if (mounted) setState(() {});
@@ -201,6 +217,9 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
     // every change, and without this the welcome screen — the one step every
     // reader who opens the wizard sees — would be the only one never counted.
     _reportStep(_step);
+    // A replay starts the AI box from what is stored: the app-wide
+    // subscription, idempotent.
+    context.read<AiSettingsNotifier?>()?.start();
   }
 
   void _reportStep(int step) => Analytics.track('onboarding_step', {
@@ -241,6 +260,7 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
     // unmount it is a read of a dead tree.
     final letters = context.read<SettingsNotifier>();
     final readingsLetter = context.read<ScriptureLetterNotifier>();
+    final useAI = _useAI(context);
 
     String? failed = await letters.saveOnboardingLetter(
       frequency: _frequency,
@@ -269,7 +289,23 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
         }
         _shelvesMade = true;
       } catch (e) {
-        shelvesFailed = 'Your shelves could not be created: '
+        shelvesFailed =
+            'Your shelves could not be created: '
+            '${e is ApiException ? e.message : 'that request could not be completed.'}';
+      }
+    }
+
+    // The AI choice is a FOURTH, separate write (`fn_ai_settings`, 5.29.0,
+    // ADR-186): its failure costs none of the three above, and once it has
+    // landed a retry does not send it again.
+    String? aiFailed;
+    if (!_aiSaved) {
+      try {
+        await Api.instance.updateAiSettings(generativeAI: useAI);
+        _aiSaved = true;
+      } catch (e) {
+        aiFailed =
+            'Your AI choice could not be saved: '
             '${e is ApiException ? e.message : 'that request could not be completed.'}';
       }
     }
@@ -277,10 +313,11 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
     if (!mounted) return;
     setState(() {
       _saving = false;
-      _saveError = failed ?? shelvesFailed;
+      _saveError = failed ?? shelvesFailed ?? aiFailed;
       _shelvesFailed = failed == null && shelvesFailed != null;
+      _aiFailed = failed == null && shelvesFailed == null && aiFailed != null;
     });
-    failed ??= shelvesFailed;
+    failed ??= shelvesFailed ?? aiFailed;
     // A save failure keeps the wizard open with every choice intact and says
     // so (§14.2, `onboarding.md` §States/Save failed). It must not claim
     // success, and it must not throw the run away.
@@ -292,6 +329,9 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
     final t = Tokens.of(context);
     final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     final last = _steps.length - 1;
+    // Rebuilt when the stored AI choice lands: it seeds the Librarian step's
+    // box until the reader touches it.
+    context.watch<AiSettingsNotifier?>();
 
     final rail = _Rail(step: _step, compact: compact, onStep: _goTo);
 
@@ -376,6 +416,8 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
             _preset = p.id;
             _prompt.text = p.prompt;
           }),
+          useAI: _useAI(context),
+          onUseAI: (v) => setState(() => _useAIChoice = v),
         );
       case 3:
         // The field follows the mission until the reader types in it.
@@ -404,6 +446,8 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
           saving: _saving,
           error: _saveError,
           shelvesFailed: _shelvesFailed,
+          aiFailed: _aiFailed,
+          useAI: _useAI(context),
           goTo: _goTo,
         );
     }
@@ -469,12 +513,14 @@ class _Rail extends StatelessWidget {
                     AccentTitle(
                       'Your library, *distilled* — a daily letter from what '
                       'you’ve read.',
-                      style: KitText.title(context,
-                          fontSize: 25,
-                          height: 1.18,
-                          weight: FontWeight.w500,
-                          tracking: -0.01,
-                          color: t.chromeFg),
+                      style: KitText.title(
+                        context,
+                        fontSize: 25,
+                        height: 1.18,
+                        weight: FontWeight.w500,
+                        tracking: -0.01,
+                        color: t.chromeFg,
+                      ),
                       // The accent ON CHROME is brick-400, never the page's
                       // brick-500: the page accent on the plum field is a
                       // muddy near-match rather than a clause
@@ -508,10 +554,12 @@ class _Rail extends StatelessWidget {
                           const SizedBox(height: AppSpacing.s2),
                           Text(
                             '— ${quote.$2}',
-                            style: KitText.monoMeta(context,
-                                fontSize: 10.5,
-                                letterSpacing: 0.06,
-                                color: t.chromeSubtle),
+                            style: KitText.monoMeta(
+                              context,
+                              fontSize: 10.5,
+                              letterSpacing: 0.06,
+                              color: t.chromeSubtle,
+                            ),
                           ),
                         ],
                       ),
@@ -538,8 +586,11 @@ class _Progress extends StatelessWidget {
       children: [
         Text(
           'Step ${step + 1} of ${_steps.length}',
-          style: KitText.monoMeta(context,
-              letterSpacing: 0.08, color: t.chromeMuted),
+          style: KitText.monoMeta(
+            context,
+            letterSpacing: 0.08,
+            color: t.chromeMuted,
+          ),
         ),
         const SizedBox(width: AppSpacing.s3),
         Expanded(
@@ -607,10 +658,12 @@ class _StepRow extends StatelessWidget {
           ? Icon(Icons.check, size: 14, color: t.chromeSubtle)
           : Text(
               s.number!,
-              style: KitText.monoFigure(context,
-                  fontSize: 12,
-                  weight: FontWeight.w500,
-                  color: active ? t.chrome : t.chromeMuted),
+              style: KitText.monoFigure(
+                context,
+                fontSize: 12,
+                weight: FontWeight.w500,
+                color: active ? t.chrome : t.chromeMuted,
+              ),
             ),
     );
 
@@ -647,11 +700,12 @@ class _StepRow extends StatelessWidget {
                       Text(
                         s.label,
                         // `.ob-step-label`
-                        style: KitText.label(context,
-                            height: 1.3,
-                            weight:
-                                active ? FontWeight.w600 : FontWeight.w500,
-                            color: active ? t.chromeFg : t.chromeMuted),
+                        style: KitText.label(
+                          context,
+                          height: 1.3,
+                          weight: active ? FontWeight.w600 : FontWeight.w500,
+                          color: active ? t.chromeFg : t.chromeMuted,
+                        ),
                       ),
                       // The sub-line belongs to the ACTIVE step only, as the
                       // reference draws it: five of them at once is a second
@@ -661,10 +715,12 @@ class _StepRow extends StatelessWidget {
                         Text(
                           s.sub,
                           // `.ob-step-sub`
-                          style: KitText.monoMeta(context,
-                              fontSize: 10.5,
-                              height: 1.3,
-                              color: t.chromeSubtle),
+                          style: KitText.monoMeta(
+                            context,
+                            fontSize: 10.5,
+                            height: 1.3,
+                            color: t.chromeSubtle,
+                          ),
                         ),
                       ],
                     ],

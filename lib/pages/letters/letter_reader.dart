@@ -18,8 +18,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/newsletter.dart';
 import '../../services/error_text.dart';
 import '../../shared/dates.dart';
-import '../../theme/app_spacing.dart';
 import '../../widgets/kit/kit.dart';
+import 'delivery.dart';
 import 'letter_host.dart';
 import 'letter_preview.dart' show copyLetter;
 import 'readings_letter.dart';
@@ -30,14 +30,36 @@ import 'readings_letter.dart';
 /// clipboard.
 Uri letterMailto(Newsletter n) {
   final subject = n.subject;
-  return Uri.parse(subject == null || subject.isEmpty
-      ? 'mailto:'
-      : 'mailto:?subject=${Uri.encodeComponent(subject)}');
+  return Uri.parse(
+    subject == null || subject.isEmpty
+        ? 'mailto:'
+        : 'mailto:?subject=${Uri.encodeComponent(subject)}',
+  );
+}
+
+/// A letter's title on a row or a masthead (web `letterTitle`): the subject
+/// after *Your NoteLetter — *, else the whole subject, else *A Letter*.
+String letterTitle(Newsletter n) {
+  final s = n.subject ?? '';
+  final parts = s.split(' — ');
+  final rest = parts.length > 1 ? parts.sublist(1).join(' — ') : '';
+  return rest.isNotEmpty ? rest : (s.isNotEmpty ? s : 'A Letter');
 }
 
 Future<bool> _launchMail(Uri uri) => launchUrl(uri);
 
-class LetterReaderView extends StatelessWidget {
+/// One letter, opened (direction D, screens/letters.md §Composition *A
+/// letter*; web `LetterRead.jsx`, the prototype's `LetterReadD`).
+///
+/// The crumb — §39's *All letters*, then `Letter · No. {n} · {long date}`
+/// (`The readings letter · …`) — the letter's title and its lede (none for a
+/// readings letter); the page's one action *Open in email* (short *Email*), and
+/// no settings. The sheet *This letter*: its passages as Contents, read from
+/// the drawn letter and following the scroll; its figures; *Copy the letter*.
+/// The column: the letter as it was sent — a letterheaded body lifted as a
+/// sheet (the screen's full width, unframed, on a phone), an older body in the
+/// §11 frame, the readings letter its own document.
+class LetterReaderView extends StatefulWidget {
   final Newsletter letter;
   final VoidCallback onBack;
 
@@ -45,9 +67,11 @@ class LetterReaderView extends StatelessWidget {
   /// has no such surface.
   final VoidCallback? onSeeAll;
 
-  /// Seams for the tests: the clipboard write and the mail handoff.
+  /// Seams for the tests: the clipboard write, the mail handoff, and the host
+  /// a letterheaded body is drawn in (a web view no widget test can mount).
   final Future<void> Function(Newsletter) copy;
   final Future<bool> Function(Uri) openMail;
+  final Widget Function(Newsletter letter, Key Function(int i) headKey)? host;
 
   const LetterReaderView({
     super.key,
@@ -56,91 +80,64 @@ class LetterReaderView extends StatelessWidget {
     this.onSeeAll,
     this.copy = copyLetter,
     this.openMail = _launchMail,
+    this.host,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return _LetterBar(
-      letter: letter,
-      onBack: onBack,
-      crumb: _crumb(letter),
-      copy: copy,
-      openMail: openMail,
-      body: Expanded(
-          child: KitScrollView(
-            // A letter with its own letterhead is hosted BARE, flush under
-            // the bar — web `.letter-sheet` has "no padding that would fight
-            // the letter's own"; a band of app ground above the paper was a
-            // frame the sent object does not have. The frame-less shapes keep
-            // theirs (`.letter-page`).
-            child: letter.hasLetterhead
-                ? LetterHost(letter)
-                : Padding(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
-                    // Scripture has its own document; a daily letter goes
-                    // through the one host the letter-settings preview shares
-                    // (ADR-131).
-                    child: letter.isScripture
-                        ? ReadingsLetterDocument(
-                            letter: letter, onSeeAll: onSeeAll)
-                        : LetterHost(letter),
-                  ),
-          ),
-      ),
-    );
-  }
-
-  static String _crumb(Newsletter n) {
-    if (n.isScripture) {
-      return 'Readings · ${longDate(n.generatedAt)}';
-    }
-    final subject = n.subject;
-    return (subject != null && subject.isNotEmpty)
-        ? subject
-        : longDate(n.generatedAt);
-  }
+  State<LetterReaderView> createState() => _LetterReaderViewState();
 }
 
-/// The reader's bar (`.lr-bar`, letters.md §Composition *The letter*): the back
-/// control, the crumb, then **Copy** and **Open in email**. Both were absent
-/// here — web drew them with no handler until 4.98.0 (`d153111`), and this
-/// client never drew them at all.
-class _LetterBar extends StatefulWidget {
-  final Newsletter letter;
-  final VoidCallback onBack;
-  final String crumb;
-  final Future<void> Function(Newsletter) copy;
-  final Future<bool> Function(Uri) openMail;
-  final Widget body;
-
-  const _LetterBar({
-    required this.letter,
-    required this.onBack,
-    required this.crumb,
-    required this.copy,
-    required this.openMail,
-    required this.body,
-  });
-
-  @override
-  State<_LetterBar> createState() => _LetterBarState();
-}
-
-class _LetterBarState extends State<_LetterBar> {
+class _LetterReaderViewState extends State<LetterReaderView> {
   bool _copied = false;
-  String? _error;
+  String? _copyError;
+  String? _mailError;
 
-  /// The back control and both labelled actions need about 392px — measured
-  /// on iPhone 17 Pro's 402. Narrower, the actions keep their glyphs and lose
-  /// their labels, which is the reference's own phone rule
-  /// (`.lr-actions .btn span { display: none }`) — a row that overflows is not
-  /// a smaller version of the bar, it is a broken one.
-  static const double _labelledWidth = 400;
+  late List<KitContentsItem> _heads = _headsOf(widget.letter);
+  late final KitSections _sec = KitSections([for (final h in _heads) h.id]);
+
+  @override
+  void didUpdateWidget(LetterReaderView old) {
+    super.didUpdateWidget(old);
+    if (old.letter.id != widget.letter.id) {
+      _heads = _headsOf(widget.letter);
+      _sec.ids = [for (final h in _heads) h.id];
+      _copied = false;
+      _copyError = null;
+      _mailError = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _sec.dispose();
+    super.dispose();
+  }
+
+  /// The letter's passages, as the drawn letter titles them (web reads the
+  /// drawn DOM): each passage card's `<h2>` in a letterheaded letter
+  /// ([kitLetterSections] reads the same tag), each reading's label in a
+  /// readings letter. A frame-less body written before 4.50.0 names none.
+  static List<KitContentsItem> _headsOf(Newsletter n) {
+    String clean(String s) => s.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final labels = n.isScripture
+        ? (n.status == 'empty'
+              ? const <String>[]
+              : [
+                  for (final r in n.readings)
+                    if (r.label.trim().isNotEmpty) clean(r.label),
+                ])
+        : [for (final s in kitLetterSections(n)) clean(s.title)];
+    return [
+      for (var i = 0; i < labels.length; i++) KitContentsItem('p$i', labels[i]),
+    ];
+  }
+
+  Key _headKey(int i) => _sec.keyOf('p$i');
 
   Future<void> _copy() async {
     setState(() {
       _copied = false;
-      _error = null;
+      _copyError = null;
     });
     try {
       await widget.copy(widget.letter);
@@ -148,13 +145,15 @@ class _LetterBarState extends State<_LetterBar> {
       setState(() => _copied = true);
     } catch (e) {
       if (!mounted) return;
-      setState(() =>
-          _error = 'The letter could not be copied — ${describeSdkError(e)}');
+      setState(
+        () => _copyError =
+            'The letter could not be copied — ${describeSdkError(e)}',
+      );
     }
   }
 
   Future<void> _mail() async {
-    setState(() => _error = null);
+    setState(() => _mailError = null);
     var opened = false;
     try {
       opened = await widget.openMail(letterMailto(widget.letter));
@@ -165,59 +164,123 @@ class _LetterBarState extends State<_LetterBar> {
     // A handoff that went nowhere is said, never swallowed: launchUrl answers
     // false when no mail app is set up, and a control that does nothing reads
     // exactly like one that worked.
-    setState(() => _error = 'No mail app could be opened on this device. '
-        'Copy the letter and paste it into one.');
+    setState(
+      () => _mailError =
+          'No mail app could be opened on this device. '
+          'Copy the letter and paste it into one.',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final labelled =
-        MediaQuery.sizeOf(context).width >= _labelledWidth;
-    final canCopy = widget.letter.htmlBody.isNotEmpty;
-    final copyLabel = _copied ? 'Copied' : 'Copy';
-    final copyIcon = _copied ? Icons.check : Icons.copy_outlined;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // The actions bar is **outside** the sheet (§11), and it is the §1.3
-        // utility bar: a back control naming where it returns to, the crumb,
-        // and the actions.
-        KitUtilityBar(
-          // The back control NAMES where it returns to, and its chevron
-          // LEADS — a trailing one reads as "go deeper".
-          leading: KitButton(
-            'All letters',
-            icon: Icons.chevron_left,
-            variant: KitButtonVariant.ghost,
-            onPressed: widget.onBack,
-          ),
-          crumb: widget.crumb,
-          actions: labelled
-              ? [
-                  // A record with no body (a pre-2.24.0 readings letter) has
-                  // nothing to copy, and says so by being disabled.
-                  KitButton.ghost(copyLabel,
-                      icon: copyIcon, onPressed: canCopy ? _copy : null),
-                  KitButton.secondary('Open in email',
-                      icon: Icons.open_in_new, onPressed: _mail),
-                ]
-              : [
-                  KitIconButton(copyIcon,
-                      tooltip: copyLabel, onPressed: canCopy ? _copy : null),
-                  KitIconButton(Icons.open_in_new,
-                      tooltip: 'Open in email', onPressed: _mail),
-                ],
+    final n = widget.letter;
+    final readings = n.isScripture;
+    final head = kitLetterHead(n);
+    final count = n.chunkIdsKnown ? n.chunkIds.length : null;
+    final badge = letterBadge(
+      status: n.status,
+      deliveryState: n.delivery?.state,
+      trigger: n.trigger,
+    );
+    final note = deliveryNote(
+      state: n.delivery?.state,
+      detail: n.delivery?.detail,
+      attempts: n.delivery?.attempts ?? 0,
+    );
+    final date = longDate(n.generatedAt);
+    final title = readings ? 'Readings for $date' : letterTitle(n);
+    final lede = readings ? '' : n.ledeOf(220);
+    // A record with no body (a pre-2.24.0 readings letter) has nothing to
+    // copy, and says so by being held.
+    final canCopy = n.htmlBody.isNotEmpty;
+
+    final Widget body;
+    if (readings) {
+      body = ReadingsLetterDocument(
+        letter: n,
+        onSeeAll: widget.onSeeAll,
+        headKey: _headKey,
+        inset: false,
+      );
+    } else if (n.hasLetterhead) {
+      // The letter as it was sent, hosted BARE on its own paper (ADR-087) —
+      // lifted as a sheet, or the screen's whole width on a phone.
+      body = KitLiftedLetter(
+        child:
+            widget.host?.call(n, _headKey) ?? LetterHost(n, headKey: _headKey),
+      );
+    } else {
+      // A frame-less body sits in the §11 sheet, through the one host the
+      // letter-settings preview shares (ADR-131).
+      body = LetterHost(n, inset: false);
+    }
+
+    return KitDPage(
+      key: ValueKey('d-letter-${n.id}'),
+      back: KitDBackControl('All letters', onTap: widget.onBack),
+      // On a phone the back control stands over the folio (web's phone frame).
+      crumbStacks: true,
+      folio: [
+        readings ? 'The readings letter' : 'Letter',
+        if (head.no != null) 'No. ${head.no}',
+        if (date.isNotEmpty) date,
+      ].join(' · '),
+      title: title,
+      stand: lede.isEmpty ? null : lede,
+      action: KitPageAction(
+        label: 'Open in email',
+        short: 'Email',
+        icon: Icons.open_in_new,
+        onPressed: _mail,
+      ),
+      // §14.2 under the masthead: the handoff that went nowhere, beside the
+      // action that was pressed.
+      under: _mailError == null ? null : KitSendLine(failure: _mailError),
+      sections: _sec,
+      sheet: KitDSheet(
+        label: 'This letter',
+        foldOnPick: true,
+        peek: KitLetterPeek(
+          no: head.no,
+          title: title,
+          count: count,
+          items: _heads,
+          sections: _sec,
         ),
-        // §14.2 beside the control that refused — under the bar, since a 48px
-        // bar has no room for a sentence.
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4, AppSpacing.s2, AppSpacing.s4, 0),
-            child: KitFailureInline(_error!),
-          ),
-        widget.body,
-      ],
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_heads.isNotEmpty) ...[
+              const KitDLabel('Passages', first: true),
+              KitContents(items: _heads, sections: _sec, label: 'Passages'),
+            ],
+            KitFigures(
+              label: 'This letter',
+              rows: [
+                ('Sent', date.isEmpty ? '—' : date),
+                if (count != null) ('Passages', '$count'),
+                if (count != null) ('Reading time', '~${count + 1} min'),
+                // The delivery axis has the last word about the mail
+                // (INV-23), and `sent` is never rendered as "Delivered".
+                ('Delivery', badge.text),
+              ],
+            ),
+            if (note != null) KitDNote(note),
+            KitSheetAlso(
+              children: [
+                if (_copyError != null) KitFailureInline(_copyError!),
+                KitAlsoButton(
+                  _copied ? 'Copied' : 'Copy the letter',
+                  key: const ValueKey('d-letter-copy'),
+                  icon: _copied ? Icons.check : Icons.copy_outlined,
+                  onTap: canCopy ? _copy : null,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      child: body,
     );
   }
 }

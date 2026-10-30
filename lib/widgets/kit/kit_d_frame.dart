@@ -1122,6 +1122,8 @@ class KitContents extends StatelessWidget {
                   final it = items[i];
                   final on = sections.current == it.id;
                   return KitDTap(
+                    // A hold or a device run finds a row by its section id.
+                    key: ValueKey('d-contents-${it.id}'),
                     label: '${KitD.numeral(i)} ${it.label}',
                     selected: on,
                     onTap: () {
@@ -1145,8 +1147,13 @@ class KitContents extends StatelessWidget {
                             children: [
                               SizedBox(
                                 width: 24,
+                                // Web's cell is `flex: 0 0 24px` and CSS lets a
+                                // long numeral (VIII, Settings' eighth group)
+                                // run past it; a Text would wrap it in two.
                                 child: Text(
                                   KitD.numeral(i),
+                                  softWrap: false,
+                                  overflow: TextOverflow.visible,
                                   style: AppTheme.serif(
                                     fontSize: 15,
                                     fontStyle: FontStyle.italic,
