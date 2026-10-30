@@ -9,10 +9,10 @@ import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/theme/tokens.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
-/// The eleventh, read-only "current" swatch (ruled 2026-10-08;
+/// The read-only "current" swatch after the twenty (ruled 2026-10-08;
 /// `screens/library.md` §Shelf color; web `b70f5ea`, `.ss-swatch-current`).
 ///
-/// A shelf whose stored colour is not one of the ten — a legacy hex, which is
+/// A shelf whose stored colour is not one of the twenty — a legacy hex, which is
 /// every auto-created shelf — matched no swatch, so the settings row marked
 /// nothing: the one state in which the pane said nothing about the colour the
 /// shelf is drawn in. Plus the 2026-10-08 wording tandem on Sources' filter
@@ -57,22 +57,27 @@ double _opacity(WidgetTester tester, Finder swatch) => tester
         find.descendant(of: swatch, matching: find.byType(Opacity)).first)
     .opacity;
 
+/// The set's size (5.41.0, ADR-196: twenty), so the swatch after it is at [n].
+const n = 20;
+
 void main() {
-  group('the eleventh swatch', () {
-    testWidgets('a legacy-hex shelf: eleven, the last one selected in its hex',
+  test('the set is twenty', () => expect(AppColors.shelfColors, hasLength(n)));
+
+  group('the swatch after the twenty', () {
+    testWidgets('a legacy-hex shelf: twenty-one, the last one selected in its hex',
         (tester) async {
       await _mount(tester, _legacyHex);
-      expect(find.byType(KitSwatch), findsNWidgets(11));
-      for (var i = 0; i < 10; i++) {
+      expect(find.byType(KitSwatch), findsNWidgets(n + 1));
+      for (var i = 0; i < n; i++) {
         expect(_swatch(tester, i).selected, isFalse,
-            reason: 'none of the ten is the stored colour');
+            reason: 'none of the twenty is the stored colour');
       }
-      final current = _swatch(tester, 10);
+      final current = _swatch(tester, n);
       expect(current.selected, isTrue);
       expect(current.readOnly, isTrue);
-      expect(current.label, 'Current colour, not one of the ten');
+      expect(current.label, 'Current colour, not one of the twenty');
       expect(current.tooltip, 'Current colour');
-      final last = find.byType(KitSwatch).at(10);
+      final last = find.byType(KitSwatch).at(n);
       expect(_fill(tester, last), AppColors.shelfColor(_legacyHex, dark: false),
           reason: 'exactly what every other surface paints');
       expect(_opacity(tester, last), 1.0, reason: 'read-only is not held');
@@ -80,33 +85,33 @@ void main() {
 
     testWidgets('it is not a control: a tap sends nothing', (tester) async {
       final picked = await _mount(tester, _legacyHex);
-      await tester.tap(find.byType(KitSwatch).at(10));
+      await tester.tap(find.byType(KitSwatch).at(n));
       await tester.pump();
       expect(picked, isEmpty);
       await tester.tap(find.byType(KitSwatch).at(3));
-      expect(picked, ['brick-500'], reason: 'the ten still write');
+      expect(picked, ['teal-500'], reason: 'the twenty still write');
     });
 
-    testWidgets('a write in flight holds the ten, not the current colour',
+    testWidgets('a write in flight holds the twenty, not the current colour',
         (tester) async {
       await _mount(tester, _legacyHex, enabled: false);
       expect(_opacity(tester, find.byType(KitSwatch).at(0)), 0.5);
-      expect(_opacity(tester, find.byType(KitSwatch).at(10)), 1.0);
+      expect(_opacity(tester, find.byType(KitSwatch).at(n)), 1.0);
     });
 
-    testWidgets('one of the ten: ten, that one selected, no eleventh',
+    testWidgets('one of the twenty: twenty, that one selected, no extra one',
         (tester) async {
       await _mount(tester, 'plum-600');
-      expect(find.byType(KitSwatch), findsNWidgets(10));
-      expect(_swatch(tester, 6).selected, isTrue);
+      expect(find.byType(KitSwatch), findsNWidgets(n));
+      expect(_swatch(tester, 8).selected, isTrue);
     });
 
     testWidgets('an unrecognised value draws the muted fallback',
         (tester) async {
       await _mount(tester, 'chartreuse', theme: AppTheme.dark);
-      expect(find.byType(KitSwatch), findsNWidgets(11));
+      expect(find.byType(KitSwatch), findsNWidgets(n + 1));
       final ctx = tester.element(find.byType(ShelfSwatches));
-      expect(_fill(tester, find.byType(KitSwatch).at(10)),
+      expect(_fill(tester, find.byType(KitSwatch).at(n)),
           Tokens.of(ctx).fgSubtle);
     });
 
@@ -116,11 +121,11 @@ void main() {
       ('light', AppTheme.light, AppColors.shelfColors),
       ('dark', AppTheme.dark, AppColors.shelfColorsDark),
     ]) {
-      testWidgets('in $name the ten paint the $name ten (ADR-154)',
+      testWidgets('in $name the twenty paint the $name twenty (ADR-154)',
           (tester) async {
         await _mount(tester, 'plum-600', theme: theme);
         final keys = map.keys.toList();
-        for (var i = 0; i < 10; i++) {
+        for (var i = 0; i < n; i++) {
           expect(_fill(tester, find.byType(KitSwatch).at(i)), map[keys[i]],
               reason: '$name ${keys[i]}');
         }
@@ -130,7 +135,7 @@ void main() {
     testWidgets('the create form has none: a new shelf has no current colour',
         (tester) async {
       await _mount(tester, _legacyHex, showCurrent: false);
-      expect(find.byType(KitSwatch), findsNWidgets(10));
+      expect(find.byType(KitSwatch), findsNWidgets(n));
     });
 
     test('the shelf settings ask for it, and only they do', () {
@@ -139,7 +144,7 @@ void main() {
       expect(page, contains('showCurrent: true'),
           reason: 'the settings row is where the ruling lands');
       expect(sheet, isNot(contains('showCurrent: true')),
-          reason: 'the create form has no eleventh');
+          reason: 'the create form has no extra swatch');
     });
   });
 

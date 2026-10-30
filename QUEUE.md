@@ -2289,7 +2289,7 @@ a new obligation on a finished screen is a new item.
 - notes: Done in the 5.37.0 run itself, out of queue order. `fn_apply_shelf_backfill` is retired (Xavier, 2026-10-28: "just retire now"). Its builder and budget row are gone; nothing called it since F-136, because the reviews file through `resolveTask`. `requestTask(kind, fields)` is now library-private `_requestTask`, with one public method per kind: `requestShelfDelete(tagId, reshelve:)`, `requestShelfBackfill`, `requestShelfSplit`, `requestSyllabusPlan`, `requestReorgPlan`. Request bodies are byte-identical. A screen cannot call `_requestTask`, so the only way to delete a shelf is `requestShelfDelete`, which confirm_check (5ab) now binds to its §18 confirm in `shelf_page.dart`. Before this, the gate's shelf-delete entry named a builder nothing called, and the real delete was ungated. Five call sites moved. `api_requests_test` dispatches `fn_request_task` cases on their `kind`, and an unknown kind is refused locally. No visible state changed, so there is no pair.
 
 ## F-139 · Twenty shelf colours and dark palette B (5.41.0, ADR-196)
-- status: open
+- status: done 2026-10-30
 - screen: none (tokens)
 - route: none
 - spec: spec/design-tokens.md; spec/screens/library.md

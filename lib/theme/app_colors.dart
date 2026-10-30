@@ -64,7 +64,7 @@ class AppColors {
   // lifts all three for dark; these mirror it.
   static const positiveDark = _sage400;
   static const warningDark = _ochre400;
-  static const criticalDark = Color(0xFFE4695E);
+  static const criticalDark = Color(0xFFF37469); // #E4695E until 5.41.0 (ADR-196)
   /// `--critical-text`. The severity when it is DRAWN rather than filled: the
   /// fill step is 3.99:1 on a raised card and 4.16:1 inside its own tint in
   /// dark, under the small-text floor on both grounds a failure message lands
@@ -107,13 +107,13 @@ class AppColors {
   // ── Semantic — Dark ──────────────────────────────────────────────────────
   static const backgroundDark = _ink700; // --bg (dark)
   static const foregroundDark = _paper50; // --fg (dark)
-  static const primaryDark = _brick400; // --accent (dark)
+  static const primaryDark = _brick300; // --accent (dark): brick-300 since 5.41.0 (ADR-196)
   static const primaryForegroundDark = _ink800; // --accent-fg (dark)
   static const cardDark = _ink600; // --surface (dark)
   static const sidebarDark = _ink500; // --surface-raised (dark)
   static const borderDark = Color(0x1AFFFFFF); // --border rgba(255,255,255,.10)
   static const secondaryDark = Color(0x14FFFFFF); // --secondary rgba(255,255,255,.08)
-  static const mutedForegroundDark = Color(0xA6FFFFFF); // --fg-muted rgba(255,255,255,.65)
+  static const mutedForegroundDark = Color(0xFFBCBDBD); // --fg-muted: solid since 5.41.0 (ADR-196)
 
   // ── Sunken surfaces, rules and subtle text ───────────────────────────────
   // Semantic, so each flips with the theme (never a raw step picked once and
@@ -124,7 +124,7 @@ class AppColors {
   static const ruleLight = Color(0x0F14171F); // --rule rgba(20,23,31,.06)
   static const ruleDark = Color(0x0FFFFFFF); // --rule rgba(255,255,255,.06)
   static const subtleForegroundLight = _ink350; // --fg-subtle
-  static const subtleForegroundDark = Color(0x85FFFFFF); // --fg-subtle rgba(255,255,255,.52)
+  static const subtleForegroundDark = Color(0xFFA7A8AA); // --fg-subtle: solid since 5.41.0
 
   // ── The rest of the semantic layer (needed to build a real ColorScheme) ──
   // Every one of these is a token that FLIPS with the theme, which is why each
@@ -142,7 +142,7 @@ class AppColors {
   static const accentSoftLight = Color(0x1A9D352D); // --accent-soft rgba(157,53,45,.10)
   static const accentSoftDark = Color(0x29D9482F); // --accent-soft rgba(217,72,47,.16)
   static const fgLedeLight = _ink400; // --fg-lede
-  static const fgLedeDark = Color(0xB8FFFFFF); // --fg-lede rgba(255,255,255,.72)
+  static const fgLedeDark = Color(0xFFC8C9C9); // --fg-lede: solid since 5.41.0
 
   /// `--secondary` is the secondary BUTTON FILL, and it is one of the few
   /// tokens whose two themes are not the same kind of colour at all: solid plum
@@ -245,9 +245,10 @@ class AppColors {
   // themed by a client that renders light and dark, and a CSS `var()` string
   // means nothing off the web; what every client can act on is WHICH token.
   //
-  // Raw steps only, never semantic tokens: semantics flip between themes, so a
-  // shelf coloured `--seal` would change hue when the user toggles the theme.
-  // All ten already exist in the palette above — this adds no token.
+  // Never a role token: `--seal` means something else. Ten names are raw steps
+  // in the palette above (ADR-022); the other ten (5.41.0, ADR-196) are
+  // shelf-only cloths with literal values — no raw step of that name exists.
+  // Listed in the picker's wheel order.
   //
   // CLOSED FOR WRITING, TOLERANT ON READING. Legacy 6-digit hex stays valid
   // forever (every auto-created tag holds the `#6B7280` default and there is no
@@ -255,35 +256,56 @@ class AppColors {
   static const shelfColors = <String, Color>{
     'sage-500': _sage500,
     'sage-700': _sage700,
+    'olive-500': Color(0xFF74773A),
+    'teal-500': Color(0xFF2E7774),
+    'teal-700': Color(0xFF1E5452),
+    'indigo-500': Color(0xFF4C5C9C),
+    'indigo-700': Color(0xFF2D3A6A),
+    'plum-500': _plum500,
+    'plum-600': _plum600,
+    'rose-500': Color(0xFFA65A6C),
+    'rose-700': Color(0xFF7E3448),
     'brick-400': _brick400,
     'brick-500': _brick500,
     'brick-700': _brick700,
-    'plum-500': _plum500,
-    'plum-600': _plum600,
+    'ochre-500': Color(0xFFA47A2C),
+    'ochre-700': Color(0xFF7A5634),
+    'sand-500': Color(0xFF9A8466),
     'ink-300': _ink300,
     'ink-400': _ink400,
     'ink-500': _ink500,
   };
 
-  // 4.117.0 (ADR-154): the same ten names, resolved for the dark theme —
-  // web's `--shelf-{name}` in its dark blocks. The stored value never changes;
-  // what a name PAINTS does. Each is ≥3.76:1 on the dark surface and ≥3.10 on
-  // the raised one (the light ten are ≥3.15 on white). `token_contrast_check`
+  // 4.117.0 (ADR-154): the same names, resolved for the dark theme — web's
+  // `--shelf-{name}` in its dark blocks. The stored value never changes; what a
+  // name PAINTS does. Each is ≥3.76:1 on the dark surface and ≥3.10 on the
+  // raised one; every light value is ≥3.15 on white (ADR-196's cloths ≥3.19 on
+  // the light raised ground). `token_contrast_check`
   // SHELF reads this map beside [shelfColors].
   static const shelfColorsDark = <String, Color>{
     'sage-500': _sage300,
     'sage-700': Color(0xFF779158),
+    'olive-500': Color(0xFFAEB16F),
+    'teal-500': Color(0xFF6DB0AB),
+    'teal-700': Color(0xFF4F9894),
+    'indigo-500': Color(0xFF8D9BD8),
+    'indigo-700': Color(0xFF7C8ACB),
+    'plum-500': Color(0xFFC9A6C6),
+    'plum-600': Color(0xFFA279A4),
+    'rose-500': Color(0xFFD48F9F),
+    'rose-700': Color(0xFFC77A8E),
     'brick-400': _brick300,
     'brick-500': Color(0xFFCF7871),
     'brick-700': Color(0xFFCB584E),
-    'plum-500': Color(0xFFC9A6C6),
-    'plum-600': Color(0xFFA279A4),
+    'ochre-500': Color(0xFFD3A85E),
+    'ochre-700': Color(0xFFB78F6A),
+    'sand-500': Color(0xFFC7B293),
     'ink-300': Color(0xFFB5BAC6),
     'ink-400': Color(0xFF939BAD),
     'ink-500': Color(0xFF737C98),
   };
 
-  /// The reader-facing NAME of each of the ten (`screens/library.md` §Shelf
+  /// The reader-facing NAME of each of the twenty (`screens/library.md` §Shelf
   /// color). The token name is the wire value and the label is what a person
   /// is offered — a swatch announced as `plum-600` names a variable, not a
   /// colour, and the closed set is a vocabulary in **both** directions: a
@@ -293,11 +315,21 @@ class AppColors {
   static const shelfColorLabels = <String, String>{
     'sage-500': 'Moss',
     'sage-700': 'Deep moss',
+    'olive-500': 'Olive',
+    'teal-500': 'Teal',
+    'teal-700': 'Deep teal',
+    'indigo-500': 'Cornflower',
+    'indigo-700': 'Navy',
+    'plum-500': 'Plum',
+    'plum-600': 'Deep plum',
+    'rose-500': 'Rose',
+    'rose-700': 'Madder',
     'brick-400': 'Vermilion',
     'brick-500': 'Brick',
     'brick-700': 'Oxblood',
-    'plum-500': 'Plum',
-    'plum-600': 'Deep plum',
+    'ochre-500': 'Ochre',
+    'ochre-700': 'Umber',
+    'sand-500': 'Sand',
     'ink-300': 'Slate',
     'ink-400': 'Deep slate',
     'ink-500': 'Graphite',
@@ -307,7 +339,7 @@ class AppColors {
   /// the caller can fall back to its own muted colour — never an error.
   ///
   /// [dark] is required, not defaulted: a site that forgot it would paint the
-  /// light ten on a dark surface and nothing would say so (ADR-154). A legacy
+  /// light values on a dark surface and nothing would say so (ADR-154). A legacy
   /// hex paints the same in both themes.
   static Color? shelfColor(String? value, {required bool dark}) {
     if (value == null) return null;

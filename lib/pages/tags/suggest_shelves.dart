@@ -33,13 +33,13 @@ typedef SuggestTags = Future<Map<String, dynamic>> Function(String purposeText);
 typedef ApproveTags = Future<Map<String, dynamic>> Function(
     List<Map<String, dynamic>> tags);
 
-/// What a client may WRITE as a shelf's colour: one of the ten (library.md
-/// §Shelf color — "clients do not write hex"). A proposal outside the ten
+/// What a client may WRITE as a shelf's colour: one of the twenty (library.md
+/// §Shelf color — "clients do not write hex"). A proposal outside the twenty
 /// takes a swatch by position, so a kept shelf is born inside the set its
 /// picker can show.
 String proposalColor(Object? color, int i) {
-  final ten = AppColors.shelfColorLabels.keys.toList();
-  return color is String && ten.contains(color) ? color : ten[i % ten.length];
+  final names = AppColors.shelfColorLabels.keys.toList();
+  return color is String && names.contains(color) ? color : names[i % names.length];
 }
 
 /// A refusal of what was typed (a 4xx) is the reader's to correct, beside the
@@ -154,7 +154,7 @@ class ShelfSuggestions extends ChangeNotifier {
 
   /// What a create sends — the kept proposals in the order shown, each
   /// `{title, description, color}` (fn_approve_tags' per-shelf keys), the
-  /// colour one of the ten.
+  /// colour one of the twenty.
   List<Map<String, dynamic>> get chosen => [
         for (var i = 0; i < tags.length; i++)
           if (kept.contains(i))

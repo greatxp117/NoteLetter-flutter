@@ -72,9 +72,9 @@ void main() {
       expect([for (final c in s.chosen) c['title']], ['Nutrition']);
     });
 
-    test('a colour outside the ten takes a swatch by position', () {
+    test('a colour outside the twenty takes a swatch by position', () {
       expect(proposalColor('#6B7280', 0), 'sage-500');
-      expect(proposalColor('#6B7280', 3), 'brick-500');
+      expect(proposalColor('#6B7280', 3), 'teal-500');
       expect(proposalColor('plum-600', 7), 'plum-600');
     });
 

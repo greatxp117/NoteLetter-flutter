@@ -298,7 +298,7 @@ class ShelfFormFields extends StatefulWidget {
 
   /// 5.28.0 (ADR-185): [shelves] turns on the *Inside* field — a §20.2 select
   /// whose none is the top level — and [parent] prefills it, with the colour
-  /// defaulting to the parent's when it is one of the ten.
+  /// defaulting to the parent's when it is one of the twenty.
   final List<Tag>? shelves;
   final Tag? parent;
 
@@ -314,7 +314,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
   final _desc = TextEditingController();
   late String _color = AppColors.shelfColorLabels.containsKey(widget.parent?.color)
       ? widget.parent!.color!
-      : AppColors.shelfColorLabels.keys.first; // the first NAME of the ten
+      : AppColors.shelfColorLabels.keys.first; // the first NAME of the twenty
   late String _inside = widget.parent?.id ?? '';
   bool _backfill = true;
   bool _busy = false;

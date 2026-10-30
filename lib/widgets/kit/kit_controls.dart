@@ -2449,7 +2449,7 @@ class KitSwatch extends StatelessWidget {
 
   /// A swatch that SAYS a colour rather than offering one
   /// (`.ss-swatch-current`, `screens/library.md` §Shelf color, ruled
-  /// 2026-10-08): a shelf's stored colour that is not one of the ten. Not a
+  /// 2026-10-08): a shelf's stored colour that is not one of the twenty. Not a
   /// control — no button role, no pointer, never dimmed as a held control is,
   /// and [tooltip] names it on hover.
   final bool readOnly;
@@ -2594,8 +2594,9 @@ class KitPanel extends StatelessWidget {
 /// split body) has a zero basis, always fits, and shrinks beside the label; a
 /// control sized by its content (the swatches) wraps WHOLE onto its own line
 /// under the label when its natural width does not fit beside it — on a phone
-/// the ten swatches (312px) drop under COLOR as one row of ten instead of
-/// wrapping 7 + 3 inside the column (F-56). [sizedByContent] is that basis.
+/// the swatches drop under COLOR and wrap across the full width instead of
+/// inside the column beside it (F-56; ten in one row then, twenty in two or
+/// three since 5.41.0). [sizedByContent] is that basis.
 class KitPanelRow extends StatelessWidget {
   final String label;
   final Widget child;

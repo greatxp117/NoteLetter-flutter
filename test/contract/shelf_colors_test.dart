@@ -1,5 +1,5 @@
-/// The shelf-colour vocabulary (contract 2.15.0, ADR-022;
-/// `screens/library.md` §Shelf color).
+/// The shelf-colour vocabulary (contract 2.15.0, ADR-022; twenty from 5.41.0,
+/// ADR-196; `screens/library.md` §Shelf color).
 ///
 /// Read **both ways**, because a vocabulary has two halves and nothing ties
 /// them together on its own: the token map is what a swatch PAINTS and the
@@ -18,22 +18,32 @@ import 'package:flutter_app/theme/app_colors.dart';
 /// The closed set, in the spec's order, written out here rather than derived
 /// from the app's own map — a test that reads the thing it is checking asserts
 /// nothing. The ORDER is part of the contract: clients "offer exactly these
-/// ten, in this order".
+/// twenty, in this order" (wheel order).
 const specOrder = <String, String>{
   'sage-500': 'Moss',
   'sage-700': 'Deep moss',
+  'olive-500': 'Olive',
+  'teal-500': 'Teal',
+  'teal-700': 'Deep teal',
+  'indigo-500': 'Cornflower',
+  'indigo-700': 'Navy',
+  'plum-500': 'Plum',
+  'plum-600': 'Deep plum',
+  'rose-500': 'Rose',
+  'rose-700': 'Madder',
   'brick-400': 'Vermilion',
   'brick-500': 'Brick',
   'brick-700': 'Oxblood',
-  'plum-500': 'Plum',
-  'plum-600': 'Deep plum',
+  'ochre-500': 'Ochre',
+  'ochre-700': 'Umber',
+  'sand-500': 'Sand',
   'ink-300': 'Slate',
   'ink-400': 'Deep slate',
   'ink-500': 'Graphite',
 };
 
 void main() {
-  test('the ten tokens are the spec\'s ten, in the spec\'s order', () {
+  test('the twenty tokens are the spec\'s twenty, in the spec\'s order', () {
     expect(AppColors.shelfColors.keys.toList(), specOrder.keys.toList());
   });
 
@@ -49,7 +59,7 @@ void main() {
     }
   });
 
-  // 4.117.0 (ADR-154): a name paints per theme. The dark ten are read from the
+  // 4.117.0 (ADR-154): a name paints per theme. The dark values are read from the
   // spec's table (`design-tokens.md`, the `--shelf-{name}` rows), not from a
   // copy here, so a value the spec moves turns this red.
   test('in dark, each name paints the spec\'s dark value', () {
@@ -63,7 +73,7 @@ void main() {
       rows[m.group(1)!] = Color(int.parse('FF${hex.group(1)}', radix: 16));
     }
     expect(rows.keys.toList(), specOrder.keys.toList(),
-        reason: 'the table names the ten, in order');
+        reason: 'the table names the twenty, in order');
     expect(AppColors.shelfColorsDark.keys.toList(), specOrder.keys.toList());
     for (final name in specOrder.keys) {
       expect(AppColors.shelfColor(name, dark: true), rows[name], reason: name);

@@ -899,7 +899,7 @@ TextStyle _emptyStyle(Tokens t) => AppTheme.serif(
     fontSize: 14, height: 20 / 14, fontStyle: FontStyle.italic, color: t.fgMuted);
 
 /// A shelf's dot — its stored colour with the hairline every swatch carries
-/// (§6.2), because two of the ten sit close to the dark page.
+/// (§6.2), because a legacy hex can sit anywhere, the dark page included.
 class _Dot extends StatelessWidget {
   final double size;
   final Color color;

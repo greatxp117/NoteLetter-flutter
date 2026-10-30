@@ -182,7 +182,7 @@ class BrandingPage extends StatelessWidget {
                         // theme would draw the same swatch twice and make the
                         // page say something false — so each names its half.
                         _ColorSwatch(color: AppColors.primary, label: 'Primary', hex: '#9D352D'), // pair-ok: labelled swatch
-                        _ColorSwatch(color: AppColors.primaryDark, label: 'Primary Dark', hex: '#D9482F'), // pair-ok: labelled swatch
+                        _ColorSwatch(color: AppColors.primaryDark, label: 'Primary Dark', hex: '#EE7B62'), // pair-ok: labelled swatch
                         _ColorSwatch(color: AppColors.backgroundLight, label: 'BG Light', hex: '#FAFAF7'), // pair-ok: labelled swatch
                         _ColorSwatch(color: AppColors.backgroundDark, label: 'BG Dark', hex: '#14171F'), // pair-ok: labelled swatch
                         _ColorSwatch(color: AppColors.foregroundLight, label: 'FG Light', hex: '#14171F'), // pair-ok: labelled swatch
