@@ -2287,3 +2287,107 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/client_timeout_check.py --target flutter; python3 ../NoteLetter-contracts/harness/confirm_check.py
 - notes: Done in the 5.37.0 run itself, out of queue order. `fn_apply_shelf_backfill` is retired (Xavier, 2026-10-28: "just retire now"). Its builder and budget row are gone; nothing called it since F-136, because the reviews file through `resolveTask`. `requestTask(kind, fields)` is now library-private `_requestTask`, with one public method per kind: `requestShelfDelete(tagId, reshelve:)`, `requestShelfBackfill`, `requestShelfSplit`, `requestSyllabusPlan`, `requestReorgPlan`. Request bodies are byte-identical. A screen cannot call `_requestTask`, so the only way to delete a shelf is `requestShelfDelete`, which confirm_check (5ab) now binds to its §18 confirm in `shelf_page.dart`. Before this, the gate's shelf-delete entry named a builder nothing called, and the real delete was ungated. Five call sites moved. `api_requests_test` dispatches `fn_request_task` cases on their `kind`, and an unknown kind is refused locally. No visible state changed, so there is no pair.
+
+## F-139 · Twenty shelf colours and dark palette B (5.41.0, ADR-196)
+- status: open
+- screen: none (tokens)
+- route: none
+- spec: spec/design-tokens.md; spec/screens/library.md
+- web: src/shared/shelfColor.js; src/styles/theme.css
+- flutter: lib/theme/app_colors.dart; lib/theme/tokens.dart; test/contract/shelf_colors_test.dart
+- folds: 5.41.0
+- device_test: none (tokens; the D items re-shoot every screen)
+- shots: none
+- extra_gates: harness token_contrast_check.py (5l) SHELF, DARK-PARITY, MIRROR
+- notes: Lane A of direction D. The ten new cloths and their dark pairs in wheel order with the picker labels; palette B's solid dark greys, brick-300 accent, critical #F37469. Lands at the held pin. Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-140 · Direction D: the frame, the listing parts and the shell (5.42.0, ADR-197)
+- status: open
+- screen: every screen (shell)
+- route: all
+- spec: spec/component-kit.md
+- web: src/shell/AppShell.jsx; src/App.jsx
+- flutter: lib/widgets/kit/kit.dart; lib/widgets/kit/kit_shell.dart; lib/widgets/kit/kit_frame.dart; lib/widgets/kit/kit_headers.dart; lib/widgets/kit/kit_rail.dart
+- folds: 5.42.0
+- device_test: integration_test: the app header, the tab bar's middle action, the running head opening and folding, the drawer's compact rail and Reader's card
+- shots: none
+- extra_gates: flutter test test/contract
+- notes: Masthead, the one toolbar (moved to the app header and tab bar at 1024 and under), the settings panel dropping from the header, the sheet as a running head at 680 and under, register rows, covers (15 types incl. social_video), the List/Grid choice, sliding switches, shelf tags, row hover, D empty states, grow fields, 44px back controls; the compact rail and the Reader's card (Xavier 2026-10-30). Kit widgets by name, never inline per screen (ADR-041). In tandem with web (Xavier 2026-10-30). design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-141 · Direction D: Home, the Library and Add a source (5.42.0, ADR-197)
+- status: open
+- screen: library, sources
+- route: /, /sources
+- spec: spec/screens/library.md; spec/screens/sources.md
+- web: src/pages/LibraryHome.jsx; src/pages/SourcesBrowse.jsx; src/overlays/QuickAdd.jsx
+- flutter: lib/pages/library_page.dart; lib/pages/sources_page.dart; lib/pages/sources/browse_section.dart
+- folds: 5.42.0
+- device_test: integration_test: Home's sections, the Library's facets and List/Grid, empty and first-reading states
+- shots: library; sources; sources-empty
+- extra_gates: flutter test test/contract
+- notes: HomeHybrid and LibHybrid. Needs F-140. Ports from web's phone frames (isMobile). design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-142 · Direction D: the source page (5.42.0, ADR-197)
+- status: open
+- screen: reader
+- route: /reader/{id}
+- spec: spec/screens/reader.md
+- web: src/pages/ReaderView.jsx
+- flutter: lib/pages/reader_page.dart; lib/pages/reader/reader_ui.dart
+- folds: 5.42.0; F-130; F-132
+- device_test: integration_test: the six sections, the running head '§ II · Manuscript · 2 of 6' and its progress rule, Source details in the panel
+- shots: reader; reader-manuscript
+- extra_gates: flutter test test/contract
+- notes: ReaderHybrid + SecD. Folds F-130 (Re-process, Mark as read, dwell) and F-132 (Listen speed, boundary drag): Xavier ruled D in tandem 2026-10-30, which lifts F-132's approval hold. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-143 · Direction D: Shelves, a shelf, the shelf map, Search and Ask (5.42.0, ADR-197)
+- status: open
+- screen: shelves, search, ask
+- route: /shelves, /shelves/{id}, /shelves/map, /search, /ask
+- spec: spec/screens/library.md; spec/screens/search.md; spec/screens/ask.md
+- web: src/pages/ShelvesView.jsx; src/pages/SearchView.jsx; src/pages/AskView.jsx
+- flutter: lib/pages/tags_page.dart; lib/pages/tags/shelf_page.dart; lib/pages/tags/shelf_map_page.dart; lib/pages/search_page.dart; lib/pages/chat_page.dart
+- folds: 5.42.0; F-131; F-134
+- device_test: integration_test: shelves List/Grid, a shelf's sheet, Search's filters sheet, Ask's composer growing to seven lines
+- shots: shelves; shelf-map; search; ask-thread
+- extra_gates: flutter test test/contract
+- notes: Folds F-134 (Ask's written answer and quotes; its approval hold lifted by Xavier's D-in-tandem ruling) and whatever of F-131 is still open. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-144 · Direction D: Letters, a letter, Letter settings, Settings, Notifications and Support (5.42.0, ADR-197)
+- status: open
+- screen: letters, settings, notifications, support
+- route: /letters, /letters/settings, /settings, /settings/notifications, /support
+- spec: spec/screens/letters.md; spec/screens/settings.md; spec/screens/notifications.md; spec/screens/support.md
+- web: src/pages/LettersView.jsx; src/pages/LetterSettings.jsx; src/pages/SettingsView.jsx; src/pages/NotificationSettings.jsx; src/pages/SupportView.jsx
+- flutter: lib/pages/letters_page.dart; lib/pages/letter_settings_page.dart; lib/pages/settings_page.dart; lib/pages/notification_settings_page.dart; lib/pages/support_page.dart
+- folds: 5.42.0; F-133
+- device_test: integration_test: Contents jumping to each §8 section, Send now held while sending, Support's composer growing
+- shots: letters; letter-reader; letter-settings; settings; notifications; support
+- extra_gates: flutter test test/contract
+- notes: Folds F-133 (the generative-AI switch and Video reading) into D's Settings. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-145 · Direction D: Deep study, Activity and For your review (5.42.0, ADR-197)
+- status: open
+- screen: study, activity, review
+- route: /study, /study/session/{id}, /activity, /review
+- spec: spec/screens/study.md; spec/screens/activity.md; spec/screens/review.md
+- web: src/pages/StudyView.jsx; src/pages/ActivityView.jsx; src/pages/ReviewView.jsx
+- flutter: lib/pages/study_page.dart; lib/pages/study/session_player.dart; lib/pages/activity_page.dart; lib/pages/review_page.dart
+- folds: 5.42.0
+- device_test: integration_test: study programs and a session's sheet, Activity's When filter, the review empty state
+- shots: study; activity; review; review-empty
+- extra_gates: flutter test test/contract
+- notes: Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-146 · Direction D: the camera roll's setup, review and settings, on today's signals (5.43.0, ADR-198)
+- status: open
+- screen: sources, settings
+- route: /sources, /settings/camera-roll
+- spec: spec/features/camera-roll-sweep.md; spec/screens/sources.md; spec/screens/settings.md
+- web: none
+- flutter: lib/pages/settings/camera_sweep_page.dart; lib/pages/sources/sweep_tray.dart; lib/services/camera_sweep_service.dart
+- folds: 5.43.0
+- device_test: tool/sweep_service_test.sh plus an integration test of the four-step setup, Looking back, one-at-a-time review and 'Everything Is Filed' on a simulator photo library
+- shots: none
+- extra_gates: flutter test test/contract
+- notes: Xavier 2026-10-30: D's look on today's signals. Offer only what the pre-filter measures (screenshot, or 80+ chars of on-device text; Automatic vs Review). The six kind switches, 'people, faces and IDs always passed over' and Cautious/Balanced/Trusting are declined on the record in ADR-198 and booked as a follow-up; 'cards or IDs never uploaded' would be false today. Web has no camera roll, so there is no web frame to pair: the reference is the prototype (Camera Roll Setup.html direction A, app-camera.jsx). Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
