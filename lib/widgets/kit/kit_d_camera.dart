@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart' show Icons, showGeneralDialog;
+import 'package:flutter/material.dart' show Icons, Material, MaterialType, showGeneralDialog;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -152,7 +152,13 @@ class KitFlowFrame extends StatelessWidget {
       // literal-ok: no scrim on a phone, where the flow IS the screen.
       barrierColor: phone ? const Color(0x00000000) : t.scrimPanel,
       transitionDuration: KitD.dur(context, AppMotion.durSlow),
-      pageBuilder: (context, a, b) => builder(context),
+      // A dialog route has no Material above it: without one, every Text
+      // inherits the framework's fallback style — bold, with the yellow
+      // double underline — which the first device frames showed.
+      pageBuilder: (context, a, b) => Material(
+        type: MaterialType.transparency,
+        child: builder(context),
+      ),
       transitionBuilder: (context, a, b, child) {
         final v = AppMotion.easeQuill.transform(a.value);
         return Opacity(

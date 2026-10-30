@@ -29,7 +29,9 @@ EMU_DEFINES="--dart-define=USE_EMULATOR=true \
 # && emu_sim_udid` resolved ROOT two directories too high on its first run).
 REPO="$(git rev-parse --show-toplevel 2>/dev/null)"
 case "$REPO" in
-  */NoteLetter-flutter) ;;
+  # The main tree, or a lane's worktree beside it (a direct child of the
+  # umbrella, so ROOT below is the umbrella either way; direction D, 2026-10-30).
+  */NoteLetter-flutter|*/NoteLetter-flutter-d-*) ;;
   *) echo "tool: run this from inside NoteLetter-flutter (got '$REPO')" >&2; exit 1 ;;
 esac
 ROOT="$(cd "$REPO/.." && pwd)"

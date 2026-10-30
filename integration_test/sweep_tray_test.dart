@@ -18,9 +18,10 @@
 //   - the one-at-a-time review: "k of N", the summary line, a photo another
 //     install already filed says "Already in NoteLetter" and *File it* files
 //     nothing new and uploads nothing; *Pass over* records it and sends
-//     nothing; *File it* on a fresh photo opens a real capture session, and
-//     the PUT's refusal (the dev shim's URL takes no PUT: 501) stays on the
-//     photo with its sentence;
+//     nothing; *File it* on a fresh photo opens a real capture session and
+//     hands its upload to the background session — since 2026-10-20 the dev
+//     shim's `/__storage/` route takes the PUT, so it LANDS and the photo
+//     leaves the review (a refusal, should one come, stays with its sentence);
 //   - "Everything Is Filed" once the tray is empty, with the ledger's counts;
 //   - a photo added while the app is open reaches the row (Ask me first) through
 //     the native change observer, with nothing tapped;
@@ -178,6 +179,10 @@ void main() {
             'fields': {'status': {'stringValue': 'complete'}},
           });
       final filedBefore = await _captures(uid);
+      // An earlier device test in this emulator session (sweep_service_test)
+      // may already have filed the Café key: then its filing is a replay.
+      final cafeHadDoc = filedBefore.any((d) =>
+          (d.data()['source_capture'] as Map?)?['asset_key'] == cafeKey);
 
       // ── 2. The row, then the four steps ────────────────────────────────────
       router.go('/sources');
@@ -239,13 +244,13 @@ void main() {
           if (svc.alreadyIn(a.localIdentifier)) a.localIdentifier
       };
       expect(alreadyIds, containsAll(byKey[denseKey]!));
-      var refusedOne = false, filedIn = 0;
+      var filedFresh = false, filedIn = 0;
       for (var i = 0; svc.candidates.isNotEmpty; i++) {
         if (i > candidates + 5) fail('the review did not empty');
         final a = svc.candidates.first;
         final id = a.localIdentifier;
         final already = svc.alreadyIn(id);
-        expect(find.text(CameraRollCopy.reviewHead(i + 1, candidates)), findsOneWidget,
+        expect(find.text(CameraRollCopy.reviewHead(i + 1, candidates).toUpperCase()), findsOneWidget,
             reason: 'k of N');
         if (already) {
           expect(find.text(CameraRollCopy.alreadyIn), findsOneWidget);
@@ -253,32 +258,41 @@ void main() {
           await waitFor(tester, 'filing $id', () => !svc.candidates.contains(a));
           expect(host.ledger!.verdict(id), LedgerVerdict.ingested);
           filedIn++;
-        } else if (!refusedOne && byKey[cafeKey]!.contains(id)) {
+        } else if (!filedFresh && byKey[cafeKey]!.contains(id)) {
           await tap(tester, find.text(CameraRollCopy.fileIt));
-          await waitFor(tester, 'the refusal', () => svc.candidateErrors.containsKey(id));
+          await waitFor(
+              tester,
+              'the filing to land or be refused',
+              () => !svc.candidates.contains(a) || svc.candidateErrors.containsKey(id),
+              seconds: 120);
           await pumpFor(tester, 1000);
-          final sentence = svc.candidateErrors[id]!;
-          debugPrint('DEVICE-RUN F-146 refusal "$sentence"');
-          expect(sentence, startsWith('A photo could not be uploaded'));
-          expect(find.text(sentence), findsOneWidget);
-          expect(svc.candidates.first, a, reason: 'a refused photo stays');
-          expect(host.ledger!.verdict(id), LedgerVerdict.waiting);
-          refusedOne = true;
-          await tap(tester, find.text(CameraRollCopy.passOver));
-          await waitFor(tester, 'passing over $id', () => !svc.candidates.contains(a));
-          expect(host.ledger!.verdict(id), LedgerVerdict.dismissed);
+          final sentence = svc.candidateErrors[id];
+          if (sentence == null) {
+            debugPrint('DEVICE-RUN F-146 a fresh photo filed: its upload LANDED '
+                '(${nameOf[cafeKey]}), verdict ${host.ledger!.verdict(id)}');
+            expect(host.ledger!.verdict(id), LedgerVerdict.ingested);
+          } else {
+            debugPrint('DEVICE-RUN F-146 refusal "$sentence"');
+            expect(find.text(sentence), findsOneWidget);
+            expect(svc.candidates.first, a, reason: 'a refused photo stays');
+            expect(host.ledger!.verdict(id), LedgerVerdict.waiting);
+            await tap(tester, find.text(CameraRollCopy.passOver));
+            await waitFor(tester, 'passing over $id', () => !svc.candidates.contains(a));
+            expect(host.ledger!.verdict(id), LedgerVerdict.dismissed);
+          }
+          filedFresh = true;
         } else {
           await tap(tester, find.text(CameraRollCopy.passOver));
           await waitFor(tester, 'passing over $id', () => !svc.candidates.contains(a));
           expect(host.ledger!.verdict(id), LedgerVerdict.dismissed);
         }
       }
-      expect(refusedOne, isTrue);
+      expect(filedFresh, isTrue);
       expect(filedIn, alreadyIds.length);
       final after = await _captures(uid);
-      expect(after.length, filedBefore.length + 1,
-          reason: 'one document for the Café key (its bytes never landed); '
-              'the dense key files nothing new');
+      expect(after.length, filedBefore.length + (cafeHadDoc ? 0 : 1),
+          reason: 'one document per key (INV-14): the Café key\'s, if it had '
+              'none; the dense key files nothing new');
       expect(after.firstWhere((d) => d.id == denseDoc).data()['status'], 'complete',
           reason: 'untouched: the session answered duplicate with no upload link');
 

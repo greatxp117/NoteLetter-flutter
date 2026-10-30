@@ -584,6 +584,15 @@ void main() {
       await tester.tap(find.text('Connect'));
       await frames(tester);
       expect(find.byType(CameraRollFlow), findsOneWidget);
+      // The flow is a dialog route: its text must not fall back to the
+      // framework's no-Material style (bold, yellow double underline), which
+      // the first device frames showed.
+      for (final t in [CameraRollCopy.introTitle, CameraRollCopy.introRows.first.$2]) {
+        final rich = tester.widget<RichText>(
+            find.descendant(of: find.text(t), matching: find.byType(RichText)));
+        expect(rich.text.style?.decoration, isNot(TextDecoration.underline), reason: t);
+        expect(rich.text.style?.fontWeight, isNot(FontWeight.w900), reason: t);
+      }
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await frames(tester, 12);
       expect(find.byType(CameraRollFlow), findsNothing);
