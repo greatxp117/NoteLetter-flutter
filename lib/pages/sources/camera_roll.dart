@@ -298,11 +298,17 @@ class CameraRollRow extends StatelessWidget {
                 ),
               )
             : (CameraRollCopy.rowOn(ledger.ingestedCount), false, settings());
+        // `.lx-svc.on`: the positive dot while it looks, waits or is on —
+        // never on a failure or lost access, which are not "on".
+        final on = ledger.enabled &&
+            service.errorMessage == null &&
+            (host.access == null || host.access == SweepAccess.granted);
         return KitServiceRow(
           key: const ValueKey('camera-roll-row'),
           glyph: Icons.photo_camera_outlined,
           name: CameraRollCopy.name,
           line: line,
+          on: on,
           critical: critical,
           action: action,
         );

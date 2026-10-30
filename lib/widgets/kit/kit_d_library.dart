@@ -268,15 +268,19 @@ class KitLibActs extends StatelessWidget {
 ///
 /// The camera roll's row (sources.md §Camera roll, the first in
 /// Correspondence on a client with a photo library) is the same row with a
-/// [glyph] in place of a vendor's [provider] mark — no plate, the glyph in
-/// `--fg-muted` — a [critical] line (`--critical-text`) where a failure
-/// stands, and no [line] where its store could not be read ([failure] says so).
+/// [glyph] in place of a vendor's [provider] mark — on the prototype's plate
+/// (`.lx-svc-logo`: `--surface` inside a 1px `--border`, the glyph 17 in
+/// `--fg`; F-146) — a [critical] line (`--critical-text`) where a failure
+/// stands, no [line] where its store could not be read ([failure] says so),
+/// and [on] (`.lx-svc.on`): its own line after the `--positive` dot, in
+/// `--positive-text`, while it is looking, waiting or on.
 class KitServiceRow extends StatelessWidget {
   final String? provider;
   final IconData? glyph;
   final String name;
   final String? line;
   final bool connected;
+  final bool on;
   final bool critical;
   final Widget? action;
   final Widget? failure;
@@ -288,6 +292,7 @@ class KitServiceRow extends StatelessWidget {
     required this.name,
     this.line,
     this.connected = false,
+    this.on = false,
     this.critical = false,
     this.action,
     this.failure,
@@ -300,7 +305,7 @@ class KitServiceRow extends StatelessWidget {
       fontFamily: AppTheme.fontSans,
       fontSize: 12,
       height: 17 / 12,
-      color: connected
+      color: connected || on
           ? t.positiveText
           : critical
           ? t.criticalText
@@ -320,15 +325,19 @@ class KitServiceRow extends StatelessWidget {
             ),
             child: KitProviderLogo(provider: provider!, size: 18),
           )
-        : SizedBox(
+        : Container(
             width: 32,
             height: 32,
-            child: Center(
-              child: KitGlyph(
-                glyph ?? Icons.photo_camera_outlined,
-                size: 20,
-                color: t.fgMuted,
-              ),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: t.surface,
+              borderRadius: AppRadius.controlR(32),
+              border: Border.all(color: t.border),
+            ),
+            child: KitGlyph(
+              glyph ?? Icons.photo_camera_outlined,
+              size: 17,
+              color: t.fg,
             ),
           );
     final shown = connected ? 'Connected' : line;
@@ -361,7 +370,7 @@ class KitServiceRow extends StatelessWidget {
                     if (shown != null)
                       Row(
                         children: [
-                          if (connected) ...[
+                          if (connected || on) ...[
                             Container(
                               width: 6,
                               height: 6,
