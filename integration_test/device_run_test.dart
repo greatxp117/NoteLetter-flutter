@@ -2129,7 +2129,7 @@ void main() {
 
     // §26 — folio, title; the counts are the two subscriptions'.
     expect(find.byType(KitDPage), findsOneWidget);
-    expect(find.text('THE SHELVES · 4 SHELVES · 4 VOLUMES'),
+    expect(find.text('THE SHELVES · 4 SHELVES · 7 VOLUMES'),
         findsOneWidget);
     expect(find.text('Shelves'), findsOneWidget);
     // §42 — the catalogue over the top-level shelves; the sheet lists them.
@@ -2396,7 +2396,12 @@ void main() {
     await pumpFor(tester, total: const Duration(milliseconds: 600));
     await tester.tap(recipes);
     await pumpFor(tester, total: const Duration(milliseconds: 800));
-    await tester.tap(find.widgetWithText(KitButton, 'Open shelf'));
+    // Direction D: the inspector stands above the canvas in the page's own
+    // scroll, which the gestures above left at the canvas — bring it on.
+    final openShelf = find.widgetWithText(KitButton, 'Open shelf');
+    await tester.ensureVisible(openShelf);
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
+    await tester.tap(openShelf);
     await pumpFor(tester, total: const Duration(seconds: 2));
     expect(router.state.matchedLocation, '/shelves/seed-tag-recipes');
     // *See on map* is the shelf sheet's first *Also*: in the running head.
@@ -2435,7 +2440,9 @@ void main() {
         findsOneWidget,
         reason: "the page's action is the tab bar's centre");
     debugPrint('DEVICE-RUN F-143 shelves head "${_peekText(tester)}"');
-    expect(_peekText(tester), contains('Recipes'),
+    // The seed's tree order is Stories, Finance, Recipes (web's frame:
+    // *Stories 1 of 4*), then Unshelved.
+    expect(_peekText(tester), contains('Stories'),
         reason: 'the shelf in view, first');
     expect(_peekText(tester), contains('1 of 4'),
         reason: 'three shelves and Unshelved');
@@ -2456,20 +2463,20 @@ void main() {
     expect(find.byType(KitShelfCatalogue), findsOneWidget);
     expect(LocalFlags.sourceView.value, 'list');
 
-    // The running head drops; choosing Stories moves the page and folds it.
+    // The running head drops; choosing Recipes moves the page and folds it.
     await _dropHead(tester);
-    final stories =
-        find.byKey(const ValueKey('shelves-sheet-seed-tag-stories'));
-    expect(stories.hitTestable(), findsOneWidget,
+    final recipes =
+        find.byKey(const ValueKey('shelves-sheet-seed-tag-recipes'));
+    expect(recipes.hitTestable(), findsOneWidget,
         reason: 'the dropped sheet lists the shelves');
-    await tester.tap(stories);
+    await tester.tap(recipes);
     await pumpFor(tester, total: const Duration(seconds: 2));
-    expect(stories.hitTestable(), findsNothing,
+    expect(recipes.hitTestable(), findsNothing,
         reason: 'choosing a shelf folds the running head');
-    debugPrint('DEVICE-RUN F-143 shelves head after Stories '
+    debugPrint('DEVICE-RUN F-143 shelves head after Recipes '
         '"${_peekText(tester)}"');
     expect(_peekText(tester), isNot(contains('1 of 4')),
-        reason: 'the page moved on from Recipes');
+        reason: 'the page moved on from Stories');
 
     // ── A shelf's sheet ────────────────────────────────────────────────────
     router.go('/shelves/seed-tag-recipes');
@@ -2523,8 +2530,17 @@ void main() {
         reason: "the create form's field is on top and takes a tap");
     expect(find.textContaining('Recipes').hitTestable(), findsWidgets,
         reason: 'Inside is this shelf');
-    await tester.tap(find.text('Cancel').hitTestable().first);
+    // The form's field raises the keyboard on a device, which covers the
+    // form's foot: put it away, then bring Cancel on and press it.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    await pumpFor(tester, total: const Duration(milliseconds: 800));
+    final cancel = find.widgetWithText(KitButton, 'Cancel').first;
+    await tester.ensureVisible(cancel);
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
+    await tester.tap(cancel);
     await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(nameField, findsNothing, reason: 'Cancel closed the form');
 
     // ── Nested shelves (F-131's device proof, folded into F-143) ───────────
     // A sub-shelf from the sheet's Sub-shelves; its crumb names the parent.
@@ -2537,6 +2553,9 @@ void main() {
     expect(find.text('RECIPES'), findsOneWidget,
         reason: 'the crumb: All shelves, then Recipes');
     debugPrint('DEVICE-RUN F-143 sub-shelf head "${_peekText(tester)}"');
+    expect(_peekText(tester), contains('RECENT'),
+        reason: 'a shelf opened in place starts on its own order — the A–Z '
+            'chosen on Recipes must not carry over (the first run, 18:4xZ)');
     // Move into, write before you move: Finance into Recipes, and back.
     router.go('/shelves/seed-tag-finance');
     for (var i = 0; i < 20; i++) {
@@ -2599,19 +2618,23 @@ void main() {
     expect(youtube, findsOneWidget, reason: 'the Kind facet, dropped');
     expect(find.text('READ AS').hitTestable(), findsOneWidget,
         reason: 'Read as, while generative AI is on');
+    // Web's Search passes its sheet no `foldOn`: a kind is chosen in place,
+    // the sheet stays dropped, and the line says the new kind.
     await tester.tap(youtube);
     await pumpFor(tester, total: const Duration(seconds: 1));
-    expect(youtube, findsNothing, reason: 'choosing a kind folds the head');
     debugPrint('DEVICE-RUN F-143 search head after YouTube '
         '"${_peekText(tester)}"');
     expect(_peekText(tester), contains('YouTube'));
-    // Put the kind back for whoever searches next.
-    await _dropHead(tester);
+    // Put the kind back for whoever searches next, then the line folds it.
     await tester.tap(find
         .descendant(
             of: find.byType(KitFacet), matching: find.text('All sources'))
         .hitTestable());
     await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(_peekText(tester), contains('All sources'));
+    await tester.tap(find.byKey(const ValueKey('d-peek')));
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
+    expect(youtube, findsNothing, reason: 'the line folds the running head');
 
     // ── Ask's composer: one line, then up to 172 and no further ────────────
     router.go('/ask');

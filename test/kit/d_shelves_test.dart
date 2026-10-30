@@ -345,6 +345,45 @@ void main() {
       expect(find.byType(KitSkeletonLines), findsWidgets);
     });
 
+    testWidgets('a sub-shelf opened in place carries nothing of the shelf '
+        'left: its order, its name in the field', (tester) async {
+      // The router hands the SAME State a new shelfId when a crumb or a
+      // sub-shelf opens another shelf (web keys ShelfDetail by id).
+      final id = ValueNotifier('cook');
+      await _pump(
+        tester,
+        ValueListenableBuilder<String>(
+          valueListenable: id,
+          builder: (_, v, _) => ShelfPage(shelfId: v),
+        ),
+      );
+      await tester.tap(find.text('A–Z'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(KitPageTools.instance.openSettings(), isTrue);
+      await tester.pump();
+      String field() => tester
+          .widget<TextField>(find.descendant(
+              of: find.byType(KitTextField), matching: find.byType(TextField)))
+          .controller!
+          .text;
+      expect(field(), 'Recipes');
+      expect(tester.widget<KitLibOrder>(find.byType(KitLibOrder)).value,
+          'title');
+
+      id.value = 'bake';
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(tester.widget<KitLibOrder>(find.byType(KitLibOrder)).value,
+          'recent', reason: 'the order chosen on Recipes stayed on Baking');
+      if (!KitPageTools.instance.settings!.open) {
+        KitPageTools.instance.openSettings();
+        await tester.pump();
+      }
+      expect(field(), 'Baking',
+          reason: 'a blur would have renamed Baking to the name left');
+    });
+
     testWidgets('a phone: the running head is the swatch, the name, the order '
         'and the count', (tester) async {
       await _pump(tester, const ShelfPage(shelfId: 'cook'),

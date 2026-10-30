@@ -76,6 +76,33 @@ class _ShelfPageState extends State<ShelfPage> {
     });
   }
 
+  /// A crumb or a sub-shelf opens another shelf IN PLACE: the router hands
+  /// this same State a new [ShelfPage.shelfId], and nothing of the shelf
+  /// left may carry over — its name in the field (a blur would rename the
+  /// new shelf to it), its order, its refusals, a split already asked for
+  /// (web keys `ShelfDetail` by id for the same reason).
+  @override
+  void didUpdateWidget(ShelfPage old) {
+    super.didUpdateWidget(old);
+    if (old.shelfId == widget.shelfId) return;
+    _nameBound = false;
+    _savedName = '';
+    _name.clear();
+    _savingColor = false;
+    _colorError = null;
+    _savingLetter = false;
+    _letterError = null;
+    _nameError = null;
+    _moving = false;
+    _moveError = null;
+    _fillBusy = false;
+    _fillError = null;
+    _splitBusy = false;
+    _splitRequested = false;
+    _splitError = null;
+    _sort = 'recent';
+  }
+
   @override
   void dispose() {
     _name.dispose();
