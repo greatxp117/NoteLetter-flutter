@@ -22,6 +22,7 @@ import 'package:flutter_app/state/newsletter_notifier.dart';
 import 'package:flutter_app/state/settings_notifier.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
+import 'package:flutter_app/widgets/kit/kit.dart';
 
 final _shelves = [
   Tag.fromJson('cat', {'user_id': 'u1', 'title': 'Catholic', 'letter_mode': 'muted'}),
@@ -94,35 +95,41 @@ void main() {
   testWidgets('the index lists top-level shelves, each holding its subtree',
       (tester) async {
     await _pump(tester, const ShelvesPage());
-    expect(find.text('Catholic'), findsOneWidget);
-    expect(find.text('Kitchen'), findsOneWidget);
-    expect(find.text('Mary'), findsNothing);
-    expect(find.text('Apparitions'), findsNothing);
-    // Catholic holds its own volume, Mary's and Apparitions': 3, once each.
-    expect(find.textContaining('3 volumes · 6 passages · 1 sub-shelf'),
-        findsOneWidget);
+    // Direction D: the sheet's *The shelves* lists the top-level shelves.
+    expect(find.byKey(const ValueKey('shelves-sheet-cat')), findsOneWidget);
+    expect(find.byKey(const ValueKey('shelves-sheet-kit')), findsOneWidget);
+    expect(find.byKey(const ValueKey('shelves-sheet-mary')), findsNothing);
+    expect(find.byKey(const ValueKey('shelves-sheet-app')), findsNothing);
+    // §42: Catholic holds its own volume, Mary's and Apparitions': 3, once
+    // each.
+    expect(find.textContaining('3 volumes · 6 passages'), findsOneWidget);
     expect(find.textContaining('1 volume · 2 passages'), findsOneWidget);
   });
 
-  testWidgets('a sub-shelf page: breadcrumb, Sub-shelves, subtree volumes',
+  testWidgets('a sub-shelf page: crumb, Sub-shelves, subtree volumes',
       (tester) async {
     await _pump(tester, const ShelfPage(shelfId: 'mary'));
-    expect(find.text('Catholic'), findsOneWidget); // the crumb
-    expect(find.text('›'), findsOneWidget);
-    expect(find.text('SUB-SHELVES · 1'), findsOneWidget);
-    expect(find.text('Apparitions'), findsOneWidget);
+    // The crumb: All shelves, then each ancestor, outermost first.
+    expect(find.text('ALL SHELVES'), findsOneWidget);
+    expect(find.text('CATHOLIC'), findsOneWidget);
+    // The sheet's Sub-shelves: the direct children, then New sub-shelf.
+    expect(find.text('SUB-SHELVES'), findsOneWidget);
+    expect(find.byKey(const ValueKey('sub-shelf-app')), findsOneWidget);
     expect(find.text('New sub-shelf'), findsOneWidget);
-    expect(find.text('VOLUMES · 2'), findsOneWidget);
+    expect(find.text('The volumes'), findsOneWidget);
     expect(find.text('On d-app'), findsOneWidget);
+    expect(find.text('On d-mary'), findsOneWidget);
     expect(find.text('On d-cat'), findsNothing); // the scope runs down
   });
 
   testWidgets('an inherited letter mode is said as inherited', (tester) async {
     await _pump(tester, const ShelfPage(shelfId: 'app'));
+    expect(KitPageTools.instance.openSettings('letter'), isTrue);
+    await tester.pump();
     expect(
-        find.text('This shelf is muted — its passages stay out of your letter.'),
+        find.text('This shelf is muted — its passages stay out of your '
+            'letter. Muted by Catholic.'),
         findsOneWidget);
-    expect(find.text('Muted by Catholic.'), findsOneWidget);
     // It has no mode of its own, so there is nothing to clear.
     expect(find.text('Use the parent’s setting'), findsNothing);
   });

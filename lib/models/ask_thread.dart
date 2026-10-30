@@ -164,16 +164,83 @@ class AskCitation {
       );
 }
 
+/// The two kinds of block a written answer is made of (5.30.0, ADR-187;
+/// `spec/data-model.md` §/ask_threads/{threadId}/messages). An unknown kind is
+/// dropped at the read boundary ([askAnswer]), so nothing downstream draws it.
+enum AskBlockKind { paragraph, quote }
+
+/// One block of the library's written answer, in reading order.
+///
+/// A **paragraph** cites the message's own citations as `[n]` in its [text]. A
+/// **quote** is a span of citation [n]'s chunk `text`, in the passage's own
+/// characters — the backend proved it before storing it (INV-35), so nothing
+/// on this side re-derives, trims or re-quotes it.
+class AskAnswerBlock {
+  final AskBlockKind kind;
+  final String text;
+
+  /// The citation a quote is from (1-based). Null on a paragraph.
+  final int? n;
+
+  const AskAnswerBlock.paragraph(this.text)
+      : kind = AskBlockKind.paragraph,
+        n = null;
+  const AskAnswerBlock.quote(this.n, this.text) : kind = AskBlockKind.quote;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AskAnswerBlock &&
+      other.kind == kind &&
+      other.text == text &&
+      other.n == n;
+
+  @override
+  int get hashCode => Object.hash(kind, text, n);
+
+  @override
+  String toString() => kind == AskBlockKind.quote
+      ? 'quote($n, $text)'
+      : 'paragraph($text)';
+}
+
+/// The stored `answer` as the screen reads it — web `askAnswer` in `api.js`.
+///
+/// Not a list → null. A block without a non-empty string `text` is dropped; a
+/// `paragraph` keeps its text; a `quote` is kept only with a positive integer
+/// `n` (JS `Number.isInteger`, so `1.0` counts and `"1"` does not — Dart will
+/// not coerce, so the number is tested as a number). Any other kind is
+/// dropped. **An answer with nothing left is no answer** (null), never an
+/// empty list: an empty list would draw an answer block with nothing in it.
+List<AskAnswerBlock>? askAnswer(Object? raw) {
+  if (raw is! List) return null;
+  final out = <AskAnswerBlock>[];
+  for (final b in raw) {
+    if (b is! Map) continue;
+    final text = b['text'];
+    if (text is! String || text.isEmpty) continue;
+    final kind = b['kind'];
+    if (kind == 'paragraph') {
+      out.add(AskAnswerBlock.paragraph(text));
+    } else if (kind == 'quote') {
+      final n = b['n'];
+      if (n is num && n.isFinite && n == n.truncate() && n > 0) {
+        out.add(AskAnswerBlock.quote(n.toInt(), text));
+      }
+    }
+  }
+  return out.isEmpty ? null : out;
+}
+
 class AskMessage {
   final String id;
   final AskRole role;
 
   /// The question on a user message; **null** on a library one.
   ///
-  /// Explicitly nullable rather than defaulted to `''`: Ask is retrieval-only,
-  /// so a library message HAS no prose, and an empty string would render as a
-  /// blank sentence the app never wrote. (The previous client composed one out
-  /// of the top chunk — the app claiming to have written an answer.)
+  /// Explicitly nullable rather than defaulted to `''`: a library message's
+  /// prose is [answer], not this field, and an empty string would render as a
+  /// blank sentence the app never wrote. (An early client composed one out of
+  /// the top chunk — the app claiming to have written an answer.)
   final String? text;
 
   final List<AskCitation> citations;
@@ -183,6 +250,17 @@ class AskMessage {
   /// unscoped turn, and on every answer written before 4.62.0.
   final AskScope? scope;
 
+  /// The library's written answer (5.30.0, ADR-187; kit §25) — blocks in
+  /// reading order, mapped by [askAnswer]. Null when no answer was asked for
+  /// (no citations, or generative AI off), when the model's failed, and on
+  /// every answer written before 5.30.0.
+  final List<AskAnswerBlock>? answer;
+
+  /// The sentence for an answer that was asked for and not written, verbatim.
+  /// Null otherwise — including every answer before 5.30.0. Drawn as §25's
+  /// note, never as §14: the turn succeeded and the passages are whole.
+  final String? answerNote;
+
   const AskMessage({
     required this.id,
     required this.role,
@@ -190,18 +268,24 @@ class AskMessage {
     this.citations = const [],
     this.createdAt,
     this.scope,
+    this.answer,
+    this.answerNote,
   });
 
-  factory AskMessage.fromJson(String id, Map<String, dynamic> json) =>
-      AskMessage(
-        id: id,
-        role: AskRole.fromString(json['role'] as String?),
-        text: json['text'] as String?,
-        citations: ((json['citations'] as List?) ?? const [])
-            .whereType<Map>()
-            .map((c) => AskCitation.fromJson(Map<String, dynamic>.from(c)))
-            .toList(),
-        createdAt: tsMs(json['created_at']),
-        scope: AskScope.fromJson(json['scope']),
-      );
+  factory AskMessage.fromJson(String id, Map<String, dynamic> json) {
+    final note = json['answer_note'];
+    return AskMessage(
+      id: id,
+      role: AskRole.fromString(json['role'] as String?),
+      text: json['text'] as String?,
+      citations: ((json['citations'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((c) => AskCitation.fromJson(Map<String, dynamic>.from(c)))
+          .toList(),
+      createdAt: tsMs(json['created_at']),
+      scope: AskScope.fromJson(json['scope']),
+      answer: askAnswer(json['answer']),
+      answerNote: note is String && note.isNotEmpty ? note : null,
+    );
+  }
 }

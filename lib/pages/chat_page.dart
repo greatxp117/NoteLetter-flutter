@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
@@ -8,30 +9,25 @@ import '../models/ask_thread.dart';
 import '../shared/source_host.dart';
 import '../state/tags_notifier.dart';
 import '../state/chat_notifier.dart';
-import '../theme/app_radius.dart';
-import '../theme/app_spacing.dart';
-import '../theme/app_colors.dart';
-import '../theme/tokens.dart';
+import '../theme/app_motion.dart';
 import '../widgets/kit/kit.dart';
 
-/// Ask — conversational retrieval over the reader's own notes, with the
-/// conversations kept (contract 4.53.0/4.54.0, ADR-090; `spec/screens/ask.md`).
+/// Ask — conversational retrieval over the reader's own notes, answered in the
+/// app's own words with the passages quoted (5.30.0, ADR-187), and the
+/// conversations kept (4.53.0, ADR-090; `spec/screens/ask.md`).
 ///
-/// Composition (ADR-041): a bespoke head block (§2, with an eyebrow) over a
-/// two-column body — the **Inspector rail** (§9) holding conversation history,
-/// and the thread beside it — closed by a **composer dock** (§10). The empty
-/// state is §7, a failed turn is §14.2 in the dock, a failed subscription is
-/// §14.1 where the content would have been, and a citation's excerpt renders
-/// its extraction markers inline (§17.2).
-///
-/// On a phone — which is every device this client ships to — §9's rail is an
-/// **overlay with a backdrop and a visible close control**, reached from the
-/// header's one action. The grouping, the labels and the active marker are
-/// unchanged; that is the pattern's own phone form, not an adaptation.
-///
-/// Retrieval-only: there is no composed prose answer, so a library message is
-/// its citations. The previous version of this screen built a paragraph out of
-/// the top chunk's text and showed it as the app's own sentence.
+/// Composition — direction D (`screens/ask.md` §Composition; web
+/// `pages/AskView.jsx`): **the conversation is the page.** The D frame
+/// ([KitDPage]): its folio, the open conversation's title on the masthead, and
+/// the 5.30.0 standfirst; the questions and what answered them in the column —
+/// each answer §25's written answer ([KitAskAnswer]) over its citations as a
+/// ruled register; the §38 composer docked at the column's foot
+/// ([KitDPage.dock]). The conversations are the sheet (§29; on a phone its
+/// running head, §30): §9's list with §9.1's rename and delete and §9.2's
+/// scope. *New conversation* is the page's one action while a conversation is
+/// open. The empty state is §37's; a refused turn is §14.2 in the turn; a
+/// failed read is §14.1 in its own region; a citation's excerpt and a quote
+/// draw their extraction markers inline (§17.2).
 class ChatPage extends StatefulWidget {
   /// The OPEN conversation, from `/ask/thread/{threadId}` (4.65.0, ADR-101).
   /// Null is the new-conversation state.
@@ -55,31 +51,34 @@ const _prompts = <String>[
   'Find passages about attention and focus',
 ];
 
+/// The conversations read's window (`subscribeAskThreads`' limit): at it, the
+/// running head's count is a floor (`100+`), never a total.
+const _threadsWindow = 100;
+
+/// How long a citation a marker pointed at stays marked (kit §25).
+const _markFor = Duration(milliseconds: 1600);
+
+/// The room the docked composer takes at the viewport's foot: a citation
+/// revealed by a marker must land above it, not under it.
+const _dockRoom = 120.0;
+
 class _ChatPageState extends State<ChatPage> {
   final _controller = TextEditingController();
+  final _composer = FocusNode();
   final _scroll = ScrollController();
 
-  /// The floating dock's height, measured (§10). The transcript reserves it
-  /// AND the dock's scrim, so the support footer that ends this scroll rests
-  /// above the composer, and the composer stays docked (ADR-173).
-  double _dock = 0;
-  double get _reserve =>
-      _dock == 0 ? 0 : _dock + KitComposerDock.scrimRise;
-  void _onDock(Size s) {
-    if (mounted && s.height != _dock) setState(() => _dock = s.height);
-  }
-  /// §9's phone form is drawn over EVERYTHING — the app bar and the dock
-  /// included — as the reference's `position: fixed` rail and its
-  /// backdrop are; inside the page body they stayed undimmed (F-78 (4)).
-  final _railPortal = OverlayPortalController();
+  /// The citation a §25 marker just pointed at (`{messageId}:{n}`), marked for
+  /// [_markFor] so the eye lands on it after the scroll.
+  String? _marked;
+  Timer? _markTimer;
+  final Map<String, GlobalKey> _citeKeys = {};
 
-  void _setRail(bool open) =>
-      open ? _railPortal.show() : _railPortal.hide();
+  /// The transcript's end, so a turn just sent can be brought into view.
+  final GlobalKey _end = GlobalKey(debugLabel: 'ask-end');
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() => setState(() {}));
     // The screen follows the ROUTE, and does so before the first frame: a
     // cold open of `/ask/thread/{id}` must subscribe to that transcript, not
     // render the new-conversation state and then correct itself.
@@ -104,7 +103,9 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    _markTimer?.cancel();
     _controller.dispose();
+    _composer.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -116,15 +117,18 @@ class _ChatPageState extends State<ChatPage> {
     // server's sentence and a retry, and a question returned to the composer
     // would be the screen saying it had never been asked.
     final question = _controller.text.trim();
-    if (question.isEmpty) return;
+    if (question.isEmpty || notifier.sending) return;
     _controller.clear();
-    _scrollToEnd();
-    final threadId = await notifier.ask(question);
+    // The turn is on screen from the moment it is sent; bring it into view
+    // then, not when the answer lands.
+    final asked = notifier.ask(question);
+    _revealEnd();
+    final threadId = await asked;
     if (!mounted) return;
     // The first turn MOVES to the thread the endpoint recorded — after it is
     // recorded, never before (ADR-022, ADR-101).
     if (threadId != null) context.go('/ask/thread/$threadId');
-    _scrollToEnd();
+    _revealEnd();
   }
 
   /// Re-send the turn that is on screen. It is not a draft — putting it back
@@ -133,7 +137,21 @@ class _ChatPageState extends State<ChatPage> {
     final threadId = await context.read<ChatNotifier>().retry();
     if (!mounted) return;
     if (threadId != null) context.go('/ask/thread/$threadId');
-    _scrollToEnd();
+  }
+
+  /// "New conversation" LEAVES the scope and the open thread — one navigation
+  /// covers both, because both are `/ask` (ADR-098, ADR-101). A control that
+  /// stayed scoped would offer the whole library while asking a shelf.
+  void _newConversation() {
+    context.go('/ask');
+    _composer.requestFocus();
+  }
+
+  /// A suggested prompt fills the composer; asking is still the reader's.
+  void _fillPrompt(String q) {
+    _controller.text = q;
+    _controller.selection = TextSelection.collapsed(offset: q.length);
+    _composer.requestFocus();
   }
 
   /// The address this screen is AT — one of ADR-101's three forms. A citation
@@ -145,10 +163,56 @@ class _ChatPageState extends State<ChatPage> {
     return '/ask';
   }
 
-  void _scrollToEnd() {
+  /// Bring the transcript's end — the turn just sent, or its refusal — into
+  /// view above the docked composer, and only if it is not already: a short
+  /// conversation does not move, and the page never jumps past the column to
+  /// its footer.
+  void _revealEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) return;
-      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      final end = _end.currentContext?.findRenderObject();
+      if (!mounted || !_scroll.hasClients || end is! RenderBox) return;
+      final vp = _scroll.position.context.storageContext.findRenderObject();
+      if (vp is! RenderBox) return;
+      final y = end.localToGlobal(Offset.zero, ancestor: vp).dy;
+      final room = _scroll.position.viewportDimension - _dockRoom;
+      if (y <= room) return;
+      final p = _scroll.position;
+      _scroll.animateTo(
+        (p.pixels + y - room).clamp(p.minScrollExtent, p.maxScrollExtent),
+        duration: KitD.dur(context, AppMotion.durSlow),
+        curve: AppMotion.easeQuill,
+      );
+    });
+  }
+
+  GlobalKey _citeKey(String key) => _citeKeys.putIfAbsent(key, GlobalKey.new);
+
+  /// §25: a marker scrolls to its citation — only as far as it must, landing
+  /// clear of the docked composer — and marks it for a moment.
+  void _showCite(String messageId, int n) {
+    final key = '$messageId:$n';
+    final ctx = _citeKeys[key]?.currentContext;
+    if (ctx != null && _scroll.hasClients) {
+      final box = ctx.findRenderObject();
+      final vp = _scroll.position.context.storageContext.findRenderObject();
+      if (box is RenderBox && vp is RenderBox) {
+        final top = box.localToGlobal(Offset.zero, ancestor: vp).dy;
+        final bottom = top + box.size.height;
+        final room = _scroll.position.viewportDimension - _dockRoom;
+        if (top < 0 || bottom > room) {
+          Scrollable.ensureVisible(
+            ctx,
+            alignment: 0.25,
+            duration: KitD.dur(context, AppMotion.durSlow),
+            curve: AppMotion.easeQuill,
+          );
+        }
+      }
+    }
+    setState(() => _marked = key);
+    _markTimer?.cancel();
+    _markTimer = Timer(_markFor, () {
+      if (mounted) setState(() => _marked = null);
     });
   }
 
@@ -171,206 +235,167 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final ask = context.watch<ChatNotifier>();
-    final t = Tokens.of(context);
     final scope = _scopeName(ask);
+    final open = ask.activeId == null ? null : ask.activeThread;
+    final openTitle =
+        open == null ? null : (open.title.isEmpty ? 'Untitled' : open.title);
+    final title = openTitle ?? (scope == null ? 'Ask Your Library' : 'Ask $scope');
+    // The folio names what is searched, then — while a conversation is open —
+    // its time (§9's entry time). The kit sets the no-break space before
+    // each dot.
+    final folio = [
+      'Ask',
+      scope == null ? 'Grounded in your library' : 'Grounded in one shelf · $scope',
+      if (open != null && _entryTime(open.updatedAt).isNotEmpty)
+        _entryTime(open.updatedAt),
+    ].join(' · ');
+    // Every thread the read returns is the reader's own (INV-02) and a row in
+    // the sheet, so this counts rows; at the read's window it is a floor.
+    final count = ask.loadingThreads || ask.railError != null
+        ? null
+        : (ask.threads.length >= _threadsWindow
+            ? '$_threadsWindow+'
+            : '${ask.threads.length}');
 
-    return Stack(
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.frameGutterCompact,
-                  AppSpacing.s6, AppSpacing.frameGutterCompact, 0),
-              // Scoped, the header NAMES the shelf — all three lines of it.
-              // A screen that searches one shelf while reading like the
-              // library is the control lying a second time (ADR-098).
-              child: ScreenHeader(
-                eyebrow: scope == null
-                    ? 'Grounded in your library'
-                    : 'Grounded in one shelf',
-                title: scope == null ? 'Ask your library' : 'Ask $scope',
-                standfirst: scope == null
-                    ? 'Find what you’ve read on a topic — every result traces '
-                        'back to a passage.'
-                    : 'Only passages on this shelf are searched — every result '
-                        'traces back to one.',
-                // `.pact.ask-history-btn` — the bare quiet link (sans 12, a
-                // 13 glyph, no padding), not a padded ghost button (F-78 (2)).
-                action: KitPassageAction(
-                  icon: Icons.history,
-                  label: 'History',
-                  onTap: () => _setRail(true),
-                ),
-                // `.ask-title` is 26 on a phone (app-responsive.css ≤680).
-                titleSizeCompact: 26,
-              ),
+    return KitDPage(
+      folio: folio,
+      title: title,
+      titleWidget: KitAskTitle(title),
+      // 5.30.0's sentences (screens/ask.md §Composition, Copy): Ask writes an
+      // answer that quotes its passages. D keeps them, not the prototype's
+      // 5.28 sentence from before the written answer.
+      stand: scope == null
+          ? 'Ask about what you’ve read — answers quote the passages they '
+              'draw on.'
+          : 'Only passages on this shelf are read — every answer quotes the '
+              'passages it draws on.',
+      action: ask.activeId == null
+          ? null
+          : KitPageAction(
+              label: 'New conversation',
+              short: 'New',
+              icon: Icons.add,
+              onPressed: _newConversation,
             ),
-            Expanded(child: _thread(context, ask)),
+      controller: _scroll,
+      sheet: KitDSheet(
+        label: 'Conversations',
+        peek: KitAskPeek(title: openTitle ?? 'Conversations', count: count),
+        // Choosing an entry or *New conversation* folds the running head.
+        foldOnPick: true,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const KitDLabel('Conversations', first: true),
+            ..._conversations(context, ask),
           ],
         ),
-        // The dock floats over the transcript, as §10 requires.
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: KitMeasure(
-            onSize: _onDock,
-            child: KitComposerDock(
-            controller: _controller,
-            placeholder:
-                scope == null ? 'Ask your library anything…' : 'Ask $scope anything…',
-            busy: ask.sending,
-            // No `error` here any more (ADR-097). The refusal belongs to the
-            // TURN, which is on screen above this dock with the question it
-            // refused — beside a composer the reader has already emptied, the
-            // same sentence would be about nothing.
-            maxLength: 1000,
-            onSend:
-                _controller.text.trim().isEmpty || ask.sending ? null : _send,
-          ),
-          ),
-        ),
-        // §9's phone form: a backdrop that closes on press, then the rail —
-        // on the ROOT overlay, over the shell's bar and the dock.
-        OverlayPortal.targetsRootOverlay(
-          controller: _railPortal,
-          overlayChildBuilder: (context) => Stack(
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: () => _setRail(false),
-                  child: ColoredBox(color: t.scrim),
-                ),
-              ),
-              // `position: fixed; top: 0; bottom: 0; left: 0` — the full
-              // height of the screen. The page's own MediaQuery has had the
-              // status bar taken out by the shell's app bar, so the inset is
-              // read off the VIEW, or the head sits under the notch.
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                // The rail is drawn under the status bar now, so the bar's
-                // glyphs take the RAIL's ground: the shell's plum chrome set
-                // them light, which over a light rail is white on white (the
-                // 2026-10-12 ask-rail frame lost the clock).
-                child: AnnotatedRegion<SystemUiOverlayStyle>(
-                  value: Theme.of(context).brightness == Brightness.dark
-                      ? SystemUiOverlayStyle.light
-                      : SystemUiOverlayStyle.dark,
-                  child: MediaQuery(
-                    data: MediaQueryData.fromView(View.of(context)),
-                    child: _rail(context, context.watch<ChatNotifier>()),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          child: const SizedBox.shrink(),
-        ),
-      ],
+      ),
+      dock: KitAskComposer(
+        controller: _controller,
+        focusNode: _composer,
+        label: scope == null ? 'Ask your library' : 'Ask $scope',
+        placeholder:
+            scope == null ? 'Ask your library anything…' : 'Ask $scope anything…',
+        busy: ask.sending,
+        onSubmit: _send,
+      ),
+      child: _transcript(context, ask, scope),
     );
   }
 
-  Widget _rail(BuildContext context, ChatNotifier ask) {
-    final width = MediaQuery.sizeOf(context).width;
-    return KitInspectorRail(
-      title: 'Conversations',
-      width: width * 0.86 > 320 ? 320 : width * 0.86,
-      onClose: () => _setRail(false),
-      newLabel: 'New conversation',
-      newActive: ask.activeId == null,
-      // "New conversation" LEAVES the scope and the open thread — one
-      // navigation covers both, because both are `/ask` (ADR-098, ADR-101). A
-      // control that stayed scoped would offer the whole library while asking
-      // a shelf.
-      onNew: () {
-        _setRail(false);
-        context.go('/ask');
-      },
-      notice: ask.railError != null
-          ? KitFailureBlock(
-              sentence: 'Your conversations could not be read.',
-              detail: ask.railError!,
-            )
-          : (ask.loadingThreads
-              ? Padding(
-                  padding: const EdgeInsets.all(AppSpacing.s3),
-                  child: Text('Loading…', style: KitText.meta(context)),
-                )
-              : null),
-      groups: _groups(context, ask),
-    );
-  }
+  // ── The sheet: the conversations ─────────────────────────────────────────
 
-  List<KitRailGroup> _groups(BuildContext context, ChatNotifier ask) {
-    final out = <KitRailGroup>[];
+  List<Widget> _conversations(BuildContext context, ChatNotifier ask) {
+    final out = <Widget>[
+      KitAskNewConversation(
+        active: ask.activeId == null,
+        onTap: _newConversation,
+      ),
+    ];
+    // INV-24 in the list's own region (ADR-097): a list that could not be
+    // read is §14.1, never the no-threads state — which says the reader has
+    // no conversations.
+    if (ask.railError != null) {
+      out.add(KitFailureBlock(
+        sentence: 'Your conversations could not be loaded.',
+        detail: ask.railError!,
+      ));
+      return out;
+    }
+    if (ask.loadingThreads) {
+      out.add(const KitSkeletonLines(lines: [
+        KitSkelLine(0.7),
+        KitSkelLine(0.6),
+        KitSkelLine(),
+        KitSkelLine(0.7),
+        KitSkelLine(0.5),
+      ]));
+      return out;
+    }
+    String? group;
     for (final thread in ask.threads) {
       final label = _groupOf(thread.updatedAt);
-      final name = thread.title.isEmpty ? 'Untitled' : thread.title;
-      final entry = KitRailEntry(
-        title: name,
-        // §9.2 — nothing at all when the conversation is unscoped.
-        scope: thread.tagId == null
-            ? null
-            : (thread.tagTitle?.isNotEmpty == true ? thread.tagTitle : 'shelf'),
-        time: _entryTime(thread.updatedAt),
-        preview: thread.preview,
-        active: thread.id == ask.activeId,
-        // Opening a conversation is a NAVIGATION (ADR-101): the thread is
-        // `/ask/thread/{id}`, so a reload and every return from the Reader
-        // land back in this transcript instead of on an empty screen.
-        onTap: () {
-          _setRail(false);
-          // Only when it is a DIFFERENT conversation. `go` to the address the
-          // screen is already at rebuilds the page — a new State, a new rail,
-          // a new entry — and anything the reader had open in it (a rename
-          // field, mid-edit) is torn down and committed empty by the teardown.
-          // Re-opening the open conversation is not a navigation.
-          if (thread.id != widget.threadId) {
-            context.go('/ask/thread/${thread.id}');
-          }
-          _scrollToEnd();
-        },
-        // §9.1 (4.55.0, ADR-091) — the client surface `fn_ask_threads` PATCH
-        // and DELETE had on no client until 4.55.0. The actions are SIBLINGS of
-        // the tap that opens the entry, which is what the kit widget composes;
-        // this file only says which two there are.
-        actions: [
-          KitRailEntryAction(
-            icon: Icons.edit_outlined,
-            label: 'Rename “$name”',
-            onPressed: () => context.read<ChatNotifier>().startRename(thread.id),
-          ),
-          KitRailEntryAction(
-            icon: Icons.delete_outline,
-            label: 'Delete “$name”',
-            danger: true,
-            onPressed: () => _confirmDelete(thread.id, name),
-          ),
-        ],
-        renaming: ask.renamingId == thread.id,
-        busy: ask.entryBusy(thread.id),
-        error: ask.entryError(thread.id),
-        onRenameCommit: (v) =>
-            context.read<ChatNotifier>().renameThread(thread.id, v),
-        onRenameCancel: () => context.read<ChatNotifier>().cancelRename(),
-      );
-      if (out.isNotEmpty && out.last.label == label) {
-        out.last.entries.add(entry);
-      } else {
-        out.add(KitRailGroup(label: label, entries: [entry]));
+      if (label != group) {
+        out.add(KitAskGroupLabel(label));
+        group = label;
       }
+      out.add(_entry(context, ask, thread));
     }
     return out;
+  }
+
+  Widget _entry(BuildContext context, ChatNotifier ask, AskThread thread) {
+    final name = thread.title.isEmpty ? 'Untitled' : thread.title;
+    return KitAskConvo(
+      key: ValueKey('ask-convo-${thread.id}'),
+      title: name,
+      // §9.2 — nothing at all when the conversation is unscoped.
+      scope: thread.tagId == null
+          ? null
+          : (thread.tagTitle?.isNotEmpty == true ? thread.tagTitle : 'shelf'),
+      time: _entryTime(thread.updatedAt),
+      preview: thread.preview,
+      active: thread.id == ask.activeId,
+      // Opening a conversation is a NAVIGATION (ADR-101) — and only to a
+      // DIFFERENT one: `go` to the address the screen is already at rebuilds
+      // the page, and a rename field open in it would be torn down mid-edit.
+      onOpen: () {
+        if (thread.id != widget.threadId) {
+          context.go('/ask/thread/${thread.id}');
+        }
+      },
+      // §9.1 (4.55.0, ADR-091): rename in place, and delete behind §18.
+      actions: [
+        KitAskConvoAction(
+          icon: Icons.edit_outlined,
+          label: 'Rename “$name”',
+          onPressed: () => context.read<ChatNotifier>().startRename(thread.id),
+        ),
+        KitAskConvoAction(
+          icon: Icons.delete_outline,
+          label: 'Delete “$name”',
+          danger: true,
+          onPressed: () => _confirmDelete(thread.id, name),
+        ),
+      ],
+      renaming: ask.renamingId == thread.id,
+      busy: ask.entryBusy(thread.id),
+      error: ask.entryError(thread.id),
+      onRenameCommit: (v) =>
+          context.read<ChatNotifier>().renameThread(thread.id, v),
+      onRenameCancel: () => context.read<ChatNotifier>().cancelRename(),
+    );
   }
 
   /// §9.1: a destructive entry action confirms, and the confirmation names what
   /// is lost AND what is not. A conversation CITES passages; it does not hold
   /// them, so deleting one takes nothing out of the library.
   /// §18 (4.56.0, ADR-092): the delete runs inside the panel and its rejection
-  /// renders there. §9.1's "the rejection goes in the entry" holds for the
-  /// rename, which has no dialog — here the reader is looking at the
-  /// confirmation, not at the row behind it.
+  /// renders there; `KitConfirm` reports true only on SUCCESS. Deleting the
+  /// open conversation returns to `/ask` — a URL naming a deleted thread is
+  /// the address bar pointing at nothing (ADR-101).
   Future<void> _confirmDelete(String id, String name) async {
     final ask = context.read<ChatNotifier>();
     final wasOpen = id == widget.threadId;
@@ -384,221 +409,160 @@ class _ChatPageState extends State<ChatPage> {
       cancelLabel: 'Keep it',
       onConfirm: () => ask.deleteThread(id),
     );
-    // A transcript whose thread is gone is a view of nothing, and the address
-    // bar would be naming a conversation that no longer exists (ADR-101).
-    //
-    // The signal is §18's own: `KitConfirm` reports true only on SUCCESS, and
-    // stays open answering on a refusal. Reading the rail instead — "has the
-    // deleted thread left `threads` yet?" — is a race against the
-    // subscription, and it lost: the delete had succeeded and the screen was
-    // still on the dead thread's address.
     if (!mounted || !wasOpen || deleted != true) return;
     context.go('/ask');
   }
 
-  Widget _thread(BuildContext context, ChatNotifier ask) {
-    // A thread we could not READ is not an empty conversation (INV-24).
+  // ── The column: the transcript ───────────────────────────────────────────
+
+  Widget _transcript(BuildContext context, ChatNotifier ask, String? scope) {
+    // INV-24: a transcript we could not READ is not an empty conversation —
+    // the empty state would say the reader had asked nothing (ADR-097).
     if (ask.threadError != null) {
-      return KitPage(
-        width: KitFrameWidth.reading,
-        dockReserve: _reserve,
-        child: KitFailureBlock(
-          sentence: 'This conversation could not be read.',
-          detail: ask.threadError!,
-        ),
+      return KitFailureBlock(
+        sentence: 'This conversation could not be loaded.',
+        detail: ask.threadError!,
+        onRetry: () => context.read<ChatNotifier>().retryThread(),
       );
     }
-
-    final scope = _scopeName(ask);
-
-    // §7 — an offer, not an apology. It stands only when nothing is open AND
-    // nothing has been sent; a question already sent belongs in the
-    // transcript, not behind a suggestion stack.
-    if (ask.messages.isEmpty && ask.sentQuestion == null) {
-      return KitPage(
-        width: KitFrameWidth.reading,
-        dockReserve: _reserve,
-        // `.ask-empty { padding-top: 20px }` on a phone, top-aligned: this
-        // was s8 on top of the empty state's own s8, ~48 lower (F-78 (2)).
-        child: Padding(
-          padding: const EdgeInsets.only(top: AppSpacing.s5),
-          child: KitEmptyState(
-            flush: true,
-            // `.ask-empty-mark` and `.avatar.library` are the quill: the
-            // library speaks with the app's own mark, not a sparkle.
-            icon: KitQuill.icon,
-            title: scope == null
-                ? 'Ask your library a question'
-                : 'Ask $scope a question',
-            standfirst: scope == null
-                ? 'Type a topic or question and NoteLetter will surface the '
-                    'passages that relate to it.'
-                : 'Type a topic or question and NoteLetter will surface the '
-                    'passages on $scope that relate to it.',
-            // The suggested prompts are about a WHOLE library, so a scoped
-            // screen draws none: they would be a list of things this shelf
-            // cannot answer (ADR-098).
-            suggestions: [
-              for (final p in scope == null ? _prompts : const <String>[])
-                KitSuggestion(
-                  // `IcoSparkle` — stroked rays, not Material's filled twinkle.
-                  icon: KitSparkle.icon,
-                  label: p,
-                  onTap: () {
-                    _controller.text = p;
-                    _controller.selection = TextSelection.collapsed(
-                        offset: _controller.text.length);
-                  },
-                ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return KitPage(
-      width: KitFrameWidth.reading,
-      controller: _scroll,
-      // A short transcript sits against the composer, as a chat does.
-      anchorBottom: true,
-      dockReserve: _reserve,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final m in ask.messages)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.s6),
-              child: _AskMessageRow(message: m, from: _routePath()),
-            ),
-          // The turn the reader SENT (ADR-097). It is here from the moment it
-          // goes until its own stored message arrives to replace it — and a
-          // refusal leaves it here too, with the server's sentence and a
-          // retry that re-sends THIS turn. Restoring a stored conversation
-          // never draws it: it is only ever set by a request this screen made.
-          if (ask.sentQuestion != null) ...[
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.s6),
-              child: _AskMessageRow(
-                message: AskMessage(
-                  id: '_sent',
-                  role: AskRole.user,
-                  text: ask.sentQuestion,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.s6),
-              child: _AskMessageRow(
-                message: const AskMessage(id: '_answer', role: AskRole.library),
-                searching: ask.sentError == null,
-                failure: ask.sentError,
-                onRetry: () => _retry(),
-              ),
-            ),
-          ],
-          // Room for the dock, which floats over this scroller, is the
-          // scroller's own [KitPage.dockReserve], below the footer.
-          const SizedBox(height: AppSpacing.s6),
+    // Restoring a conversation issues NO request, so it never draws the
+    // thinking line (`screens/ask.md` §States): skeleton lines until it is
+    // read.
+    if (ask.activeId != null && !ask.messagesLoaded && ask.sentQuestion == null) {
+      return const KitSkeletonLines(
+        top: 0,
+        lines: [
+          KitSkelLine(0.6, true),
+          KitSkelLine(),
+          KitSkelLine(),
+          KitSkelLine(0.7),
+          KitSkelLine(),
+          KitSkelLine(0.5),
         ],
-      ),
+      );
+    }
+    // §37 — an offer, not an apology. It stands only when nothing is open AND
+    // nothing has been sent. The suggestions are about a WHOLE library, so a
+    // shelf's state has none (ADR-098).
+    if (ask.messages.isEmpty && ask.sentQuestion == null) {
+      return KitEmptyState(
+        icon: KitQuill.icon,
+        title: scope == null
+            ? 'Ask your library a question'
+            : 'Ask $scope a question',
+        standfirst: scope == null
+            ? 'Ask a question and NoteLetter will answer from your notes, '
+                'quoting the passages it draws on.'
+            : 'Ask a question and NoteLetter will answer from $scope, quoting '
+                'the passages it draws on.',
+        suggestions: [
+          for (final p in scope == null ? _prompts : const <String>[])
+            KitSuggestion(
+              icon: KitSparkle.icon,
+              label: p,
+              onTap: () => _fillPrompt(p),
+            ),
+        ],
+      );
+    }
+
+    final from = _routePath();
+    final turns = <Widget>[];
+    for (final m in ask.messages) {
+      if (m.role == AskRole.user) {
+        turns.add(KitAskQuestion(m.text ?? '', first: turns.isEmpty));
+      } else {
+        turns.add(_reply(m, from));
+      }
+    }
+    // The turn the reader SENT (ADR-097): here from the moment it goes until
+    // its own stored message arrives to replace it — and a refusal leaves it
+    // here too, with the server's sentence and a retry that re-sends THIS
+    // turn. Restoring a stored conversation never draws it.
+    final sent = ask.sentQuestion;
+    if (sent != null) {
+      turns.add(KitAskQuestion(sent, first: turns.isEmpty));
+      final refused = ask.sentError;
+      turns.add(refused == null
+          // The wait covers the answer being written too (5.30.0).
+          ? const KitAskReply(line: 'Reading your notes…')
+          : KitAskReply(
+              failure: KitFailureInline(refused, dense: true),
+              retry: KitButton.primary('Try again', onPressed: _retry),
+            ));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [...turns, SizedBox(key: _end, height: 0)],
     );
+  }
+
+  /// The library's turn: the written answer (or its note) over the citations
+  /// as a ruled register — or, with no citations, which of the three empties
+  /// it is.
+  Widget _reply(AskMessage m, String from) {
+    if (m.citations.isEmpty) return KitAskReply(line: _emptyAnswer(m.scope));
+    return KitAskReply(
+      answer: m.answer,
+      note: m.answerNote,
+      cited: m.citations,
+      onCite: (n) => _showCite(m.id, n),
+      citations: KitAskCitations(children: [
+        for (var i = 0; i < m.citations.length; i++)
+          KitAskCitation(
+            key: _citeKey('${m.id}:${i + 1}'),
+            index: i + 1,
+            title: m.citations[i].title,
+            excerpt: m.citations[i].excerpt,
+            sourceType: m.citations[i].sourceType,
+            marked: _marked == '${m.id}:${i + 1}',
+            actions: _citeActions(m.citations[i], from),
+          ),
+      ]),
+    );
+  }
+
+  /// A citation's actions: *Open* — a §6.4.3 link to the Reader, carrying
+  /// `?from=` so its back control returns to this conversation (ADR-101) —
+  /// and, when the passage has one, its own source NAMED by host (4.63.0,
+  /// ADR-099). A stored file and an image set have no URL and get no control
+  /// (§6.4.2 rule 3: say nothing rather than offer one that goes nowhere).
+  List<Widget> _citeActions(AskCitation c, String from) {
+    final host = sourceHost(c.sourceUrl);
+    final query = [
+      if (c.chunkId != null) 'p=${c.chunkId}',
+      'from=${Uri.encodeComponent(from)}',
+    ].join('&');
+    return [
+      if (c.documentId != null)
+        KitSourceLink(
+          docId: c.documentId!,
+          query: query,
+          builder: (context, open) => KitPassageAction(
+            icon: Icons.visibility_outlined,
+            label: 'Open',
+            onTap: open,
+          ),
+        ),
+      if (host != null)
+        KitPassageAction(
+          icon: Icons.open_in_new,
+          label: host,
+          maxWidth: 160,
+          onTap: () => launchUrlString(
+            c.sourceUrl!,
+            mode: LaunchMode.externalApplication,
+          ),
+        ),
+    ];
   }
 }
 
-/// One message: a 36px circular avatar (sage for the reader, `--chrome` for the
-/// app) beside a sans 12/600 attribution and the body.
-class _AskMessageRow extends StatelessWidget {
-  final AskMessage message;
-  final bool searching;
-
-  /// The server's sentence for a turn that was REFUSED (§14.2), rendered where
-  /// the answer would have been — the question stays above it.
-  final String? failure;
-  final VoidCallback? onRetry;
-
-  /// This conversation's own route, for a citation to carry onto the Reader.
-  final String? from;
-
-  const _AskMessageRow({
-    required this.message,
-    this.searching = false,
-    this.failure,
-    this.onRetry,
-    this.from,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    final mine = message.role == AskRole.user;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            // `.avatar.you` pins raw --sage-700 in both themes; the flipping
-            // --tone-sage lightened it in dark (F-78 (3)).
-            color: mine ? AppColors.askAvatarYou : t.chrome,
-            shape: BoxShape.circle,
-          ),
-          child: mine
-              ? Text(
-                  'Y',
-                  style: KitText.small(context, color: t.chromeFg, weight: FontWeight.w600),
-                )
-              : KitQuill(size: 18, color: t.chromeFg),
-        ),
-        const SizedBox(width: AppSpacing.s3),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                mine ? 'You' : 'Your library',
-                style: KitText.small(context, color: t.fgMuted, weight: FontWeight.w600),
-              ),
-              const SizedBox(height: AppSpacing.s1),
-              if (failure != null) ...[
-                KitFailureInline(failure!, dense: true),
-                const SizedBox(height: AppSpacing.s3),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: KitButton.primary('Try again', onPressed: onRetry),
-                ),
-              ] else if (searching)
-                Text('Searching…', style: KitText.meta(context))
-              // The reader's text is UI sans 15/22; the app's side is its
-              // citations. The asymmetry is deliberate (§Composition).
-              else if (mine)
-                Text(message.text ?? '', style: KitText.message(context))
-              // Three sentences, because they are three different facts
-              // (ADR-098). A scoped turn that searched the shelf exhaustively
-              // can say the shelf has nothing about it; one that filtered a
-              // TRUNCATED pool cannot, and saying so anyway would be the
-              // screen asserting something false about the shelf.
-              else if (message.citations.isEmpty)
-                Text(_emptyAnswer(message.scope), style: KitText.meta(context))
-              else
-                for (var i = 0; i < message.citations.length; i++)
-                  Padding(
-                    padding: EdgeInsets.only(top: i == 0 ? AppSpacing.s1 : 8),
-                    child: _CitationPill(
-                      index: i + 1,
-                      citation: message.citations[i],
-                      from: from,
-                    ),
-                  ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
+/// Three sentences, because they are three different facts (ADR-098). A
+/// scoped turn that searched the shelf exhaustively can say the shelf has
+/// nothing about it; one that filtered a TRUNCATED pool cannot, and saying so
+/// anyway would be the screen asserting something false about the shelf.
 String _emptyAnswer(AskScope? scope) {
   if (scope?.tagId == null) return 'No related passages found.';
   final name = (scope!.title?.isNotEmpty == true) ? scope.title! : 'this shelf';
@@ -608,157 +572,9 @@ String _emptyAnswer(AskScope? scope) {
           'library. A narrower question may reach them.';
 }
 
-/// A citation's corner (ask.md §Composition, 4.99.0): a pill wide, capped at
-/// `--r-xl` on a phone — a wrapped citation is four lines or more there, and a
-/// true pill radius made it an ellipse whose curve crossed the badge and the
-/// actions column. The phone breakpoint is this client's compactWidth
-/// (CLAUDE.md §Composition deviations). It was 22 at every width (F-69's single
-/// cap), which ask.md now rules out.
-@visibleForTesting
-BorderRadius citationRadius(double width) => width < AppSpacing.compactWidth
-    ? AppRadius.xlR
-    : BorderRadius.circular(999);
-
-/// A citation: a bordered pill with a mono index, the document's title, and the
-/// stored excerpt — whose extraction markers render as Marker inline (§17.2).
-class _CitationPill extends StatelessWidget {
-  final int index;
-  final AskCitation citation;
-
-  /// The route this conversation is AT, carried onto the Reader so its back
-  /// control can name it and return there (ADR-101). Null on a conversation
-  /// with no address yet — the first turn, before it has moved to its thread.
-  final String? from;
-
-  const _CitationPill({
-    required this.index,
-    required this.citation,
-    this.from,
-  });
-
-  /// The Reader this citation opens, with the way back on it (4.65.0,
-  /// ADR-101): `?from=` names this conversation, and it is **pushed** rather
-  /// than gone to, so the reader's own back gesture lands in the transcript
-  /// too. `context.go` REPLACES — it was how this control opened the Reader
-  /// until 4.65.0, and a citation that discards the conversation it came from
-  /// is the screen throwing away the thing the reader was reading.
-  String _readerRoute() {
-    final p = citation.chunkId == null ? '' : 'p=${citation.chunkId}';
-    final f = from == null ? '' : 'from=${Uri.encodeComponent(from!)}';
-    final q = [p, f].where((s) => s.isNotEmpty).join('&');
-    return '/reader/${citation.documentId}${q.isEmpty ? '' : '?$q'}';
-  }
-
-  /// [_readerRoute]'s query alone, for the §6.4.3 link's address.
-  String _readerQuery() {
-    final r = _readerRoute();
-    final i = r.indexOf('?');
-    return i < 0 ? '' : r.substring(i + 1);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    final host = sourceHost(citation.sourceUrl);
-    return GestureDetector(
-      onTap: citation.documentId == null
-          ? null
-          : () => context.push(_readerRoute()),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.s3, vertical: AppSpacing.s2),
-        decoration: BoxDecoration(
-          color: t.bg,
-          border: Border.all(color: t.border),
-          borderRadius: citationRadius(MediaQuery.sizeOf(context).width),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '$index',
-                style: KitText.monoFigure(context,
-                    fontSize: 10,
-                    weight: FontWeight.w600,
-                    color: t.accentText),
-              ),
-            ),
-            const SizedBox(width: 10),
-            // The File badge (§6.4) — content-sized, as web's bare
-            // `.filebadge` in `.cite` sets no box.
-            KitFileBadge(kitDocKind(citation.sourceType ?? ''),
-                size: KitBadgeSize.chip),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // A pill is not one line (ask.md §Composition at 4.98.0,
-                  // ADR-131): the title WRAPS; it was `maxLines: 1`.
-                  Text(
-                    citation.title,
-                    style: KitText.ui(context, color: t.fg, weight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  // The excerpt is `chunk.text`, so `[Image: …]` reaches it.
-                  // KitMarkedText draws each marker as §17.2 and never strips
-                  // one: across production the markers are a median 31.6% of a
-                  // marker-bearing chunk (ADR-089). Nothing truncates it.
-                  KitMarkedText(
-                    citation.excerpt,
-                    style: KitText.ui(context, color: t.fgSubtle, height: 19),
-                  ),
-                ],
-              ),
-            ),
-            // `.cite-acts`: a trailing column — Open, then the passage's own
-            // source named by host (ellipsised at 160).
-            if (citation.documentId != null || host != null) ...[
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (citation.documentId != null)
-                    KitSourceLink(
-                      docId: citation.documentId!,
-                      query: _readerQuery(),
-                      builder: (context, open) => KitPassageAction(
-                        icon: Icons.visibility_outlined,
-                        label: 'Open',
-                        onTap: open,
-                      ),
-                    ),
-                  // The passage's own source, when there IS one (4.63.0,
-                  // ADR-099). A stored file and an image set have no URL
-                  // and get no control — §6.4.2 rule 3, say nothing
-                  // rather than offer one that goes nowhere.
-                  if (host != null) ...[
-                    if (citation.documentId != null) const SizedBox(height: 4),
-                    KitPassageAction(
-                      icon: Icons.open_in_new,
-                      label: host,
-                      maxWidth: 160,
-                      onTap: () => launchUrlString(
-                        citation.sourceUrl!,
-                        mode: LaunchMode.externalApplication,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The rail's group labels, computed in the READER's own timezone — the rail is
-/// the one surface where "today" is a thing they can check against their memory.
+/// The sheet's group labels, computed in the READER's own timezone — the list
+/// is the one surface where "today" is a thing they can check against their
+/// memory.
 String _groupOf(int? ms) {
   if (ms == null) return 'Earlier';
   final d = DateTime.fromMillisecondsSinceEpoch(ms);
@@ -768,6 +584,7 @@ String _groupOf(int? ms) {
   return sameDay ? 'Today' : 'Earlier';
 }
 
+/// §9's entry time: the clock today, the date before.
 String _entryTime(int? ms) {
   if (ms == null) return '';
   final d = DateTime.fromMillisecondsSinceEpoch(ms);
@@ -782,4 +599,3 @@ String _entryTime(int? ms) {
   ];
   return '${months[d.month - 1]} ${d.day}';
 }
-

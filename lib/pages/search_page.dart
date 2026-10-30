@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -9,47 +8,43 @@ import '../models/cohesive_reading.dart';
 import '../models/search_result.dart';
 import '../models/tag.dart';
 import '../scripture/parse.dart';
-import '../services/firestore_service.dart';
-import '../shared/local_flags.dart';
-import '../state/search_notifier.dart';
-import '../state/tags_notifier.dart';
-import '../theme/app_spacing.dart';
-import '../widgets/kit/kit.dart';
-import 'search/cohesive_column.dart';
-import 'search/reading_pane.dart';
-import 'search/result_card.dart';
-import 'search/scripture_results.dart';
-import 'search/search_field.dart';
 import '../services/analytics.dart';
 import '../services/error_text.dart';
+import '../services/firestore_service.dart';
+import '../shared/local_flags.dart';
+import '../state/documents_notifier.dart';
+import '../state/search_notifier.dart';
+import '../state/tags_notifier.dart';
+import '../theme/app_radius.dart';
+import '../theme/tokens.dart';
+import '../widgets/kit/kit.dart';
+import '../widgets/sidebar.dart' show shellAiOn;
+import 'search/cohesive_column.dart';
+import 'search/result_d.dart';
+import 'search/scripture_results.dart';
+import 'search/search_field.dart';
 
-/// **Search** (`spec/screens/search.md`) — semantic search over the library.
+/// **Search** (`spec/screens/search.md`) — semantic search over the library,
+/// in direction D (§Composition (direction D); web `pages/SearchView.jsx`).
 ///
-/// Recomposed against the kit (ADR-041, screen 5/11). What was here was the
-/// search box lifted out of the retired dashboard: a sans page title, a 44px
-/// rounded control, and a column of bespoke cards. Three parts of the screen
-/// as specified did not exist at all — the **big field** the screen is built
-/// around, the **control bar**, and the **reading pane**, which is the reason
-/// this is the one screen in the app with a two-pane frame and a 1100px
-/// ceiling. A search screen with no second pane is a list of excerpts.
-///
-/// Composition (§Composition), every part from the kit unless noted:
-///
-/// * **Frame** Wide (1100) — §1.5. The header block is fixed and the results
-///   scroll beneath it (§1.4), as on the reference: the field a reader is
-///   typing into does not scroll away from them.
-/// * **Header** bespoke ([SearchBigField]) — eyebrow over the big field. Not a
-///   chapter opening; §2 names search as one of the three screens that has its
-///   own.
-/// * **Controls** a control bar (§6.6) of filter chips (§6.7) carrying counts,
-///   **disabled at zero rather than hidden**, with the measured result count as
-///   the trailing control.
-/// * **Body** [SearchResultCard]s in the leading pane and [SearchReadingPane]
-///   beside them; a phone stacks the two, it does not drop the pane.
-/// * **Cohesive** (4.40.0, ADR-078) — the control bar's trailing slot holds a
-///   segmented `Passages | Cohesive`, and while Cohesive a second
-///   `Tighter | Normal | Broader` beside it; the body becomes
-///   [CohesiveColumn], a single reading column in place of the split pane.
+/// * **Frame** — the D frame ([KitDPage], kit §26–§29) inside the primary
+///   scroll, which ends with the support footer.
+/// * **Masthead** — folio `Search · {N} passages · by meaning` (N the library's
+///   complete volumes' passages, from the documents subscription; the dash
+///   while it is out or refused); title *Search*; the standfirst says what the
+///   column holds now ([searchStand]).
+/// * **Tools** — the page's own field ([SearchQueryField]), in the rail's place
+///   of Search. It stays in the masthead at every width: the toolbar's field
+///   wider than a phone, under the standfirst and above the rule on one. No
+///   action, no settings.
+/// * **Sheet** — *Filters*: Kind (kit §29's facet over the kind chips, the
+///   `pdf`/`epub` fold), **Read as** and **Breadth** (both absent while
+///   generative AI is off). For a citation the sheet is *Scripture* instead.
+///   The running head on a phone says the kind, the mode and the count.
+/// * **Column** — no query: *Try searching for* and the suggestions; results:
+///   the ruled register of [SearchResultD] rows, each opening in place; no
+///   results; the §14.1 Failure block; the cohesive reading
+///   ([CohesiveColumn]); or the scripture results.
 ///
 /// * **Citation branch** (2.28.0 + 4.9.0, ADR-027 §2 / ADR-045) — a citation
 ///   is a **different question**, so it takes a different path and neither the
@@ -57,9 +52,7 @@ import '../services/error_text.dart';
 ///   (`scripture/parse.dart`) is the cheap prefilter that decides which
 ///   question is being asked; `fn_scripture_lookup` decides the **result**,
 ///   parsing again so one implementation says what was actually searched.
-///   Active only where the client-local `nl-scripture` flag is on — the
-///   affordance is a per-device preference by contract (ADR-027 §7), set in
-///   Settings.
+///   Active only where the client-local `nl-scripture` flag is on (ADR-027 §7).
 ///
 /// **Not built here:** the quick-search citation echo. It needs a command
 /// palette and this client has none — recorded as an n/a row in
@@ -76,21 +69,24 @@ class _SearchPageState extends State<SearchPage> {
 
   /// The query whose results are on screen — not what is in the field. Search
   /// runs on submit, so the two differ while the reader is typing, and the
-  /// header must not describe results the reader has not asked for yet.
+  /// masthead must not describe results the reader has not asked for yet.
   String _submitted = '';
   String _filter = 'all';
 
   /// Cohesive mode (4.40.0, ADR-078) is a **view mode**, so the control moves
   /// at once — and the body does not. The passages list stays exactly as it
   /// was until the reading lands (write-before-move applied to the frame,
-  /// `screens/search.md` §States); the count line is what says a request is in
+  /// `screens/search.md` §States); the standfirst is what says a request is in
   /// flight, and it says so because a request IS in flight, not on a timer.
   bool _cohesive = false;
   String _breadth = 'normal';
 
+  /// The row open in place (its chunk id) — one at a time.
+  String? _openId;
+
+  /// The row whose neighbours were read last, and what came back.
   SearchResult? _selected;
   List<Chunk> _context = const [];
-  bool _contextLoading = false;
 
   /// A failed CONTEXT read is its own state (`screens/search.md` §States).
   /// The matched chunk is still true, so it stays on screen; what is missing
@@ -108,11 +104,13 @@ class _SearchPageState extends State<SearchPage> {
     // The client-local scripture flag decides whether a citation is a
     // different question at all (ADR-027 §7).
     LocalFlags.ensureLoaded();
-    // Shelves, for the shelf pill on a result card (INV-02, and the same
-    // subscription Library and Sources already hold — not a second read).
+    // Shelves, for the shelf on a result row, and the documents the folio
+    // counts its passages from (INV-02: the subscriptions Library and the
+    // rail already hold — not a second read).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<TagsNotifier>().start();
+      context.read<DocumentsNotifier>().start();
     });
   }
 
@@ -122,6 +120,19 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
+  bool get _aiOn => shellAiOn(context);
+
+  /// Read as is absent while generative AI is off (5.29.0, ADR-186): the mode
+  /// is passages, whatever was last picked.
+  bool get _cohesiveOn => _aiOn && _cohesive;
+
+  void _resetRows() {
+    _openId = null;
+    _selected = null;
+    _context = const [];
+    _contextError = null;
+  }
+
   Future<void> _submit(String raw) async {
     final query = raw.trim();
     final search = context.read<SearchNotifier>();
@@ -129,10 +140,8 @@ class _SearchPageState extends State<SearchPage> {
       search.clear();
       setState(() {
         _submitted = '';
-        _selected = null;
-        _context = const [];
-        _contextError = null;
         _citation = null;
+        _resetRows();
       });
       return;
     }
@@ -151,10 +160,8 @@ class _SearchPageState extends State<SearchPage> {
 
     setState(() {
       _submitted = query;
-      _selected = null;
-      _context = const [];
-      _contextError = null;
       _citation = citation;
+      _resetRows();
     });
     search.clearScripture();
 
@@ -163,9 +170,7 @@ class _SearchPageState extends State<SearchPage> {
       // saying this was an ordinary query after all — a NORMAL answer, so the
       // screen falls through to the vector search rather than showing a
       // failure. Recording which query was rejected is what actually releases
-      // the fall-through; without it the branch stays taken for a query the
-      // screen has never searched for, and renders "no passages found" for a
-      // search it never made.
+      // the fall-through.
       final stay = await search.lookupScripture(query);
       if (!mounted) return;
       if (stay) return;
@@ -175,41 +180,23 @@ class _SearchPageState extends State<SearchPage> {
     // Both modes ask the same query. The passages request always runs: it is
     // what the list under a cohesive reading shows while the reading is being
     // built, and what the reader falls back to on the way out of the mode.
-    if (_cohesive) unawaited(_runCohesive());
+    if (_cohesiveOn) unawaited(_runCohesive());
     await _runSearch();
   }
 
-  /// The passages request — the one place it is built, so the chip, the query
+  /// The passages request — the one place it is built, so the kind, the query
   /// and a retry all send the same thing.
   ///
-  /// `sourceTypes` goes to the SERVER (4.28.0, ADR-065). It used to be omitted
-  /// and the returned page narrowed locally, which filtered the **global**
-  /// top-20: picking Audio showed the audio chunks that happened to outrank
-  /// everything else, and an empty result meant "none in the top 20" rather
-  /// than "none in your library" — an answer that got worse as the library
-  /// grew. The parameter prefilters the KNN, so each chip returns its own
-  /// top-20 (and the vector index that makes it possible is why sending it
-  /// 500'd in prod for the endpoint's whole life until 4.28.0).
-  Future<void> _runSearch() async {
-    final search = context.read<SearchNotifier>();
-    await search.search(
-      _submitted,
-      sourceTypes: _filter == 'all' ? null : searchSourceTypes(_filter),
-      limit: 20,
-    );
-    if (!mounted) return;
-    // The reference opens the top result with the results, so the reading pane
-    // is answering before the reader has clicked anything.
-    final first = search.results.isEmpty ? null : search.results.first;
-    if (first != null) _select(first);
-  }
+  /// `sourceTypes` goes to the SERVER (4.28.0, ADR-065): it prefilters the
+  /// KNN, so each kind returns its own top 20 rather than narrowing the
+  /// global top 20 locally.
+  Future<void> _runSearch() => context.read<SearchNotifier>().search(
+        _submitted,
+        sourceTypes: _filter == 'all' ? null : searchSourceTypes(_filter),
+        limit: 20,
+      );
 
-  /// Ask for the reading of what is currently submitted.
-  ///
-  /// `sourceTypes` comes off the same chip the list is filtered by, inverted
-  /// through the one kind vocabulary ([kitTypesForKind]) — the arrangement is
-  /// built server-side, so a chip narrowing only the list we already hold would
-  /// narrow the reading not at all.
+  /// Ask for the reading of what is currently submitted, over the same kind.
   Future<void> _runCohesive() {
     final search = context.read<SearchNotifier>();
     if (_submitted.isEmpty) {
@@ -223,7 +210,8 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  void _setCohesive(bool on) {
+  void _setMode(String mode) {
+    final on = mode == 'cohesive';
     if (_cohesive == on) return;
     setState(() => _cohesive = on);
     if (on) {
@@ -243,15 +231,82 @@ class _SearchPageState extends State<SearchPage> {
     if (_filter == filter) return;
     setState(() {
       _filter = filter;
-      _selected = null;
+      _resetRows();
+    });
+    if (_submitted.isEmpty) return;
+    // **Choosing a kind re-runs the search.** It does not narrow the page
+    // already returned — that is a different question, and the wrong one.
+    unawaited(_runSearch());
+    if (_cohesiveOn) _runCohesive();
+  }
+
+  void _clear() {
+    _controller.clear();
+    _submit('');
+  }
+
+  void _run(String query) {
+    _controller.text = query;
+    _submit(query);
+  }
+
+  /// Open or fold a row. One row is open at a time; `result_opened` fires on
+  /// OPENING only (4.41.0) — the same control folds it, and counting both
+  /// would make one read look like two. The rank is bucketed, never sent raw
+  /// (INV-25b).
+  void _toggle(SearchResult r, int rank) {
+    final id = r.chunk.chunkId;
+    if (_openId == id) {
+      setState(() => _openId = null);
+      return;
+    }
+    Analytics.track('result_opened', {'rank_bucket': Analytics.bucket(rank)});
+    setState(() => _openId = id);
+    // The neighbours of a row already read are not read again (web keeps the
+    // last context while the same result is selected).
+    if (_selected?.chunk.chunkId == id && _contextError == null) return;
+    _readContext(r);
+  }
+
+  /// The ±2 window around the match. This also logs `chunk_viewed`, which as
+  /// of 4.0.0 bumps `chunks.search_view_count` and **nothing else** (INV-03b):
+  /// opening a result in place is not opening the source and is not reading
+  /// the passage, so it clears no unread dot and moves no read counter.
+  /// `getChunkContext` owns that write — never log it from here. Read only
+  /// when a row is OPENED, so a passage nobody expanded counts no view.
+  Future<void> _readContext(SearchResult r) async {
+    setState(() {
+      _selected = r;
       _context = const [];
       _contextError = null;
     });
-    // **Changing a chip re-runs the search.** It does not narrow the page
-    // already returned — that is a different question, and the wrong one.
-    unawaited(_runSearch());
-    if (_cohesive) _runCohesive();
+    try {
+      final chunks =
+          await FirestoreService.instance.getChunkContext(r.chunk.chunkId);
+      if (!mounted || _selected?.chunk.chunkId != r.chunk.chunkId) return;
+      setState(() => _context = chunks);
+    } catch (e) {
+      if (!mounted || _selected?.chunk.chunkId != r.chunk.chunkId) return;
+      setState(() {
+        _context = const [];
+        _contextError = describeSdkError(e);
+      });
+    }
   }
+
+  /// The reading, but only if it answers the query that is on screen. A
+  /// response for a previous query is not a stale rendering of this one — it is
+  /// an answer to a different question.
+  CohesiveReading? _readingFor(SearchNotifier search) {
+    final r = search.reading;
+    return (r != null && r.query == _submitted) ? r : null;
+  }
+
+  /// The source of a result. Its id comes from the **chunk**: the search
+  /// response's `document` is the stored document's fields, and a Firestore
+  /// document's id is not among its fields, so `document` carries none.
+  void _openSource(SearchResult r) =>
+      context.push('/reader/${r.chunk.documentId}');
 
   /// The server's own `link` for a passage, followed inside the app. The route
   /// is built from the ids the response carries — `document_id` and `chunk_id`
@@ -259,180 +314,119 @@ class _SearchPageState extends State<SearchPage> {
   void _openInContext(CohesivePassage p) =>
       context.push('/reader/${p.documentId}?p=${p.chunkId}');
 
-  Future<void> _select(SearchResult r) async {
-    setState(() {
-      _selected = r;
-      _context = const [];
-      _contextError = null;
-      _contextLoading = true;
-    });
-    // ±2 chunks around the match. This also logs `chunk_viewed`, which as of
-    // 4.0.0 bumps `chunks.search_view_count` and **nothing else** (INV-03b):
-    // reading a result in this pane is not opening the source and is not
-    // reading the passage, so it clears no unread dot and moves no read
-    // counter. `getChunkContext` owns that write — never log it from here.
-    try {
-      final chunks =
-          await FirestoreService.instance.getChunkContext(r.chunk.chunkId);
-      if (!mounted || _selected?.chunk.chunkId != r.chunk.chunkId) return;
-      setState(() {
-        _context = chunks;
-        _contextLoading = false;
-      });
-    } catch (e) {
-      if (!mounted || _selected?.chunk.chunkId != r.chunk.chunkId) return;
-      // A context read that failed used to leave the spinner running forever,
-      // and before that it rendered as a passage with no neighbours — the same
-      // silence as a swallowed search catch, one pane over.
-      setState(() {
-        _context = const [];
-        _contextError = describeSdkError(e);
-        _contextLoading = false;
-      });
+  Tag? _shelfFor(SearchResult r, List<Tag> shelves) {
+    for (final s in shelves) {
+      if (r.document.tagIds.contains(s.id)) return s;
     }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<SearchNotifier, TagsNotifier>(
-      builder: (context, search, tags, _) {
-        // **No client-side narrowing** (ADR-065 §2): the server already
-        // returned this chip's kind, prefiltered inside the vector search.
-        final shown = search.results;
-        final citation = _citation;
+    final search = context.watch<SearchNotifier>();
+    final shelves = context.watch<TagsNotifier>().tags;
+    final docs = context.watch<DocumentsNotifier>();
+    final aiOn = _aiOn;
+    final cohesive = aiOn && _cohesive;
+    final citation = _citation;
+    final asked = _submitted.isNotEmpty;
+    final reading = _readingFor(search);
+    final n = search.results.length;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            KitFrame(
-              width: KitFrameWidth.wide,
-              top: AppSpacing.s8,
-              bottom: 0,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SearchBigField(
-                    controller: _controller,
-                    onSubmitted: _submit,
-                  ),
-                  // **Neither control appears in the citation branch** — a
-                  // citation is a different question, and neither a kind nor a
-                  // breadth narrows it.
-                  if (_submitted.isNotEmpty && citation != null) ...[
-                    const SizedBox(height: AppSpacing.s4),
-                    KitControlBar(
-                      scrollChips: true,
-                      filters: [
-                        const KitFilterChip('Scripture', selected: true),
-                        KitFilterChip(
-                          'Search everything instead',
-                          onPressed: () {
-                            _controller.clear();
-                            _submit('');
-                          },
-                        ),
-                      ],
-                      count: _CitationCount(
-                        loading: search.scriptureLoading,
-                        failed: search.scriptureError != null,
-                        reference: search.scripture?.reference,
-                      ),
-                    ),
-                  ],
-                  if (_submitted.isNotEmpty && citation == null) ...[
-                    const SizedBox(height: AppSpacing.s4),
-                    KitControlBar(
-                      // One row that scrolls sideways on a phone, under the
-                      // pinned header (search.md §Phone, 4.108.0, ADR-146).
-                      scrollChips: true,
-                      filters: [
-                        // **No count.** A count over one page of results is a
-                        // statement about that page, not about the library —
-                        // and it disabled chips that had matches (ADR-065 §4).
-                        // §6.7 makes the count optional; the chip set here is
-                        // the KIND vocabulary (§6.4.1), and that is what the
-                        // set has to be complete over.
-                        for (final f in _filters.entries)
-                          KitFilterChip(
-                            f.value,
-                            selected: _filter == f.key,
-                            onPressed: () => _setFilter(f.key),
-                          ),
-                      ],
-                      trailing: [
-                        // §6.8, non-wrapping: the view mode, then — only while
-                        // Cohesive — the breadth beside it. The count line
-                        // stays trailing.
-                        KitSegmented(
-                          groupLabel: 'Result mode',
-                          segments: const [
-                            KitSegment('Passages'),
-                            KitSegment('Cohesive'),
-                          ],
-                          selected: _cohesive ? 1 : 0,
-                          onChanged: (i) => _setCohesive(i == 1),
-                        ),
-                        if (_cohesive)
-                          KitSegmented(
-                            groupLabel: 'Breadth',
-                            segments: [
-                              for (final b in _breadths)
-                                KitSegment(b.$2),
-                            ],
-                            selected: _breadths
-                                .indexWhere((b) => b.$1 == _breadth),
-                            onChanged: (i) => _setBreadth(_breadths[i].$1),
-                          ),
-                      ],
-                      // The count line stays trailing (search.md §Composition).
-                      count: _ResultCount(
-                        loading: search.isLoading,
-                        count: shown.length,
-                        cohesive: _cohesive,
-                        reading: _readingFor(search),
-                        cohesiveLoading: search.cohesiveLoading,
-                        cohesiveFailed: search.cohesiveError != null,
-                        breadth: _breadth,
-                      ),
-                    ),
-                  ],
-                ],
+    // The folio's figure is the library's passages, counted from the
+    // documents read — the dash while it is out or was refused (ADR-109).
+    final passages = docs.measured
+        ? docs.complete.fold<int>(0, (t, d) => t + (d.chunkCount ?? 0))
+        : null;
+    final folio = searchFolio(passages);
+
+    final stand = searchStand(
+      asked: asked,
+      citationRef: citation?.ref,
+      scriptureLoading: search.scriptureLoading,
+      scriptureFailed: search.scriptureError != null,
+      scriptureReference: search.scripture?.reference,
+      cohesive: cohesive,
+      cohesiveLoading: search.cohesiveLoading,
+      cohesiveFailed: search.cohesiveError != null,
+      reading: reading,
+      breadth: _breadth,
+      loading: search.isLoading,
+      failed: search.error != null,
+      count: n,
+    );
+
+    final phone = KitD.phone(context);
+    final field = SearchQueryField(
+      controller: _controller,
+      onSubmitted: _submit,
+      onClear: _clear,
+    );
+
+    final kindLabel = _filters[_filter] ?? _filters['all']!;
+    final breadthLabel = _breadthLabel(_breadth);
+    final peek = KitLibPeek(
+      icon: Icons.tune,
+      title: citation != null ? 'Scripture' : kindLabel,
+      meta: cohesive ? 'Cohesive · $breadthLabel' : 'Passages',
+      count: asked && citation == null && !search.isLoading &&
+              search.error == null
+          ? '${cohesive && reading != null ? reading.kept : n}'
+          : null,
+    );
+
+    return KitDPage(
+      folio: folio,
+      title: 'Search',
+      stand: stand,
+      // The page's own field (kit §27): in the toolbar wider than a phone —
+      // KitDPage keeps a page's field there from 1024 down, where every other
+      // page's tools leave for the chrome — and on a phone under the
+      // standfirst, above the rule.
+      search: false,
+      field: phone ? null : field,
+      byline: phone
+          ? Padding(padding: const EdgeInsets.only(top: 18), child: field)
+          : null,
+      sheet: KitDSheet(
+        label: 'Filters',
+        peek: peek,
+        body: citation != null
+            ? _ScriptureSheet(onLeave: _clear)
+            : _FiltersSheet(
+                filter: _filter,
+                onFilter: _setFilter,
+                aiOn: aiOn,
+                cohesive: cohesive,
+                onMode: _setMode,
+                breadth: _breadth,
+                onBreadth: _setBreadth,
               ),
-            ),
-            Expanded(
-              child: KitScrollView(
-                child: KitFrame(
-                  width: KitFrameWidth.wide,
-                  top: _submitted.isEmpty ? AppSpacing.s6 : 18,
-                  child: _body(context, search, shown, tags.tags),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+      ),
+      child: _body(context, search, shelves, reading),
     );
   }
 
   Widget _body(
     BuildContext context,
     SearchNotifier search,
-    List<SearchResult> shown,
     List<Tag> shelves,
+    CohesiveReading? reading,
   ) {
-    if (_submitted.isEmpty) return _Suggestions(onPick: _run);
+    if (_submitted.isEmpty) return _TrySearching(onPick: _run);
 
     // ── The citation branch ───────────────────────────────────────────────
     final citation = _citation;
     if (citation != null) {
-      if (search.scriptureLoading) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s12),
-          child: Center(
-            child:
-                Text('Reading ${citation.ref}…', style: KitText.meta(context)),
-          ),
+      final lookup = search.scripture;
+      if (lookup != null) {
+        return ScriptureResults(
+          data: lookup,
+          onOpenSource: (docId) => context.push('/reader/$docId'),
         );
+      }
+      if (search.scriptureLoading) {
+        return KitDNone('Reading ${citation.ref}…');
       }
       // §14.1, **named for the reference it could not read**. This is not
       // `Not a citation`, which is the server saying the query parsed as
@@ -446,19 +440,20 @@ class _SearchPageState extends State<SearchPage> {
           onRetry: () => _submit(_submitted),
         );
       }
-      final lookup = search.scripture;
-      if (lookup != null) {
-        return ScriptureResults(
-          data: lookup,
-          onOpenSource: (docId) => context.push('/reader/$docId'),
-        );
-      }
     }
 
-    if (search.isLoading && search.results.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: AppSpacing.s12),
-        child: Center(child: CircularProgressIndicator()),
+    // Write before you move, applied to the frame: the reading REPLACES the
+    // register only once it has landed (or failed). Until then the passages
+    // are still what is on screen — switching the mode must not blank the
+    // body for a request that may yet fail.
+    if (_cohesiveOn && (reading != null || search.cohesiveError != null)) {
+      return CohesiveColumn(
+        reading: reading,
+        error: search.cohesiveError,
+        requestId: search.cohesiveRequestId,
+        onRetry: _runCohesive,
+        onOpenInContext: _openInContext,
+        onOpenSource: (docId) => context.push('/reader/$docId'),
       );
     }
 
@@ -474,156 +469,91 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
-    if (search.results.isEmpty) {
-      return KitEmptyState(
-        icon: Icons.search_off_outlined,
-        title: 'Nothing matched *that.*',
-        standfirst: 'Search reads for meaning, so a longer question usually '
-            'works better than a shorter one.',
-        suggestions: [
-          for (final s in _suggestions.take(2))
-            KitSuggestion(
-              icon: Icons.search,
-              label: '“$s”',
-              onTap: () => _run(s),
+    // **No client-side narrowing** (ADR-065 §2): the server already returned
+    // this kind, prefiltered inside the vector search.
+    final shown = search.results;
+    return SearchRegister(
+        children: [
+          for (final (i, r) in shown.indexed)
+            SearchResultD(
+              key: ValueKey('search-result-${r.chunk.chunkId}'),
+              result: r,
+              rank: i + 1,
+              shelfTitle: _shelfFor(r, shelves)?.title,
+              shelfColor: _shelfFor(r, shelves)?.color,
+              open: _openId == r.chunk.chunkId,
+              onToggle: () => _toggle(r, i + 1),
+              onOpenSource: () => _openSource(r),
+              context: _selected?.chunk.chunkId == r.chunk.chunkId
+                  ? _context
+                  : const [],
+              contextError: _selected?.chunk.chunkId == r.chunk.chunkId
+                  ? _contextError
+                  : null,
+            ),
+          if (!search.isLoading && shown.isEmpty)
+            const KitDNone(
+              'No passages found. Try a broader phrase, or ask your library.',
+              top: 18,
             ),
         ],
-      );
-    }
-
-    final list = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final (i, r) in shown.indexed)
-            SearchResultCard(
-              result: r,
-              selected: _selected?.chunk.chunkId == r.chunk.chunkId,
-              onTap: () {
-                // Which RANK a reader opens, bucketed — never which passage,
-                // which document or which query (INV-25b). Only on the open: a
-                // second tap on the card already showing is not a second open,
-                // and the reference guards it the same way.
-                if (_selected?.chunk.chunkId != r.chunk.chunkId) {
-                  final rank = Analytics.bucket(i + 1);
-                  Analytics.track('result_opened', {'rank_bucket': rank});
-                }
-                _select(r);
-              },
-              onOpenSource: () => _openSource(r),
-              shelfTitle: _shelfFor(r, shelves)?.title,
-              shelfColorToken: _shelfFor(r, shelves)?.color,
-            ),
-      ],
     );
-
-    // Write before you move, applied to the frame: the reading REPLACES the
-    // split pane only once it has landed (or failed). Until then the passages
-    // list is still what is on screen — switching the mode must not blank the
-    // body for a request that may yet fail.
-    final reading = _readingFor(search);
-    if (_cohesive && (reading != null || search.cohesiveError != null)) {
-      return CohesiveColumn(
-        reading: reading,
-        error: search.cohesiveError,
-        requestId: search.cohesiveRequestId,
-        onRetry: _runCohesive,
-        onOpenInContext: _openInContext,
-        onOpenSource: (docId) => context.push('/reader/$docId'),
-      );
-    }
-
-    final pane = SearchReadingPane(
-      result: _selected,
-      context: _context,
-      loading: _contextLoading,
-      error: _contextError,
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Below 1024px of VIEWPORT the panes stack (4.108.0, ADR-146) — the
-        // reading pane goes under the list, it is not dropped: a phone reader
-        // needs the surrounding context more than a desktop one, not less.
-        // This read the body's own width against 768 until then.
-        final paneWidth = searchPaneWidth(
-            viewport: MediaQuery.sizeOf(context).width,
-            body: constraints.maxWidth);
-        if (paneWidth == null) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              list,
-              const SizedBox(height: AppSpacing.s6),
-              pane,
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: list),
-            const SizedBox(width: 28),
-            SizedBox(width: paneWidth, child: pane),
-          ],
-        );
-      },
-    );
-  }
-
-  /// The reading, but only if it answers the query that is on screen. A
-  /// response for a previous query is not a stale rendering of this one — it is
-  /// an answer to a different question.
-  CohesiveReading? _readingFor(SearchNotifier search) {
-    final r = search.reading;
-    return (r != null && r.query == _submitted) ? r : null;
-  }
-
-  void _run(String query) {
-    _controller.text = query;
-    _submit(query);
-  }
-
-  /// The source of a result. Its id comes from the **chunk**: the search
-  /// response's `document` is the stored document's fields, and a Firestore
-  /// document's id is not among its fields, so `document` carries none.
-  void _openSource(SearchResult r) =>
-      context.push('/reader/${r.chunk.documentId}');
-
-  Tag? _shelfFor(SearchResult r, List<Tag> shelves) {
-    for (final s in shelves) {
-      if (r.document.tagIds.contains(s.id)) return s;
-    }
-    return null;
   }
 }
 
-/// Search's split (screens/search.md §Composition; 4.108.0, ADR-146): null
-/// below 1024px of [viewport] — the panes stack — else the reading pane's
-/// width in a [body] that wide, the list taking the rest after the 28px
-/// gutter.
-///
-/// The reference metrics are `minmax(380px, 1fr)` list + `minmax(420px,
-/// 560px)` pane, and from 1024 those floors (828) do not fit beside the rail,
-/// so they yield as the reference's do (web ade2891): the pane is 560 while
-/// the list keeps 380, then whatever leaves the list 380, and once that would
-/// make the pane narrower than the list the two share the row. 988 of body:
-/// 400 + 560, the reference's grid; 652: 312 + 312. It was `0.42 × body`
-/// clamped to 420–560 here, which gave the list 540 at 988 and 204 at 652, and
-/// the stack was the body's own width against 768.
-double? searchPaneWidth({required double viewport, required double body}) {
-  if (viewport < AppSpacing.searchStackBelow) return null;
-  return math.min(560.0, math.max(body - 408, (body - 28) / 2));
+// ── The masthead's sentences ────────────────────────────────────────────────
+
+/// The folio: `Search · {N} passages · by meaning`, N with its thousands
+/// separators; the dash while the documents read is out or refused.
+String searchFolio(int? passages) =>
+    'Search · ${passages == null ? '— passages' : kitCounted(passages, 'passage')}'
+    ' · by meaning';
+
+/// The standfirst says what the column holds now (search.md §Composition,
+/// **Masthead**). *Seven passages* is a measurement; a failed request
+/// measured nothing (§8's rule, applied to it), so it never reads `0`.
+String searchStand({
+  required bool asked,
+  String? citationRef,
+  bool scriptureLoading = false,
+  bool scriptureFailed = false,
+  String? scriptureReference,
+  bool cohesive = false,
+  bool cohesiveLoading = false,
+  bool cohesiveFailed = false,
+  CohesiveReading? reading,
+  String breadth = 'normal',
+  bool loading = false,
+  bool failed = false,
+  int count = 0,
+}) {
+  if (!asked) {
+    return 'Ask in plain language. Your library is searched by meaning, so '
+        'the words do not have to match.';
+  }
+  if (citationRef != null) {
+    if (scriptureLoading) return 'Reading $citationRef…';
+    if (scriptureFailed) return '$citationRef could not be looked up.';
+    if (scriptureReference != null) {
+      return '$scriptureReference, verse by verse.';
+    }
+    return 'Not a citation.';
+  }
+  if (cohesive && (cohesiveLoading || cohesiveFailed || reading != null)) {
+    if (cohesiveLoading) return 'Arranging the passages into one reading…';
+    if (cohesiveFailed) return 'The cohesive reading could not be built.';
+    final r = reading!;
+    return '${r.kept} of ${kitCounted(r.pool, 'passage')}, arranged as one '
+        'reading · ${_breadthLabel(r.breadth)}.';
+  }
+  if (loading) return 'Searching…';
+  if (failed) return 'Search is unavailable right now.';
+  return '${kitCap(kitSay(count))} ${count == 1 ? 'passage' : 'passages'}, '
+      'ranked by meaning.';
 }
 
-// ── The filter vocabulary ────────────────────────────────────────────────────
+// ── The kind vocabulary ─────────────────────────────────────────────────────
 
-/// The reference's four filters, in its order. `all` leads and is never
-/// disabled. The labels are the reader's words for the kinds, not the `type`
-/// enum's — `Books & PDFs` covers `pdf` and `epub` together.
-// component-kit §6.4.1/§6.7 — the chip set IS the kind vocabulary. `podcast`
-// and `video` were absent, so both buckets were reachable from "All sources"
-// and nowhere else. An absent chip is not a DISABLED chip; it is a bucket that
-// looks like it does not exist.
 /// A FOLD: one chip carrying a second kind's types (ADR-152). "Books & PDFs"
 /// is the `pdf` chip and it also sends `epub` — declared here as data, because
 /// `doc_kind_check.py` reads this map rather than assuming a fold the request
@@ -633,7 +563,7 @@ const _searchFolds = <String, List<String>>{
   'pdf': ['epub'],
 };
 
-/// The `sourceTypes` a Search chip sends: its own kind's types plus every
+/// The `sourceTypes` a Search kind sends: its own kind's types plus every
 /// folded kind's (web `sourceTypesFor`).
 List<String> searchSourceTypes(String chip) => [
       ...kitTypesForKind(chip),
@@ -641,6 +571,11 @@ List<String> searchSourceTypes(String chip) => [
         ...kitTypesForKind(k),
     ];
 
+/// The Kind facet's choices — the reference's, in its order (web `FILTERS`).
+/// `all` leads. The set IS the kind vocabulary (component-kit §6.4.1/§6.7):
+/// `podcast` and `video` were once absent, so both buckets were reachable from
+/// "All sources" and nowhere else. **No counts** (ADR-065 §4): a count over
+/// one page of results is a statement about that page, not the library.
 const _filters = <String, String>{
   'all': 'All sources',
   'pdf': 'Books & PDFs',
@@ -653,6 +588,10 @@ const _filters = <String, String>{
   'video': 'Video',
 };
 
+/// The Kind facet's ids and labels, in order — for the tests.
+List<(String, String)> get searchKinds =>
+    [for (final e in _filters.entries) (e.key, e.value)];
+
 /// The breadth control's positions (`spec/api/search.md` §Selection). The id is
 /// the request value; the label is the reader's word for it. **The fractions
 /// behind them live on the server** — a client copy of 0.20/0.40/0.65 would be
@@ -663,6 +602,11 @@ const _breadths = <(String, String)>[
   ('broad', 'Broader'),
 ];
 
+String _breadthLabel(String id) => _breadths
+    .firstWhere((b) => b.$1 == id, orElse: () => (id, id))
+    .$2
+    .toLowerCase();
+
 const _suggestions = <String>[
   'What have I been reading about lately?',
   'Notes on habit formation',
@@ -670,115 +614,173 @@ const _suggestions = <String>[
   'Quotes about writing well',
 ];
 
-/// The trailing control of the bar: **how many passages, ranked how**. A
-/// measured figure, in the mono face, and it says `Searching…` rather than a
-/// stale count while a query is in flight.
-class _ResultCount extends StatelessWidget {
-  final bool loading;
-  final int count;
+// ── The sheet ───────────────────────────────────────────────────────────────
 
-  /// Cohesive mode reports the READING: `Arranging…` while the request is in
-  /// flight, `{kept} of {pool} passages · {breadth}` when it lands, and
-  /// `Cohesive reading unavailable` when it does not. Every figure measured —
-  /// `kept` and `pool` are the server's own counts, not a length of a list this
-  /// widget can see.
+/// *Filters* (kit §29): Kind; then — only while generative AI is on — Read as
+/// over its note, and Breadth only while Cohesive.
+class _FiltersSheet extends StatelessWidget {
+  final String filter;
+  final ValueChanged<String> onFilter;
+  final bool aiOn;
   final bool cohesive;
-  final CohesiveReading? reading;
-  final bool cohesiveLoading;
-  final bool cohesiveFailed;
+  final ValueChanged<String> onMode;
   final String breadth;
+  final ValueChanged<String> onBreadth;
 
-  const _ResultCount({
-    required this.loading,
-    required this.count,
-    this.cohesive = false,
-    this.reading,
-    this.cohesiveLoading = false,
-    this.cohesiveFailed = false,
-    this.breadth = 'normal',
-  });
-
-  String _label() {
-    if (!cohesive) {
-      return loading
-          ? 'Searching…'
-          : '$count ${count == 1 ? 'passage' : 'passages'} · ranked by meaning';
-    }
-    if (cohesiveLoading) return 'Arranging…';
-    if (cohesiveFailed) return 'Cohesive reading unavailable';
-    final r = reading;
-    if (r == null) return 'Arranging…';
-    final word = _breadths.firstWhere((b) => b.$1 == r.breadth,
-        orElse: () => (r.breadth, r.breadth)).$2.toLowerCase();
-    return '${r.kept} of ${r.pool} passages · $word';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      _label(),
-      style: KitText.monoMeta(context),
-    );
-  }
-}
-
-/// The citation branch's count line. Measured, like every other figure on this
-/// screen: the reference the SERVER echoed back, never the one the client
-/// parsed — the two can differ, and the server's reading is the one the
-/// results describe.
-class _CitationCount extends StatelessWidget {
-  final bool loading;
-  final bool failed;
-  final String? reference;
-
-  const _CitationCount({
-    required this.loading,
-    required this.failed,
-    required this.reference,
+  const _FiltersSheet({
+    required this.filter,
+    required this.onFilter,
+    required this.aiOn,
+    required this.cohesive,
+    required this.onMode,
+    required this.breadth,
+    required this.onBreadth,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Three states, and **no `Not a citation`**: that answer is the server
-    // saying the query parsed as ordinary text, and it releases the branch
-    // rather than being rendered in it — so a label for it would only ever
-    // appear as a flash on the frame between the branch opening and the
-    // request going out, naming the one outcome that cannot be true here.
-    final label = failed
-        ? 'Lookup unavailable'
-        : reference != null && !loading
-            ? '$reference · verse by verse'
-            : 'Reading…';
-    return Text(
-      label,
-      style: KitText.monoMeta(context),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KitFacet(
+          label: 'Kind',
+          value: filter,
+          onChanged: onFilter,
+          items: [
+            for (final e in _filters.entries) KitFacetItem(e.key, e.value),
+          ],
+        ),
+        // Read as and its Breadth are absent while generative AI is off
+        // (5.29.0, ADR-186): the mode is passages, whatever was last picked.
+        if (aiOn) ...[
+          const KitDLabel('Read as'),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: KitSlideSwitch<String>(
+              key: const ValueKey('search-mode'),
+              label: 'Result mode',
+              value: cohesive ? 'cohesive' : 'passages',
+              onChanged: onMode,
+              options: const [
+                KitSlideOption('passages', 'Passages'),
+                KitSlideOption('cohesive', 'Cohesive'),
+              ],
+            ),
+          ),
+          KitDNote(cohesive
+              ? 'The passages arranged into sections, each one verbatim.'
+              : 'Each passage on its own, the closest first.'),
+          if (cohesive) ...[
+            const KitDLabel('Breadth'),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: KitSlideSwitch<String>(
+                key: const ValueKey('search-breadth'),
+                label: 'Breadth',
+                value: breadth,
+                onChanged: onBreadth,
+                options: [
+                  for (final b in _breadths) KitSlideOption(b.$1, b.$2),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ],
     );
   }
 }
 
-/// The idle screen. **An offer, not an apology** (§7): a reader who has not
-/// searched yet is shown what this screen can be asked, in the reader's own
-/// voice — the suggestions are questions, not features.
-class _Suggestions extends StatelessWidget {
+/// *Scripture* — a citation is a different question, so the sheet shows none
+/// of the filters: only what it is, and how to leave it.
+class _ScriptureSheet extends StatelessWidget {
+  final VoidCallback onLeave;
+  const _ScriptureSheet({required this.onLeave});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const KitDLabel('Scripture', first: true),
+        const KitDNote(
+            'A citation is read verse by verse, beside the passages on your '
+            'shelves that answer it.'),
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: KitHxLink('Search everything instead', onTap: onLeave),
+        ),
+      ],
+    );
+  }
+}
+
+// ── No query ────────────────────────────────────────────────────────────────
+
+/// What the column holds before a search: a small SectionHead (§31) *Try
+/// searching for*, then the suggestions as italic serif prompts, each led by
+/// an accent arrow; one runs that search (web `.dp-try .hx-prompts`).
+class _TrySearching extends StatelessWidget {
   final ValueChanged<String> onPick;
-
-  const _Suggestions({required this.onPick});
+  const _TrySearching({required this.onPick});
 
   @override
   Widget build(BuildContext context) {
-    return KitEmptyState(
-      icon: Icons.search,
-      title: 'Ask your library *anything.*',
-      standfirst: 'Search reads for meaning rather than keywords, so describe '
-          'what you remember and the passages come back ranked.',
-      suggestions: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const KitSectionHead('Try searching for', small: true),
         for (final s in _suggestions)
-          KitSuggestion(
-            icon: Icons.search,
-            label: '“$s”',
-            onTap: () => onPick(s),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _Prompt(s, onTap: () => onPick(s)),
           ),
       ],
+    );
+  }
+}
+
+/// `.hx-prompt` — `6px 2px`, the arrow (sans 13 `--accent-text`) 9 before
+/// the italic serif 17/24 in `--fg-muted`, `--fg` under a fine pointer; a 2px
+/// accent focus ring.
+class _Prompt extends StatelessWidget {
+  final String text;
+  final VoidCallback onTap;
+  const _Prompt(this.text, {required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return KitDTap(
+      label: text,
+      onTap: onTap,
+      builder: (context, hover, focus) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.smR,
+          border: focus ? Border.all(color: t.accent, width: 2) : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            ExcludeSemantics(
+              child: Text('→', style: KitText.ui(context, color: t.accentText)),
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(
+                text,
+                style: KitText.lede(context,
+                    fontSize: 17,
+                    height: 24,
+                    color: hover ? t.fg : t.fgMuted),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

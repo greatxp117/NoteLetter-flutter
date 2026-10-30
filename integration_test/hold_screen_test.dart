@@ -39,6 +39,7 @@ import 'package:flutter_app/pages/sources/sync_folder_picker.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
+import 'package:flutter_app/models/ask_thread.dart' show AskRole;
 import 'package:flutter_app/pages/chat_page.dart';
 import 'package:flutter_app/pages/tags/shelf_sheet.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
@@ -49,7 +50,7 @@ import 'package:flutter_app/pages/reader/listen_panel.dart';
 import 'package:flutter_app/pages/reader/manuscript_panel.dart';
 import 'package:flutter_app/pages/reader/source_priority.dart';
 import 'package:flutter_app/pages/reader/speed_read_panel.dart';
-import 'package:flutter_app/pages/search/result_card.dart';
+import 'package:flutter_app/pages/search/result_d.dart';
 import 'package:flutter_app/state/theme_notifier.dart';
 import 'package:flutter_app/state/camera_sweep_host.dart';
 import 'package:flutter_app/services/camera_sweep_bridge.dart';
@@ -385,11 +386,14 @@ Future<void> _openPageSettings(WidgetTester tester, String label) async {
   // By the widget, not its semantics label: a hold runs with no semantics
   // tree, so `bySemanticsLabel` finds nothing (the first batch, 2026-10-30).
   final page = find.byKey(const ValueKey('rx-page'));
-  for (var i = 0; i < 60 && page.evaluate().isEmpty; i++) {
-    await tester.pump(const Duration(milliseconds: 200));
-  }
   final gear = find.byWidgetPredicate(
       (w) => w is KitSettingsButton && w.settings.label == label);
+  // The source page's own key, or any page's gear: a shelf has no `rx-page`.
+  for (var i = 0;
+      i < 60 && page.evaluate().isEmpty && gear.evaluate().isEmpty;
+      i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
   for (var i = 0; i < 60 && gear.evaluate().isEmpty; i++) {
     await tester.pump(const Duration(milliseconds: 200));
   }
@@ -534,68 +538,110 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(find.text('All letters'), findsOneWidget,
           reason: 'the letter did not open — this frame would be the list');
       return;
-    // ask.md — the rail and a recorded turn (4.53.0, ADR-090). `/ask` alone is
-    // the §7 empty state with the rail closed, which shows none of §9: no
-    // grouped entries, no accent bar, no preview line. This drives a REAL turn
-    // (fn_ask_turn through the shim, retrieval included) and leaves the rail
-    // open, which is the phone form of the two columns the web frame shows.
+    // ask.md — a recorded turn (4.53.0, ADR-090), in direction D (F-143):
+    // the conversation is the page, the conversations its running head.
+    // `/ask` alone is the §37 empty state. This drives a REAL turn
+    // (fn_ask_turn through the shim, retrieval and the written answer
+    // included).
     case 'ask-thread':
     case 'ask-rail':
-      final field = find.byType(TextField).last;
-      // The reference's own questions (theme-shots.mjs): `ask-thread` asks
-      // about pasta COOKING, `ask-rail` about pasta — two pairs that compared
-      // two different conversations until 2026-10-09.
+    case 'ask-answer-note':
+      final field = find.descendant(
+          of: find.byKey(const ValueKey('ask-field')),
+          matching: find.byType(TextField));
+      // The reference's own questions (theme-shots.mjs): `ask-thread` and
+      // `ask-answer-note` ask about pasta COOKING, `ask-rail` about pasta.
       await tester.enterText(
           field,
-          holdState == 'ask-thread'
-              ? 'What have I been reading about pasta cooking?'
-              : 'What have I been reading about pasta?');
+          holdState == 'ask-rail'
+              ? 'What have I been reading about pasta?'
+              : 'What have I been reading about pasta cooking?');
       await settle();
-      // The send CONTROL: §10's field takes `TextInputAction.newline`, so a
-      // submit action inserts a line and sends nothing.
-      await tester.tap(find.bySemanticsLabel('Send'));
+      // The send CONTROL: a soft keyboard's return is a new line (§38).
+      await tester.tap(find.byKey(const ValueKey('ask-send')));
+      final cited = find.byType(KitAskCitation);
       for (var i = 0; i < 200; i++) {
         await tester.pump(const Duration(milliseconds: 200));
-        if (find.text('Your library').evaluate().isNotEmpty) break;
+        if (cited.evaluate().isNotEmpty ||
+            find.text('Try again').evaluate().isNotEmpty) {
+          break;
+        }
       }
       await settle();
-      expect(find.text('Your library'), findsWidgets,
-          reason: 'no answer came back — this frame would be the empty state');
-      // `Your library` is the responder's LABEL, and a refused turn draws it
-      // too: the 2026-09-25 re-shoot caught "Ask failed. Contact support with
-      // your request ID." under this state's filename, against a shim without
-      // the model. An answer is a turn that did not fail.
+      // A refused turn draws the responder's label too: the 2026-09-25
+      // re-shoot caught "Ask failed." under this state's filename, against a
+      // shim without the model. An answer is a turn that did not fail.
       expect(find.text('Try again'), findsNothing,
           reason: 'the turn failed — this frame would be a refusal under the '
               'name of an answer (the turn needs the model: run the 5599 shim '
               'with NL_DEV_FAKES=1)');
-      // The rail stays CLOSED here. It is an overlay on this client, so an
-      // open one covers the transcript entirely and the frame would compare
-      // nothing the web `ask-thread` frame shows. §9 has its own pair below.
-      if (holdState == 'ask-rail') {
-        // The answer draws on `/ask` BEFORE the screen moves to the thread
-        // it made (`context.go('/ask/thread/{id}')` follows the send): a
-        // History tapped in between opened the rail on the page that was
-        // about to be replaced, and the new page had it closed (the
-        // 2026-10-12 batch). Wait for the thread's own page first.
-        for (var i = 0; i < 50; i++) {
-          final pages = find.byType(ChatPage).evaluate();
-          if (pages.length == 1 &&
-              (pages.single.widget as ChatPage).threadId != null) {
-            break;
-          }
+      expect(cited, findsWidgets,
+          reason: 'no answer came back — this frame would be the empty state');
+      // The answer draws on `/ask` BEFORE the screen moves to the thread it
+      // made (`context.go('/ask/thread/{id}')` follows the send). Wait for
+      // the thread's own page first.
+      for (var i = 0; i < 50; i++) {
+        final pages = find.byType(ChatPage).evaluate();
+        if (pages.length == 1 &&
+            (pages.single.widget as ChatPage).threadId != null) {
+          break;
+        }
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await settle();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+      await settle();
+      if (holdState == 'ask-answer-note') {
+        // An answer asked for and not written (5.30.0, ADR-187): the stored
+        // answer is replaced by what the backend stores when the model's call
+        // fails — no shim knob reaches it from a client, so it is written
+        // into the emulator as the owner, exactly as web's shot does.
+        final chat = Provider.of<ChatNotifier>(
+            tester.element(find.byType(ChatPage)),
+            listen: false);
+        final reply = chat.messages.lastWhere((m) => m.role == AskRole.library);
+        final rest = Dio(BaseOptions(
+          baseUrl: 'http://${ApiService.emulatorHost}:${ApiService.firestorePort}'
+              '/v1/projects/${DefaultFirebaseOptions.currentPlatform.projectId}'
+              '/databases/(default)/documents',
+          headers: {'Authorization': 'Bearer owner'},
+        ));
+        await rest.patch(
+          '/ask_threads/${chat.activeId}/messages/${reply.id}',
+          queryParameters: {
+            'updateMask.fieldPaths': ['answer', 'answer_note'],
+          },
+          data: {
+            'fields': {
+              'answer_note': {
+                'stringValue': "NoteLetter couldn't write an answer this "
+                    'time. These are the passages it found.',
+              },
+            },
+          },
+          options: Options(listFormat: ListFormat.multiCompatible),
+        );
+        final note = find.byKey(const ValueKey('ask-answer-note'));
+        for (var i = 0; i < 50 && note.evaluate().isEmpty; i++) {
           await tester.pump(const Duration(milliseconds: 200));
         }
         await settle();
-        await tester.tap(find.text('History'));
+        expect(note, findsOneWidget,
+            reason: 'the note did not draw — this frame would be the answer');
+        expect(find.byType(KitAskAnswer), findsNothing);
+      }
+      if (holdState == 'ask-rail') {
+        // The conversations are the running head on a phone (ask.md
+        // §Composition): dropped, the open one marked, with §9.1's actions —
+        // unconditional on a touch client, which has no hover to reveal them.
+        final peek = find.byKey(const ValueKey('d-peek'));
+        await tester.tap(peek);
         await settle();
-        expect(find.byType(KitInspectorRail), findsOneWidget,
-            reason: 'the rail did not open — this frame would show no §9');
-        // §9.1 (4.55.0, ADR-091). The cluster is unconditional on this client
-        // — there is no hover to reveal it — so a frame without it is a frame
-        // of the pre-4.55.0 rail, which is exactly the picture this pair is
-        // being re-taken to replace.
-        expect(find.byIcon(Icons.delete_outline), findsWidgets,
+        expect(find.byType(KitAskConvo).hitTestable(), findsWidgets,
+            reason: 'the running head did not drop — this frame would show '
+                'no conversations');
+        expect(find.byIcon(Icons.delete_outline).hitTestable(), findsWidgets,
             reason: 'no §9.1 entry actions — this frame would be the old rail');
       }
       return;
@@ -617,10 +663,12 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // instead of the server's — and the server's words, verbatim, are the half
     // of §14.2 that matters.
     case 'ask-turn-failed':
-      final failField = find.byType(TextField).last;
+      final failField = find.descendant(
+          of: find.byKey(const ValueKey('ask-field')),
+          matching: find.byType(TextField));
       await tester.enterText(failField, 'Which of these recipes can use steak?');
       await settle();
-      await tester.tap(find.bySemanticsLabel('Send'));
+      await tester.tap(find.byKey(const ValueKey('ask-send')));
       for (var i = 0; i < 200; i++) {
         await tester.pump(const Duration(milliseconds: 200));
         if (find.text('Try again').evaluate().isNotEmpty) break;
@@ -630,7 +678,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       // that is not the state its filename claims is false evidence, and the
       // notifier is the only thing that can say which state it is.
       final chat = Provider.of<ChatNotifier>(
-        tester.element(find.byType(KitComposerDock)),
+        tester.element(find.byType(KitAskComposer)),
         listen: false,
       );
       debugPrint('HOLD ask-turn-failed: sent=${chat.sentQuestion} '
@@ -948,12 +996,12 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
         await tester.pump(const Duration(milliseconds: 200));
       }
       return;
-    // search.md — a route alone renders the §7 idle offer, so the query is
+    // search.md — a route alone renders the idle suggestions, so the query is
     // typed. The reference's own shot types `budget` and waits: the seed's
     // chunks are the corpus and it hits the PDF. The frame has to be of
-    // RESULTS, since every part this pair is compared on — the control bar,
-    // the split pane, the reading pane, the score meter — exists only once
-    // something has been searched for.
+    // RESULTS, since every part this pair is compared on — the standfirst's
+    // count, the ruled register, the score meter — exists only once
+    // something has been searched for (direction D, F-143).
     case 'query':
       // Wait for the route to land before typing: entered too early, the text
       // went into nothing and no search was ever sent (seen 2026-09-25).
@@ -963,10 +1011,10 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       await tester.testTextInput.receiveAction(TextInputAction.search);
       for (var i = 0; i < 100; i++) {
         await tester.pump(const Duration(milliseconds: 200));
-        if (find.byType(SearchResultCard).evaluate().isNotEmpty) break;
+        if (find.byType(SearchResultD).evaluate().isNotEmpty) break;
       }
       await settle();
-      expect(find.byType(SearchResultCard), findsWidgets,
+      expect(find.byType(SearchResultD), findsWidgets,
           reason: 'no results came back — this frame would be the idle offer, '
               'and every part the pair compares is drawn only under results');
       return;
@@ -1075,15 +1123,15 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(find.byType(KitOverlaySheet), findsOneWidget,
           reason: 'the §15 sheet did not open — this frame would be the tray');
       return;
-    // library.md §Shelf color — the ten swatches live inside the shelf's
-    // settings disclosure, which no route reaches. The shelf the reference
-    // frames is Stories (`/shelves/seed-tag-stories`), the seed's auto-created
-    // shelf, whose legacy hex draws the eleventh, read-only swatch (ruled
-    // 2026-10-08); a shelf holding one of the ten draws ten.
+    // library.md §Shelf color — the twenty swatches live in Shelf settings
+    // (direction D, kit §28: the header's gear opens the panel), which no
+    // route reaches. A shelf whose stored colour is a legacy hex (Stories,
+    // the seed's auto-created shelf) draws one more, read-only swatch (ruled
+    // 2026-10-08); a shelf holding one of the twenty draws twenty.
     case 'color-picker':
-      await tester.tap(find.widgetWithText(KitButton, 'Settings'));
+      await _openPageSettings(tester, 'Shelf settings');
       await settle();
-      expect(find.byType(KitSwatch), findsAtLeastNWidgets(10),
+      expect(find.byType(KitSwatch), findsAtLeastNWidgets(20),
           reason: 'the picker did not open — this frame would be the shelf');
       return;
     // sources.md §Folder contents (4.59.0, ADR-096) — the import picker with
@@ -1116,18 +1164,24 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           alignment: 0.3);
       await settle();
       return;
-    // library.md §A shelf's place in the letter (4.88.0, ADR-122) — the
-    // section sits below the stat cluster; scroll it into the frame.
+    // library.md §A shelf's place in the letter (4.88.0, ADR-122) — in
+    // direction D the first group of Shelf settings (kit §28), the panel the
+    // header's gear drops.
     case 'shelf-letter':
     case 'shelf-letter-error':
-      await tester.ensureVisible(find.text('Feed today’s letter'));
+      await _openPageSettings(tester, 'Shelf settings');
       await settle();
+      expect(find.text('Feed today’s letter'), findsOneWidget);
       if (holdState == 'shelf-letter') return;
       // A REAL refusal, as the web frame's: `letter_mode` is a closed set, so
       // the request is rewritten to `loud` on its way out and the sentence in
       // the frame is fn_update_tag's own, from the emulator backend.
       ApiService.instance.httpClientAdapter = _RewriteLetterMode();
-      await tester.tap(find.text('Lead'));
+      await tester.tap(find
+          .descendant(
+              of: find.byKey(const ValueKey('d-panel')),
+              matching: find.text('Lead'))
+          .first);
       for (var i = 0; i < 50; i++) {
         await tester.pump(const Duration(milliseconds: 200));
         if (find.byType(KitFailureInline).evaluate().isNotEmpty) break;

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_app/models/ask_thread.dart';
 import 'package:flutter_app/models/chunk.dart';
 import 'package:flutter_app/models/cloud_folder.dart';
 import 'package:flutter_app/models/document.dart';
@@ -75,4 +76,122 @@ void main() {
       expect(f.docCount, expected['doc_count']);
     });
   }
+
+  // Ask's written answer reaches the screen as stored (5.30.0, ADR-187,
+  // INV-35) — web's `tests/contract/ask-written-answer.test.js`, case for case.
+  // The answer is read from the thread's messages subscription, never from
+  // the turn's response, so the mapper is the half a response-shaped fixture
+  // cannot test: an unmapped field is a sentence under an unread key (the
+  // 4.71.0 lesson). The stored message is the CAPTURED `api/ask` suite's, so
+  // this reads what the backend really writes.
+  group('ask messages: the written answer and its note', () {
+    final ask = loadSuite('api/ask');
+    final created = (ask?['cases'] as List? ?? [])
+        .cast<Map<String, dynamic>>()
+        .where((c) => c['id'] == 'ask:turn-creates-thread')
+        .firstOrNull;
+    final stored = (created?['response']['body']['message'] as Map?)
+        ?.cast<String, dynamic>();
+
+    AskMessage read(Map<String, dynamic> data) =>
+        AskMessage.fromJson('m1', data);
+
+    test('the api/ask suite is captured with a written answer', () {
+      expect(stored, isNotNull);
+      expect((stored!['answer'] as List).isNotEmpty, isTrue);
+    });
+
+    test('the captured answer arrives block for block, with no note', () {
+      final m = read({
+        'role': 'library',
+        'text': null,
+        'citations': stored!['citations'],
+        'answer': stored['answer'],
+        'answer_note': stored['answer_note'],
+      });
+      final raw = (stored['answer'] as List).cast<Map>();
+      expect(m.answer, hasLength(raw.length));
+      for (var i = 0; i < raw.length; i++) {
+        expect(m.answer![i].text, raw[i]['text']);
+        expect(m.answer![i].kind.name, raw[i]['kind']);
+        expect(m.answer![i].n, raw[i]['n']);
+      }
+      expect(m.answerNote, isNull);
+      expect(m.answer!.any((b) => b.kind == AskBlockKind.quote), isTrue);
+      expect(m.text, isNull, reason: 'a library message has no `text`');
+    });
+
+    test('an answer before 5.30.0 has neither field: no answer, no note', () {
+      final m = read({
+        'role': 'library',
+        'text': null,
+        'citations': stored!['citations'],
+      });
+      expect(m.answer, isNull);
+      expect(m.answerNote, isNull);
+    });
+
+    test('the failure sentence arrives verbatim', () {
+      const note = "NoteLetter couldn't write an answer this time. These are "
+          'the passages it found.';
+      final m = read({
+        'role': 'library',
+        'text': null,
+        'citations': stored!['citations'],
+        'answer': null,
+        'answer_note': note,
+      });
+      expect(m.answer, isNull);
+      expect(m.answerNote, note);
+      expect(read({'role': 'library', 'answer_note': ''}).answerNote, isNull,
+          reason: 'an empty sentence is no sentence');
+    });
+
+    test('an unknown kind is dropped, and an answer with nothing left is none',
+        () {
+      expect(
+          askAnswer([
+            {'kind': 'image', 'text': 'x'},
+            {'kind': 'paragraph', 'text': 'Kept [1].'},
+          ]),
+          [const AskAnswerBlock.paragraph('Kept [1].')]);
+      expect(
+          askAnswer([
+            {'kind': 'image', 'text': 'x'},
+            {'kind': 'quote', 'n': 0, 'text': 'no passage'},
+          ]),
+          isNull);
+      expect(askAnswer('not a list'), isNull);
+      expect(askAnswer(const []), isNull, reason: 'an empty list is null');
+    });
+
+    test('a quote needs a positive integer n — as a number, never a string',
+        () {
+      expect(askAnswer([
+        {'kind': 'quote', 'n': 2, 'text': 'a'},
+        {'kind': 'quote', 'n': 1.0, 'text': 'b'},
+        {'kind': 'quote', 'n': '1', 'text': 'c'},
+        {'kind': 'quote', 'n': 1.5, 'text': 'd'},
+        {'kind': 'quote', 'text': 'e'},
+        {'kind': 'quote', 'n': -1, 'text': 'f'},
+        {'kind': 'paragraph', 'text': ''},
+        {'kind': 'paragraph', 'text': 7},
+      ]), [
+        const AskAnswerBlock.quote(2, 'a'),
+        const AskAnswerBlock.quote(1, 'b'),
+      ]);
+    });
+
+    test('a scoped answer carries its scope', () {
+      final m = read({
+        'role': 'library',
+        'text': null,
+        'citations': const [],
+        'scope': {'tag_id': 'tag-1', 'title': 'Recipes', 'exhaustive': false},
+      });
+      expect(m.scope?.tagId, 'tag-1');
+      expect(m.scope?.title, 'Recipes');
+      expect(m.scope?.exhaustive, isFalse);
+    });
+  });
 }

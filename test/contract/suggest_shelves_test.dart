@@ -5,6 +5,7 @@
 // screens do with the answers.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_app/theme/app_colors.dart';
 
 import 'package:flutter_app/pages/onboarding/steps.dart';
 import 'package:flutter_app/pages/tags/suggest_shelves.dart';
@@ -72,10 +73,19 @@ void main() {
       expect([for (final c in s.chosen) c['title']], ['Nutrition']);
     });
 
-    test('a colour outside the twenty takes a swatch by position', () {
-      expect(proposalColor('#6B7280', 0), 'sage-500');
-      expect(proposalColor('#6B7280', 3), 'teal-500');
-      expect(proposalColor('plum-600', 7), 'plum-600');
+    test('a colour outside the twenty strides seven round the twenty '
+        '(library.md §Composition, web w3-direction-d)', () {
+      final names = AppColors.shelfColorLabels.keys.toList();
+      expect(names, hasLength(20));
+      final picks = [for (var i = 0; i < 20; i++) proposalColor('#6B7280', i)];
+      expect(picks.toSet(), hasLength(20),
+          reason: 'every colour is reached before one repeats');
+      expect(picks[0], 'sage-500');
+      expect(picks[1], names[7]);
+      expect(picks[2], names[14]);
+      expect(picks[3], 'sage-700');
+      expect(proposalColor('plum-600', 7), 'plum-600',
+          reason: 'one of the twenty is kept as answered');
     });
 
     test('a 4xx is the reader\'s to correct; a 502 is a read that failed',

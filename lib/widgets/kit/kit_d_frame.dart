@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -213,6 +215,10 @@ class KitDShell extends InheritedWidget {
 
 // ── §26 Masthead ────────────────────────────────────────────────────────────
 
+/// The folio as D sets it: each ` · ` separator keeps a no-break space before
+/// the dot (web c62733f), so a folio that wraps never starts a line with `·`.
+String kitFolioText(String folio) => folio.replaceAll(' · ', '\u00a0· ');
+
 /// §26 — the edition's masthead: the **rail** (the folio, or a crumb — the §39
 /// back control, then the folio — and at its trailing edge the page's tools),
 /// the **title** (display serif; a `*clause*` is the accent italic clause), an
@@ -240,6 +246,10 @@ class KitMasthead extends StatelessWidget {
   /// §Composition). Elsewhere the crumb runs on one line.
   final bool crumbStacks;
 
+  /// The tools grow to fill the rail wider than 1024 (a page that passes its
+  /// own field — Search; web `.dp.dp-f .dp-tools { flex: 1 1 640px }`).
+  final bool growTools;
+
   const KitMasthead({
     super.key,
     required this.folio,
@@ -250,6 +260,7 @@ class KitMasthead extends StatelessWidget {
     this.titleWidget,
     this.byline,
     this.crumbStacks = false,
+    this.growTools = false,
   });
 
   @override
@@ -259,8 +270,11 @@ class KitMasthead extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final cw = c.maxWidth;
+        // D writes the folio's separator as a no-break space before the dot
+        // (web c62733f): a folio that wraps on a phone never starts a line
+        // with `·`. Applied here, once, for every D page's folio.
         final folioText = Text(
-          folio.toUpperCase(),
+          kitFolioText(folio).toUpperCase(),
           maxLines: phone ? null : 1,
           overflow: phone ? null : TextOverflow.ellipsis,
           style: AppTheme.mono(
@@ -293,7 +307,28 @@ class KitMasthead extends StatelessWidget {
                   Positioned(left: -8, top: -14, child: back!),
                 ],
               )
+            : (back is KitDBackControl &&
+                  (back as KitDBackControl).trail.isNotEmpty)
+            // A crumb with ancestors after its back control (a shelf's,
+            // §Nested shelves) wraps as one flow with the folio, as web's
+            // `.rx-crumb { flex-wrap: wrap }` does: a deep shelf's crumb
+            // takes a second line rather than pushing the folio off it.
+            ? Transform.translate(
+                offset: const Offset(-8, 0),
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  runSpacing: 0,
+                  children: [
+                    back!,
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: folioText,
+                    ),
+                  ],
+                ),
+              )
             : Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Transform.translate(offset: const Offset(-8, 0), child: back),
                   Flexible(child: folioText),
@@ -304,22 +339,25 @@ class KitMasthead extends StatelessWidget {
         if (tl == null) {
           rail = lead;
         } else if (cw >= 960) {
+          // Web: the folio (or crumb) is `flex: 0 0 auto` up to `100% -
+          // 364px` — its own width, never a share of the line — and the
+          // tools take what is left at the right, `0 1 600px` (a page with
+          // its own field, `1 1 640px`: they grow), at least 340. Until F-143
+          // the lead was a flex third of the line, so a shelf's crumb and
+          // folio wrapped with 180px to spare.
           rail = Row(
             children: [
-              Flexible(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: math.max(0, cw - 364)),
-                  child: lead,
-                ),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: math.max(0, cw - 364)),
+                child: lead,
               ),
               const SizedBox(width: 24),
               Expanded(
-                flex: 2,
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 600,
+                    constraints: BoxConstraints(
+                      maxWidth: growTools ? double.infinity : 600,
                       minWidth: 340,
                     ),
                     child: tl,
@@ -1139,8 +1177,12 @@ class KitContents extends StatelessWidget {
                                     horizontal: 6,
                                     vertical: 2,
                                   ),
+                                  // The theme's ink as an overlay (web
+                                  // 199f338): `--surface-sunken` is darker
+                                  // than the dark page and sheet, so the
+                                  // chips drew as black squares in dark.
                                   decoration: BoxDecoration(
-                                    color: t.surfaceSunken,
+                                    color: t.hoverStrong,
                                     borderRadius: AppRadius.controlR(20),
                                   ),
                                   child: Text(
@@ -1969,6 +2011,18 @@ class KitDPage extends StatefulWidget {
   /// the source page stands its grid 40 under).
   final double gridTop;
 
+  /// What docks at the main column's foot (web `.dp-dock`: Ask's composer,
+  /// Support's): 32 under the column's content, `14px 0 24px` (12 under on a
+  /// phone), over `--bg` at 72% with a 20px backdrop blur. It rests as CSS
+  /// `position: sticky; bottom: 0` does inside the column — held at the foot
+  /// of the scroller's viewport while the column runs past it, and at the
+  /// column's own end, above the support footer, once the scroll reaches it.
+  /// With a dock the column is at least the window's height less 120 (none on
+  /// a phone), so it rests at the column's foot (`.dp-ask .d-main`,
+  /// `.dp-sup .d-main`). On a phone the scroller ends above the tab bar, so
+  /// that is where it docks.
+  final Widget? dock;
+
   const KitDPage({
     super.key,
     required this.folio,
@@ -1989,6 +2043,7 @@ class KitDPage extends StatefulWidget {
     this.sheet,
     this.sections,
     this.controller,
+    this.dock,
   });
 
   @override
@@ -2191,6 +2246,7 @@ class _KitDPageState extends State<KitDPage> {
                     widget.back!.label,
                     onTap: widget.back!.onTap,
                     separator: !phone,
+                    trail: widget.back!.trail,
                   ),
             tools: tools,
             title: widget.title,
@@ -2198,10 +2254,20 @@ class _KitDPageState extends State<KitDPage> {
             titleWidget: widget.titleWidget,
             byline: widget.byline,
             crumbStacks: widget.crumbStacks,
+            growTools: widget.field != null,
           );
+          final Widget main = widget.dock == null
+              ? widget.child
+              : _DockColumn(
+                  controller: _sc,
+                  minHeight: phone ? 0 : math.max(0, size.height - 120),
+                  phone: phone,
+                  dock: widget.dock!,
+                  child: widget.child,
+                );
           Widget grid;
           if (sheet == null || phone) {
-            grid = widget.child;
+            grid = main;
           } else if (cw <= KitD.stackMax) {
             grid = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2212,7 +2278,7 @@ class _KitDPageState extends State<KitDPage> {
                   child: KitSheetScope(lines: true, child: sheet.body),
                 ),
                 const SizedBox(height: 32),
-                widget.child,
+                main,
               ],
             );
           } else {
@@ -2236,7 +2302,7 @@ class _KitDPageState extends State<KitDPage> {
                   ),
                 ),
                 SizedBox(width: gap),
-                Expanded(child: widget.child),
+                Expanded(child: main),
               ],
             );
           }
@@ -2288,6 +2354,202 @@ class _KitDPageState extends State<KitDPage> {
         },
       ),
     );
+  }
+}
+
+/// [KitDPage.dock]'s column: the page's content, then — 32 under it, at the
+/// column's foot — the dock on its ground, which rests as `position: sticky;
+/// bottom: 0`. The dock's natural place is measured after layout (in the
+/// scroller's own coordinates, so a scroll needs no re-measure) and it is
+/// translated up to the viewport's foot while that place is below it, never
+/// above the column's top. The translation is a [Transform], whose hit test
+/// follows the paint, and the dock is the column's last child, so it paints
+/// and answers over the content it covers.
+class _DockColumn extends StatefulWidget {
+  final ScrollController controller;
+  final double minHeight;
+  final bool phone;
+  final Widget dock;
+  final Widget child;
+
+  const _DockColumn({
+    required this.controller,
+    required this.minHeight,
+    required this.phone,
+    required this.dock,
+    required this.child,
+  });
+
+  @override
+  State<_DockColumn> createState() => _DockColumnState();
+}
+
+class _DockColumnState extends State<_DockColumn> {
+  final GlobalKey _column = GlobalKey(debugLabel: 'd-dock-column');
+  final GlobalKey _foot = GlobalKey(debugLabel: 'd-dock');
+  bool _queued = false;
+
+  // The dock's natural top and the column's top, in the scroller's content
+  // coordinates, and the ground's height.
+  double? _top;
+  double _columnTop = 0;
+  double _height = 0;
+
+  void _onScroll() {
+    if (_queued) return;
+    _queued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _queued = false;
+      _measure();
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(_DockColumn old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.controller, widget.controller)) {
+      old.controller.removeListener(_onScroll);
+      widget.controller.addListener(_onScroll);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _measure() {
+    if (!mounted || !widget.controller.hasClients) return;
+    final column = _column.currentContext?.findRenderObject();
+    // The foot's render object is the Transform itself, whose translation
+    // applies to its CHILD — so its own origin is the natural place,
+    // whatever the shift is now. The ground stands 32 under it.
+    final foot = _foot.currentContext?.findRenderObject();
+    final vp = widget.controller.position.context.storageContext
+        .findRenderObject();
+    if (column is! RenderBox || foot is! RenderBox || vp is! RenderBox) {
+      return;
+    }
+    if (!column.attached || !foot.attached || !vp.attached) return;
+    final o = widget.controller.offset;
+    final top = foot.localToGlobal(Offset.zero, ancestor: vp).dy + o + 32;
+    final columnTop = column.localToGlobal(Offset.zero, ancestor: vp).dy + o;
+    final h = math.max(0.0, foot.size.height - 32);
+    if (_top == null ||
+        (top - _top!).abs() > .5 ||
+        (columnTop - _columnTop).abs() > .5 ||
+        h != _height) {
+      setState(() {
+        _top = top;
+        _columnTop = columnTop;
+        _height = h;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+    final t = Tokens.of(context);
+    // The ground is a layer BEHIND the dock: the blur has to be clipped to
+    // the ground, and the dock's own shadow must not be.
+    final ground = Stack(
+      children: [
+        Positioned.fill(
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: ColoredBox(color: t.bg.withValues(alpha: 0.72)),
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.only(top: 14, bottom: widget.phone ? 12 : 24),
+          child: widget.dock,
+        ),
+      ],
+    );
+    final column = ConstrainedBox(
+      key: _column,
+      constraints: BoxConstraints(minHeight: widget.minHeight),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizeChangedLayoutNotifier(child: widget.child),
+          // The Transform is the column's own child: a translated box answers
+          // a tap where it is drawn only if nothing between it and the column
+          // checks the tap against the box's natural place.
+          KeyedSubtree(
+            key: _foot,
+            child: AnimatedBuilder(
+              animation: widget.controller,
+              builder: (context, child) {
+                final top = _top;
+                var shift = 0.0;
+                if (top != null && widget.controller.hasClients) {
+                  final p = widget.controller.position;
+                  final below =
+                      top + _height - (p.pixels + p.viewportDimension);
+                  shift = below.clamp(0.0, math.max(0.0, top - _columnTop));
+                }
+                return Transform.translate(
+                  offset: Offset(0, -shift),
+                  child: child,
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(top: 32),
+                child: SizeChangedLayoutNotifier(
+                  child: _HoldReveal(child: ground),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    // A size that changes without this widget rebuilding — the composer
+    // growing a line as the reader types, a turn's answer landing — moves the
+    // dock's natural place; it is measured again after that frame.
+    return NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (_) {
+        _onScroll();
+        return true;
+      },
+      child: column,
+    );
+  }
+}
+
+/// The dock is always on screen, so a descendant asking to be revealed — a
+/// focused field's caret, on every keystroke, padded by a touch platform's
+/// handle — must not scroll the column under it: while the dock is pinned the
+/// reveal can never be satisfied, and it nudged the transcript on each key.
+class _HoldReveal extends SingleChildRenderObjectWidget {
+  const _HoldReveal({super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderHoldReveal();
+}
+
+class _RenderHoldReveal extends RenderProxyBox {
+  @override
+  void showOnScreen({
+    RenderObject? descendant,
+    Rect? rect,
+    Duration duration = Duration.zero,
+    Curve curve = Curves.ease,
+  }) {
+    if (descendant != null) return;
+    super.showOnScreen(rect: rect, duration: duration, curve: curve);
   }
 }
 

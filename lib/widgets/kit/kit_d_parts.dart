@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart'
     show Icons, InputBorder, InputDecoration, TextField, TextInputAction;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -13,7 +14,6 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
-import 'kit_headers.dart' show KitTitleActionsRow;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_source_link.dart';
 
@@ -243,15 +243,39 @@ class KitDBackControl extends StatelessWidget {
   /// The `/` after it in a crumb (dropped on a phone).
   final bool separator;
 
+  /// Further links after it in the crumb — a shelf's ancestors, outermost
+  /// first (`screens/library.md` §Nested shelves; web `.dp-crumb`): each the
+  /// same mono caps link, no chevron, each followed by the `/` too.
+  final List<(String, VoidCallback)> trail;
+
   const KitDBackControl(
     this.label, {
     super.key,
     required this.onTap,
     this.separator = false,
+    this.trail = const [],
   });
 
   @override
   Widget build(BuildContext context) {
+    if (trail.isEmpty) return _link(context, label, onTap, chevron: true);
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      // Each link keeps 8px either side, so two of them stand web's 16 apart.
+      spacing: 0,
+      children: [
+        _link(context, label, onTap, chevron: true),
+        for (final (l, go) in trail) _link(context, l, go, chevron: false),
+      ],
+    );
+  }
+
+  Widget _link(
+    BuildContext context,
+    String label,
+    VoidCallback onTap, {
+    required bool chevron,
+  }) {
     final t = Tokens.of(context);
     return KitDTap(
       onTap: onTap,
@@ -270,8 +294,10 @@ class KitDBackControl extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.chevron_left, size: 15, color: fg),
-              const SizedBox(width: 6),
+              if (chevron) ...[
+                Icon(Icons.chevron_left, size: 15, color: fg),
+                const SizedBox(width: 6),
+              ],
               Flexible(
                 child: Text(
                   label.toUpperCase(),
@@ -371,7 +397,7 @@ class KitSectionHead extends StatelessWidget {
       ),
       child: actions.isEmpty
           ? Align(alignment: Alignment.centerLeft, child: titleBlock)
-          : KitTitleActionsRow(
+          : _HeadFlow(
               title: titleBlock,
               actions: Wrap(
                 spacing: 20,
@@ -382,6 +408,80 @@ class KitSectionHead extends StatelessWidget {
             ),
     );
   }
+}
+
+/// §31's SectionHead line (web `.hx-sh`: `flex-wrap: wrap; gap: 8px 16px`,
+/// the actions `margin-left: auto`): the title and its meta keep their line,
+/// and the actions sit at its trailing edge when they fit beside them, else
+/// they wrap under, still at the trailing edge — never the title squeezed so
+/// the actions can stay beside it (the chapter opening's rule, which put a
+/// phone's meta under the title and the List / Grid toggle beside it).
+class _HeadFlow extends MultiChildRenderObjectWidget {
+  _HeadFlow({required Widget title, required Widget actions})
+    : super(children: [title, actions]);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderHeadFlow();
+}
+
+class _HeadFlowData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderHeadFlow extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _HeadFlowData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _HeadFlowData> {
+  static const double _gapX = 16;
+  static const double _gapY = 8;
+
+  /// Beside the title, the actions sit a little below its top (the head's
+  /// letterpressed title is taller than the toggle).
+  static const double _actionsTop = 6;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _HeadFlowData) {
+      child.parentData = _HeadFlowData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final title = firstChild!;
+    final actions = childAfter(title)!;
+    final bounded = constraints.hasBoundedWidth;
+    final width = bounded ? constraints.maxWidth : double.infinity;
+    actions.layout(BoxConstraints(maxWidth: width), parentUsesSize: true);
+    title.layout(BoxConstraints(maxWidth: width), parentUsesSize: true);
+    final t = title.parentData! as _HeadFlowData;
+    final a = actions.parentData! as _HeadFlowData;
+    t.offset = Offset.zero;
+    if (!bounded ||
+        title.size.width + _gapX + actions.size.width <= width) {
+      final w = bounded
+          ? width
+          : title.size.width + _gapX + actions.size.width;
+      a.offset = Offset(w - actions.size.width, _actionsTop);
+      size = constraints.constrain(
+        Size(
+          w,
+          math.max(title.size.height, actions.size.height + _actionsTop),
+        ),
+      );
+      return;
+    }
+    a.offset = Offset(width - actions.size.width, title.size.height + _gapY);
+    size = constraints.constrain(
+      Size(width, title.size.height + _gapY + actions.size.height),
+    );
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
 
 /// §31 — **SecHead**, the numbered head of a page whose sheet carries Contents:
@@ -1235,10 +1335,17 @@ class KitGrowField extends StatelessWidget {
         textInputAction: TextInputAction.newline,
         style: style,
         cursorColor: t.accent,
+        // §38's field has no border and no fill — its dock is its frame — so
+        // the app's input theme (an outlined, filled box) is overridden here,
+        // once, for every composer (Ask's, Support's).
         decoration: InputDecoration(
           isCollapsed: true,
           contentPadding: const EdgeInsets.symmetric(vertical: 7),
+          filled: false,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
           hintText: placeholder,
           hintMaxLines: 1,
           hintStyle: style.copyWith(color: t.fgSubtle),

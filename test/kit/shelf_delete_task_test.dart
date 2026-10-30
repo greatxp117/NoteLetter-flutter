@@ -100,11 +100,11 @@ Future<_Capture> _delete(WidgetTester tester,
     child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
   ));
   await tester.pump();
-  await tester.tap(find.text('Settings'));
-  await tester.pumpAndSettle();
+  // Direction D: *Delete shelf* is the sheet's last *Also*, and it only opens
+  // the §18 confirm — nothing is deleted from the sheet itself.
   await tester.tap(find.text('Delete shelf'));
   await tester.pumpAndSettle();
-  // The panel's own confirm (the settings control is the first match).
+  // The panel's own confirm (the sheet's row is the first match).
   await tester.tap(find.text('Delete shelf').last);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));

@@ -467,7 +467,7 @@ class _ReadingSection extends StatelessWidget {
 }
 
 /// A near-relative of the kit's passage card (§5.2), for the same reason
-/// `SearchResultCard` is one: §5.2's meta row is a mono page-ref, and a live
+/// Search's result row (`SearchResultD`) is one: §5.2's meta row is a mono page-ref, and a live
 /// search answer is identified by **which source it came from and how well it
 /// matched**. It is not that card either — this screen shows the passage
 /// WHOLE (the letter's own "see all" promise) and carries the one thing no

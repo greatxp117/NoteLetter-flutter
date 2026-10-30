@@ -16,6 +16,7 @@
 /// `/contract-change` if it is a new pattern), never a local `TextStyle`.
 library;
 
+export 'kit_ask_answer.dart';
 export 'kit_capture.dart';
 export 'kit_cards.dart';
 export 'kit_composer.dart';
@@ -32,6 +33,7 @@ export 'kit_d_letter.dart';
 export 'kit_d_library.dart';
 export 'kit_d_parts.dart';
 export 'kit_d_reader.dart';
+export 'kit_d_shelf.dart';
 export 'kit_d_shelves.dart';
 export 'kit_empty.dart';
 export 'kit_failure.dart';

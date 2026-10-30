@@ -35,11 +35,16 @@ typedef ApproveTags = Future<Map<String, dynamic>> Function(
 
 /// What a client may WRITE as a shelf's colour: one of the twenty (library.md
 /// §Shelf color — "clients do not write hex"). A proposal outside the twenty
-/// takes a swatch by position, so a kept shelf is born inside the set its
-/// picker can show.
+/// takes the swatch SEVEN steps on per position round the set in wheel order
+/// (`(i × 7) mod 20`, library.md §Composition — Shelves and a shelf,
+/// *Suggestions' colours*; web `SuggestShelves.jsx`): seven is prime to twenty,
+/// so the stride reaches every colour before it repeats, where the swatch at
+/// its own position drew three neighbouring proposals as three greens.
 String proposalColor(Object? color, int i) {
   final names = AppColors.shelfColorLabels.keys.toList();
-  return color is String && names.contains(color) ? color : names[i % names.length];
+  return color is String && names.contains(color)
+      ? color
+      : names[(i * 7) % names.length];
 }
 
 /// A refusal of what was typed (a 4xx) is the reader's to correct, beside the

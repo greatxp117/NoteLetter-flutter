@@ -249,6 +249,11 @@ class KitShelfListing extends StatelessWidget {
   /// Catalogue rows per shelf.
   final int limit;
 
+  /// A key per node (its id), so a page's [KitSections] can say which shelf
+  /// is in view and jump to one (web `data-vt-shelf`; the Shelves index's
+  /// sheet).
+  final GlobalKey Function(String id)? keyOf;
+
   const KitShelfListing({
     super.key,
     required this.model,
@@ -259,6 +264,7 @@ class KitShelfListing extends StatelessWidget {
     required this.actions,
     required this.onNewShelf,
     this.limit = 8,
+    this.keyOf,
   });
 
   @override
@@ -291,12 +297,14 @@ class KitShelfListing extends StatelessWidget {
             nodes: model.nodes,
             letterOn: letterOn,
             actions: actions,
+            keyOf: keyOf,
           )
         : KitShelfCatalogue(
             nodes: model.nodes,
             letterOn: letterOn,
             actions: actions,
             limit: limit,
+            keyOf: keyOf,
           );
   }
 }
@@ -310,6 +318,7 @@ class KitShelfCatalogue extends StatelessWidget {
   final bool letterOn;
   final KitShelfActions actions;
   final int limit;
+  final GlobalKey Function(String id)? keyOf;
 
   const KitShelfCatalogue({
     super.key,
@@ -317,6 +326,7 @@ class KitShelfCatalogue extends StatelessWidget {
     required this.letterOn,
     required this.actions,
     this.limit = 8,
+    this.keyOf,
   });
 
   static const double _min = 320;
@@ -334,6 +344,7 @@ class KitShelfCatalogue extends StatelessWidget {
         children: [
           for (var i = 0; i < nodes.length; i++)
             SizedBox(
+              key: keyOf?.call(nodes[i].id),
               width: cw,
               child: _CatColumn(
                 node: nodes[i],
@@ -835,12 +846,14 @@ class KitShelfCovers extends StatelessWidget {
   final List<KitShelfNode> nodes;
   final bool letterOn;
   final KitShelfActions actions;
+  final GlobalKey Function(String id)? keyOf;
 
   const KitShelfCovers({
     super.key,
     required this.nodes,
     required this.letterOn,
     required this.actions,
+    this.keyOf,
   });
 
   @override
@@ -849,7 +862,12 @@ class KitShelfCovers extends StatelessWidget {
     children: [
       for (var i = 0; i < nodes.length; i++) ...[
         if (i > 0) const SizedBox(height: 46),
-        _CoverShelf(node: nodes[i], letterOn: letterOn, actions: actions),
+        _CoverShelf(
+          key: keyOf?.call(nodes[i].id),
+          node: nodes[i],
+          letterOn: letterOn,
+          actions: actions,
+        ),
       ],
     ],
   );
@@ -869,6 +887,7 @@ class _CoverShelf extends StatelessWidget {
   final KitShelfActions actions;
 
   const _CoverShelf({
+    super.key,
     required this.node,
     required this.letterOn,
     required this.actions,

@@ -60,10 +60,14 @@ Future<void> _pump(WidgetTester tester, _Docs docs) async {
   await tester.pump();
 }
 
-List<String?> _figures(WidgetTester tester) => [
-      for (final s
-          in tester.widget<KitStatCluster>(find.byType(KitStatCluster)).stats)
-        s.value
+/// The sheet's Figures, *The shelf* (kit §29): Volumes, Passages, Span, In
+/// your letter — a value the read did not measure is the dash (ADR-109).
+List<String> _figures(WidgetTester tester) => [
+      for (final r in tester
+          .widget<KitFigures>(find.byWidgetPredicate(
+              (w) => w is KitFigures && w.label == 'The shelf'))
+          .rows)
+        r.$2
     ];
 
 void main() {
@@ -71,17 +75,23 @@ void main() {
       (tester) async {
     await _pump(tester, _Docs(fail: 'Missing or insufficient permissions.'));
     final f = _figures(tester);
-    expect(f.take(3), [null, null, null],
+    expect(f.take(3), ['—', '—', '—'],
         reason: 'Volumes, Passages and Span are counted out of the read '
             'that failed');
-    expect(f[3], isNotNull,
+    expect(f[3], 'Mixed',
         reason: '"In your letter" is the shelf\'s own stored mode');
+    // The folio's counts are the same measurements.
+    expect(find.text('SHELF\u00a0· — VOLUMES\u00a0· — PASSAGES'), findsOneWidget);
   });
 
   testWidgets('a read that has not arrived is not zero either',
       (tester) async {
     await _pump(tester, _Docs(arrived: false));
-    expect(_figures(tester).take(3), [null, null, null]);
+    // Direction D: until both reads answer the shelf page is its skeleton —
+    // the frame with no figure in it at all, never a zero.
+    expect(find.byType(KitFigures), findsNothing);
+    expect(find.byType(KitSkeletonLines), findsWidgets);
+    expect(find.text('0'), findsNothing);
   });
 
   testWidgets('an empty shelf that WAS read keeps its zeros', (tester) async {

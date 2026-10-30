@@ -1,61 +1,75 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_motion.dart';
 import '../../theme/app_radius.dart';
-import '../../theme/app_shadows.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 
-/// The Search header (`spec/screens/search.md` §Composition).
+/// Search's own field (`spec/screens/search.md` §Composition (direction D),
+/// **Tools**; web `SearchView.jsx` `.hx-search.dp-field.dp-q`).
 ///
-/// Search is one of the three screens with a **bespoke header** — the kit's
-/// chapter opening (§2.1) is not used here, and the reason is editorial: this
-/// screen's first act is a question, so the field *is* the title. A chapter
-/// opening above it would announce a screen the reader is already looking at.
+/// Search is the one page that passes kit §27's `field`: the query stands in
+/// the rail's place of Search and **stays in the masthead at every width** —
+/// beside the folio wider than 1024, under it to 680, and on a phone under the
+/// standfirst, above the rule. The page decides the slot; this is the field.
 ///
-/// It lives beside the page rather than in `widgets/kit/` because it is not a
-/// kit pattern: `component-kit.md` §2 names it as specified in the screen file,
-/// and putting a one-screen component in the shared kit is how a kit stops
-/// being a vocabulary. The rule it still obeys is the one that matters — the
-/// page file does not style its own type; this file does, once.
+/// Required parts, in order: the search glyph (17, `--fg-muted`), a serif 17
+/// input with the italic `--fg-subtle` placeholder *Ask your library in plain
+/// language…*, and — only while the field holds text — a round 30px clear
+/// control *Clear the search* (15px cross, `--fg-subtle`; `--hover` and `--fg`
+/// under a fine pointer). 44 tall, `0 9px 0 15px`, `--surface` inside a 1px
+/// `--border` at the 44px control radius; a hover raises the border to
+/// `--border-strong`; focus rings it in `--accent` over a 4px `--accent-soft`.
+/// **Enter searches**; nothing searches on a keystroke (the screen is
+/// submit-driven on this client).
 ///
-/// Required parts, in order: a mono `--accent-text` eyebrow · the field, a 16/20
-/// padded `--surface` bar at `--r-lg` with a 1px `--border-strong`, a 22px
-/// icon, a **serif 22/28 input with an italic placeholder**, and a mono caps
-/// mode pill on `--accent-soft`. Focus raises the border to `--accent` and the
-/// shadow to `--shadow-2`.
-class SearchBigField extends StatefulWidget {
+/// Lives beside the page rather than in `widgets/kit/` because no other page
+/// has one (kit §27: Search is the only page that passes `field`); its type is
+/// the kit's ([KitText.bodyReading], [KitText.lede]).
+class SearchQueryField extends StatefulWidget {
   final TextEditingController controller;
-
-  /// `Vector` or `Scripture` — the palette's mode indicator. The Scripture
-  /// value is not reachable yet on this client (the citation path is unwired);
-  /// the parameter exists so wiring it later does not reshape the header.
-  final String mode;
-
   final ValueChanged<String> onSubmitted;
 
-  const SearchBigField({
+  /// Empties the field and returns the page to its no-query state (web
+  /// `clear`: the query and the submission both go).
+  final VoidCallback onClear;
+
+  const SearchQueryField({
     super.key,
     required this.controller,
     required this.onSubmitted,
-    this.mode = 'Vector',
+    required this.onClear,
   });
 
   @override
-  State<SearchBigField> createState() => _SearchBigFieldState();
+  State<SearchQueryField> createState() => _SearchQueryFieldState();
 }
 
-class _SearchBigFieldState extends State<SearchBigField> {
-  final _focus = FocusNode();
+class _SearchQueryFieldState extends State<SearchQueryField> {
+  final _focus = FocusNode(debugLabel: 'search-query');
+  bool _hover = false;
+
+  void _changed() => setState(() {});
 
   @override
   void initState() {
     super.initState();
-    _focus.addListener(() => setState(() {}));
+    _focus.addListener(_changed);
+    widget.controller.addListener(_changed);
+  }
+
+  @override
+  void didUpdateWidget(SearchQueryField old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.controller, widget.controller)) {
+      old.controller.removeListener(_changed);
+      widget.controller.addListener(_changed);
+    }
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_changed);
     _focus.dispose();
     super.dispose();
   }
@@ -63,90 +77,102 @@ class _SearchBigFieldState extends State<SearchBigField> {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     final focused = _focus.hasFocus;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // A caps label: the CALLER uppercases (capsLabel sets the face, not
-        // the case) — it drew in mixed case beside the reference's caps.
-        Text(
-          'Semantic search across your library'.toUpperCase(),
-          style: KitText.capsLabel(context,
-              fontSize: 10, letterSpacing: 0.16, color: t.accentText),
-        ),
-        const SizedBox(height: 10),
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    final holds = widget.controller.text.isNotEmpty;
+    return MouseRegion(
+      cursor: SystemMouseCursors.text,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        // `.dp-q{cursor:text}`: the whole field focuses the input, not only
+        // the run of characters in it.
+        onTap: _focus.requestFocus,
+        child: AnimatedContainer(
+          key: const ValueKey('search-field'),
+          duration: KitD.dur(context, AppMotion.durBase),
+          curve: AppMotion.easeOut,
+          height: 44,
+          padding: const EdgeInsets.only(left: 15, right: 9),
           decoration: BoxDecoration(
             color: t.surface,
-            borderRadius: AppRadius.lgR,
-            border: Border.all(color: focused ? t.accent : t.borderStrong),
-            boxShadow: focused ? AppShadows.s2 : AppShadows.s1,
+            borderRadius: AppRadius.controlR(44),
+            border: Border.all(
+              color: focused
+                  ? t.accent
+                  : (_hover ? t.borderStrong : t.border),
+            ),
+            boxShadow: focused
+                ? [BoxShadow(color: t.accentSoft, spreadRadius: 4)]
+                : null,
           ),
           child: Row(
             children: [
-              Icon(Icons.search,
-                  // 22 is the reference; a phone takes 18 with the field's
-                  // type, so the icon stays proportionate to the line it opens.
-                  size: compact ? 18 : 22,
-                  color: t.fgMuted),
-              const SizedBox(width: 14),
+              Icon(Icons.search, size: 17, color: t.fgMuted),
+              const SizedBox(width: 11),
               Expanded(
-                child: TextField(
-                  controller: widget.controller,
-                  focusNode: _focus,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: widget.onSubmitted,
-                  // `.search-bigfield input` — the reading face, upright.
-                  style: KitText.bodyReading(context,
-                      fontSize: compact ? 18 : 22,
-                      height: (compact ? 18 : 22) * 28 / 22,
-                      opsz: 24),
-                  cursorColor: t.accent,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    hintText: 'Ask your library in plain language…',
-                    // Italic, and in the serif: the placeholder is the one
-                    // piece of copy on this screen written in the reader's
-                    // voice rather than the app's.
-                    hintStyle: KitText.lede(context,
-                        fontSize: compact ? 18 : 22,
-                        height: (compact ? 18 : 22) * 28 / 22,
-                        color: t.fgSubtle),
+                child: Semantics(
+                  label: 'Search your library',
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: _focus,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: widget.onSubmitted,
+                    style: KitText.bodyReading(context,
+                        fontSize: 17, height: 22),
+                    cursorColor: t.accent,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      hintText: 'Ask your library in plain language…',
+                      hintMaxLines: 1,
+                      hintStyle: KitText.lede(context,
+                          fontSize: 17,
+                          height: 22,
+                          color: t.fgSubtle,
+                          opsz: 18),
+                    ),
                   ),
                 ),
               ),
-              // The mode pill is dropped on a phone, as in the reference: at
-              // that width it costs a third of the field, and the mode is
-              // already visible in what the results are.
-              if (!compact) ...[
-                const SizedBox(width: 14),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: t.accentSoft,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    widget.mode.toUpperCase(),
-                    style: KitText.capsLabel(context,
-                        fontSize: 10, letterSpacing: 0.08, color: t.accentText),
-                  ),
-                ),
+              if (holds) ...[
+                const SizedBox(width: 11),
+                _Clear(onTap: widget.onClear),
               ],
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+/// `.dp-q-x` — the round clear control: 30, `--fg-subtle`; under a fine
+/// pointer `--hover` behind a `--fg` cross; a 2px accent focus ring.
+class _Clear extends StatelessWidget {
+  final VoidCallback onTap;
+  const _Clear({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return KitDTap(
+      key: const ValueKey('search-clear'),
+      label: 'Clear the search',
+      onTap: onTap,
+      builder: (context, hover, focus) => Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: hover ? t.hover : null,
+          border: focus ? Border.all(color: t.accent, width: 2) : null,
+        ),
+        child: Icon(Icons.close, size: 15, color: hover ? t.fg : t.fgSubtle),
+      ),
     );
   }
 }

@@ -32,9 +32,7 @@ import 'package:flutter_app/pages/reader/passage_mark.dart';
 import 'package:flutter_app/pages/reader/source_priority.dart';
 import 'package:flutter_app/pages/reader/speed_read_panel.dart';
 import 'package:flutter_app/pages/reader/summary_panel.dart';
-import 'package:flutter_app/pages/search/reading_pane.dart';
-import 'package:flutter_app/pages/search/result_card.dart';
-import 'package:flutter_app/pages/search/search_field.dart';
+import 'package:flutter_app/pages/search/result_d.dart';
 import 'package:flutter_app/widgets/app_layout.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/widgets/support_shell.dart';
@@ -1269,123 +1267,90 @@ void main() {
   testWidgets('search composes from the kit and opens a reading pane', (
     tester,
   ) async {
-    // Search is screen 5/11. Three specified parts did not exist here before
-    // the rebuild — the big field, the control bar, and the reading pane — and
-    // the pane is the whole reason this screen has a two-pane frame. None of
-    // that is visible to Tier-1, which asserts request construction.
+    // Search is screen 5/11, in direction D since F-143 (search.md
+    // §Composition): the page's own field in the masthead, the Filters sheet
+    // (the running head on a phone), and a result that opens IN PLACE among
+    // its neighbours — the "reading pane" this test is named for is the
+    // opened row now; the split pane retired with web's. None of it is
+    // visible to Tier-1, which asserts request construction.
     final router = await pumpApp(tester);
     router.go('/search');
     for (var i = 0; i < 12; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
 
-    // Idle: the bespoke header, and an offer rather than a blank page (§7).
-    expect(find.byType(SearchBigField), findsOneWidget);
-    expect(
-      find.byType(ChapterOpening),
-      findsNothing,
-      reason: 'search has a bespoke header; the field IS the title (§2)',
-    );
-    expect(find.byType(KitEmptyState), findsOneWidget);
-    expect(find.byType(KitSuggestion), findsWidgets);
+    // Idle: the field stays in the masthead on a phone, and the column offers
+    // what to search for rather than a blank page.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.byKey(const ValueKey('search-field')), findsOneWidget);
+    expect(find.text('Search'), findsWidgets);
+    expect(find.text('Try searching for'), findsOneWidget);
+
+    // The Filters sheet carries the kind vocabulary — All sources and every
+    // LIVE kind (§6.4.1; nine since 4.13.0's video, which `doc_kind_check`
+    // holds both ways). A facet that is short of a kind is a bucket nothing
+    // can reach, and it looks exactly like a complete vocabulary.
+    final facet = find.byType(KitFacet);
+    expect(facet, findsOneWidget);
+    final kinds = tester.widget<KitFacet>(facet).items.map((i) => i.label);
+    expect(kinds.toList(), [
+      'All sources', 'Books & PDFs', 'My notes', 'Web', 'YouTube',
+      'Instagram', 'TikTok', 'Audio', 'Video',
+    ]);
+    // **No counts** (ADR-065 §4): a count over one page of results is a
+    // statement about that page, not about the library.
+    expect(tester.widget<KitFacet>(facet).items.every((i) => i.count == null),
+        isTrue, reason: 'search kinds carry no count');
 
     // Submit a query the seed can answer.
-    await tester.enterText(find.byType(TextField).first, 'pasta');
+    await tester.enterText(find.byKey(const ValueKey('search-field')), 'pasta');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     // Wait generously: this is an embedding call plus a vector query, and a
-    // cold first request runs to several seconds. A short wait does not fail —
-    // it asserts the loading state and takes the no-results branch, which is
-    // green for the wrong reason.
+    // cold first request runs to several seconds. **Never `pumpAndSettle`
+    // here**: the skeleton's shimmer animates forever.
+    final rows = find.byType(SearchResultD);
     for (var i = 0; i < 160; i++) {
       await tester.pump(const Duration(milliseconds: 250));
-      if (find.byType(SearchResultCard).evaluate().isNotEmpty ||
-          find.byType(KitEmptyState).evaluate().isNotEmpty) {
+      if (rows.evaluate().isNotEmpty ||
+          find.byType(KitFailureBlock).evaluate().isNotEmpty ||
+          find.textContaining('No passages found').evaluate().isNotEmpty) {
         break;
       }
     }
-    // **Never `pumpAndSettle` on this screen.** Both loading states here are a
-    // `CircularProgressIndicator`, which animates forever, so a settle waits
-    // for a frame that never comes and the run hangs rather than failing.
-    // Bounded pumps throughout.
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 250));
-    }
-
-    // The control bar appears with the query, carrying the type vocabulary —
-    // All sources and every LIVE kind (§6.4.1; eight since 4.13.0's video,
-    // which `doc_kind_check` holds both ways). A chip set that is short of a
-    // kind is a bucket nothing can reach, and it looks exactly like a complete
-    // vocabulary. This said SIX until 2026-10-05: the vocabulary grew and the
-    // device run, unrun, did not.
-    expect(find.byType(KitControlBar), findsOneWidget);
-    expect(find.byType(KitFilterChip), findsNWidgets(9));
-    for (final kind in ['All sources', 'Books & PDFs', 'My notes', 'Web',
-        'YouTube', 'Instagram', 'TikTok', 'Audio', 'Video']) {
-      expect(find.widgetWithText(KitFilterChip, kind), findsOneWidget,
-          reason: 'no $kind chip');
-    }
-    // **No counts** (ADR-065 §4): a count over one page of results is a
-    // statement about that page, and it disabled chips that had matches. The
-    // chips filter SERVER-side now, so none of them is ever disabled either.
-    expect(
-      find.descendant(
-        of: find.byType(KitFilterChip),
-        matching: find.textContaining(RegExp(r'^\d+$')),
-      ),
-      findsNothing,
-      reason: 'search chips carry no count',
-    );
+    await pumpFor(tester, total: const Duration(seconds: 2));
 
     // Say which branch this run took. Without it a green run is ambiguous —
-    // the failure branch below returns early and passes too, which is exactly
-    // what happened while the shim carried a dummy embedding key: the cards,
-    // the split pane and the context read had never rendered and the test was
-    // green anyway.
+    // the failure branch below returns early and passes too.
     final searchState = Provider.of<SearchNotifier>(
-      tester.element(find.byType(SearchBigField)),
+      tester.element(find.byType(KitDPage)),
       listen: false,
     );
     debugPrint(
-      'DEVICE-RUN search: '
-      '${find.byType(SearchResultCard).evaluate().length} result cards, '
+      'DEVICE-RUN search: ${rows.evaluate().length} result rows, '
       'notifier=${searchState.results.length} results, '
       'error=${searchState.error}',
     );
 
-    if (find.byType(SearchResultCard).evaluate().isEmpty) {
-      // Either nothing matched — which is the offer pattern (§7), not a bare
-      // sentence — or the call failed and the screen says so. Under the `fn_*`
-      // shim the failure is the expected one: the shim carries a dummy OpenAI
-      // key, so the query cannot be embedded. What is NOT allowed is a blank
+    if (rows.evaluate().isEmpty) {
+      // Either nothing matched — the column's own sentence — or the call
+      // failed and the §14.1 block says so. What is NOT allowed is a blank
       // body: a search that answers with nothing at all.
       expect(
-        find.byType(KitEmptyState).evaluate().isNotEmpty ||
-            find.byType(KitCard).evaluate().isNotEmpty,
+        find.byType(KitFailureBlock).evaluate().isNotEmpty ||
+            find.textContaining('No passages found').evaluate().isNotEmpty,
         isTrue,
         reason: 'no results still renders a state, never an empty page',
       );
       return;
     }
 
-    // The second pane renders beside (or under) the results, and it opens on
-    // the top result rather than waiting to be clicked.
-    expect(find.byType(SearchReadingPane), findsOneWidget);
-    expect(
-      find.textContaining('similarity'),
-      findsWidgets,
-      reason: 'the pane names the measured score of what it is showing',
-    );
-
     // §16 — the score meter is a CONTROL with an explainer behind it (4.44.0,
-    // ADR-082), and the figures in it are measured. It carried `cursor: help`
-    // on the reference for fifteen months with no popover behind it; this is
-    // the assertion that there is one.
-    await tester.tap(
-      find.descendant(
-        of: find.byType(SearchResultCard).first,
-        matching: find.byType(KitAnchoredPopover),
-      ),
-    );
+    // ADR-082), and the figures in it are measured.
+    final meter = find.descendant(
+        of: rows.first, matching: find.byType(KitAnchoredPopover));
+    await tester.ensureVisible(meter);
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
+    await tester.tap(meter);
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 200));
     }
@@ -1395,189 +1360,182 @@ void main() {
     expect(find.text('Source priority'), findsOneWidget,
         reason: 'both components come off a live response — a missing row here '
             'means the client is on the derive path ADR-082 forbids');
+    await tester.tapAt(const Offset(8, 400));
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
 
-    // Selecting a different result moves the pane to it.
-    final cards = find.byType(SearchResultCard);
-    if (cards.evaluate().length > 1) {
-      await tester.tap(cards.at(1));
-      for (var i = 0; i < 12; i++) {
-        await tester.pump(const Duration(milliseconds: 250));
-      }
-      final selected = tester
-          .widgetList<SearchResultCard>(cards)
-          .where((c) => c.selected)
-          .length;
-      expect(selected, 1, reason: 'exactly one result is open at a time');
+    // Opened in place: the passage whole among its neighbours, *Fold it
+    // away*; one row open at a time.
+    final toggle = find.byKey(const ValueKey('search-toggle-1'));
+    await tester.ensureVisible(toggle);
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
+    await tester.tap(toggle);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+      if (find.text('Fold it away').evaluate().isNotEmpty) break;
+    }
+    expect(find.text('Fold it away'), findsOneWidget,
+        reason: 'the row opens in place');
+    if (rows.evaluate().length > 1) {
+      final second = find.byKey(const ValueKey('search-toggle-2'));
+      await tester.ensureVisible(second);
+      await pumpFor(tester, total: const Duration(milliseconds: 400));
+      await tester.tap(second);
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      expect(find.text('Fold it away'), findsOneWidget,
+          reason: 'exactly one result is open at a time');
     }
   });
 
   // ── Ask (4.53.0/4.54.0, ADR-090) ───────────────────────────────────────────
   testWidgets('ask composes from the kit', (tester) async {
-    // Ask is screen 7/11. Nothing here was visible to Tier-1: the rail is
-    // composition, the route rename is a table, and "restoring a conversation
-    // issues no request" is the ABSENCE of one.
+    // Ask is screen 7/11, in direction D since F-143 (ask.md §Composition):
+    // the conversation is the page, the conversations are the sheet — on a
+    // phone its running head — and the composer docks at the column's foot.
+    // Nothing here was visible to Tier-1: the sheet is composition, the route
+    // rename is a table, and "restoring a conversation issues no request" is
+    // the ABSENCE of one.
     final router = await pumpApp(tester);
     router.go('/ask');
     for (var i = 0; i < 16; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
 
-    // The bespoke header (§2), its eyebrow, and the dock (§10).
-    expect(find.byType(ScreenHeader), findsOneWidget);
-    expect(
-      find.byType(ChapterOpening),
-      findsNothing,
-      reason: 'ask has a bespoke header, not a chapter opening (§2)',
-    );
-    expect(find.text('GROUNDED IN YOUR LIBRARY'), findsOneWidget);
-    expect(find.byType(KitComposerDock), findsOneWidget);
+    // The D frame, its folio, the dock (§38).
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.textContaining('GROUNDED IN YOUR LIBRARY'), findsOneWidget);
+    expect(find.byType(KitAskComposer), findsOneWidget);
+    expect(find.text('Ask Your Library'), findsOneWidget);
 
-    // The rail is §9's PHONE form: an overlay, closed until asked for. A rail
-    // drawn as a permanent column on a phone is a different pattern.
-    expect(find.byType(KitInspectorRail), findsNothing);
-    await tester.tap(find.text('History'));
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 250));
-    }
-    expect(find.byType(KitInspectorRail), findsOneWidget);
-    expect(
-      find.text('CONVERSATIONS'),
-      findsOneWidget,
-      reason: 'the mono caps title is a required part of §9',
-    );
-    expect(
-      find.text('New conversation'),
-      findsOneWidget,
-      reason: 'the dashed new-conversation control is the rail\'s own offer',
-    );
-    // Close it the way §9's phone form requires — a visible control, not only
-    // the backdrop.
-    await tester.tap(find.byIcon(Icons.close));
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 250));
-    }
-    expect(find.byType(KitInspectorRail), findsNothing);
+    // The conversations are the running head: folded, its rows are not
+    // reachable; dropped, *New conversation* heads the list.
+    final newConvo = find.byKey(const ValueKey('ask-new'));
+    expect(newConvo.hitTestable(), findsNothing,
+        reason: 'folded, the running head is inert');
+    await _dropHead(tester);
+    expect(newConvo.hitTestable(), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('d-peek')));
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
 
-    // Empty is an OFFER (§7), never a bare sentence.
+    // The empty state (§37): the offers are the suggested prompts.
     expect(find.byType(KitEmptyState), findsOneWidget);
     expect(find.byType(KitSuggestion), findsWidgets);
 
-    // A turn. Generous wait: this is an embedding call plus a vector query,
-    // and a cold first request runs to several seconds — a short wait takes
-    // the failure branch and is green for the wrong reason.
-    await tester.enterText(find.byType(TextField).last, 'pasta cooking');
+    // A turn. Generous wait: this is an embedding call, a vector query and
+    // the written answer, and a cold first request runs to several seconds —
+    // a short wait takes the failure branch and is green for the wrong
+    // reason.
+    final field = find.byKey(const ValueKey('ask-field'));
+    await tester.enterText(
+        find.descendant(of: field, matching: find.byType(TextField)),
+        'pasta cooking');
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
-    // The SEND CONTROL, not a text-input action: §10's field takes
-    // `TextInputAction.newline` because a prompt is written, not typed into a
-    // form field — so `receiveAction(done)` inserts a line and sends nothing,
-    // and the test reads as "the app did not answer".
-    await tester.tap(find.bySemanticsLabel('Send'));
+    // The SEND CONTROL: a soft keyboard's return is a new line (§38).
+    await tester.tap(find.byKey(const ValueKey('ask-send')));
     for (var i = 0; i < 200; i++) {
       await tester.pump(const Duration(milliseconds: 250));
-      if (find.text('Your library').evaluate().isNotEmpty) break;
+      if (find.text('YOUR LIBRARY').evaluate().isNotEmpty &&
+          find.text('Reading your notes…').evaluate().isEmpty) {
+        break;
+      }
+      if (find.text('Try again').evaluate().isNotEmpty) break;
     }
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
 
     final ask = Provider.of<ChatNotifier>(
-      tester.element(find.byType(KitComposerDock)),
+      tester.element(find.byType(KitAskComposer)),
       listen: false,
     );
     // Say which branch this run took. Without it a green run is ambiguous —
-    // the rejection branch renders a state too, which is the defect the search
-    // test above was green through for a whole release.
+    // the rejection branch renders a state too.
     debugPrint(
       'DEVICE-RUN ask: ${ask.messages.length} stored message(s), '
-      'thread=${ask.activeId}, error=${ask.sentError}',
+      'thread=${ask.activeId}, error=${ask.sentError}, '
+      'answer=${find.byType(KitAskAnswer).evaluate().length}, '
+      'citations=${find.byType(KitAskCitation).evaluate().length}',
     );
 
     if (ask.sentError != null) {
-      // The shim's dummy OpenAI key is the expected failure here. What is NOT
-      // allowed is silence — and, since 4.61.0 (ADR-097), what is not allowed
-      // either is the QUESTION disappearing: the turn stays on screen with the
-      // server's sentence and a retry, and it is never put back in the
-      // composer as though it had never been asked.
+      // Since 4.61.0 (ADR-097) the QUESTION never disappears: the turn stays
+      // on screen with the server's sentence and a retry, and it is never put
+      // back in the composer as though it had never been asked.
       expect(find.byType(KitFailureInline), findsWidgets,
           reason: 'a refused turn says so (§14.2) — never an empty answer');
+      expect(find.text('pasta cooking'), findsOneWidget,
+          reason: 'the sent turn STAYS on screen (ADR-097)');
+      expect(find.text('Try again'), findsOneWidget);
       expect(
-        find.text('pasta cooking'),
-        findsOneWidget,
-        reason: 'the sent turn STAYS on screen — it is the only record of '
-            'what the reader did (ADR-097)',
-      );
-      expect(find.text('Try again'), findsOneWidget,
-          reason: 'the retry re-sends THAT turn');
-      expect(
-        tester.widget<TextField>(find.byType(TextField).last).controller?.text,
+        tester
+            .widget<TextField>(
+                find.descendant(of: field, matching: find.byType(TextField)))
+            .controller
+            ?.text,
         '',
         reason: 'a refused question is never returned to the composer',
       );
       return;
     }
 
-    // The turn was RECORDED, which is the whole of ADR-090: both messages came
-    // back from the subscription, not from local state.
+    // The turn was RECORDED (ADR-090): both messages came back from the
+    // subscription, not from local state.
     expect(ask.messages.length, greaterThanOrEqualTo(2));
     expect(ask.activeId, isNotNull);
-    expect(find.text('You'), findsWidgets);
-    expect(find.text('Your library'), findsWidgets);
+    expect(find.text('YOU'), findsWidgets);
+    expect(find.text('YOUR LIBRARY'), findsWidgets);
+    expect(find.byType(KitAskCitation), findsWidgets,
+        reason: 'the citations, as a ruled register');
 
-    // The thread is now in the rail, with the title and the preview the
-    // BACKEND wrote — a second line this client cannot derive.
-    await tester.tap(find.text('History'));
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 250));
-    }
-    expect(find.byType(KitRailEntry), findsWidgets);
-    expect(find.text('TODAY'), findsOneWidget,
+    // The thread is now in the running head, with the title and the preview
+    // the BACKEND wrote; *New* is the tab bar's centre while it is open.
+    expect(
+        find.descendant(
+            of: find.byType(KitTabBar), matching: find.text('New')),
+        findsOneWidget);
+    await _dropHead(tester);
+    final entries = find.byType(KitAskConvo);
+    expect(entries.hitTestable(), findsWidgets);
+    expect(find.text('TODAY').hitTestable(), findsOneWidget,
         reason: 'entries are grouped under mono caps labels (§9)');
-    final entry = tester.widgetList<KitRailEntry>(find.byType(KitRailEntry));
-    expect(entry.first.active, isTrue,
+    final entry = tester.widgetList<KitAskConvo>(entries).first;
+    expect(entry.active, isTrue,
         reason: 'the open conversation is the marked one');
-    expect(entry.first.preview, isNotEmpty,
+    expect(entry.preview, isNotEmpty,
         reason: 'ask_threads.preview (4.54.0) backs the entry\'s second line');
 
     // Reopening a stored conversation issues NO request and must not draw the
-    // searching state. The absence of a request is not observable, so this
-    // asserts the thing that would be visible if one were made.
-    await tester.tap(find.byType(KitRailEntry).first);
+    // thinking state; choosing an entry folds the head.
+    await tester.tap(entries.first);
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
-    expect(find.text('Searching…'), findsNothing,
+    expect(find.text('Reading your notes…'), findsNothing,
         reason: 'restoring a thread is not thinking (screens/ask.md §States)');
-    expect(find.text('Your library'), findsWidgets);
+    expect(find.text('YOUR LIBRARY'), findsWidgets);
+    expect(entries.hitTestable(), findsNothing,
+        reason: 'choosing an entry folds the running head');
 
     // ── §9.1 entry actions (4.55.0, ADR-091) ────────────────────────────────
-    // The two methods `fn_ask_threads` has always had and no client called.
-    // A rendered cluster is not a working one, so this drives both, and it
-    // reads the STORED title back out of the subscription rather than the one
-    // the field was left holding — a rename that only painted passes every
-    // other check on this screen.
-    await tester.tap(find.text('History'));
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 250));
-    }
+    // Both are driven, and the STORED title is read back out of the
+    // subscription — a rename that only painted passes every other check.
+    await _dropHead(tester);
     final threadId = ask.activeId!;
-    await tester.tap(find.byIcon(Icons.edit_outlined).first);
+    await tester.tap(find
+        .descendant(
+            of: entries.first, matching: find.byIcon(Icons.edit_outlined))
+        .first);
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
+    final renameField =
+        find.descendant(of: entries.first, matching: find.byType(TextField));
     debugPrint('DEVICE-RUN ask §9.1 edit tapped: renaming=${ask.renamingId}, '
-        'fields=${find.byType(TextField).evaluate().length}, '
-        'rail=${find.byType(KitInspectorRail).evaluate().length}');
-    expect(find.byType(TextField), findsWidgets,
+        'fields=${renameField.evaluate().length}');
+    expect(renameField, findsOneWidget,
         reason: '§9.1 renames IN PLACE — the title becomes a field');
-    // The field INSIDE the rail, not `.first` of every TextField on the screen
-    // — the composer is one too, and an ordering that happens to hold is not
-    // an assertion about the entry.
-    await tester.enterText(
-        find.descendant(
-            of: find.byType(KitInspectorRail), matching: find.byType(TextField)),
-        'Pasta, from the top');
+    await tester.enterText(renameField, 'Pasta, from the top');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     for (var i = 0; i < 60; i++) {
       await tester.pump(const Duration(milliseconds: 250));
@@ -1597,7 +1555,13 @@ void main() {
     // Delete confirms first, and the confirmation names what is lost AND what
     // is not.
     final before = ask.threads.length;
-    await tester.tap(find.byIcon(Icons.delete_outline).first);
+    if (find.byIcon(Icons.delete_outline).hitTestable().evaluate().isEmpty) {
+      await _dropHead(tester);
+    }
+    await tester.tap(find
+        .descendant(
+            of: entries.first, matching: find.byIcon(Icons.delete_outline))
+        .first);
     for (var i = 0; i < 12; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
@@ -1636,14 +1600,16 @@ void main() {
     // it holds for a shelf whose title is not known yet: the turn is scoped
     // either way, and dropping the scope from the copy would be the screen
     // claiming it searched the library.
-    expect(find.text('GROUNDED IN ONE SHELF'), findsOneWidget);
+    expect(find.textContaining('GROUNDED IN ONE SHELF'), findsOneWidget);
 
-    await tester.enterText(
-        find.byType(TextField).last, 'Which of these recipes can use steak?');
+    final field = find.descendant(
+        of: find.byKey(const ValueKey('ask-field')),
+        matching: find.byType(TextField));
+    await tester.enterText(field, 'Which of these recipes can use steak?');
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
-    await tester.tap(find.bySemanticsLabel('Send'));
+    await tester.tap(find.byKey(const ValueKey('ask-send')));
     for (var i = 0; i < 120; i++) {
       await tester.pump(const Duration(milliseconds: 250));
       if (find.text('Try again').evaluate().isNotEmpty) break;
@@ -1653,7 +1619,7 @@ void main() {
     }
 
     final ask = Provider.of<ChatNotifier>(
-      tester.element(find.byType(KitComposerDock)),
+      tester.element(find.byType(KitAskComposer)),
       listen: false,
     );
     debugPrint('DEVICE-RUN ask refusal: err=${ask.sentError}, '
@@ -1670,7 +1636,7 @@ void main() {
         reason: "§14.2 quotes the server verbatim — never our own copy");
     expect(find.text('Try again'), findsOneWidget);
     expect(
-      tester.widget<TextField>(find.byType(TextField).last).controller?.text,
+      tester.widget<TextField>(field).controller?.text,
       '',
       reason: 'a refused question is never returned to the composer',
     );
@@ -2096,34 +2062,35 @@ void main() {
   });
 
   testWidgets('shelves composes from the kit', (tester) async {
-    // Screen 9/11 (QUEUE F-08). The seed holds three shelves — Recipes (2
-    // volumes), Finance (1) and Stories (1, carrying a LEGACY HEX colour,
-    // which is most of production and must still paint).
+    // Screen 9/11 (QUEUE F-08), in direction D since F-143 (library.md
+    // §Composition — Shelves and a shelf). The seed holds four shelves —
+    // Recipes (2 volumes, Baking inside it with none), Finance (1) and
+    // Stories (1, carrying a LEGACY HEX colour, which is most of production
+    // and must still paint).
     final router = await pumpApp(tester);
     // The old route is a redirect, not a 404: `/tags` was this client's route
     // for the whole life of the screen.
     router.go('/tags');
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
-      if (find.byType(KitShelfCard).evaluate().isNotEmpty) break;
+      if (find.byType(KitShelfCatalogue).evaluate().isNotEmpty) break;
     }
     await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(router.state.matchedLocation, '/shelves');
 
-    // §2.1 — folio, title, standfirst. The count in the folio is the shelves
-    // subscription's, the one in the standfirst the documents subscription's.
-    expect(find.byType(ChapterOpening), findsOneWidget);
-    expect(find.textContaining('LIBRARY · 3 SHELVES'), findsOneWidget);
+    // §26 — folio, title; the counts are the two subscriptions'.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.text('THE SHELVES · 4 SHELVES · 4 VOLUMES'),
+        findsOneWidget);
     expect(find.text('Shelves'), findsOneWidget);
-
-    // §5.1 — one card per shelf, and the dashed slots: the one that makes a
-    // shelf, and Suggest shelves beside it (4.116.0, F-89).
-    expect(find.byType(KitShelfCard), findsNWidgets(3));
-    expect(find.byType(KitNewCard), findsNWidgets(2));
-    expect(find.text('New shelf'), findsOneWidget);
-    expect(find.text('Suggest shelves'), findsOneWidget);
-    expect(find.text('Recipes'), findsWidgets);
-    // Stories is `auto_created`; provenance is a LABEL and nothing more.
-    expect(find.text('AUTO'), findsOneWidget);
+    // §42 — the catalogue over the top-level shelves; the sheet lists them.
+    expect(find.byType(KitShelfCatalogue), findsOneWidget);
+    for (final id in ['recipes', 'finance', 'stories']) {
+      expect(find.byKey(ValueKey('shelves-sheet-seed-tag-$id')),
+          findsOneWidget);
+    }
+    expect(find.byKey(const ValueKey('shelves-sheet-seed-tag-baking')),
+        findsNothing, reason: 'the sheet lists top-level shelves only');
     // Nothing Material survived the recompose — this screen was a list of
     // `ListTile`-ish rows with a FAB until F-08.
     expect(find.byType(Card), findsNothing);
@@ -2131,41 +2098,41 @@ void main() {
     expect(find.byType(FloatingActionButton), findsNothing);
 
     // ── the shelf's own page ────────────────────────────────────────────
-    // Recipes is the third card: on a phone it sits at the fold, under the
-    // support footer, since the grid took web's top margin and 56 spines
-    // (F-81). Brought on first, as a reader scrolls to it.
-    await tester.ensureVisible(find.text('Recipes').first);
-    await pumpFor(tester, total: const Duration(milliseconds: 600));
-    await tester.tap(find.text('Recipes').first);
-    await pumpFor(tester, total: const Duration(seconds: 2));
-    expect(router.state.matchedLocation, '/shelves/seed-tag-recipes');
-    expect(find.text('All shelves'), findsOneWidget);
-    expect(find.byType(KitStatCluster), findsOneWidget);
-    expect(find.text('VOLUMES'), findsOneWidget);
-    expect(find.text('PASSAGES'), findsWidgets);
-    expect(find.text('SPAN'), findsOneWidget);
-    expect(find.byType(KitSourceRow), findsNWidgets(2));
-
-    // 2.20.0 (ADR-025) — the split control is ABSENT below five volumes, not
-    // disabled: the endpoint 400s there, and a control that cannot work is
-    // worse than no control.
-    // The button, not the rail's nav item of the same name.
-    await tester.tap(find.widgetWithText(KitButton, 'Settings'));
+    router.go('/shelves/seed-tag-recipes');
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.text('ALL SHELVES').evaluate().isNotEmpty) break;
+    }
     await pumpFor(tester, total: const Duration(seconds: 1));
-    expect(find.byType(KitPanel), findsOneWidget);
-    expect(find.text('Split this shelf'), findsNothing);
-    expect(find.text('Delete shelf'), findsOneWidget);
+    expect(find.text('ALL SHELVES'), findsOneWidget);
+    expect(find.text('SHELF · 2 VOLUMES · 4 PASSAGES'),
+        findsOneWidget);
+    expect(find.byType(KitRegisterRow), findsNWidgets(2));
 
-    // §6.2 — ten swatches, each announced by its NAME, not its token.
-    expect(find.byType(KitSwatch), findsNWidgets(10));
+    // Shelf settings, from the app header's gear (kit §28, §30). 2.20.0
+    // (ADR-025): the split control is ABSENT below five volumes, not
+    // disabled: the endpoint 400s there, and a control that cannot work is
+    // worse than no control. Delete is the sheet's Also, never the panel's.
+    await _openPageSettings(tester, 'Shelf settings');
+    final panel = find.byKey(const ValueKey('d-panel'));
+    expect(panel, findsOneWidget);
+    expect(find.descendant(of: panel, matching: find.text('Split this shelf')),
+        findsNothing);
+    expect(find.descendant(of: panel, matching: find.text('Delete shelf')),
+        findsNothing);
+
+    // §6.2 — twenty swatches (5.41.0, ADR-196), each announced by its NAME,
+    // not its token.
+    expect(find.descendant(of: panel, matching: find.byType(KitSwatch)),
+        findsNWidgets(20));
     expect(find.bySemanticsLabel('Deep plum'), findsOneWidget);
     expect(find.bySemanticsLabel('plum-600'), findsNothing);
 
     // Write before move: the swatch moves only once `fn_update_tag` has
     // answered, and what it then draws is what the SUBSCRIPTION carried back.
     // The web swatch moved first until 2.15.0, so a 400 on every colour change
-    // looked like a success for months.
-    // The seed shelf is `brick-400`, whose NAME is Vermilion.
+    // looked like a success for months. The seed shelf is `brick-400`, whose
+    // NAME is Vermilion.
     expect(
       tester
           .widgetList<KitSwatch>(find.byType(KitSwatch))
@@ -2173,7 +2140,10 @@ void main() {
       isTrue,
     );
     try {
-      await tester.tap(find.bySemanticsLabel('Deep plum'));
+      final plum = find.bySemanticsLabel('Deep plum');
+      await tester.ensureVisible(plum);
+      await pumpFor(tester, total: const Duration(milliseconds: 400));
+      await tester.tap(plum);
       for (var i = 0; i < 60; i++) {
         await tester.pump(const Duration(milliseconds: 200));
         if (tester
@@ -2206,15 +2176,17 @@ void main() {
     // even a viewer that cannot be dragged, so it would prove nothing.
     final router = await pumpApp(tester);
     router.go('/shelves');
-    final entry = find.widgetWithText(KitButton, 'Shelf map');
-    for (var i = 0; i < 40 && entry.evaluate().isEmpty; i++) {
+    for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitShelfCatalogue).evaluate().isNotEmpty) break;
     }
-    // library.md §The shelf map — the entry point is the Shelves index's
-    // chapter-opening action, not an address a reader has to know.
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    // library.md §The shelf map (direction D) — the entry point is the
+    // Shelves sheet's *Also*, which on a phone is in the running head: not an
+    // address a reader has to know. Choosing it folds the head first.
+    await _dropHead(tester);
+    final entry = find.widgetWithText(KitAlsoButton, 'The shelf map');
     expect(entry, findsOneWidget);
-    await tester.ensureVisible(entry);
-    await pumpFor(tester, total: const Duration(milliseconds: 400));
     await tester.tap(entry);
     final viewer = find.byKey(const Key('relmap-viewer'));
     for (var i = 0; i < 40 && viewer.evaluate().isEmpty; i++) {
@@ -2223,11 +2195,13 @@ void main() {
     await pumpFor(tester, total: const Duration(seconds: 1));
     expect(router.state.matchedLocation, '/shelves/map');
 
-    // Composition: the Canvas frame (§1.5), the §2.2 header, one §24 map.
-    expect(find.byType(KitCanvasPage), findsOneWidget);
-    expect(find.byType(SubScreenHeader), findsOneWidget);
-    expect(find.text('All shelves'), findsOneWidget);
-    expect(find.text('SHELF MAP · 4 SHELVES'), findsOneWidget);
+    // Composition (direction D): the D frame, the crumb, one §24 map; the
+    // sheet is the running head, the map glyph and `{N} shelves`.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.text('ALL SHELVES'), findsOneWidget);
+    expect(find.text('SHELF MAP\u00a0· 4 SHELVES'), findsOneWidget);
+    expect(find.text('The Shelf Map'), findsOneWidget);
+    expect(_peekText(tester), contains('4 shelves'));
     expect(find.byType(KitRelationshipMap), findsOneWidget);
     expect(find.text('INSPECTOR'), findsOneWidget);
     expect(find.text('Find a shelf or volume…'), findsOneWidget);
@@ -2376,10 +2350,10 @@ void main() {
     await tester.tap(find.widgetWithText(KitButton, 'Open shelf'));
     await pumpFor(tester, total: const Duration(seconds: 2));
     expect(router.state.matchedLocation, '/shelves/seed-tag-recipes');
-    final seeOnMap = find.widgetWithText(KitButton, 'See on map');
+    // *See on map* is the shelf sheet's first *Also*: in the running head.
+    await _dropHead(tester);
+    final seeOnMap = find.widgetWithText(KitAlsoButton, 'See on map');
     expect(seeOnMap, findsOneWidget);
-    await tester.ensureVisible(seeOnMap);
-    await pumpFor(tester, total: const Duration(milliseconds: 400));
     await tester.tap(seeOnMap);
     await pumpFor(tester, total: const Duration(seconds: 2));
     expect(router.state.matchedLocation, '/shelves/map');
@@ -2389,6 +2363,240 @@ void main() {
     expect(find.text('SHELF'), findsOneWidget);
     expect(find.text('VOLUMES · 2'), findsOneWidget);
     expect(find.widgetWithText(KitButton, 'Open shelf'), findsOneWidget);
+  });
+
+  testWidgets("shelves List/Grid, a shelf's sheet, Search's filters sheet, "
+      "Ask's composer growing to seven lines", (tester) async {
+    // F-143 (direction D: library.md §Composition — Shelves and a shelf,
+    // search.md and ask.md §Composition; kit §30 §32 §38). Real taps on the
+    // phone's chrome: the tab bar's centre, the running heads, the switches.
+    final router = await pumpApp(tester);
+    final view = tester.view.physicalSize / tester.view.devicePixelRatio;
+
+    // ── Shelves: List / Grid, the running head ─────────────────────────────
+    router.go('/shelves');
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitShelfCatalogue).evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(milliseconds: 800));
+    expect(
+        find.descendant(
+            of: find.byType(KitTabBar), matching: find.text('New shelf')),
+        findsOneWidget,
+        reason: "the page's action is the tab bar's centre");
+    debugPrint('DEVICE-RUN F-143 shelves head "${_peekText(tester)}"');
+    expect(_peekText(tester), contains('Recipes'),
+        reason: 'the shelf in view, first');
+    expect(_peekText(tester), contains('1 of 4'),
+        reason: 'three shelves and Unshelved');
+
+    // List → Grid → List: one app-wide choice, written before it moves.
+    final toggle = find.byType(KitViewToggle);
+    await tester.ensureVisible(toggle);
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
+    await tester.tap(find.descendant(of: toggle, matching: find.text('Grid')));
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.byType(KitShelfCovers), findsOneWidget);
+    expect(find.byType(KitShelfCatalogue), findsNothing);
+    expect(LocalFlags.sourceView.value, 'grid');
+    debugPrint('DEVICE-RUN F-143 shelves Grid: '
+        '${find.byType(KitCover).evaluate().length} covers');
+    await tester.tap(find.descendant(of: toggle, matching: find.text('List')));
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.byType(KitShelfCatalogue), findsOneWidget);
+    expect(LocalFlags.sourceView.value, 'list');
+
+    // The running head drops; choosing Stories moves the page and folds it.
+    await _dropHead(tester);
+    final stories =
+        find.byKey(const ValueKey('shelves-sheet-seed-tag-stories'));
+    expect(stories.hitTestable(), findsOneWidget,
+        reason: 'the dropped sheet lists the shelves');
+    await tester.tap(stories);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(stories.hitTestable(), findsNothing,
+        reason: 'choosing a shelf folds the running head');
+    debugPrint('DEVICE-RUN F-143 shelves head after Stories '
+        '"${_peekText(tester)}"');
+    expect(_peekText(tester), isNot(contains('1 of 4')),
+        reason: 'the page moved on from Recipes');
+
+    // ── A shelf's sheet ────────────────────────────────────────────────────
+    router.go('/shelves/seed-tag-recipes');
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.text('ALL SHELVES').evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(
+        find.descendant(
+            of: find.byType(KitTabBar), matching: find.text('Ask shelf')),
+        findsOneWidget);
+    debugPrint('DEVICE-RUN F-143 shelf head "${_peekText(tester)}"');
+    expect(_peekText(tester), contains('Recipes'));
+    expect(_peekText(tester), contains('RECENT'));
+    await _dropHead(tester);
+    // In the running head the mark is not drawn (the masthead says it);
+    // Order, Sub-shelves, The shelf and Also are, in that order.
+    expect(find.byKey(const ValueKey('shelf-identity')), findsNothing);
+    final order = ['ORDER', 'SUB-SHELVES', 'THE SHELF', 'ALSO'];
+    for (var i = 1; i < order.length; i++) {
+      expect(tester.getTopLeft(find.text(order[i]).hitTestable()).dy,
+          greaterThan(tester.getTopLeft(find.text(order[i - 1])).dy));
+    }
+    expect(find.byKey(const ValueKey('sub-shelf-seed-tag-baking')),
+        findsOneWidget);
+    // Delete shelf is the last Also, in the critical ink.
+    final also = tester
+        .widgetList<KitAlsoButton>(find.byType(KitAlsoButton))
+        .map((b) => b.label)
+        .toList();
+    debugPrint('DEVICE-RUN F-143 shelf Also: $also');
+    expect(also.last, 'Delete shelf');
+    expect(
+        tester
+            .widget<KitAlsoButton>(
+                find.widgetWithText(KitAlsoButton, 'Delete shelf'))
+            .danger,
+        isTrue);
+    // Order: A–Z moves the volumes and the head's meta; the switch stays
+    // where the reader is (it is not a row the page folds on).
+    await tester.tap(find.text('A–Z').hitTestable());
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(_peekText(tester), contains('A–Z'));
+    // New sub-shelf opens the create form ABOVE the running head (W3's
+    // FOUND 1: a sheet under the head took no taps), with Inside set.
+    await tester.tap(find.text('New sub-shelf').hitTestable());
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    final nameField = find.byType(TextField).hitTestable();
+    expect(nameField, findsWidgets,
+        reason: "the create form's field is on top and takes a tap");
+    expect(find.textContaining('Recipes').hitTestable(), findsWidgets,
+        reason: 'Inside is this shelf');
+    await tester.tap(find.text('Cancel').hitTestable().first);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+
+    // ── Nested shelves (F-131's device proof, folded into F-143) ───────────
+    // A sub-shelf from the sheet's Sub-shelves; its crumb names the parent.
+    await _dropHead(tester);
+    await tester.tap(find
+        .byKey(const ValueKey('sub-shelf-seed-tag-baking'))
+        .hitTestable());
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/shelves/seed-tag-baking');
+    expect(find.text('RECIPES'), findsOneWidget,
+        reason: 'the crumb: All shelves, then Recipes');
+    debugPrint('DEVICE-RUN F-143 sub-shelf head "${_peekText(tester)}"');
+    // Move into, write before you move: Finance into Recipes, and back.
+    router.go('/shelves/seed-tag-finance');
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.text('ALL SHELVES').evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.text('RECIPES'), findsNothing, reason: 'Finance is top level');
+    try {
+      await _openPageSettings(tester, 'Shelf settings');
+      final select = find.byType(KitShelfSelect);
+      await tester.ensureVisible(select);
+      await pumpFor(tester, total: const Duration(milliseconds: 400));
+      await tester.tap(select);
+      await pumpFor(tester, total: const Duration(milliseconds: 800));
+      await tester.tap(find.text('Recipes').hitTestable().last);
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.text('RECIPES').evaluate().isNotEmpty) break;
+      }
+      debugPrint('DEVICE-RUN F-143 move into: crumb '
+          '${find.text('RECIPES').evaluate().length}, refusal '
+          '${find.byType(KitFailureInline).evaluate().length}');
+      expect(find.text('RECIPES'), findsOneWidget,
+          reason: 'the stored parent came back on the subscription: the '
+              'crumb names it');
+      await tester.tap(select);
+      await pumpFor(tester, total: const Duration(milliseconds: 800));
+      await tester.tap(find.text('Top level').hitTestable().last);
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.text('RECIPES').evaluate().isEmpty) break;
+      }
+      expect(find.text('RECIPES'), findsNothing,
+          reason: 'back to the top level');
+    } finally {
+      // Put the seed back, whatever happened above.
+      await Api.instance.updateTag('seed-tag-finance', {'parentTagId': null});
+    }
+
+    // ── Search's Filters sheet ─────────────────────────────────────────────
+    router.go('/search');
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byKey(const ValueKey('search-field')).evaluate().isNotEmpty) {
+        break;
+      }
+    }
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    // The field stays in the masthead on a phone, under the standfirst.
+    final field = find.byKey(const ValueKey('search-field'));
+    expect(field.hitTestable(), findsOneWidget);
+    expect(tester.getTopLeft(field).dy, lessThan(view.height / 2));
+    debugPrint('DEVICE-RUN F-143 search head "${_peekText(tester)}"');
+    expect(_peekText(tester), contains('All sources'));
+    await _dropHead(tester);
+    final youtube = find
+        .descendant(of: find.byType(KitFacet), matching: find.text('YouTube'))
+        .hitTestable();
+    expect(youtube, findsOneWidget, reason: 'the Kind facet, dropped');
+    expect(find.text('READ AS').hitTestable(), findsOneWidget,
+        reason: 'Read as, while generative AI is on');
+    await tester.tap(youtube);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(youtube, findsNothing, reason: 'choosing a kind folds the head');
+    debugPrint('DEVICE-RUN F-143 search head after YouTube '
+        '"${_peekText(tester)}"');
+    expect(_peekText(tester), contains('YouTube'));
+    // Put the kind back for whoever searches next.
+    await _dropHead(tester);
+    await tester.tap(find
+        .descendant(
+            of: find.byType(KitFacet), matching: find.text('All sources'))
+        .hitTestable());
+    await pumpFor(tester, total: const Duration(seconds: 1));
+
+    // ── Ask's composer: one line, then up to 172 and no further ────────────
+    router.go('/ask');
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitGrowField).evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    final grow = find.byType(KitGrowField);
+    expect(grow, findsOneWidget);
+    final input = find.descendant(of: grow, matching: find.byType(TextField));
+    double h() => tester.getSize(input).height;
+    final one = h();
+    final heights = <int, double>{};
+    for (final n in [1, 3, 5, 7, 9]) {
+      await tester.enterText(
+          input, [for (var i = 1; i <= n; i++) 'Line $i of a question'].join('\n'));
+      await pumpFor(tester, total: const Duration(milliseconds: 500));
+      heights[n] = h();
+    }
+    debugPrint('DEVICE-RUN F-143 ask composer heights one=$one $heights');
+    expect(one, lessThan(48), reason: 'one line tall while empty');
+    expect(heights[3]!, greaterThan(heights[1]!));
+    expect(heights[5]!, greaterThan(heights[3]!));
+    expect(heights[7]!, lessThanOrEqualTo(172.5),
+        reason: 'it grows to about seven lines, 172px');
+    expect(heights[9]!, lessThanOrEqualTo(172.5),
+        reason: 'then scrolls inside');
+    // The composer docks above the tab bar.
+    final bar = tester.getTopLeft(find.byType(KitTabBar)).dy;
+    expect(tester.getBottomLeft(input).dy, lessThanOrEqualTo(bar),
+        reason: 'the composer docks above the tab bar');
+    await tester.enterText(input, '');
+    await pumpFor(tester, total: const Duration(milliseconds: 400));
   });
 
   testWidgets('study composes from the kit', (tester) async {
@@ -3336,6 +3544,42 @@ Future<void> _openSourceDetails(WidgetTester tester) async {
   expect(find.byKey(const ValueKey('d-panel')), findsOneWidget,
       reason: 'Source details did not open');
 }
+
+/// A D page's settings panel, from the app header's gear named [label]
+/// (kit §28, §30) — the same press a reader makes on a phone.
+Future<void> _openPageSettings(WidgetTester tester, String label) async {
+  final gear = find.descendant(
+      of: find.byType(KitAppHeader),
+      matching: find.byWidgetPredicate(
+          (w) => w is KitSettingsButton && w.settings.label == label));
+  expect(gear, findsOneWidget, reason: 'the header draws $label');
+  await tester.tap(gear);
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(const Duration(milliseconds: 150));
+  }
+  expect(find.byKey(const ValueKey('d-panel')), findsOneWidget,
+      reason: '$label did not open');
+}
+
+/// A D page's running head (kit §30), dropped by a tap on its line.
+Future<void> _dropHead(WidgetTester tester) async {
+  final peek = find.byKey(const ValueKey('d-peek'));
+  expect(peek, findsOneWidget, reason: 'no running head on this page');
+  await tester.tap(peek);
+  for (var i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 150));
+  }
+}
+
+/// The running head's line as text (its peek, folded or dropped).
+String _peekText(WidgetTester tester) => find
+    .descendant(
+        of: find.byKey(const ValueKey('d-peek')),
+        matching: find.byType(RichText))
+    .evaluate()
+    .map((e) => (e.widget as RichText).text.toPlainText())
+    .where((t) => t.trim().isNotEmpty)
+    .join(' · ');
 
 /// Drags the screen with REAL gestures until its primary scroll is at the end
 /// (INV-22, ADR-173), lets the bounce settle, and asserts the support footer is

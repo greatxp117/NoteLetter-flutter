@@ -361,11 +361,16 @@ void main() {
           reason: 'the dock stays docked at the pane\'s bottom');
     });
 
-    testWidgets('Ask, the real screen: the composer stays docked and the '
-        'footer ends the scroll above it', (tester) async {
+    testWidgets('Ask, the real screen: the composer docks at the column\'s '
+        'foot and the footer ends the scroll below it', (tester) async {
+      // Direction D (F-143): the composer is [KitDPage.dock] — sticky at the
+      // foot of the main column, not a dock floating over the pane. With
+      // nothing asked yet the column (at least the window less 120 wide; its
+      // content's own height on a phone) ends with it, and the footer follows.
       for (final size in [pane, const Size(402, 874)]) {
         FirestoreService.instance = _NoThreads();
         addTearDown(FirestoreService.resetInstance);
+        KitPageTools.instance.reset();
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.reset);
@@ -386,25 +391,29 @@ void main() {
           await tester.pump(const Duration(milliseconds: 50));
         }
         expect(find.byType(KitSupportFooter), findsOneWidget, reason: '$size');
-        await dragToEnd(
-            tester,
-            find
-                .ancestor(
-                    of: find.byType(KitSupportFooter),
-                    matching: find.byType(Scrollable))
-                .first);
-        final dock = tester.getRect(find.byType(KitComposerDock));
-        expect(dock.bottom, size.height,
-            reason: 'the dock stays docked at the bottom ($size)');
-        expect(footer(tester).bottom,
-            closeTo(dock.top - KitComposerDock.scrimRise, 0.5),
-            reason: 'the footer rests above the dock, clear of its scrim '
+        final scroller = find
+            .ancestor(
+                of: find.byType(KitSupportFooter),
+                matching: find.byType(Scrollable))
+            .first;
+        final view = tester.getRect(scroller);
+        final dock = find.byType(KitAskComposer);
+        expect(tester.getRect(dock).bottom, lessThanOrEqualTo(view.bottom),
+            reason: 'the composer is on screen before any scroll ($size)');
+        await dragToEnd(tester, scroller);
+        for (var i = 0; i < 4; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(footer(tester).bottom, closeTo(view.bottom, 0.5),
+            reason: 'the footer ends the scroll ($size)');
+        expect(tester.getRect(dock).bottom, lessThan(footer(tester).top),
+            reason: 'the composer rests above the footer, never over it '
                 '($size)');
         expect(
-            footer(tester).top,
+            tester.getRect(dock).top,
             greaterThanOrEqualTo(
                 tester.getRect(find.byType(KitEmptyState)).bottom),
-            reason: 'after the screen\'s content ($size)');
+            reason: 'at the foot of the column, after its content ($size)');
       }
     });
 

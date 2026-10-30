@@ -279,31 +279,25 @@ void main() {
     });
   });
 
-  group('the Shelves index', () {
-    testWidgets('each card carries it in its foot, Lead and Muted only',
-        (tester) async {
+  group('the Shelves index (§42, direction D)', () {
+    testWidgets('the catalogue carries it on each shelf\'s mark line, Lead and '
+        'Muted only', (tester) async {
       await _pump(tester, const ShelvesPage(), settings: _on);
+      expect(find.byType(KitShelfCatalogue), findsOneWidget);
       expect(
           find.descendant(
-              of: find.byType(KitShelfCard), matching: _chip('LEAD')),
+              of: find.byType(KitShelfCatalogue), matching: _chip('LEAD')),
           findsOneWidget);
       expect(
           find.descendant(
-              of: find.byType(KitShelfCard), matching: _chip('MUTED')),
+              of: find.byType(KitShelfCatalogue), matching: _chip('MUTED')),
           findsOneWidget);
-      final mixed = find.ancestor(
-          of: find.text('Blended'), matching: find.byType(KitShelfCard));
-      expect(find.descendant(of: mixed, matching: find.byType(KitStatusPill)),
-          findsNothing);
-      // In the foot: below the card's last volume line.
-      final lead = find.ancestor(
-          of: find.text('Leading'), matching: find.byType(KitShelfCard));
-      expect(
-          tester.getTopLeft(find.descendant(of: lead, matching: _chip('LEAD'))).dy,
-          greaterThan(tester
-              .getBottomLeft(
-                  find.descendant(of: lead, matching: find.text('On Leading')))
-              .dy));
+      // At the mark line's trailing edge: right of the shelf's numeral.
+      final col = find.byKey(const ValueKey('cat-lead'));
+      final chip = find.descendant(of: col, matching: _chip('LEAD'));
+      final numeral = find.descendant(of: col, matching: find.text('§ I'));
+      expect(tester.getTopLeft(chip).dx,
+          greaterThan(tester.getTopRight(numeral).dx));
     });
 
     testWidgets('no chip while the letter is off', (tester) async {

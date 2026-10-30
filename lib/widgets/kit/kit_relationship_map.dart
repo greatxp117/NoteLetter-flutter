@@ -56,6 +56,11 @@ class KitRelationshipMap extends StatefulWidget {
   /// A node to select and centre on arrival — a shelf's *See on map*.
   final String? focusKey;
 
+  /// Bumped by each pick of a shelf from the page's sheet (*Go to a shelf*),
+  /// so a map already drawn selects and centres [focusKey] again — the same
+  /// shelf picked twice centres it twice (web `focusN`).
+  final int focusN;
+
   /// The documents subscription's limit, for the window label.
   final int windowSize;
 
@@ -67,6 +72,7 @@ class KitRelationshipMap extends StatefulWidget {
     super.key,
     required this.graph,
     this.focusKey,
+    this.focusN = 0,
     this.windowSize = documentWindow,
     required this.onOpen,
   });
@@ -167,6 +173,10 @@ class _KitRelationshipMapState extends State<KitRelationshipMap> {
   void didUpdateWidget(KitRelationshipMap old) {
     super.didUpdateWidget(old);
     if (!identical(old.graph, widget.graph)) _s.setGraph(widget.graph);
+    final f = widget.focusKey;
+    if (widget.focusN != old.focusN && f != null && _s.graph.nodes.containsKey(f)) {
+      _s.selectAndCentre(f);
+    }
   }
 
   @override

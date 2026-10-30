@@ -106,7 +106,10 @@ void main() {
             ),
             size: size,
           );
-          expect(find.text('§ LIBRARY · 41 SOURCES'), findsOneWidget);
+          // The separator keeps a no-break space before the dot (web
+          // c62733f): a folio that wraps never starts a line with `·`.
+          expect(find.text('§ LIBRARY\u00a0· 41 SOURCES'), findsOneWidget);
+          expect(find.text('§ LIBRARY · 41 SOURCES'), findsNothing);
           final rich = tester.widget<RichText>(
             find.byWidgetPredicate(
               (w) =>

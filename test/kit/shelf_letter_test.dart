@@ -63,6 +63,9 @@ class _Tags extends TagsNotifier {
 class _Docs extends DocumentsNotifier {
   @override
   void start() {}
+  // Answered: the D page waits for both reads before it draws the shelf.
+  @override
+  bool get loading => false;
   @override
   List<Document> get complete => const [];
   @override
@@ -89,10 +92,16 @@ Future<_Tags> _pump(WidgetTester tester, {String? mode}) async {
     ),
   ));
   await tester.pump();
+  // Direction D: *In your letter* is Shelf settings' first group (kit §28).
+  expect(KitPageTools.instance.openSettings('letter'), isTrue);
+  await tester.pump();
   return tags;
 }
 
 final _weight = find.byKey(const ValueKey('shelf-letter-weight'));
+
+KitSlideSwitch<String> _w(WidgetTester tester) =>
+    tester.widget<KitSlideSwitch<String>>(_weight);
 
 bool _switchOn(WidgetTester tester) =>
     tester.widget<KitSwitch>(find.byType(KitSwitch)).value;
@@ -105,14 +114,14 @@ void main() {
     expect(find.text('This shelf is muted — its passages stay out of your letter.'),
         findsOneWidget);
     expect(_weight, findsNothing);   // no weight while muted
-    expect(find.text('Muted'), findsOneWidget);          // the stat
+    expect(find.text('Muted'), findsOneWidget);  // the sheet's In your letter
 
     await _pump(tester);
     expect(_switchOn(tester), isTrue);
-    expect(tester.widget<KitSegmented>(_weight).selected, 1);
+    expect(_w(tester).value, 'mixed');
 
     await _pump(tester, mode: 'loud');
-    expect(tester.widget<KitSegmented>(_weight).selected, 1);
+    expect(_w(tester).value, 'mixed');
   });
 
   testWidgets('a refused mute keeps the switch on and says why',
@@ -125,8 +134,7 @@ void main() {
     expect(tags.calls, ['muted']);
     expect(_switchOn(tester), isTrue);
     expect(tester.widget<KitSwitch>(find.byType(KitSwitch)).onChanged, isNull);
-    expect(tester.widget<KitSegmented>(_weight).onChanged,
-        isNull);
+    expect(_w(tester).held, isTrue);
 
     tags.pending!.complete('letter_mode must be one of: lead, mixed, muted');
     await tester.pump();
@@ -134,7 +142,7 @@ void main() {
     expect(_switchOn(tester), isTrue);
     expect(find.text('letter_mode must be one of: lead, mixed, muted'),
         findsOneWidget);
-    expect(tester.widget<KitSegmented>(_weight).selected, 0);
+    expect(_w(tester).value, 'lead');
   });
 
   testWidgets('an accepted choice moves only once the write resolves',
@@ -143,12 +151,12 @@ void main() {
     await tester.tap(find.text('Lead'));
     await tester.pump();
     expect(tags.calls, ['lead']);
-    expect(tester.widget<KitSegmented>(_weight).selected, 1);
+    expect(_w(tester).value, 'mixed');
 
     tags.pending!.complete(null);
     await tester.pump();
     await tester.pump();
-    expect(tester.widget<KitSegmented>(_weight).selected, 0);
+    expect(_w(tester).value, 'lead');
     expect(find.text('often opens your letter'), findsOneWidget);
     expect(find.byType(KitFailureInline), findsNothing);
   });

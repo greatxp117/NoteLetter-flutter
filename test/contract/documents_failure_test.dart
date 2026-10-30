@@ -195,7 +195,7 @@ void main() {
     expect(find.byType(KitFirstSources), findsNothing,
         reason: 'the empty state is an offer to add a first source — on an '
             'account that may be full of them');
-    expect(find.textContaining('— SOURCES · — PASSAGES'), findsOneWidget);
+    expect(find.textContaining('— SOURCES\u00a0· — PASSAGES'), findsOneWidget);
     expect(find.textContaining('Sign out and back in'), findsNWidgets(2),
         reason: 'C7 — the SDK\'s bracketed code is not a sentence, and the '
             'mapped one still proves the rejection reached the slot');
@@ -213,7 +213,7 @@ void main() {
     expect(find.byType(KitFirstSources), findsOneWidget,
         reason: 'an empty library is a real measurement and keeps its offer');
     expect(find.byType(KitFailureInline), findsNothing);
-    expect(find.textContaining('0 SOURCES · 0 PASSAGES'), findsOneWidget,
+    expect(find.textContaining('0 SOURCES\u00a0· 0 PASSAGES'), findsOneWidget,
         reason: 'a measured 0 is drawn');
   });
 
@@ -239,7 +239,7 @@ void main() {
         findsNWidgets(2));
     expect(find.byType(KitRegisterRow), findsNothing);
     expect(find.byType(KitFirstSources), findsNothing);
-    expect(find.textContaining('— SOURCES · — PASSAGES'), findsOneWidget);
+    expect(find.textContaining('— SOURCES\u00a0· — PASSAGES'), findsOneWidget);
   });
 
   testWidgets('Retry re-subscribes — `start` is idempotent on `_sub`',
@@ -285,7 +285,7 @@ void main() {
         find.byWidgetPredicate((w) =>
             w is Text && (w.data ?? '').toLowerCase().contains('0 volumes')),
         findsNothing);
-    expect(find.textContaining('— VOLUMES · — SHELVES'), findsOneWidget);
+    expect(find.textContaining('— VOLUMES\u00a0· — SHELVES'), findsOneWidget);
     expect(find.textContaining('Nothing indexed yet'), findsNothing);
 
     // A refused read is never empty (INV-24): no standfirst, no drop zone,

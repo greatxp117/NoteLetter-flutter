@@ -9,9 +9,11 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/error_text.dart';
 import '../services/analytics.dart';
 
-/// Ask — conversational retrieval over the reader's own notes, and the app
+/// Ask — conversational retrieval over the reader's own notes, answered in the
+/// app's own words with the passages quoted (5.30.0, ADR-187), and the app
 /// remembers it (contract 4.53.0/4.54.0, ADR-090; `spec/screens/ask.md`).
 ///
 /// Everything on screen except the turn in flight comes from **Firestore**
@@ -51,6 +53,11 @@ class ChatNotifier extends ChangeNotifier {
   String? _threadError;
 
   bool _loadingThreads = true;
+
+  /// Whether the open conversation's messages have been READ once. Until then
+  /// the column draws skeleton lines — never the thinking line: restoring a
+  /// conversation issues no request (`screens/ask.md` §States).
+  bool _messagesLoaded = false;
 
   /// The shelf the ROUTE asked for (`/ask/shelf/{tagId}`, 4.62.0, ADR-098).
   /// An OPEN thread's own scope wins over it: a thread carries the shelf it was
@@ -114,6 +121,7 @@ class ChatNotifier extends ChangeNotifier {
   String? get railError => _railError;
   String? get threadError => _threadError;
   bool get loadingThreads => _loadingThreads;
+  bool get messagesLoaded => _messagesLoaded;
   String? get renamingId => _renamingId;
   bool entryBusy(String id) => _entryBusyId == id;
   String? entryError(String id) => _entryErrorId == id ? _entryError : null;
@@ -133,9 +141,11 @@ class ChatNotifier extends ChangeNotifier {
       },
       // INV-24 (ADR-071): a subscription that fails says so. An empty rail and
       // a rail we could not read are not the same picture.
+      // §14.3: a refused read carries no envelope of ours, so the sentence is
+      // the one `describeSdkError` maps — never the plugin's bracketed code.
       onError: (Object e) {
         _loadingThreads = false;
-        _railError = e is ApiException ? e.message : e.toString();
+        _railError = describeSdkError(e);
         notifyListeners();
       },
     );
@@ -160,10 +170,6 @@ class ChatNotifier extends ChangeNotifier {
     }
     if (_activeId == threadId) return;
     _activeId = threadId;
-    _threadError = null;
-    _messages = const [];
-    _messagesSub?.cancel();
-    _messagesSub = null;
     // A turn belongs to the conversation it was asked in, so a navigation
     // drops it — EXCEPT the navigation the turn itself caused. The first turn
     // of a new conversation moves the screen to the thread the endpoint just
@@ -172,19 +178,42 @@ class ChatNotifier extends ChangeNotifier {
     // first delivery: ADR-097's own gap, reopened by the fix for something
     // else. It is retired by its stored message, here as everywhere.
     if (_sent?.threadId != threadId) _sent = null;
+    _subscribeMessages();
+    scheduleMicrotask(notifyListeners);
+  }
+
+  /// §14.1's retry for a transcript that could not be READ: the same
+  /// subscription, again. It must re-subscribe — a retry that only re-renders
+  /// is a dead control on the one state that exists to offer a way out (web
+  /// AskView's `retryTick`).
+  void retryThread() {
+    if (_activeId == null) return;
+    _subscribeMessages();
+    notifyListeners();
+  }
+
+  void _subscribeMessages() {
+    final threadId = _activeId;
+    _threadError = null;
+    _messages = const [];
+    _messagesLoaded = false;
+    _messagesSub?.cancel();
+    _messagesSub = null;
     if (threadId != null) {
       _messagesSub =
           FirestoreService.instance.subscribeAskMessages(threadId).listen((m) {
         _messages = m;
+        _messagesLoaded = true;
         _threadError = null;
         _retireSentTurn();
         notifyListeners();
       }, onError: (Object e) {
-        _threadError = e is ApiException ? e.message : e.toString();
+        // INV-24: a transcript that could not be read is §14.1, never the
+        // empty state — which would say the reader had asked nothing.
+        _threadError = describeSdkError(e);
         notifyListeners();
       });
     }
-    scheduleMicrotask(notifyListeners);
   }
 
   /// The sent turn retires when ITS OWN stored message arrives — including a

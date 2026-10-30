@@ -3,7 +3,7 @@
 folded-through: 4.52.1
 pin-holds-at: 4.4.0
 retired-shots: shelf-backfill-review   # 4.102.0 (ADR-136): the in-sheet review is a stored task now; its pair is web's review-backfill on /review
-retired-paths: lib/pages/library/document_detail_sheet.dart; lib/widgets/kit/kit_section_rail.dart   # F-99 (2026-10-13): the library row's Priority & tags sheet; a finished source's priority is the reader's (sources.md §Per-source affordances). F-142 (2026-10-30): §19's section rail retired with direction D — the source page's sheet carries Contents (kit §29)
+retired-paths: lib/pages/library/document_detail_sheet.dart; lib/widgets/kit/kit_section_rail.dart; lib/pages/search/result_card.dart; lib/pages/search/reading_pane.dart   # F-99 (2026-10-13): the library row's Priority & tags sheet; a finished source's priority is the reader's (sources.md §Per-source affordances). F-142 (2026-10-30): §19's section rail retired with direction D — the source page's sheet carries Contents (kit §29) F-143 (2026-10-30): Search in direction D reads a result in place among its neighbours (search.md §Composition), so the result card and the reading pane retired with web's ResultCard + ReadingPane (ResultD, lib/pages/search/result_d.dart).
 retired-web-paths: src/pages/sources/ShelfView.jsx; src/styles/app-sources-shelf.css; src/pages/letters/LetterBarActions.jsx   # direction D (web redesign-d 2026-10-30): W1 deleted the spine view (the Library is List / Grid); W4 deleted the letter bar's actions (a68efb7)
 
 Driver: `/flutter-next` (one item per run, top to bottom). Refresh: `/parity flutter`.
@@ -2342,15 +2342,15 @@ a new obligation on a finished screen is a new item.
 - notes: ReaderHybrid + SecD. Folds F-130 (Re-process, Mark as read, dwell) and F-132 (Listen speed, boundary drag): Xavier ruled D in tandem 2026-10-30, which lifts F-132's approval hold. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-143 · Direction D: Shelves, a shelf, the shelf map, Search and Ask (5.42.0, ADR-197)
-- status: open
+- status: in-progress
 - screen: shelves, search, ask
 - route: /shelves, /shelves/{id}, /shelves/map, /search, /ask
-- spec: spec/screens/library.md; spec/screens/search.md; spec/screens/ask.md
-- web: src/pages/ShelvesView.jsx; src/pages/SearchView.jsx; src/pages/AskView.jsx
-- flutter: lib/pages/tags_page.dart; lib/pages/tags/shelf_page.dart; lib/pages/tags/shelf_map_page.dart; lib/pages/search_page.dart; lib/pages/chat_page.dart
+- spec: spec/screens/library.md; spec/screens/search.md; spec/screens/ask.md; spec/api/ask.md; spec/component-kit.md
+- web: src/pages/ShelvesView.jsx; src/pages/map/MapView.jsx; src/pages/SearchView.jsx; src/pages/AskView.jsx; src/shared/AskAnswer.jsx; src/shared/SuggestShelves.jsx; src/kit/d/Shelves.jsx; src/kit/d/Catalogue.jsx; src/kit/d/Skeleton.jsx
+- flutter: lib/pages/tags_page.dart; lib/pages/tags/shelf_page.dart; lib/pages/tags/shelf_map_page.dart; lib/pages/tags/suggest_shelves.dart; lib/pages/search_page.dart; lib/pages/search/result_d.dart (new); lib/pages/search/search_field.dart; lib/pages/search/cohesive_column.dart; lib/pages/chat_page.dart; lib/models/ask_thread.dart; lib/state/chat_notifier.dart; lib/widgets/kit/kit_d_shelf.dart (new); lib/widgets/kit/kit_ask_answer.dart (new); lib/widgets/kit/kit_d_frame.dart; lib/widgets/kit/kit_d_parts.dart; lib/widgets/kit/kit_d_library.dart; lib/widgets/kit/kit_d_shelves.dart; lib/widgets/kit/kit_relationship_map.dart; test/kit/d_shelves_test.dart (new); test/kit/d_search_test.dart (new); test/kit/d_ask_test.dart (new)
 - folds: 5.42.0; F-131; F-134
 - device_test: integration_test: shelves List/Grid, a shelf's sheet, Search's filters sheet, Ask's composer growing to seven lines
-- shots: shelves; shelf-map; search; ask-thread
+- shots: shelves; shelf; shelf-map; search; ask; ask-thread; ask-answer-note; ask-rail; ask-turn-failed; shelf-color-picker; shelf-letter; shelf-letter-error
 - extra_gates: flutter test test/contract
 - notes: Folds F-134 (Ask's written answer and quotes; its approval hold lifted by Xavier's D-in-tandem ruling) and whatever of F-131 is still open. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 

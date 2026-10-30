@@ -12,7 +12,7 @@ import 'score_explainer.dart';
 
 /// **Cohesive body** (`spec/screens/search.md` §Composition, 4.40.0, ADR-078).
 ///
-/// A single reading column replacing the split pane: per section a serif
+/// A single reading column in place of the results register: per section a serif
 /// heading, the bridge as an italic standfirst, then one passage card per
 /// passage. Sections are separated by a rule — 36 above, 28 below.
 ///
@@ -53,8 +53,10 @@ class CohesiveColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
 
-    Widget column(Widget child) => Center(
-          // The wide frame's inner gutter — a reading column, not a page.
+    Widget column(Widget child) => Align(
+          // A reading column at the D column's start (web `.search-cohesive
+          // { max-width: 720px }`), not centred in it.
+          alignment: Alignment.topLeft,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
             child: child,
@@ -72,12 +74,9 @@ class CohesiveColumn extends StatelessWidget {
 
     final r = reading;
     if (r == null || r.kept == 0) {
-      return column(KitEmptyState(
-        icon: Icons.auto_awesome_outlined,
-        title: 'Nothing to arrange *yet.*',
-        standfirst: 'No passage in the library cleared this breadth. Widening '
-            'it asks the same question of more of your notes.',
-      ));
+      // `kept: 0` is the no-results rendering, never the failure one (web
+      // `CohesiveReading`'s `.browse-none`).
+      return column(const KitDNone('No passages found.', top: 18));
     }
 
     return column(Column(
@@ -160,7 +159,7 @@ class _Section extends StatelessWidget {
 
 /// A placed passage. The kit's §5.2 anatomy — meta row, serif quote, action bar
 /// behind a rule — with the search screen's meta row rather than §5.2's mono
-/// page-ref, exactly as [SearchResultCard] has it: a passage here is identified
+/// page-ref, as a result row ([SearchResultD]) has its own: a passage here is identified
 /// by which source it came from and how well it matched.
 ///
 /// The quote is the stored `html`, rendered as-is. It was sanitized at ingest

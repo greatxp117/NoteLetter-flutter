@@ -187,7 +187,7 @@ void main() {
     expect(tester.getTopLeft(find.text('Baking')).dy,
         greaterThan(tester.getTopLeft(find.text('Recipes').first).dy));
     // The folio counts the top-level shelves.
-    expect(find.textContaining('4 VOLUMES · 1 SHELF'), findsOneWidget);
+    expect(find.textContaining('4 VOLUMES\u00a0· 1 SHELF'), findsOneWidget);
 
     await tester.tap(find.descendant(
         of: find.byType(KitShelfFacet), matching: find.text('Recipes')));
@@ -237,7 +237,7 @@ void main() {
 
     expect(find.textContaining('— VOLUMES'), findsNothing,
         reason: 'measured: the folio draws its figures');
-    expect(find.textContaining('0 VOLUMES · 0 SHELVES'), findsOneWidget);
+    expect(find.textContaining('0 VOLUMES\u00a0· 0 SHELVES'), findsOneWidget);
     expect(find.text('One volume is being read now. Each joins the catalogue '
         'as soon as its passages are indexed.'), findsOneWidget);
     expect(find.text('WHAT YOU CAN ADD'), findsOneWidget,
@@ -277,7 +277,7 @@ void main() {
     await pumpSources(tester, SourcesStubService(documents: never.stream));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.byType(KitSkeletonLines), findsNWidgets(2));
-    expect(find.textContaining('— VOLUMES · — SHELVES'), findsOneWidget);
+    expect(find.textContaining('— VOLUMES\u00a0· — SHELVES'), findsOneWidget);
     expect(find.textContaining('Nothing here yet'), findsNothing);
     expect(find.text('Drop files to begin'), findsNothing);
   });

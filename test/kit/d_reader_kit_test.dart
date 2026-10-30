@@ -166,7 +166,7 @@ void main() {
         size: const Size(390, 844),
       );
       final back = tester.getTopLeft(find.text('LIBRARY'));
-      final folio = tester.getTopLeft(find.text('FINANCE · DOCUMENT'));
+      final folio = tester.getTopLeft(find.text('FINANCE\u00a0· DOCUMENT'));
       expect(folio.dy, greaterThan(back.dy + 10));
       expect(folio.dx, lessThan(back.dx),
           reason: 'the folio starts the line, under the chevron');

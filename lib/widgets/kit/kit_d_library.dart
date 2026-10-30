@@ -27,6 +27,7 @@ import 'kit_controls.dart' show KitProcTone;
 import 'kit_d_frame.dart' show KitSheetScope;
 import 'kit_d_home.dart' show KitHxLink;
 import 'kit_d_parts.dart';
+import 'kit_d_shelf.dart' show KitShelfRow, KitShelfRows;
 import 'kit_provider_logo.dart';
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_wait.dart' show kitWaitLabel;
@@ -1034,113 +1035,20 @@ class KitShelfFacet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
-    final t = Tokens.of(context);
-    final scope = KitSheetScope.maybeOf(context);
-    final lines = scope?.lines ?? false;
-    final dock = scope?.dock ?? false;
+    final dock = KitSheetScope.maybeOf(context)?.dock ?? false;
 
-    Widget row(String? id, String title, Color? color, int depth, int count) {
-      final on = id == value;
-      final sub = depth > 0;
-      return KitDTap(
-        label: title,
-        selected: on,
-        onTap: () {
-          if (on) return;
-          onChanged(id);
-          KitSheetScope.pick(context);
-        },
-        builder: (context, hover, focus) {
-          final style = AppTheme.serif(
-            fontSize: 16,
-            fontWeight: on ? FontWeight.w600 : FontWeight.w400,
-            fontStyle: sub ? FontStyle.italic : FontStyle.normal,
-            color: on || hover ? t.fg : t.fgMuted,
-          );
-          final swatch = Container(
-            width: 8,
-            height: 11,
-            decoration: BoxDecoration(
-              color: color ?? t.borderStrong,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(1),
-                bottomLeft: Radius.circular(1),
-                topRight: Radius.circular(2),
-                bottomRight: Radius.circular(2),
-              ),
-            ),
-          );
-          final countText = Text(
-            '$count',
-            style: AppTheme.mono(fontSize: 11, color: t.fgSubtle),
-          );
-          final body = Row(
-            mainAxisSize: lines ? MainAxisSize.min : MainAxisSize.max,
-            children: [
-              swatch,
-              const SizedBox(width: 10),
-              lines
-                  ? Text(title, style: style)
-                  : Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: style,
-                      ),
-                    ),
-              const SizedBox(width: 10),
-              countText,
-            ],
-          );
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                padding: EdgeInsets.only(
-                  left: sub && !dock ? 18 : 0,
-                  top: lines ? (dock ? 10 : 6) : 8,
-                  bottom: lines ? (dock ? 10 : 6) : 8,
-                ),
-                decoration: lines
-                    ? null
-                    : BoxDecoration(
-                        border: Border(bottom: BorderSide(color: t.rule)),
-                      ),
-                child: body,
-              ),
-              if (on)
-                Positioned(
-                  left: -16,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: t.accent,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-              if (focus)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: t.accent, width: 2),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      );
-    }
+    // The row is the kit's `.lx-shelf` ([KitShelfRow]); a facet's chosen row
+    // is inert, and a choice folds the running head.
+    Widget row(String? id, String title, Color? color, int depth, int count) =>
+        KitShelfRow(
+          title: title,
+          color: color,
+          count: '$count',
+          sub: depth > 0,
+          on: id == value,
+          chosenInert: true,
+          onTap: () => onChanged(id),
+        );
 
     final rows = <Widget>[
       row(null, 'Every shelf', null, 0, total),
@@ -1154,15 +1062,7 @@ class KitShelfFacet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           KitDLabel('Shelf', top: dock ? 16 : 22),
-          Padding(
-            padding: EdgeInsets.only(left: lines ? 16 : 0),
-            child: lines
-                ? Wrap(spacing: 22, children: rows)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: rows,
-                  ),
-          ),
+          KitShelfRows(children: rows),
         ],
       ),
     );
@@ -1279,20 +1179,30 @@ class KitJumpLetters extends StatelessWidget {
 /// 600 16.5/22), an optional mono caps [meta], and at the trailing edge a
 /// [count] in mono with its [tail] subtler (` of 7`, ` of 3 ready`).
 class KitLibPeek extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+
+  /// What leads the line in place of the glyph — a shelf's swatch
+  /// ([KitShelfSwatch], web `.dp-peek-sw`).
+  final Widget? mark;
   final String title;
   final String? meta;
   final String? count;
   final String? tail;
 
+  /// The title while the page's read is out: `--fg-muted` (web
+  /// `.d-peek-t.d-peek-wait`).
+  final bool wait;
+
   const KitLibPeek({
     super.key,
-    required this.icon,
+    this.icon,
+    this.mark,
     required this.title,
     this.meta,
     this.count,
     this.tail,
-  });
+    this.wait = false,
+  }) : assert(icon != null || mark != null);
 
   @override
   Widget build(BuildContext context) {
@@ -1300,7 +1210,7 @@ class KitLibPeek extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        KitGlyph(icon, size: 16, color: t.fgMuted),
+        mark ?? KitGlyph(icon!, size: 16, color: t.fgMuted),
         const SizedBox(width: 10),
         Expanded(
           child: Row(
@@ -1316,7 +1226,7 @@ class KitLibPeek extends StatelessWidget {
                     fontSize: 16.5,
                     height: 22 / 16.5,
                     fontWeight: FontWeight.w600,
-                    color: t.fg,
+                    color: wait ? t.fgMuted : t.fg,
                     opsz: 18,
                   ),
                 ),

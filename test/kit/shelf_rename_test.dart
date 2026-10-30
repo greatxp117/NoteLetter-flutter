@@ -74,7 +74,8 @@ Future<_Tags> _rename(WidgetTester tester, String? answer) async {
     ),
   ));
   await tester.pump();
-  await tester.tap(find.text('Settings'));
+  // Direction D: the name is in Shelf settings, the page's §28 panel.
+  expect(KitPageTools.instance.openSettings(), isTrue);
   await tester.pump();
 
   final field = find.descendant(

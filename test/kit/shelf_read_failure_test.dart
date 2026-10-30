@@ -60,12 +60,16 @@ void main() {
     await _open(tester, 'Missing or insufficient permissions.');
     expect(find.byType(KitFailureBlock), findsOneWidget);
     expect(find.text('This shelf could not be read.'), findsOneWidget);
-    expect(find.text('Shelf not found'), findsNothing);
+    expect(find.text('Shelf Not Found'), findsNothing);
+    expect(find.text('This shelf may have been deleted.'), findsNothing);
+    // Direction D: the frame's title is *Shelf* over the §14.1 block.
+    expect(find.text('Shelf'), findsOneWidget);
   });
 
   testWidgets('a read without the shelf is still not found', (tester) async {
     await _open(tester, null);
-    expect(find.text('Shelf not found'), findsOneWidget);
+    expect(find.text('Shelf Not Found'), findsOneWidget);
+    expect(find.text('This shelf may have been deleted.'), findsOneWidget);
     expect(find.byType(KitFailureBlock), findsNothing);
   });
 }

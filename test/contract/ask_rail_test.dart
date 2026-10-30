@@ -1,11 +1,11 @@
-// F-78 (4) — Ask's §9 rail on a phone is drawn over everything (the shell's
-// bar and footer included), the full height of the screen, from the header's
-// History link. It moved onto the ROOT overlay in ae81173 and was given the
-// view's insets in 1da6a97 with analyze as its only gate. (The 2026-10-12 frame
-// batch's "no rail" was its hold tapping History on the page the send was
-// about to replace — fixed in the hold; this is the gate that was missing.)
+// Ask's conversations on a phone (direction D, F-143; screens/ask.md
+// §Composition, kit §9 note and §30): the §9 rail is no longer an overlay
+// reached from a *History* link — it is the page's sheet, and on a phone its
+// RUNNING HEAD: one line under the app header (the history glyph,
+// *Conversations* or the open title, the count), which drops the list down
+// from itself, and which the scrim, or choosing *New conversation* or an
+// entry, folds.
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -25,7 +25,14 @@ class _Threads extends FirestoreService {
 
   @override
   Stream<List<AskThread>> subscribeAskThreads({int limit = 100}) =>
-      Stream.value(const []);
+      Stream.value([
+        AskThread(
+          id: 't1',
+          title: 'What did I read about grace?',
+          preview: 'and about mercy?',
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      ]);
 
   @override
   Stream<List<AskMessage>> subscribeAskMessages(String threadId) =>
@@ -33,18 +40,18 @@ class _Threads extends FirestoreService {
 }
 
 void main() {
-  testWidgets('History opens the rail over the whole screen, and the scrim '
-      'closes it', (tester) async {
+  testWidgets('the running head drops the conversations, and the scrim and '
+      'New conversation fold them', (tester) async {
     tester.view.physicalSize = const Size(402, 874);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     FirestoreService.instance = _Threads();
     addTearDown(FirestoreService.resetInstance);
+    KitPageTools.instance.reset();
 
     final router = GoRouter(initialLocation: '/ask', routes: [
       GoRoute(
-          path: '/ask',
-          builder: (_, _) => const Scaffold(body: ChatPage())),
+          path: '/ask', builder: (_, _) => const Scaffold(body: ChatPage())),
     ]);
     await tester.pumpWidget(MultiProvider(
       providers: [
@@ -53,31 +60,46 @@ void main() {
       ],
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
     ));
-    await tester.pump();
-    await tester.pump();
+    Future<void> settle() async {
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+    }
 
-    expect(find.byType(KitInspectorRail), findsNothing);
-    await tester.tap(find.text('History'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(KitInspectorRail), findsOneWidget,
-        reason: 'History opens §9');
-    final rail = tester.getRect(find.byType(KitInspectorRail));
-    expect(rail.top, 0, reason: 'top: 0, over the shell\'s bar');
-    expect(rail.height, 874, reason: 'the full height of the screen');
-    // Under the status bar, the bar's glyphs take the rail's light ground.
-    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(find
-        .ancestor(
-            of: find.byType(KitInspectorRail),
-            matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>))
-        .first);
-    expect(region.value, SystemUiOverlayStyle.dark);
+    await settle();
 
-    await tester.tapAt(const Offset(390, 400)); // the scrim, right of the rail
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('History'), findsNothing, reason: 'the pre-D link');
     expect(find.byType(KitInspectorRail), findsNothing,
-        reason: 'the backdrop closes on press');
+        reason: 'no overlay rail in D');
+    final peek = find.byKey(const ValueKey('d-peek'));
+    expect(peek, findsOneWidget);
+    expect(find.descendant(of: peek, matching: find.text('Conversations')),
+        findsOneWidget);
+    expect(find.descendant(of: peek, matching: find.text('1')),
+        findsOneWidget, reason: 'the count of conversations');
+    expect(tester.getRect(peek).top, 0, reason: 'fixed at the top');
+
+    // Folded, its body is inert.
+    expect(find.text('What did I read about grace?').hitTestable(),
+        findsNothing);
+    await tester.tap(peek);
+    await settle();
+    expect(find.text('What did I read about grace?').hitTestable(),
+        findsOneWidget, reason: 'tapping the line drops the sheet');
+
+    // The scrim folds it.
+    await tester.tapAt(const Offset(200, 840));
+    await settle();
+    expect(find.text('What did I read about grace?').hitTestable(),
+        findsNothing);
+
+    // So does choosing New conversation.
+    await tester.tap(peek);
+    await settle();
+    await tester.tap(find.byKey(const ValueKey('ask-new')));
+    await settle();
+    expect(find.text('What did I read about grace?').hitTestable(),
+        findsNothing, reason: 'choosing a row folds the running head');
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 1));

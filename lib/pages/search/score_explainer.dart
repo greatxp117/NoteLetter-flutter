@@ -6,10 +6,10 @@ import '../../widgets/kit/kit.dart';
 /// ADR-082) — kit §16 anchored popover, on both result surfaces.
 ///
 /// The score is a blend, and until 4.44.0 nothing said so to a reader. The
-/// meter on the classic result card and the mono figure in the cohesive column
-/// carry the **same** explainer on their own score element; §16 asks that an
-/// anchor be a control, not that every anchor look alike, so neither surface
-/// changes appearance.
+/// meter on a result row (direction D's register) and the mono figure in the
+/// cohesive column carry the **same** explainer on their own score element;
+/// §16 asks that an anchor be a control, not that every anchor look alike, so
+/// neither surface changes appearance.
 ///
 /// **Every figure is measured.** The components come off the response; the
 /// contribution is `weight × component` with the weights read from the
