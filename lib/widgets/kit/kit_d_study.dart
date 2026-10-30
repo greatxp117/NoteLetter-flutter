@@ -538,21 +538,20 @@ class KitStudyExcerpt extends StatelessWidget {
     opsz: 16,
   );
 
-  /// The same, as the html renderer's styles: the app's own (§17's markers,
-  /// tables, rules) with the body flush under its label and each paragraph
-  /// `0 0 8px` (`.st-excerpt-body p`).
-  static Map<String, Style> htmlStyles(BuildContext context) => {
-    ...AppTheme.htmlStyles(
-      Tokens.of(context),
-      body: Style(
-        margin: Margins.zero,
-        padding: HtmlPaddings.zero,
-        fontFamily: AppTheme.fontSerif,
-        fontSize: FontSize(15),
-        lineHeight: LineHeight(24 / 15),
-        color: Tokens.of(context).fgLede,
-      ),
-    ),
+  /// The same, as the html renderer's `body` — for `AppTheme.htmlStyles(…,
+  /// body:)`, which every `Html` passes — flush under its label.
+  static Style htmlBody(BuildContext context) => Style(
+    margin: Margins.zero,
+    padding: HtmlPaddings.zero,
+    fontFamily: AppTheme.fontSerif,
+    fontSize: FontSize(15),
+    lineHeight: LineHeight(24 / 15),
+    color: Tokens.of(context).fgLede,
+  );
+
+  /// Each paragraph `0 0 8px` (`.st-excerpt-body p`), spread after the
+  /// shared map.
+  static final Map<String, Style> htmlParagraphs = {
     'p': Style(margin: Margins.only(top: 0, bottom: 8)),
   };
 

@@ -32,6 +32,7 @@ import '../../services/firestore_service.dart';
 import '../../shared/extraction_markers.dart';
 import '../../state/study_schedule.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 
 /// The four grades in SM-2 order, with the key that gives each (web `GRADES`).
@@ -550,7 +551,13 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
     // ADR-089).
     data: markSanitizedHtml(item.excerptHtml),
     extensions: AppTheme.htmlExtensions,
-    style: KitStudyExcerpt.htmlStyles(context),
+    style: {
+      ...AppTheme.htmlStyles(
+        Tokens.of(context),
+        body: KitStudyExcerpt.htmlBody(context),
+      ),
+      ...KitStudyExcerpt.htmlParagraphs,
+    },
   );
 
   Widget _card(
