@@ -7,6 +7,8 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
+import 'kit_d_pages.dart' show KitDGroupHead;
+import 'kit_d_parts.dart' show KitDScope;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
 
@@ -43,17 +45,44 @@ class KitFormSection extends StatelessWidget {
   final String? lede;
   final List<Widget> children;
 
+  /// On a D page (the program editor, `screens/study.md` §Composition) the
+  /// first group opens at the column's top.
+  final bool first;
+
   const KitFormSection({
     super.key,
     required this.eyebrow,
     this.count,
     this.lede,
     this.children = const [],
+    this.first = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    if (KitDScope.of(context)) {
+      // Direction D (web `.dp-study .d-main .st-sec`): each group under a 1px
+      // `--fg` rule, padding 12, its eyebrow set as a serif 600 22 head 6 above
+      // the lede; 48 between groups.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          KitDGroupHead(
+            eyebrow,
+            top: first ? 0 : 48,
+            bottom: 6,
+            trailing: [
+              if (count != null)
+                Text(count!,
+                    style: KitText.monoMeta(context, letterSpacing: 0)),
+            ],
+          ),
+          if (lede != null) KitFormLede(lede!),
+          ...children,
+        ],
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(top: 32),
       child: Column(

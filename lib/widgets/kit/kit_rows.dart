@@ -10,7 +10,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../shared/passage_figure.dart';
 import '../../theme/tokens.dart';
-import 'kit_d_parts.dart' show KitPanelScope;
+import 'kit_d_parts.dart' show KitDScope, KitPanelScope;
 import 'kit_controls.dart';
 import 'kit_shell.dart' show KitGlyph, KitQuill;
 import 'kit_source_link.dart';
@@ -382,6 +382,10 @@ class _KitTimelineRowState extends State<KitTimelineRow>
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final compact =
         MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    // Direction D (`screens/activity.md` §Composition; web `.dp-act`): the
+    // subject in serif 16.5/23, the timestamp mono 11.
+    final d = KitDScope.of(context);
+    final timeStyle = AppTheme.mono(fontSize: d ? 11 : 12, color: t.fgSubtle);
     // A live node is plum whatever family it belongs to, and borders in plum
     // too: "running" outranks the family for as long as it lasts.
     final nodeColor = widget.live ? t.tonePlum : _toneColor(t);
@@ -478,8 +482,11 @@ class _KitTimelineRowState extends State<KitTimelineRow>
                           Text(
                             widget.subject,
                             style: TextStyle(
-                              fontFamily: AppTheme.fontSans,
-                              fontSize: 14,
+                              fontFamily: d
+                                  ? AppTheme.fontSerif
+                                  : AppTheme.fontSans,
+                              fontSize: d ? 16.5 : 14,
+                              height: d ? 23 / 16.5 : null,
                               fontWeight: FontWeight.w600,
                               color: t.fg,
                               decoration: _hover && widget.onTap != null
@@ -515,9 +522,7 @@ class _KitTimelineRowState extends State<KitTimelineRow>
                       // change with it.
                       if (compact) ...[
                         const SizedBox(height: 2),
-                        Text(widget.time,
-                            style: AppTheme.mono(
-                                fontSize: 12, color: t.fgSubtle)),
+                        Text(widget.time, style: timeStyle),
                       ],
                     ],
                   ),
@@ -527,9 +532,7 @@ class _KitTimelineRowState extends State<KitTimelineRow>
                 const SizedBox(width: AppSpacing.s4),
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(widget.time,
-                      style:
-                          AppTheme.mono(fontSize: 12, color: t.fgSubtle)),
+                  child: Text(widget.time, style: timeStyle),
                 ),
               ],
             ],

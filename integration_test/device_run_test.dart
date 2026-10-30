@@ -1159,7 +1159,7 @@ void main() {
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
       if (find.byType(KitTimeline).evaluate().isNotEmpty ||
-          find.byType(KitEmptyState).evaluate().isNotEmpty) {
+          find.text('Nothing of that kind yet.').evaluate().isNotEmpty) {
         break;
       }
     }
@@ -1167,34 +1167,31 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
     }
 
-    // The chapter opening — title and standfirst, and NO folio: this screen
-    // counts nothing, and a folio here would be a figure with no signal.
-    expect(find.byType(ChapterOpening), findsOneWidget);
+    // Direction D (F-145, activity.md §Composition): the masthead, its folio
+    // the rows the feed read — `Activity · {N} events`.
+    expect(find.byType(KitMasthead), findsOneWidget);
+    expect(find.textContaining('ACTIVITY\u00a0· '), findsOneWidget);
     expect(find.text('Activity'), findsWidgets);
 
     final seeded = find.byType(KitTimeline).evaluate().isNotEmpty;
     if (!seeded) {
-      // The empty feed is an offer, not an apology (§7).
-      expect(find.byType(KitEmptyState), findsOneWidget);
-      expect(find.byType(KitSuggestion), findsWidgets);
+      // An answered feed with nothing in it says so in one line.
+      expect(find.text('Nothing of that kind yet.'), findsOneWidget);
       return;
     }
 
-    // The control bar (§6.6) carries one chip per family, and the empty ones
-    // are DISABLED, not dropped — the set of chips is a vocabulary.
-    expect(find.byType(KitControlBar), findsOneWidget);
-    // SIX: `All · Sources · Processing · Letters · Study · In the library`
-    // (screens/activity.md §Filters), plus `Other` only when a row falls into
-    // it. This asserted five — the set before Study had events (4.25.0) — and
-    // the number went unchallenged because the count that would have failed it
-    // needs a SEEDED feed, and an empty one returns from this test earlier.
-    expect(find.byType(KitFilterChip), findsNWidgets(6));
+    // The sheet's Kind facet carries one row per family, and the empty ones
+    // are HELD, not dropped — the set is a vocabulary. SIX: `All · Sources ·
+    // Processing · Letters · Study · In the library` (activity.md §Filters),
+    // plus `Other` only when a row falls into it.
+    final facet = tester.widget<KitFacet>(find.byType(KitFacet));
+    expect(facet.items.length, 6);
 
-    // Date buckets are section headers (§3); the eyebrow renders uppercased.
+    // Each day is a small section head (§31) over its rows.
     expect(
-      find.textContaining(RegExp('TODAY|YESTERDAY|THIS WEEK|EARLIER')),
+      find.textContaining(RegExp(r'^(Today|Yesterday|This week|Earlier)$')),
       findsWidgets,
-      reason: 'the feed is bucketed by day, each bucket opened by an eyebrow',
+      reason: 'the feed is bucketed by day, each bucket opened by its head',
     );
 
     // The timeline, not a grid of cards. The spine and the 32px nodes are what
@@ -1206,14 +1203,22 @@ void main() {
       reason: 'the feed is the §4.2 timeline; there is no card-grid pattern',
     );
 
-    // Filtering narrows the feed rather than reordering it: pick a family chip
-    // that is enabled and check the row count does not grow.
+    // Filtering narrows the feed rather than reordering it: pick a family
+    // that is not held — in the dropped running head on a phone — and check
+    // the row count does not grow.
     final before = find.byType(KitTimelineRow).evaluate().length;
-    final chips = find.byType(KitFilterChip);
-    for (var i = 1; i < chips.evaluate().length; i++) {
-      final chip = tester.widget<KitFilterChip>(chips.at(i));
-      if (chip.onPressed == null) continue;
-      await tester.tap(chips.at(i));
+    final pick = facet.items
+        .where((i) => i.id != 'all' && !i.disabled)
+        .firstOrNull;
+    if (pick != null) {
+      final head = find.byKey(const ValueKey('d-peek'));
+      final docked = head.evaluate().isNotEmpty;
+      if (docked) {
+        await tester.tap(head);
+        await pumpFor(tester, total: const Duration(seconds: 1));
+      }
+      await tester.tap(find.descendant(
+          of: find.byType(KitFacet), matching: find.text(pick.label)));
       // Bounded pumps, never `pumpAndSettle`: a **live** node carries a pulsing
       // ring (§4.2) that loops forever, so a settle here waits for a frame that
       // never comes. It hangs rather than fails, and only when the feed happens
@@ -1225,7 +1230,12 @@ void main() {
         find.byType(KitTimelineRow).evaluate().length,
         lessThanOrEqualTo(before),
       );
-      break;
+      if (docked) {
+        // A kind does not fold the head (web `foldOn: '.rx-nav-b'`); the
+        // line does.
+        await tester.tap(head);
+        await pumpFor(tester, total: const Duration(seconds: 1));
+      }
     }
 
     // ---- and the badge is CLEARED by having looked at the feed ----
@@ -2617,9 +2627,9 @@ void main() {
     // the action that makes one.
     expect(find.byType(KitEmptyState), findsOneWidget);
     expect(find.text('Go deeper on one subject'), findsOneWidget);
-    // The three moves, by what they say: a group of moves draws each one's
-    // CONTENT inside one bordered surface (kit_empty `_MoveGroup`), so the
-    // KitNumberedMove widgets themselves are never in the tree.
+    // The three moves, by what they say: in D a ruled list of each move's
+    // CONTENT (kit_empty `_MoveGroup.row`), so the KitNumberedMove widgets
+    // themselves are never in the tree.
     for (final title in ['One subject at a time',
         'It arrives as its own session', 'Recall first, then grade yourself']) {
       expect(find.text(title), findsOneWidget, reason: 'no "$title" move');
@@ -2651,17 +2661,18 @@ void main() {
           reason: 'the endpoint returns the new program');
       for (var i = 0; i < 60; i++) {
         await tester.pump(const Duration(milliseconds: 200));
-        if (find.byType(ChapterOpening).evaluate().isNotEmpty) break;
+        if (find.text('Device run — braising').evaluate().isNotEmpty) break;
       }
       await pumpFor(tester, total: const Duration(seconds: 1));
 
-      // §Composition — chapter opening with the `Deep study · N programs`
-      // folio, then one §5.1 card per program.
-      expect(find.byType(ChapterOpening), findsOneWidget);
-      expect(find.textContaining('DEEP STUDY · 1 PROGRAM'), findsOneWidget);
+      // §Composition in D (F-145) — the masthead with the `Deep study · N
+      // programs · N on` folio, then the programs as a ruled register: no
+      // card.
+      expect(find.byType(KitMasthead), findsOneWidget);
+      expect(find.textContaining('DEEP STUDY\u00a0· 1 PROGRAM'), findsOneWidget);
       expect(find.text('Study Programs'), findsOneWidget);
       expect(find.text('Device run — braising'), findsOneWidget);
-      expect(find.byType(KitCard), findsWidgets);
+      expect(find.byType(KitCard), findsNothing);
 
       // Every figure is a STORED field: progress is introduced_count of
       // unit_count, and the schedule is rendered from what was read — the
@@ -3476,6 +3487,269 @@ void main() {
       expect(find.text('Drop files to begin'), findsNothing,
           reason: 'a reading library is not empty');
       debugPrint('DEVICE-RUN F-141 fresh account $uid: empty → reading');
+    } finally {
+      await FirebaseAuth.instance.currentUser?.delete();
+      await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: seedEmail, password: seedPassword);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  // F-145 (5.42.0, ADR-197; screens/study.md, activity.md, review.md
+  // §Composition): the three pages in direction D on a phone, by real taps —
+  // Study programs (a program made through the endpoint, a session of it
+  // written as the build writes one), the session's sheet in the running head
+  // (Answered, the questions with the NEXT one marked, the keys; a question
+  // row jumping the column), Activity's When rows jumping to a day while a
+  // Kind keeps the head open, and For your review's empty state in a fresh
+  // account.
+  testWidgets(
+      "study programs and a session's sheet, Activity's When filter, the "
+      'review empty state', (tester) async {
+    final head = find.byKey(const ValueKey('d-peek'));
+    Future<void> waitFor(Finder f, String what, {int seconds = 20}) async {
+      for (var i = 0; i < seconds * 4 && f.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(f, findsWidgets, reason: 'never drew $what');
+    }
+
+    Future<void> toggleHead() async {
+      await tester.tap(head);
+      await pumpFor(tester, total: const Duration(milliseconds: 1200));
+    }
+
+    bool headOpen() =>
+        find.byKey(const ValueKey('d-dock-scrim')).hitTestable().evaluate()
+            .isNotEmpty;
+
+    /// The top of [f] below the top of the primary scroller it sits in.
+    double underTop(Finder f) {
+      // The nearest scroller: the page's primary one.
+      final sc = find.ancestor(of: f, matching: find.byType(Scrollable)).first;
+      return tester.getTopLeft(f).dy - tester.getTopLeft(sc).dy;
+    }
+
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    Map<String, dynamic> fs(Object? v) => switch (v) {
+          null => {'nullValue': null},
+          bool b => {'booleanValue': b},
+          int n => {'integerValue': '$n'},
+          DateTime d => {'timestampValue': d.toUtc().toIso8601String()},
+          String t => {'stringValue': t},
+          List l => {
+              'arrayValue': {
+                'values': [for (final e in l) fs(e)],
+              },
+            },
+          Map m => {
+              'mapValue': {
+                'fields': {for (final e in m.entries) '${e.key}': fs(e.value)},
+              },
+            },
+          _ => {'stringValue': '$v'},
+        };
+
+    KitPageTools.instance.reset();
+    final router = await pumpApp(tester);
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    // ── Study programs ──
+    router.go('/study');
+    await waitFor(find.textContaining('DEEP STUDY'), 'the study masthead');
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(KitPageTools.instance.action?.short, 'New program',
+        reason: "New program is the tab bar's centre");
+    final created = await Api.instance.createStudyProgram({
+      'title': 'F-145 — braising',
+      'documentIds': ['seed-doc-article-complete'],
+      'deliveryTime': '07:00',
+      'timezone': 'America/Chicago',
+      'frequency': 'daily',
+    });
+    final programId = (created['program'] as Map?)?['id'] as String?;
+    final sessionId = 'f145-${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      expect(programId, isNotNull);
+      await waitFor(find.text('F-145 — braising'), 'the program');
+      expect(find.byType(KitCard), findsNothing,
+          reason: 'the programs are a ruled register in D');
+      // A session as the build writes one: sent, three questions, one graded.
+      final wrote = await rest.patch('/study_sessions/$sessionId', data: {
+        'fields': {
+          'user_id': fs(uid),
+          'program_id': fs(programId),
+          'program_title': fs('F-145 — braising'),
+          'status': fs('sent'),
+          'trigger': fs('manual'),
+          'generated_at': fs(DateTime.now()),
+          'new_count': fs(2),
+          'review_count': fs(1),
+          'responses': fs({
+            'f145-q1': {'grade': 'good'},
+          }),
+          'items': fs([
+            {
+              'item_id': 'f145-i1',
+              'chunk_id': '',
+              'document_id': 'seed-doc-article-complete',
+              'kind': 'new',
+              'title': 'Pasta Fundamentals',
+              'excerpt_html': '',
+              'questions': [
+                {'qid': 'f145-q1', 'question': 'When is the water salted?', 'answer': 'Before the pasta goes in.'},
+                {'qid': 'f145-q2', 'question': 'How salty?', 'answer': 'Like the sea.'},
+              ],
+            },
+            {
+              'item_id': 'f145-i2',
+              'chunk_id': '',
+              'document_id': 'seed-doc-article-complete',
+              'kind': 'review',
+              'title': 'Household budget 2026',
+              'excerpt_html': '',
+              'questions': [
+                {'qid': 'f145-q3', 'question': 'How far ahead?', 'answer': 'A month.'},
+              ],
+            },
+          ]),
+        },
+      });
+      expect(wrote.statusCode, 200, reason: 'the session was not written');
+
+      // Today: the newest session's ungraded questions, from the sheet.
+      await waitFor(find.text('questions waiting'), "Today's row");
+      final peek = tester.widget<KitSecPeek>(find.byType(KitSecPeek));
+      expect([for (final i in peek.items) i.label], ['Programs', 'Sessions']);
+      await toggleHead();
+      expect(headOpen(), isTrue);
+      expect(find.text('TODAY'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(KitDeskLedger),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('questions waiting'));
+      await waitFor(find.byType(KitStudyQuestionCard), 'the session');
+      expect(router.state.matchedLocation, '/study/session/$sessionId');
+      await pumpFor(tester, total: const Duration(seconds: 1));
+
+      // ── a session's sheet ──
+      var line = tester.widget<KitLibPeek>(find.byType(KitLibPeek));
+      expect((line.mark as KitPeekMark?)?.text, '№ 2');
+      expect((line.title, line.count, line.tail),
+          ('Pasta Fundamentals', '1', ' of 3'));
+      final bar = tester.widget<KitPeekBar>(find.byType(KitPeekBar));
+      expect(bar.fraction, closeTo(1 / 3, 1e-9),
+          reason: "the head's rule is the answered fraction");
+      final barBox = tester.getSize(
+          find.byKey(const ValueKey('d-peek-bar')));
+      debugPrint('DEVICE-RUN F-145 session head: "№ 2 · ${line.title} · '
+          '${line.count}${line.tail}" rule=${barBox.width.toStringAsFixed(1)}');
+      await toggleHead();
+      expect(find.text('THIS SESSION'), findsOneWidget);
+      expect(find.text('QUESTIONS'), findsOneWidget);
+      expect(find.text('KEYS'), findsOneWidget);
+      final qs = tester.widget<KitStudyQuestions>(
+          find.byType(KitStudyQuestions));
+      expect(qs.marked, 1, reason: 'the marked row is the question to answer '
+          'NEXT, not the one in view');
+      expect(qs.items.first.grade, 'Good');
+      await tester.tap(find.byKey(const ValueKey('d-q-2')));
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      expect(headOpen(), isFalse, reason: 'a question row folds the head');
+      final third = find.byType(KitStudyQuestionCard).at(2);
+      final top = underTop(third);
+      debugPrint('DEVICE-RUN F-145 question 3 lands ${top.toStringAsFixed(1)} '
+          'under the scroller top');
+      expect(top, closeTo(24, 6), reason: 'a question row jumps 24 under the top');
+    } finally {
+      await rest.delete('/study_sessions/$sessionId');
+      if (programId != null) await Api.instance.deleteStudyProgram(programId);
+    }
+
+    // ── Activity's When filter ──
+    router.go('/activity');
+    await waitFor(find.byType(KitTimelineRow), 'the feed');
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    var line = tester.widget<KitLibPeek>(find.byType(KitLibPeek));
+    expect(line.title, 'All activity');
+    final all = line.count;
+    await toggleHead();
+    expect(find.text('KIND'), findsOneWidget);
+    expect(find.text('WHEN'), findsOneWidget);
+    final when = tester
+        .widgetList<KitContents>(find.byType(KitContents))
+        .single
+        .items;
+    expect(when, isNotEmpty);
+    final day = when.last;
+    await tester.tap(find.descendant(
+        of: find.byType(KitContents), matching: find.text(day.label)));
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(headOpen(), isFalse, reason: 'a day row folds the head');
+    final dayHead = find.ancestor(
+        of: find.text(day.label).hitTestable(),
+        matching: find.byType(KitSectionHead));
+    final dayTop = underTop(dayHead.first);
+    debugPrint('DEVICE-RUN F-145 When "${day.label}" (${day.count}) lands '
+        '${dayTop.toStringAsFixed(1)} under the scroller top; all=$all');
+    expect(dayTop, lessThan(80), reason: 'the day came to the top of the page');
+    // A kind narrows the feed and keeps the head open: the days under it
+    // change with it.
+    await toggleHead();
+    final facet = tester.widget<KitFacet>(find.byType(KitFacet));
+    final kind = facet.items
+        .firstWhere((i) => i.id != 'all' && !i.disabled);
+    await tester.tap(find.descendant(
+        of: find.byType(KitFacet), matching: find.text(kind.label)));
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(headOpen(), isTrue, reason: 'a kind keeps the head open');
+    line = tester.widget<KitLibPeek>(find.byType(KitLibPeek));
+    debugPrint('DEVICE-RUN F-145 Kind "${kind.label}": head '
+        '"${line.title} · ${line.count}${line.tail ?? ''}"');
+    expect((line.title, line.count, line.tail),
+        (kind.label, kind.count, ' of $all'));
+    await toggleHead();
+
+    // ── For your review's empty state, in a fresh account ──
+    final email =
+        'f145-${DateTime.now().microsecondsSinceEpoch}@noteletter.test';
+    await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(email: email, password: 'f145-run-1');
+    try {
+      KitPageTools.instance.reset();
+      await FirebaseAuth.instance.currentUser!.getIdToken(true);
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      final fresh = await pumpApp(tester);
+      fresh.go('/review');
+      await waitFor(find.text('Nothing waiting for you'), 'the empty state');
+      expect(find.text('FOR YOUR REVIEW\u00a0· NOTHING WAITING'),
+          findsOneWidget);
+      for (final offer in ['Add to your library',
+          'Ask before importing large files']) {
+        expect(find.text(offer), findsOneWidget);
+      }
+      line = tester.widget<KitLibPeek>(find.byType(KitLibPeek));
+      expect((line.title, line.meta), ('For your review', 'Nothing waiting'));
+      await toggleHead();
+      expect(find.text('Nothing is waiting on you.'), findsOneWidget);
+      debugPrint('DEVICE-RUN F-145 review empty: "${line.title} '
+          '${line.meta}"; sheet says "Nothing is waiting on you."');
+      await tester.tap(find.descendant(
+          of: find.byType(KitSheetAlso),
+          matching: find.text('See what happened recently')));
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      expect(fresh.state.matchedLocation, '/activity');
     } finally {
       await FirebaseAuth.instance.currentUser?.delete();
       await FirebaseAuth.instance

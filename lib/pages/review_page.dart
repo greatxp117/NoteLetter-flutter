@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -24,6 +25,11 @@ const _dismissBatch = 50;
 /// the surface it came from, so this is a second place to answer a question
 /// and never a second way to answer it. Mirrors `ReviewView.jsx`.
 ///
+/// Direction D (§Composition): the masthead's folio is the inbox's count (the
+/// dash unmeasured, *Nothing waiting* at zero); the sheet *Waiting on you*
+/// counts what waits as the page's Contents — from the rows the column draws —
+/// then Also; the groups keep their own components, under D's group heads.
+///
 /// Reads [ReviewInbox] — the object the rail's attention count reads — so the
 /// number there and the rows here cannot disagree. Nothing moves before its
 /// record does.
@@ -34,7 +40,18 @@ class ReviewPage extends StatefulWidget {
   State<ReviewPage> createState() => _ReviewPageState();
 }
 
+/// The groups in the column's order, and their names on the sheet.
+const _groups = ['sources', 'holds', 'suggestions', 'tasks'];
+const _groupLabel = {
+  'sources': 'Couldn’t be read',
+  'holds': 'Imports held',
+  'suggestions': 'Suggested changes',
+  'tasks': 'Proposals and tasks',
+};
+
 class _ReviewPageState extends State<ReviewPage> {
+  final KitSections _sec = KitSections(const []);
+
   @override
   void initState() {
     super.initState();
@@ -48,78 +65,210 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   @override
+  void dispose() {
+    _sec.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final inbox = context.watch<ReviewInbox>();
     final cloud = context.watch<CloudNotifier>();
     final v = inbox.view;
     // The unmeasured figure is the dash (ADR-109) — never a count of the parts
     // that loaded (INV-30).
-    final folio = v.count == 0 ? 'Nothing waiting' : '${v.countText ?? '—'} waiting';
+    final folio = v.count == 0
+        ? 'Nothing waiting'
+        : '${v.countText ?? '—'} waiting';
 
-    return KitPage(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ChapterOpening(
-            folio: folio,
-            title: 'For your review',
-            standfirst: 'Everything the app is waiting on you for. Nothing '
-                'here happens until you decide.',
-          ),
-          if (v.empty)
-            const _ReviewEmpty()
-          else ...[
-            if (!v.loaded && !v.anyFailed)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            if (v.sourcesError != null)
-              _groupFailure('The sources that need you could not be read.',
-                  v.sourcesError!, inbox.retry)
-            else if (v.sources.isNotEmpty)
-              _SourcesNeedingYou(sources: v.sources),
-            if (v.holdsError != null)
-              _groupFailure('The files waiting to import could not be read.',
-                  v.holdsError!, inbox.retry)
-            else ...[
-              if (cloud.reviewOutcome != null && v.holds.isNotEmpty)
-                ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
-              ImportReviewQueue(
-                held: v.holds,
-                eyebrow: 'Files waiting to import',
-                rulesFor: (p) =>
-                    cloud.integrationFor(p)?.reviewRules ?? const {},
-              ),
-            ],
-            if (v.suggestionsError != null)
-              _groupFailure('Your organization suggestions could not be read.',
-                  v.suggestionsError!, inbox.retry)
-            else
-              SuggestionQueue(
-                  eyebrow: 'Suggested changes', suggestions: v.suggestions),
-            if (v.tasksError != null)
-              _groupFailure(
-                  'What is running in the background could not be read.',
-                  v.tasksError!,
-                  inbox.retry)
-            else
-              _TaskGroups(
-                  proposals: v.proposals, running: v.running, now: v.now),
-          ],
-          const SizedBox(height: 48),
-        ],
+    // The sheet's Contents: one row per group that has something in it,
+    // counted from the same lists the column draws (INV-30). Proposals and
+    // tasks counts what waits and what runs.
+    final counts = {
+      'sources': v.sources.length,
+      'holds': v.holds.length,
+      'suggestions': v.suggestions.length,
+      'tasks': v.proposals.length + v.running.length,
+    };
+    final items = [
+      for (final id in _groups)
+        if (counts[id]! > 0)
+          KitContentsItem(id, _groupLabel[id]!, count: '${counts[id]}'),
+    ];
+    // `current` follows only the groups the Contents list, so the running
+    // head never names an empty one.
+    final ids = [for (final i in items) i.id];
+    if (!listEquals(_sec.ids, ids)) _sec.ids = ids;
+
+    final errors = {
+      'sources': v.sourcesError,
+      'holds': v.holdsError,
+      'suggestions': v.suggestionsError,
+      'tasks': v.tasksError,
+    };
+    // The first group that draws anything opens at the column's top.
+    final firstDrawn = _groups
+        .where((id) => errors[id] != null || counts[id]! > 0)
+        .firstOrNull;
+
+    Widget group(String id, Widget child) => KeyedSubtree(
+      key: _sec.keyOf(id),
+      child: KitDGroupHeads(first: id == firstDrawn, child: child),
+    );
+
+    Widget failure(String id, String sentence) => Padding(
+      padding: EdgeInsets.only(top: id == firstDrawn ? 0 : 56),
+      child: KitFailureBlock(
+        sentence: sentence,
+        detail: errors[id]!,
+        onRetry: inbox.retry,
       ),
     );
-  }
 
-  /// §14.1 in the group's place; the other groups render normally.
-  Widget _groupFailure(String sentence, String detail, VoidCallback retry) =>
-      Padding(
-        padding: const EdgeInsets.only(top: 24),
-        child: KitFailureBlock(
-            sentence: sentence, detail: detail, onRetry: retry),
-      );
+    return KitDPage(
+      folio: 'For your review\u00a0· $folio',
+      title: 'For Your Review',
+      stand:
+          'Everything the app is waiting on you for. Nothing here happens '
+          'until you decide.',
+      sections: _sec,
+      sheet: KitDSheet(
+        label: 'Waiting on you',
+        foldOnPick: true,
+        peek: items.isNotEmpty
+            ? KitSecPeek(items: items, sections: _sec)
+            : KitLibPeek(
+                title: 'For your review',
+                meta: v.loaded ? 'Nothing waiting' : null,
+              ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const KitDLabel('Contents', first: true),
+            if (items.isNotEmpty)
+              KitContents(items: items, sections: _sec)
+            else if (!v.loaded)
+              const KitSkeletonLines(
+                lines: [KitSkelLine(0.7), KitSkelLine(0.6)],
+                top: 0,
+              )
+            // Nothing at all when a read failed: its §14.1 block is in the
+            // column, and a sentence here would be about what it did not say.
+            else if (!v.anyFailed)
+              const KitLedgerNone('Nothing is waiting on you.'),
+            Builder(
+              builder: (context) => KitSheetAlso(
+                children: [
+                  KitAlsoButton(
+                    'See what happened recently',
+                    icon: Icons.timeline_outlined,
+                    onTap: () {
+                      KitSheetScope.pick(context);
+                      context.go('/activity');
+                    },
+                  ),
+                  KitAlsoButton(
+                    'Go to the library',
+                    icon: Icons.menu_book_outlined,
+                    onTap: () {
+                      KitSheetScope.pick(context);
+                      context.go('/sources');
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      child: v.empty
+          ? const _ReviewEmpty()
+          : !v.loaded && !v.anyFailed && items.isEmpty
+          ? const KitSkeletonLines(
+              lines: [
+                KitSkelLine(0.5, true),
+                KitSkelLine(),
+                KitSkelLine(0.7),
+                KitSkelLine(),
+                KitSkelLine(0.6),
+              ],
+              top: 0,
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (v.sourcesError != null)
+                  group(
+                    'sources',
+                    failure(
+                      'sources',
+                      'The sources that need you could not be read.',
+                    ),
+                  )
+                else if (v.sources.isNotEmpty)
+                  group('sources', _SourcesNeedingYou(sources: v.sources)),
+                if (v.holdsError != null)
+                  group(
+                    'holds',
+                    failure(
+                      'holds',
+                      'The files waiting to import could not be read.',
+                    ),
+                  )
+                else
+                  group(
+                    'holds',
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (cloud.reviewOutcome != null && v.holds.isNotEmpty)
+                          ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
+                        ImportReviewQueue(
+                          held: v.holds,
+                          eyebrow: 'Files waiting to import',
+                          rulesFor: (p) =>
+                              cloud.integrationFor(p)?.reviewRules ?? const {},
+                        ),
+                      ],
+                    ),
+                  ),
+                if (v.suggestionsError != null)
+                  group(
+                    'suggestions',
+                    failure(
+                      'suggestions',
+                      'Your organization suggestions could not be read.',
+                    ),
+                  )
+                else
+                  group(
+                    'suggestions',
+                    SuggestionQueue(
+                      eyebrow: 'Suggested changes',
+                      suggestions: v.suggestions,
+                    ),
+                  ),
+                if (v.tasksError != null)
+                  group(
+                    'tasks',
+                    failure(
+                      'tasks',
+                      'What is running in the background could not be read.',
+                    ),
+                  )
+                else
+                  group(
+                    'tasks',
+                    _TaskGroups(
+                      proposals: v.proposals,
+                      running: v.running,
+                      now: v.now,
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
 }
 
 /// §Sources that need you: the Library's attention cards, plus Dismiss.
@@ -185,10 +334,9 @@ class _SourcesNeedingYouState extends State<_SourcesNeedingYou> {
       children: [
         SectionHeader('Sources that need you · $n',
             actionLabel: 'Dismiss all', onAction: _dismissAll),
-        const KitProcNote(
+        const KitDStanding(
           'Dismissing only clears it from here. It stays in your Library as '
           'it is, and comes back if a retry fails again.',
-          padding: EdgeInsets.only(bottom: 10),
         ),
         if (_allError != null)
           Padding(
@@ -231,10 +379,15 @@ class _TaskGroups extends StatelessWidget {
           SectionHeader('Proposals · ${proposals.length}'),
           ...rows(proposals),
         ],
-        // Last, because nothing in it asks for anything.
+        // Last, because nothing in it asks for anything. Never the first
+        // head when Proposals stands above it.
         if (running.isNotEmpty) ...[
-          SectionHeader('Running · ${running.length}',
-              note: 'nothing here needs you yet'),
+          KitDGroupHeads(
+            first: proposals.isEmpty &&
+                (KitDGroupHeads.maybeOf(context)?.first ?? false),
+            child: SectionHeader('Running · ${running.length}',
+                note: 'nothing here needs you yet'),
+          ),
           ...rows(running),
         ],
       ],
@@ -352,28 +505,27 @@ class _TaskReviewRowState extends State<TaskReviewRow> {
 class _ReviewEmpty extends StatelessWidget {
   const _ReviewEmpty();
 
+  /// In the D frame [KitEmptyState] takes §37's form: set on the column's
+  /// leading edge, a seal for its mark, its offers a ruled list.
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 24),
-        child: KitEmptyState(
-          icon: Icons.inbox_outlined,
-          title: 'Nothing waiting for you',
-          standfirst: 'When a source fails, a file waits for approval, or a '
-              'suggestion is ready, it lands here.',
-          suggestions: [
-            KitSuggestion(
-                icon: Icons.local_library_outlined,
-                label: 'Add to your library',
-                onTap: () => context.go('/sources')),
-            KitSuggestion(
-                icon: Icons.tune,
-                label: 'Ask before importing large files',
-                onTap: () => context.go('/sources')),
-            KitSuggestion(
-                icon: Icons.timeline_outlined,
-                label: 'See what happened recently',
-                onTap: () => context.go('/activity')),
-          ],
-        ),
+  Widget build(BuildContext context) => KitEmptyState(
+        icon: Icons.inbox_outlined,
+        title: 'Nothing waiting for you',
+        standfirst: 'When a source fails, a file waits for approval, or a '
+            'suggestion is ready, it lands here.',
+        suggestions: [
+          KitSuggestion(
+              icon: Icons.menu_book_outlined,
+              label: 'Add to your library',
+              onTap: () => context.go('/sources')),
+          KitSuggestion(
+              icon: Icons.tune,
+              label: 'Ask before importing large files',
+              onTap: () => context.go('/sources')),
+          KitSuggestion(
+              icon: Icons.timeline_outlined,
+              label: 'See what happened recently',
+              onTap: () => context.go('/activity')),
+        ],
       );
 }

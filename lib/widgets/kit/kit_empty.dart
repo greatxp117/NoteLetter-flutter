@@ -206,7 +206,23 @@ class KitEmptyState extends StatelessWidget {
                       border: Border(top: BorderSide(color: t.fg))),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: suggestions,
+                    // Study's three numbered moves as a ruled list in D
+                    // (`screens/study.md` §Composition, web `.dp-study
+                    // .st-moves`): 16 rows, a rule under each, no card.
+                    children: _movesOnly
+                        ? [
+                            for (final m
+                                in suggestions.cast<KitNumberedMove>())
+                              Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                decoration: BoxDecoration(
+                                    border: Border(
+                                        bottom: BorderSide(color: t.rule))),
+                                child: _MoveGroup.row(context, m),
+                              ),
+                          ]
+                        : suggestions,
                   ),
                 ),
               ],
@@ -719,6 +735,41 @@ class _MoveGroup extends StatelessWidget {
 
   const _MoveGroup({required this.moves});
 
+  /// One move in `.st-move`'s type — also the D form's row (§37's ruled list).
+  static Widget row(BuildContext context, KitNumberedMove m) {
+    final t = Tokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(m.number,
+            style: AppTheme.mono(
+              fontSize: 10,
+              height: 24 / 10,
+              letterSpacing: 0.14 * 10,
+              color: t.fgSubtle,
+            )),
+        const SizedBox(height: 2),
+        Text(m.title,
+            style: AppTheme.serif(
+              fontSize: 17,
+              height: 23 / 17,
+              fontWeight: FontWeight.w600,
+              color: t.fg,
+              opsz: 18,
+            )),
+        const SizedBox(height: 4),
+        Text(m.description,
+            style: TextStyle(
+              fontFamily: AppTheme.fontSans,
+              fontSize: 13,
+              height: 20 / 13,
+              color: t.fgMuted,
+            )),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
@@ -741,36 +792,7 @@ class _MoveGroup extends StatelessWidget {
                   ? null
                   : BoxDecoration(
                       border: Border(top: BorderSide(color: t.rule))),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(moves[i].number,
-                      style: AppTheme.mono(
-                        fontSize: 10,
-                        height: 24 / 10,
-                        letterSpacing: 0.14 * 10,
-                        color: t.fgSubtle,
-                      )),
-                  const SizedBox(height: 2),
-                  Text(moves[i].title,
-                      style: AppTheme.serif(
-                        fontSize: 17,
-                        height: 23 / 17,
-                        fontWeight: FontWeight.w600,
-                        color: t.fg,
-                        opsz: 18,
-                      )),
-                  const SizedBox(height: 4),
-                  Text(moves[i].description,
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontSans,
-                        fontSize: 13,
-                        height: 20 / 13,
-                        color: t.fgMuted,
-                      )),
-                ],
-              ),
+              child: row(context, moves[i]),
             ),
           ],
         ],

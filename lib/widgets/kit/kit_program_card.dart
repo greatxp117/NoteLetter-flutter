@@ -5,6 +5,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_cards.dart';
+import 'kit_d_parts.dart' show KitDScope;
 import 'kit_shell.dart' show KitGlyph;
 
 /// A study program on /study — web's `.st-prog` (StudyView.jsx ProgramCard,
@@ -71,6 +72,11 @@ class KitProgramCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final wide = MediaQuery.sizeOf(context).width >= 768;
+    // Direction D (`screens/study.md` §Composition; web `.dp-study .st-prog`):
+    // the programs are a ruled register, not cards — each program 24 top and
+    // bottom with a rule under it, its title serif 600 24 (`--fg-muted` while
+    // off). [KitDScope] asks, so the screen never chooses the form.
+    final d = KitDScope.of(context);
     final sans13 = TextStyle(
       fontFamily: AppTheme.fontSans,
       fontSize: 13,
@@ -88,14 +94,23 @@ class KitProgramCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: AppTheme.serif(
-                fontSize: 22,
-                height: 28 / 22,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.012 * 22,
-                opsz: 24,
-                color: t.fg,
-              ),
+              style: d
+                  ? AppTheme.serif(
+                      fontSize: 24,
+                      height: 1.15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.014 * 24,
+                      opsz: 36,
+                      color: on ? t.fg : t.fgMuted,
+                    )
+                  : AppTheme.serif(
+                      fontSize: 22,
+                      height: 28 / 22,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.012 * 22,
+                      opsz: 24,
+                      color: t.fg,
+                    ),
             ),
             KitStudyChip(status: status, label: statusLabel),
           ],
@@ -146,10 +161,21 @@ class KitProgramCard extends StatelessWidget {
     ];
 
     final hasHint = hint != null || hintText != null;
-    return KitCard(
-      onSurface: !on,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-      child: Column(
+    Widget frame(Widget child) => d
+        ? Container(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: t.rule)),
+            ),
+            child: child,
+          )
+        : KitCard(
+            onSurface: !on,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+            child: child,
+          );
+    return frame(
+      Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (wide)

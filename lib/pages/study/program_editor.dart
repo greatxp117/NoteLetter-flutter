@@ -2,9 +2,13 @@
 /// 2.34.0 ADR-033, reshaped 3.0.0 ADR-038), composed as web's
 /// `pages/study/ProgramEditor.jsx`.
 ///
-/// Chapter opening · Name · Sources for this subject · (an existing program:
-/// What each source is · Where you are · Syllabus) · Delivery · Session length
-/// · the form's foot. Each section is a [KitFormSection]; its lists are §4.1
+/// Direction D (`screens/study.md` §Composition): the masthead with the crumb
+/// back to *Study programs*; the sheet *This program* (the form's six figures,
+/// and Delete program as its Also, behind §18); the column: Name · Sources
+/// for this subject · (an existing program: What each source is · Where you
+/// are · Syllabus) · Delivery · Session length · the form's foot (Create /
+/// Save and Cancel — no delete). Each section is a [KitFormSection], in D's
+/// group form inside the D frame; its lists are §4.1
 /// [KitRowList]s of [KitFormRow]s; its fields are the readings letter's
 /// sunken field ([KitConfigField] over [KitTextField]/[KitSelect]). Until
 /// 2026-10-14 this screen was plain Material — a headline, `TextField`s and a
@@ -215,86 +219,126 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
     final p = _program;
     final canSave =
         !_busy && _title.text.trim().isNotEmpty && (existing || _ids.isNotEmpty);
-    return KitPage(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ChapterOpening(
-            folio: existing
-                ? 'Deep study · Program settings'
-                : 'Deep study · New program',
-            title: existing ? 'Program Settings' : 'A New Program',
-            standfirst: existing
-                ? 'What arrives, and when. The documents underneath it are '
-                    'settled.'
-                : 'Choose what you want to keep, and when you want to be '
-                    'asked about it.',
-          ),
-          Align(
-            alignment: Alignment.topLeft,
-            child: ConstrainedBox(
-              // `.st-form`
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    // Direction D (`screens/study.md` §Composition — the program editor; web
+    // `ProgramEditor` in place): the form in the column; what the program
+    // will be, in figures, on the sheet *This program*, with Delete program
+    // as its Also — the form's foot no longer carries it.
+    final docsN = existing ? (p?.documentIds.length ?? 0) : _ids.length;
+    final name = _title.text.trim();
+    final title = name.isEmpty ? 'Untitled program' : name;
+    return KitDPage(
+      back: KitDBackControl('Study programs', onTap: _close),
+      // On a phone the crumb takes its own line, the folio under it.
+      crumbStacks: true,
+      folio: existing
+          ? 'Deep study\u00a0· Program settings'
+          : 'Deep study\u00a0· New program',
+      title: existing ? 'Program Settings' : 'A New Program',
+      stand: existing
+          ? 'What arrives, and when. The documents underneath it are '
+                'settled.'
+          : 'Choose what you want to keep, and when you want to be '
+                'asked about it.',
+      sheet: KitDSheet(
+        label: 'This program',
+        // A confirm opened from the running head must not leave it dropped
+        // over the confirm: Delete folds it first.
+        foldOnPick: true,
+        peek: KitLibPeek(
+          icon: KitCardsGlyph.icon,
+          title: title,
+          count: '$docsN',
+          tail: ' documents',
+        ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const KitDLabel('This program', first: true),
+            KitFigures(
+              top: 0,
+              rows: [
+                ('Documents', '$docsN of $_maxDocs'),
+                ('Cadence', switch (_frequency) {
+                  'weekdays' => 'Weekdays',
+                  'weekly' => 'Weekly',
+                  _ => 'Daily',
+                }),
+                ('Arrives at', _time.text.trim()),
+                ('New per session', '$_newPer'),
+                ('Reviews per session', '$_maxReviews'),
+                ('By email', _emailOn ? 'Yes' : 'No'),
+              ],
+            ),
+            if (existing && p != null)
+              KitSheetAlso(
                 children: [
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: KitFailureInline(_error!),
+                  Builder(
+                    builder: (context) => KitAlsoButton(
+                      'Delete program',
+                      icon: Icons.delete_outline,
+                      danger: true,
+                      onTap: () {
+                        KitSheetScope.pick(context);
+                        _delete();
+                      },
                     ),
-                  if (_note != null)
-                    KitFormNote(_note!,
-                        link: 'Back to programs', onLink: _close),
-                  KitFormSection(
-                    eyebrow: 'Name',
-                    lede: 'Yours to recognise in a list of programs and at the '
-                        'top of an email.',
-                    children: [
-                      KitTextField(
-                        controller: _title,
-                        placeholder: 'Untitled program',
-                        face: KitFieldFace.ui,
-                        sunken: true,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ],
-                  ),
-                  KitFormSection(
-                    eyebrow: 'Sources for this subject',
-                    count: existing && p != null
-                        ? _counted(p.documentIds.length, 'document')
-                        : null,
-                    children: [
-                      if (existing) ..._fixedSources(p) else _picker(),
-                    ],
-                  ),
-                  if (existing && p != null) ...[
-                    SourceKindPanel(program: p, docs: _docs),
-                    UnitPanel(program: p, docs: _docs),
-                    _SyllabusPanel(program: p, docs: _docs),
-                  ],
-                  _delivery(),
-                  _sessionLength(),
-                  KitFormFoot(
-                    leading: [
-                      KitButton.primary(
-                        _busy
-                            ? 'Saving…'
-                            : (existing ? 'Save changes' : 'Create program'),
-                        onPressed: canSave ? _save : null,
-                      ),
-                      KitButton.ghost('Cancel', onPressed: _close),
-                    ],
-                    trailing: [
-                      if (existing && p != null)
-                        KitFormDangerButton('Delete program',
-                            icon: Icons.delete_outline, onPressed: _delete),
-                    ],
                   ),
                 ],
               ),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: KitFailureInline(_error!),
             ),
+          if (_note != null)
+            KitFormNote(_note!, link: 'Back to programs', onLink: _close),
+          KitFormSection(
+            first: true,
+            eyebrow: 'Name',
+            lede: 'Yours to recognise in a list of programs and at the '
+                'top of an email.',
+            children: [
+              KitTextField(
+                controller: _title,
+                placeholder: 'Untitled program',
+                face: KitFieldFace.ui,
+                sunken: true,
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
+          ),
+          KitFormSection(
+            eyebrow: 'Sources for this subject',
+            count: existing && p != null
+                ? _counted(p.documentIds.length, 'document')
+                : null,
+            children: [
+              if (existing) ..._fixedSources(p) else _picker(),
+            ],
+          ),
+          if (existing && p != null) ...[
+            SourceKindPanel(program: p, docs: _docs),
+            UnitPanel(program: p, docs: _docs),
+            _SyllabusPanel(program: p, docs: _docs),
+          ],
+          _delivery(),
+          _sessionLength(),
+          KitFormFoot(
+            leading: [
+              KitButton.primary(
+                _busy
+                    ? 'Saving…'
+                    : (existing ? 'Save changes' : 'Create program'),
+                onPressed: canSave ? _save : null,
+              ),
+              KitButton.ghost('Cancel', onPressed: _close),
+            ],
           ),
         ],
       ),
@@ -434,6 +478,8 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
                   placeholder: '07:00',
                   face: KitFieldFace.ui,
                   sunken: true,
+                  // The sheet's *Arrives at* reads the form as it stands.
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
               KitConfigField(

@@ -57,8 +57,9 @@ Future<void> _pump(
   Stream<List<ImportJob>>? holds,
   Stream<List<OrganizationSuggestion>>? suggestions,
   Stream<List<BackgroundTask>>? tasks,
+  Size size = const Size(1200, 2400),
 }) async {
-  tester.view.physicalSize = const Size(1200, 2400);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final inbox = ReviewInbox(
@@ -102,9 +103,17 @@ void main() {
   testWidgets('nothing anywhere: the §7 empty state, folio "Nothing waiting"',
       (tester) async {
     await _pump(tester);
-    expect(find.text('NOTHING WAITING'), findsOneWidget);
+    // Direction D (F-145): the folio is the masthead's, the inbox's count
+    // under the page's name; the sheet says nothing waits, in the ledger's
+    // voice, and keeps its Also.
+    expect(find.text('FOR YOUR REVIEW\u00a0· NOTHING WAITING'), findsOneWidget);
+    expect(find.text('For Your Review'), findsOneWidget);
     expect(find.text('Nothing waiting for you'), findsOneWidget);
     expect(find.text('Add to your library'), findsOneWidget);
+    expect(find.text('Nothing is waiting on you.'), findsOneWidget);
+    expect(find.text('Go to the library'), findsOneWidget);
+    expect(find.text('See what happened recently'), findsNWidgets(2),
+        reason: 'the empty state offers it, and the sheet\'s Also');
     await _done(tester);
   });
 
@@ -114,10 +123,12 @@ void main() {
         holds: Stream.error(Exception('denied')),
         docs: Stream.value([_doc('a', 'error')]));
     expect(find.text('The files waiting to import could not be read.'), findsOneWidget);
-    expect(find.text('— WAITING'), findsOneWidget);
-    expect(find.text('Sources that need you · 1'.toUpperCase()), findsOneWidget);
+    expect(find.text('FOR YOUR REVIEW\u00a0· — WAITING'), findsOneWidget);
+    expect(find.text('Sources that need you · 1'), findsOneWidget);
     expect(find.text('Nothing waiting for you'), findsNothing,
         reason: 'a failure is never an empty state');
+    expect(find.text('Nothing is waiting on you.'), findsNothing,
+        reason: 'the sheet says nothing about a read that failed');
     await _done(tester);
   });
 
@@ -135,18 +146,48 @@ void main() {
         _task('t2', 'running', stalls: _later),
       ]),
     );
-    expect(find.text('4 WAITING'), findsOneWidget);
+    expect(find.text('FOR YOUR REVIEW\u00a0· 4 WAITING'), findsOneWidget);
     final order = [
-      'SOURCES THAT NEED YOU · 2',
-      'FILES WAITING TO IMPORT · 1',
-      'PROPOSALS · 1',
-      'RUNNING · 1',
+      'Sources that need you · 2',
+      'Files waiting to import · 1',
+      'Proposals · 1',
+      'Running · 1',
     ];
     final ys = [for (final e in order) tester.getTopLeft(find.text(e)).dy];
     expect(ys, [...ys]..sort(), reason: 'the spec order');
+    // The sheet's Contents count the rows the column draws, in its order:
+    // Proposals and tasks counts what waits AND what runs.
+    final contents = [
+      'Couldn’t be read',
+      'Imports held',
+      'Proposals and tasks',
+    ];
+    final cy = [for (final e in contents) tester.getTopLeft(find.text(e)).dy];
+    expect(cy, [...cy]..sort());
+    expect(find.text('Suggested changes'), findsNothing,
+        reason: 'a group with nothing in it is absent from the Contents');
     expect(find.textContaining('Dropbox'), findsOneWidget,
         reason: 'a held row names its provider here');
     expect(find.text('Dismiss'), findsWidgets);
+    await _done(tester);
+  });
+
+  testWidgets('on a phone the sheet is the running head: the Contents peek, '
+      'or the page\'s name and Nothing waiting (F-145)', (tester) async {
+    KitPageTools.instance.reset();
+    await _pump(tester,
+        size: const Size(402, 874),
+        docs: Stream.value([_doc('a', 'error')]));
+    expect(find.byType(KitSecPeek), findsOneWidget);
+    expect(find.text('Couldn’t be read'), findsWidgets);
+    await _done(tester);
+
+    KitPageTools.instance.reset();
+    await _pump(tester, size: const Size(402, 874));
+    final peek = tester.widget<KitLibPeek>(find.byType(KitLibPeek));
+    expect((peek.title, peek.meta), ('For your review', 'Nothing waiting'));
+    // The empty state is §37's: its offers a ruled list, its mark a seal.
+    expect(find.text('Nothing waiting for you'), findsOneWidget);
     await _done(tester);
   });
 

@@ -1556,13 +1556,19 @@ class KitFigures extends StatelessWidget {
   final List<KitFigureRow>? ledger;
   final String? label;
 
-  const KitFigures({super.key, required this.rows, this.label})
+  /// 28 under the lead (`.d-figs`); 0 where the figures ARE the sheet's lead
+  /// or follow their own label (a session's *This session* and *Keys*, the
+  /// program editor's *This program* — F-145).
+  final double top;
+
+  const KitFigures({super.key, required this.rows, this.label, this.top = 28})
     : ledger = null;
 
   const KitFigures.ledger({
     super.key,
     required List<KitFigureRow> this.ledger,
     this.label,
+    this.top = 28,
   }) : rows = const [];
 
   @override
@@ -1573,7 +1579,7 @@ class KitFigures extends StatelessWidget {
       fontFeatures: const [FontFeature.tabularFigures()],
     );
     return Padding(
-      padding: const EdgeInsets.only(top: 28),
+      padding: EdgeInsets.only(top: top),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

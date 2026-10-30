@@ -1186,7 +1186,11 @@ class KitJumpLetters extends StatelessWidget {
 
 /// The Library's and Add a source's phone peek: a glyph, the [title] (serif
 /// 600 16.5/22), an optional mono caps [meta], and at the trailing edge a
-/// [count] in mono with its [tail] subtler (` of 7`, ` of 3 ready`).
+/// [count] in mono with its [tail] subtler (` of 7`, ` of 3 ready`). Every
+/// ported D page whose sheet is not a Contents peek draws this line too
+/// (F-145: Activity's sliders, the program editor's cards, a session's
+/// `№ 2` mark, and For your review's bare *For your review · Nothing
+/// waiting*, which leads with nothing).
 class KitLibPeek extends StatelessWidget {
   final IconData? icon;
 
@@ -1211,7 +1215,7 @@ class KitLibPeek extends StatelessWidget {
     this.count,
     this.tail,
     this.wait = false,
-  }) : assert(icon != null || mark != null);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1219,8 +1223,10 @@ class KitLibPeek extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        mark ?? KitGlyph(icon!, size: 16, color: t.fgMuted),
-        const SizedBox(width: 10),
+        if (mark != null || icon != null) ...[
+          mark ?? KitGlyph(icon!, size: 16, color: t.fgMuted),
+          const SizedBox(width: 10),
+        ],
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,

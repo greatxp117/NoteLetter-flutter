@@ -7,6 +7,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_d_pages.dart' show KitDGroupHeads, KitDGroupHead;
 import 'kit_d_parts.dart' show KitPanelScope;
 import 'kit_controls.dart';
 import 'kit_text.dart';
@@ -403,6 +404,34 @@ class SectionHeader extends StatelessWidget {
     // Inside a §28 panel the panel's own label names the group (web `.d-pnl
     // .set-section .lib-section-h { display: none }`).
     if (KitPanelScope.of(context)) return const SizedBox(height: 14);
+    // A ported D page's group head (For your review, F-145): the same header
+    // the group's own surface draws, set in D's type where the page asks.
+    final group = KitDGroupHeads.maybeOf(context);
+    if (group != null) {
+      return KitDGroupHead(
+        eyebrow,
+        top: first || group.first ? 0 : group.gap,
+        trailing: [
+          ?tools,
+          if (note != null)
+            Text(note!, style: KitText.lede(context, fontSize: 13, height: 18)),
+          if (actionLabel != null)
+            GestureDetector(
+              onTap: onAction,
+              child: Text(
+                actionLabel!,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 13,
+                  color: t.fgMuted,
+                  decoration: TextDecoration.underline,
+                  decorationColor: t.linkDecor,
+                ),
+              ),
+            ),
+        ],
+      );
+    }
     return Padding(
       padding: EdgeInsets.only(top: first ? 0 : AppSpacing.s8, bottom: 14),
       child: Row(

@@ -913,11 +913,26 @@ class KitLedgerRow {
 /// line, an optional sans sub-line, a chevron nudging 2px on hover) — or, when
 /// [quiet], *Nothing is waiting on you. The library is quiet.* The host says
 /// quiet only when every read behind the ledger ANSWERED with nothing.
+///
+/// One part for every ledger (web QA 139e34e, kit `Ledger`): Study's *Today*
+/// (F-145, `screens/study.md` §Composition) is this widget with its own
+/// [label] and [quietText], and [loading] draws skeleton lines in place of the
+/// rows while the read behind them is out.
 class KitDeskLedger extends StatelessWidget {
   final List<KitLedgerRow> rows;
   final bool quiet;
+  final String label;
+  final String quietText;
+  final bool loading;
 
-  const KitDeskLedger({super.key, required this.rows, this.quiet = false});
+  const KitDeskLedger({
+    super.key,
+    required this.rows,
+    this.quiet = false,
+    this.label = 'On your desk',
+    this.quietText = 'Nothing is waiting on you. The library is quiet.',
+    this.loading = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -935,7 +950,7 @@ class KitDeskLedger extends StatelessWidget {
             child: Semantics(
               header: true,
               child: Text(
-                'ON YOUR DESK',
+                label.toUpperCase(),
                 style: AppTheme.mono(
                   fontSize: 11,
                   height: 14 / 11,
@@ -946,23 +961,40 @@ class KitDeskLedger extends StatelessWidget {
               ),
             ),
           ),
-          if (quiet)
-            Padding(
-              padding: const EdgeInsets.only(top: 14),
-              child: Text(
-                'Nothing is waiting on you. The library is quiet.',
-                style: AppTheme.serif(
-                  fontSize: 15,
-                  fontStyle: FontStyle.italic,
-                  color: t.fgLede,
-                ),
+          if (loading)
+            const KitSkeletonLines(
+              lines: [KitSkelLine(0.7), KitSkelLine(0.4)],
+            )
+          else ...[
+            if (quiet)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: KitLedgerNone(quietText),
               ),
-            ),
-          for (final r in rows) _LedgerRowView(r),
+            for (final r in rows) _LedgerRowView(r),
+          ],
         ],
       ),
     );
   }
+}
+
+/// The ledger's quiet sentence (web `.ledger-none`): italic serif 15 in
+/// `--fg-lede`. A sheet that counts what waits says its nothing in this voice
+/// too (For your review's *Nothing is waiting on you.*).
+class KitLedgerNone extends StatelessWidget {
+  final String text;
+  const KitLedgerNone(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: AppTheme.serif(
+      fontSize: 15,
+      fontStyle: FontStyle.italic,
+      color: Tokens.of(context).fgLede,
+    ),
+  );
 }
 
 class _LedgerRowView extends StatelessWidget {

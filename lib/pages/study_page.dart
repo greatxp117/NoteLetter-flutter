@@ -1,18 +1,24 @@
-/// Study programs (`spec/screens/study.md` §Composition, ADR-041).
+/// Study programs in direction D (`spec/screens/study.md` §Composition —
+/// Study programs; web `pages/StudyView.jsx`).
 ///
-/// Index frame · chapter opening (§2.1) with the `Deep study · N programs`
-/// folio and a **New program** action · one §5.1 surface card per program,
-/// carrying its status chip, its measured progress and its §12 Notice when the
-/// build says it is running low · §7 empty state · the session history under a
-/// §3 header.
+/// The D frame (kit §26–§29): the masthead with the `Deep study · N programs ·
+/// N on` folio and the page's one action, **New program**; the sheet *Deep
+/// study* with the page's Contents and *Today* — Home's desk figure, the
+/// newest session's ungraded questions — beside the column of Programs and
+/// Sessions as ruled registers. On a phone the sheet runs as the running head
+/// and New program is the tab bar's centre.
 ///
 /// **Every figure here is a stored field.** Progress is `introduced_count` of
 /// `unit_count` from the program document, the schedule sentence is rendered
 /// from what was read, the runway is the runway the build measured — and there
 /// is no forecast, retention percentage or streak, because no field carries
-/// one.
+/// one. A figure whose read is out draws the ellipsis; one that was refused
+/// draws the dash (ADR-109) — never a zero for a read that has not said so.
 library;
 
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -20,13 +26,11 @@ import 'package:go_router/go_router.dart';
 import '../models/study.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
+import '../services/error_text.dart';
 import '../services/firestore_service.dart';
 import '../shared/cooldown.dart';
-import '../shared/dates.dart';
 import '../state/study_schedule.dart';
-import '../theme/app_spacing.dart';
 import '../widgets/kit/kit.dart';
-import '../services/error_text.dart';
 
 class StudyPage extends StatefulWidget {
   const StudyPage({super.key});
@@ -41,6 +45,55 @@ class _StudyPageState extends State<StudyPage> {
   final Map<String, String> _errors = {};
   final Map<String, String> _busy = {};
 
+  /// Null until the first snapshot (INV-24: `[]` is "you have no programs
+  /// yet", an OFFER; a refused read is no evidence for it).
+  List<StudyProgram>? _programs;
+  Object? _progErr;
+
+  /// The sessions read is its own region: a history that could not be read
+  /// says nothing about the programs above it (§14.1 takes exactly the region
+  /// that failed), and it feeds Today.
+  List<StudySession> _sessions = const [];
+  bool _sessLoaded = false;
+  Object? _sessErr;
+
+  StreamSubscription<List<StudyProgram>>? _progSub;
+  StreamSubscription<List<StudySession>>? _sessSub;
+  final KitSections _sec = KitSections(['programs', 'sessions']);
+
+  @override
+  void initState() {
+    super.initState();
+    _progSub = FirestoreService.instance.subscribeStudyPrograms().listen(
+      (rows) => setState(() {
+        _progErr = null;
+        _programs = rows;
+      }),
+      onError: (Object e) => setState(() => _progErr = e),
+    );
+    _sessSub = FirestoreService.instance
+        .subscribeStudySessions(limit: 40)
+        .listen(
+          (rows) => setState(() {
+            _sessLoaded = true;
+            _sessErr = null;
+            _sessions = rows;
+          }),
+          onError: (Object e) => setState(() {
+            _sessLoaded = true;
+            _sessErr = e;
+          }),
+        );
+  }
+
+  @override
+  void dispose() {
+    _progSub?.cancel();
+    _sessSub?.cancel();
+    _sec.dispose();
+    super.dispose();
+  }
+
   Future<void> _toggle(StudyProgram p) async {
     setState(() {
       _busy[p.id] = 'toggle';
@@ -51,16 +104,21 @@ class _StudyPageState extends State<StudyPage> {
       // Write BEFORE it moves (ADR-022): the switch reflects the STORED value
       // and the subscription is what changes it, so a refused write leaves the
       // control where it was.
-      final res =
-          await Api.instance.updateStudyProgram(p.id, {'enabled': !p.enabled});
+      final res = await Api.instance.updateStudyProgram(p.id, {
+        'enabled': !p.enabled,
+      });
       if (!mounted) return;
-      setState(() => _notes[p.id] = p.enabled
-          // Off is a PAUSE — the copy may not imply progress is lost.
-          ? 'Off. Nothing further will arrive. The ${p.introducedCount} '
-              'passages it has introduced are kept.'
-          // 2.30.0 — the backend decides whether a session goes now; this
-          // only reports what it decided.
-          : (studyActivationMessage(res) ?? 'On.'));
+      final n = p.introducedCount;
+      setState(
+        () => _notes[p.id] = p.enabled
+            // Off is a PAUSE — the copy may not imply progress is lost.
+            ? 'Off. Nothing further will arrive. The '
+                  '${kitCounted(n, 'passage')} it has introduced '
+                  '${n == 1 ? 'is' : 'are'} kept.'
+            // 2.30.0 — the backend decides whether a session goes now; this
+            // only reports what it decided.
+            : (studyActivationMessage(res) ?? 'On.'),
+      );
     } on ApiException catch (e) {
       if (mounted) setState(() => _errors[p.id] = e.message);
     } catch (_) {
@@ -79,12 +137,14 @@ class _StudyPageState extends State<StudyPage> {
     try {
       await Api.instance.requestStudySession(p.id);
       if (!mounted) return;
-      // ADR-011: a session record ALWAYS appears — the history below is the
-      // subscription that reconciles this promise, so nothing is claimed about
-      // a session that has not been written yet.
-      setState(() => _notes[p.id] =
-          'Session requested — it appears under Sessions in a moment, and by '
-          'email if this program sends one.');
+      // ADR-011: a session record ALWAYS appears — the Sessions register is
+      // the subscription that reconciles this promise, so nothing is claimed
+      // about a session that has not been written yet.
+      setState(
+        () => _notes[p.id] =
+            'Session requested — it appears under Sessions in a moment, and by '
+            'email if this program sends one.',
+      );
     } on ApiException catch (e) {
       if (!mounted) return;
       // A 429 is a COOLDOWN, not a failure: it reads as the system working.
@@ -101,9 +161,10 @@ class _StudyPageState extends State<StudyPage> {
             _notes.remove(p.id);
           } else {
             _notes[p.id] = cooldownSentence(
-                e,
-                'Just a moment — a session for this program was '
-                'requested less than a minute ago.');
+              e,
+              'Just a moment — a session for this program was '
+              'requested less than a minute ago.',
+            );
           }
         } else {
           _errors[p.id] = e.message;
@@ -116,250 +177,250 @@ class _StudyPageState extends State<StudyPage> {
     }
   }
 
+  void _newProgram() => context.go('/study/new');
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<StudyProgram>>(
-      stream: FirestoreService.instance.subscribeStudyPrograms(),
-      builder: (context, snap) {
-        // INV-24 (ADR-071): a failed subscription is not an empty library of
-        // programs, and the empty state is a claim about the reader. A failed
-        // read KEEPS the chapter opening and puts §14.1 where the list goes
-        // (study.md §Composition at 4.98.0, ADR-131; web StudyView) — it
-        // replaced the whole page here.
-        final failed = snap.hasError;
-        final programs = failed ? null : snap.data;
-        if (programs != null && programs.isEmpty) {
-          return KitPage(child: _empty(context));
-        }
+    final programs = _programs;
+    final loaded = programs != null;
+    final list = programs ?? const <StudyProgram>[];
+    final on = list.where((p) => p.enabled).length;
 
-        return KitPage(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ChapterOpening(
-                folio: 'Deep study · '
-                    '${programs == null ? '…' : programs.length} '
-                    '${programs?.length == 1 ? 'program' : 'programs'}',
-                title: 'Study Programs',
-                standfirst:
-                    'A program turns your own documents into questions that '
-                    'come back on their own schedule. How you grade an answer '
-                    'decides when you see it next.',
-                actions: [
-                  KitButton('New program',
-                      icon: Icons.add,
-                      onPressed: () => context.go('/study/new')),
-                ],
-              ),
-              if (failed)
-                // §14.1 takes the region the list would have filled — never
-                // beside it, and never over an offer to create the first one.
-                KitFailureBlock(
-                  sentence: 'Your study programs could not be read.',
-                  detail: describeSdkError(snap.error!),
-                )
-              else if (programs == null)
-                KitRowNote('Loading…')
-              else
-                for (final p in programs)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _ProgramCard(
-                      program: p,
-                      note: _notes[p.id],
-                      error: _errors[p.id],
-                      busy: _busy[p.id],
-                      onToggle: () => _toggle(p),
-                      onStudy: () => _studyNow(p),
-                      onEdit: () => context.go('/study/${p.id}'),
-                      onNew: () => context.go('/study/new'),
-                    ),
-                  ),
-              const _Sessions(),
-              const SizedBox(height: AppSpacing.s8),
-            ],
-          ),
-        );
-      },
-    );
-  }
+    // What waits today is Home's desk figure (kit `kitStudyDue`): the NEWEST
+    // session's ungraded questions, so the two surfaces never disagree. Unread
+    // until the sessions read answers; a refused read says nothing here (its
+    // §14.1 block is in the column).
+    final newest = _sessions.isEmpty ? null : _sessions.first;
+    final due = _sessLoaded && _sessErr == null ? kitStudyDue(newest) : null;
 
-  /// §7 — **an offer, not an apology.** The three rows say what a program is
-  /// for; the action row is what makes one.
-  Widget _empty(BuildContext context) => KitEmptyState(
-        flush: true,
-        // `IcoCards`, the reference's study glyph (F-90 (2)).
-        icon: KitCardsGlyph.icon,
-        title: 'Go deeper on one subject',
-        standfirst:
-            'Your letter keeps the whole library in view. A study program is '
-            'the other direction — one set of documents, learned properly, '
-            'using spaced repetition and retrieval practice.',
-        suggestions: const [
-          KitNumberedMove(
-            number: 'I',
-            title: 'One subject at a time',
-            description:
-                'Up to ten finished documents, in the order you want them '
-                'taught — sessions introduce passages from the first before '
-                'moving on.',
-          ),
-          KitNumberedMove(
-            number: 'II',
-            title: 'It arrives as its own session',
-            description:
-                'Separate from your daily letter, at its own hour. The email '
-                'carries the questions only — answering happens here.',
-          ),
-          KitNumberedMove(
-            number: 'III',
-            title: 'Recall first, then grade yourself',
-            description:
-                'You answer before the answer shows, then mark it Again, '
-                'Hard, Good or Easy. What you miss comes back sooner; what '
-                'you know comes back later, and the screen tells you when.',
-          ),
-        ],
-        actions: [
-          KitButton('New program',
-              icon: Icons.add, onPressed: () => context.go('/study/new')),
-        ],
-      );
-}
-
-/// One program: a §5.1 surface card.
-class _ProgramCard extends StatelessWidget {
-  final StudyProgram program;
-  final String? note;
-  final String? error;
-  final String? busy;
-  final VoidCallback onToggle;
-  final VoidCallback onStudy;
-  final VoidCallback onEdit;
-  final VoidCallback onNew;
-
-  const _ProgramCard({
-    required this.program,
-    required this.note,
-    required this.error,
-    required this.busy,
-    required this.onToggle,
-    required this.onStudy,
-    required this.onEdit,
-    required this.onNew,
-  });
-
-  /// The program's own cooldown (4.107.0, ADR-140): Study now is held for the
-  /// wait a refusal carried and counts it down, and the server's sentence is
-  /// the note while it runs. Other programs' controls are untouched — the
-  /// cooldown is per program.
-  @override
-  Widget build(BuildContext context) => KitWait(
-        waitKey: WaitKey.studySession(program.id),
-        builder: _card,
-      );
-
-  Widget _card(BuildContext context, CooldownWait wait) {
-    final p = program;
-    final on = p.enabled;
-    final low = runwayNotice(p);
-    return KitProgramCard(
-      title: p.title,
-      status: p.status,
-      statusLabel: studyStatusLabel(p.status),
-      introduced: p.introducedCount,
-      units: p.unitCount,
-      schedule: '${on ? '' : 'Was: '}${programScheduleSentence(p)}',
-      on: on,
-      offNote: 'Off is a pause — the schedule and everything it has '
-          'introduced are kept, and “Study now” still works.',
-      switchLabel: busy == 'toggle' ? '…' : (on ? 'ON' : 'OFF'),
-      switchControl: KitSwitch(
-        value: on,
-        tooltip: on ? 'Pause this program' : studyActivationHint,
-        onChanged: busy != null ? null : (_) => onToggle(),
+    final secs = [
+      KitContentsItem(
+        'programs',
+        'Programs',
+        count: loaded && _progErr == null ? '${list.length}' : null,
       ),
-      actions: [
-        KitButton(busy == 'study' ? 'Requesting…' : 'Study now',
-            wait: busy == 'study' ? 0 : wait.left,
-            onPressed: busy != null ? null : onStudy),
-        KitButton('Settings',
-            icon: Icons.tune,
-            variant: KitButtonVariant.ghost,
-            onPressed: onEdit),
-      ],
-      // §12 — measured, not dismissible, the action the one
-      // `low_material_reason` names; the glyph is the pattern's own.
-      notice: low == null
-          ? null
-          : KitNotice(
-              text: low.text,
-              actionLabel: low.cta,
-              onAction: low.action == 'new' ? onNew : onEdit,
-            ),
-      // Web's `shown`: the failure (§14.2), else the cooldown's sentence as
-      // the kit's calm caption (§6.1, 4.108.0), else the program's own note,
-      // else — off — what turning it on does, said BEFORE the switch is
-      // touched (ADR-031).
-      hint: error != null
-          ? KitFailureInline(error!)
-          : wait.sentence != null
-              ? KitWaitNote(wait.sentence!)
-              : null,
-      hintText: note ?? (on ? null : studyActivationHint),
-    );
-  }
-}
+      if (_sessErr != null || _sessions.isNotEmpty)
+        KitContentsItem(
+          'sessions',
+          'Sessions',
+          count: _sessErr != null ? null : '${_sessions.length}',
+        ),
+    ];
+    final ids = [for (final s in secs) s.id];
+    if (!listEquals(_sec.ids, ids)) _sec.ids = ids;
 
-/// The session history — §3 header over §4.1 rows. Rendered from
-/// `program_title`, because a deleted program's sessions still list and that
-/// is normal, not an error.
-class _Sessions extends StatelessWidget {
-  const _Sessions();
+    final folioN = _progErr != null
+        ? '— programs'
+        : loaded
+        ? kitCounted(list.length, 'program')
+        : '…';
+    final folio =
+        'Deep study\u00a0· $folioN'
+        '${loaded && _progErr == null && list.isNotEmpty ? '\u00a0· $on on' : ''}';
 
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<StudySession>>(
-      stream: FirestoreService.instance.subscribeStudySessions(limit: 40),
-      builder: (context, snap) {
-        if (snap.hasError) {
-          return Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.s6),
-            child: KitFailureBlock(
-              sentence: 'Your recent sessions could not be read.',
-              detail: describeSdkError(snap.error!),
-            ),
-          );
-        }
-        final rows = snap.data ?? const <StudySession>[];
-        if (rows.isEmpty) return const SizedBox.shrink();
-        return Column(
+    final empty = _progErr == null && loaded && list.isEmpty;
+
+    return KitDPage(
+      folio: folio,
+      title: 'Study Programs',
+      stand:
+          'A program turns your own documents into questions that come back '
+          'on their own schedule. How you grade an answer decides when you '
+          'see it next.',
+      action: KitPageAction(
+        label: 'New program',
+        short: 'New program',
+        icon: Icons.add,
+        onPressed: _newProgram,
+      ),
+      sections: _sec,
+      sheet: KitDSheet(
+        label: 'Deep study',
+        foldOnPick: true,
+        peek: KitSecPeek(items: secs, sections: _sec),
+        body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionHeader('Sessions'),
-            KitRowList(
-              rows: [for (final r in rows) _sessionRow(context, r)],
-            ),
+            const KitDLabel('Contents', first: true),
+            KitContents(items: secs, sections: _sec),
+            // Absent when the read was refused: never a sentence about what
+            // a refused read did not say (INV-24).
+            if (_sessErr == null)
+              KitDeskLedger(
+                label: 'Today',
+                loading: !_sessLoaded,
+                quiet: due == null,
+                quietText: 'Nothing is waiting today.',
+                rows: [
+                  if (due != null && newest != null)
+                    KitLedgerRow(
+                      id: 'session',
+                      n: '${due.left}',
+                      line: due.left == 1
+                          ? 'question waiting'
+                          : 'questions waiting',
+                      sub: newest.programTitle.isEmpty
+                          ? 'Study session'
+                          : newest.programTitle,
+                      onTap: () => context.go('/study/session/${newest.id}'),
+                    ),
+                ],
+              ),
           ],
-        );
-      },
+        ),
+      ),
+      child: empty
+          // INV-24: `[]` is "you have no programs yet", an OFFER. It stands
+          // where the programs would, so the sheet's Programs row finds it.
+          ? KeyedSubtree(key: _sec.keyOf('programs'), child: _empty())
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                KeyedSubtree(
+                  key: _sec.keyOf('programs'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      KitSectionHead(
+                        'Programs',
+                        flushTop: true,
+                        meta: loaded && _progErr == null
+                            ? '${kitCounted(list.length, 'program')} · $on on'
+                            : null,
+                      ),
+                      if (_progErr != null)
+                        // §14.1 takes the region the list would have filled —
+                        // never beside it, and never over an offer to create
+                        // the first program.
+                        KitFailureBlock(
+                          sentence: 'Your study programs could not be read.',
+                          detail: describeSdkError(_progErr!),
+                        )
+                      else if (!loaded)
+                        const KitSkeletonLines(
+                          lines: [
+                            KitSkelLine(0.6, true),
+                            KitSkelLine(),
+                            KitSkelLine(0.7),
+                            KitSkelLine(0.5, true),
+                            KitSkelLine(),
+                            KitSkelLine(0.6),
+                          ],
+                        )
+                      else
+                        KitRuledRegister(
+                          children: [
+                            for (final p in list)
+                              _ProgramCard(
+                                key: ValueKey('program-${p.id}'),
+                                program: p,
+                                note: _notes[p.id],
+                                error: _errors[p.id],
+                                busy: _busy[p.id],
+                                onToggle: () => _toggle(p),
+                                onStudy: () => _studyNow(p),
+                                onEdit: () => context.go('/study/${p.id}'),
+                                onNew: _newProgram,
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+                if (_sessErr != null || _sessions.isNotEmpty)
+                  KeyedSubtree(
+                    key: _sec.keyOf('sessions'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // `.dp-hist .hx-sh { margin-top: 72px }`.
+                        const SizedBox(height: 72),
+                        KitSectionHead(
+                          'Sessions',
+                          flushTop: true,
+                          meta: _sessErr != null
+                              ? null
+                              : kitCounted(_sessions.length, 'session'),
+                        ),
+                        if (_sessErr != null)
+                          KitFailureBlock(
+                            sentence: 'Your recent sessions could not be read.',
+                            detail: describeSdkError(_sessErr!),
+                          )
+                        else
+                          KitRuledRegister(
+                            children: [
+                              for (final s in _sessions) _sessionRow(s),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 
-  Widget _sessionRow(BuildContext context, StudySession s) {
-    final questions =
-        s.items.fold<int>(0, (n, it) => n + it.questions.length);
+  /// §37 in D — **an offer, not an apology.** The three moves say what a
+  /// program is for, as a ruled list; the action row is what makes one. The
+  /// masthead and the sheet stay.
+  Widget _empty() => KitEmptyState(
+    // `IcoCards`, the reference's study glyph (F-90 (2)).
+    icon: KitCardsGlyph.icon,
+    title: 'Go deeper on one subject',
+    standfirst:
+        'Your letter keeps the whole library in view. A study program is '
+        'the other direction — one set of documents, learned properly, '
+        'using spaced repetition and retrieval practice.',
+    suggestions: const [
+      KitNumberedMove(
+        number: 'I',
+        title: 'One subject at a time',
+        description:
+            'Up to ten finished documents, in the order you want them '
+            'taught — sessions introduce passages from the first before '
+            'moving on.',
+      ),
+      KitNumberedMove(
+        number: 'II',
+        title: 'It arrives as its own session',
+        description:
+            'Separate from your daily letter, at its own hour. The email '
+            'carries the questions only — answering happens here.',
+      ),
+      KitNumberedMove(
+        number: 'III',
+        title: 'Recall first, then grade yourself',
+        description:
+            'You answer before the answer shows, then mark it Again, '
+            'Hard, Good or Easy. What you miss comes back sooner; what '
+            'you know comes back later, and the screen tells you when.',
+      ),
+    ],
+    actions: [
+      KitButton('New program', icon: Icons.add, onPressed: _newProgram),
+    ],
+  );
+
+  /// One past session. Rendered from `program_title`, because a deleted
+  /// program's sessions still list and that is normal, not an error.
+  Widget _sessionRow(StudySession s) {
+    final questions = s.items.fold<int>(0, (n, it) => n + it.questions.length);
     final answered = s.responses.length;
-    final chip = _sessionChip(s);
-    return KitSourceRow(
+    final at = s.generatedAt;
+    return KitStudyHistoryRow(
+      key: ValueKey('session-${s.id}'),
+      date: at == null ? '' : kitShortDay(at),
+      time: at == null ? '' : kitClockTime(at),
       title: s.programTitle.isEmpty ? 'Study session' : s.programTitle,
-      subtitle: questions > 0
-          ? '${s.newCount} new · ${s.reviewCount} '
-              '${s.reviewCount == 1 ? 'review' : 'reviews'} · '
-              '$answered of $questions answered'
-          : 'No questions',
-      date: shortDate(s.generatedAt),
-      trailing: chip == null ? null : KitStatusPill(chip),
+      parts: questions > 0
+          ? [
+              '${s.newCount} new · ${s.reviewCount} '
+                  '${s.reviewCount == 1 ? 'review' : 'reviews'}',
+              '$answered of $questions answered',
+            ]
+          : const ['No questions'],
+      chip: _sessionChip(s),
       onTap: () => context.go('/study/session/${s.id}'),
     );
   }
@@ -391,5 +452,94 @@ class _Sessions extends StatelessWidget {
       return s.status.replaceAll(RegExp(r'[_-]+'), ' ');
     }
     return null;
+  }
+}
+
+/// One program in the register: [KitProgramCard], whose D form is the ruled
+/// entry (`.dp-study .st-prog`).
+class _ProgramCard extends StatelessWidget {
+  final StudyProgram program;
+  final String? note;
+  final String? error;
+  final String? busy;
+  final VoidCallback onToggle;
+  final VoidCallback onStudy;
+  final VoidCallback onEdit;
+  final VoidCallback onNew;
+
+  const _ProgramCard({
+    super.key,
+    required this.program,
+    required this.note,
+    required this.error,
+    required this.busy,
+    required this.onToggle,
+    required this.onStudy,
+    required this.onEdit,
+    required this.onNew,
+  });
+
+  /// The program's own cooldown (4.107.0, ADR-140): Study now is held for the
+  /// wait a refusal carried and counts it down, and the server's sentence is
+  /// the note while it runs. Other programs' controls are untouched — the
+  /// cooldown is per program.
+  @override
+  Widget build(BuildContext context) =>
+      KitWait(waitKey: WaitKey.studySession(program.id), builder: _card);
+
+  Widget _card(BuildContext context, CooldownWait wait) {
+    final p = program;
+    final on = p.enabled;
+    final low = runwayNotice(p);
+    return KitProgramCard(
+      title: p.title,
+      status: p.status,
+      statusLabel: studyStatusLabel(p.status),
+      introduced: p.introducedCount,
+      units: p.unitCount,
+      schedule: '${on ? '' : 'Was: '}${programScheduleSentence(p)}',
+      on: on,
+      offNote:
+          'Off is a pause — the schedule and everything it has '
+          'introduced are kept, and “Study now” still works.',
+      switchLabel: busy == 'toggle' ? '…' : (on ? 'ON' : 'OFF'),
+      switchControl: KitSwitch(
+        value: on,
+        tooltip: on ? 'Pause this program' : studyActivationHint,
+        onChanged: busy != null ? null : (_) => onToggle(),
+      ),
+      actions: [
+        KitButton(
+          busy == 'study' ? 'Requesting…' : 'Study now',
+          wait: busy == 'study' ? 0 : wait.left,
+          onPressed: busy != null ? null : onStudy,
+        ),
+        KitButton(
+          'Settings',
+          icon: Icons.tune,
+          variant: KitButtonVariant.ghost,
+          onPressed: onEdit,
+        ),
+      ],
+      // §12 — measured, not dismissible, the action the one
+      // `low_material_reason` names; the glyph is the pattern's own.
+      notice: low == null
+          ? null
+          : KitNotice(
+              text: low.text,
+              actionLabel: low.cta,
+              onAction: low.action == 'new' ? onNew : onEdit,
+            ),
+      // Web's `shown`: the failure (§14.2), else the cooldown's sentence as
+      // the kit's calm caption (§6.1, 4.108.0), else the program's own note,
+      // else — off — what turning it on does, said BEFORE the switch is
+      // touched (ADR-031).
+      hint: error != null
+          ? KitFailureInline(error!)
+          : wait.sentence != null
+          ? KitWaitNote(wait.sentence!)
+          : null,
+      hintText: note ?? (on ? null : studyActivationHint),
+    );
   }
 }

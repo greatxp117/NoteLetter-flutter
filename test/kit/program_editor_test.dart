@@ -130,14 +130,24 @@ void main() {
       (tester) async {
     await _pump(tester, '/study/new');
     expect(find.text('A New Program'), findsOneWidget);
+    // Direction D: each group's eyebrow is its serif head (F-145,
+    // screens/study.md §Composition — the program editor).
     for (final s in [
-      'NAME',
-      'SOURCES FOR THIS SUBJECT',
-      'DELIVERY',
-      'SESSION LENGTH',
+      'Name',
+      'Sources for this subject',
+      'Delivery',
+      'Session length',
     ]) {
       expect(find.text(s), findsOneWidget, reason: s);
     }
+    // The crumb back, and the sheet's figures read from the form as it
+    // stands — on a phone, the running head: the cards glyph, the title,
+    // `{n} documents`.
+    expect(
+        tester.widget<KitDBackControl>(find.byType(KitDBackControl)).label,
+        'Study programs');
+    expect(find.text('DEEP STUDY\u00a0· NEW PROGRAM'), findsOneWidget);
+    expect(find.text('Untitled program'), findsWidgets);
     expect(find.byType(KitFormSection), findsNWidgets(4));
     expect(find.byType(CheckboxListTile), findsNothing);
     expect(find.byType(DropdownButtonFormField<String>), findsNothing);
@@ -202,9 +212,9 @@ void main() {
     ApiService.instance.httpClientAdapter = rec;
     await _pump(tester, '/study/p1');
     expect(find.text('Program Settings'), findsOneWidget);
-    expect(find.text('WHAT EACH SOURCE IS'), findsOneWidget);
-    expect(find.text('WHERE YOU ARE'), findsOneWidget);
-    expect(find.text('SYLLABUS'), findsOneWidget);
+    expect(find.text('What each source is'), findsOneWidget);
+    expect(find.text('Where you are'), findsOneWidget);
+    expect(find.text('Syllabus'), findsOneWidget);
     expect(find.text('Your notes — always available'), findsOneWidget);
     expect(find.text('Not answered yet'), findsOneWidget);
     expect(find.textContaining('One source still needs an answer'),
@@ -231,7 +241,16 @@ void main() {
     final rec = _Router(() => (200, {'ok': true}));
     ApiService.instance.httpClientAdapter = rec;
     await _pump(tester, '/study/p1');
-    await _tapVisible(tester, find.byType(KitFormDangerButton));
+    // Direction D: Delete is the sheet's Also — last, in the critical ink —
+    // and the form's foot no longer carries it. On a phone the sheet is the
+    // running head: drop it, then Delete folds it before the confirm opens.
+    expect(find.byType(KitFormDangerButton), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('d-peek')));
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.tap(find.widgetWithText(KitAlsoButton, 'Delete program'));
+    await tester.pumpAndSettle();
     expect(find.byType(KitConfirm), findsOneWidget);
     expect(rec.sent, isEmpty);
     await tester.tap(find.descendant(

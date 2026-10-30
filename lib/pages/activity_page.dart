@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -18,21 +19,21 @@ import 'sources/browse_section.dart' show runSourcePrimary;
 /// **Activity** (`spec/screens/activity.md`) — the live pipeline feed, and the
 /// screen that defines the canonical merge every client implements identically.
 ///
-/// Recomposed against the kit (ADR-041, screen 4/11). What was here was a grid
-/// of bespoke cards over `activity.documents` — the *documents* half of the
-/// merge only, so an event with no document behind it (a letter sent, a service
-/// connected, an organization move) could not appear on the activity screen at
-/// all. The merge was already correct in `activity_merge.dart`; nothing on this
-/// screen read it.
+/// Direction D (§Composition; web `pages/ActivityView.jsx`), every part from
+/// the kit:
 ///
-/// Composition (§Composition), every part from the kit:
-///
-/// * **Frame** Index (980) inside a scroll container — §1.4/§1.5.
-/// * **Header** chapter opening: title `Activity` and a standfirst. **No
-///   folio** — this screen counts nothing; it is a record, not an index.
-/// * **Controls** a control bar (§6.6) of filter chips (§6.7) over the event
-///   families, each carrying its count and **disabled, not hidden**, at zero.
-/// * **Body** date-bucketed section headers (§3) over the timeline (§4.2).
+/// * **Frame** the D frame (kit §26–§29) inside the primary scroll container,
+///   which ends with the support footer.
+/// * **Masthead** folio `Activity · {N} events` (the ellipsis while the feed
+///   is out, the dash when it was refused — never a zero for a read that has
+///   not said so), title *Activity* and its standfirst. Search alone.
+/// * **Sheet** *Filters*: the Kind facet over the event families, each with
+///   its count, **held, not hidden**, at zero; then *When* — Contents over the
+///   day buckets that hold rows under the chosen kind. On a phone it is the
+///   running head: the sliders, the chosen kind and `{shown} of {all}`.
+/// * **Column** one section per day under a small SectionHead (§31), over the
+///   timeline (§4.2) — its row hover kit §36's reference. Skeleton lines while
+///   the feed is out, never *Nothing of that kind yet.*
 class ActivityPage extends StatefulWidget {
   const ActivityPage({super.key});
 
@@ -42,6 +43,9 @@ class ActivityPage extends StatefulWidget {
 
 class _ActivityPageState extends State<ActivityPage> {
   String _filter = 'all';
+
+  /// The day buckets as the page's sections: *When* jumps to one.
+  final KitSections _sec = KitSections(const []);
 
   /// A stalled row crosses its threshold with NO Firestore write behind it, so
   /// nothing would redraw it (sources.md §Stalled rows: a client must run a
@@ -63,6 +67,7 @@ class _ActivityPageState extends State<ActivityPage> {
   @override
   void dispose() {
     _tick?.cancel();
+    _sec.dispose();
     super.dispose();
   }
 
@@ -122,79 +127,134 @@ class _ActivityPageState extends State<ActivityPage> {
         final shown = _filter == 'all'
             ? rows
             : rows.where((r) => r.family == _filter).toList();
+        final buckets = [
+          for (final b in _buckets)
+            if (shown.any((r) => r.bucket == b))
+              (b, shown.where((r) => r.bucket == b).toList()),
+        ];
+        final ids = [for (final g in buckets) g.$1];
+        if (!listEquals(_sec.ids, ids)) _sec.ids = ids;
 
-        return KitPage(
+        // INV-24 (ADR-071): the feed is unread until its first answer, and a
+        // refusal leaves it unmeasured (ADR-109).
+        final failed = activity.error != null;
+        final loading = activity.isLoading && rows.isEmpty && !failed;
+        final folioN = failed
+            ? '— events'
+            : loading
+            ? '…'
+            : kitCounted(rows.length, 'event');
+        final kind = _families[_filter] ?? 'All';
+        final when = [
+          for (final g in buckets)
+            KitContentsItem(g.$1, g.$1, count: '${g.$2.length}'),
+        ];
+
+        return KitDPage(
+          folio: 'Activity\u00a0· $folioN',
+          title: 'Activity',
+          stand:
+              'Everything that has happened on your account — sources added, '
+              'passages processed, letters sent, and more.',
+          sections: _sec,
+          sheet: KitDSheet(
+            label: 'Filters',
+            // A day row folds the running head; a kind does not — the days
+            // under it change with it (web `foldOn: '.rx-nav-b'`).
+            foldOnPick: true,
+            peek: KitLibPeek(
+              icon: Icons.tune,
+              title: _filter == 'all' ? 'All activity' : kind,
+              count: loading || failed ? null : '${shown.length}',
+              tail: loading || failed || _filter == 'all'
+                  ? null
+                  : ' of ${rows.length}',
+            ),
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Builder(
+                  builder: (context) {
+                    final scope = KitSheetScope.maybeOf(context);
+                    return KitSheetScope(
+                      lines: scope?.lines ?? false,
+                      dock: scope?.dock ?? false,
+                      child: KitFacet(
+                        label: 'Kind',
+                        value: _filter,
+                        // Held, not hidden: the families are a vocabulary.
+                        // `other` is the one exception — a bucket rather than
+                        // a family, and its choice appearing at all is the
+                        // visible form of this build being older than the
+                        // backend.
+                        items: [
+                          for (final f in _families.entries)
+                            if (f.key != 'other' || (counts['other'] ?? 0) > 0)
+                              KitFacetItem(
+                                f.key,
+                                f.value,
+                                count: '${counts[f.key] ?? 0}',
+                                disabled:
+                                    f.key != 'all' && (counts[f.key] ?? 0) == 0,
+                              ),
+                        ],
+                        onChanged: (v) => setState(() => _filter = v),
+                      ),
+                    );
+                  },
+                ),
+                if (when.isNotEmpty) ...[
+                  const KitDLabel('When'),
+                  KitContents(items: when, sections: _sec, label: 'When'),
+                ],
+              ],
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const ChapterOpening(
-                // One word, and the reference gives it no accent clause —
-                // italicising the whole title is not the same device.
-                title: 'Activity',
-                standfirst: 'Everything that has happened on your account — '
-                    'sources added, passages processed, letters sent, and '
-                    'more.',
-              ),
-
-              if (activity.isLoading && rows.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: Center(child: CircularProgressIndicator()),
+              // §14.1 (ADR-070) whenever there IS an error, and above the rows
+              // (C1): a feed that loaded once and then failed keeps what did
+              // load — it is still true — under the notice that it is stale.
+              if (failed)
+                KitFailureBlock(
+                  sentence: 'Your activity could not be loaded.',
+                  detail: activity.error!,
+                  onRetry: () => context.read<ActivityNotifier>().refresh(),
+                ),
+              if (loading)
+                const KitSkeletonLines(
+                  lines: [
+                    KitSkelLine(0.3, true),
+                    KitSkelLine(),
+                    KitSkelLine(0.7),
+                    KitSkelLine(),
+                    KitSkelLine(0.6),
+                    KitSkelLine(),
+                    KitSkelLine(0.7),
+                  ],
                 )
-              // §14.1 (ADR-070). It was a KitCard with the message in meta
-              // and a ghost button — the app's ninth failure shape, and the
-              // reason the pattern is now in the kit.
-              //
-              // Whenever there IS an error, and above the rows (C1). It was
-              // `error != null && rows.isEmpty` — the ORDER defect one
-              // condition further on: a feed that loaded once and then failed
-              // kept its stale rows and said nothing, so the screen stayed a
-              // confident record of a moment that had passed.
-              else ...[
-                if (activity.error != null)
-                  KitFailureBlock(
-                    sentence: 'Your activity could not be loaded.',
-                    detail: activity.error!,
-                    onRetry: () => context.read<ActivityNotifier>().refresh(),
-                  ),
-                // §7 is an offer and §14 is a hole. The empty state may only
-                // speak when nothing failed, or it asserts an empty library.
-                if (rows.isEmpty && activity.error == null)
-                  const _ActivityEmpty()
-                else if (rows.isNotEmpty) ...[
-                  KitControlBar(
-                    filters: [
-                      // Disabled, not hidden: the families are a vocabulary, and
-                      // a bar that changes shape per account puts the same filter
-                      // in a different place for every reader. `other` is the one
-                      // exception — it is a bucket rather than a family, and its
-                      // chip appearing at all is the visible form of this build
-                      // being older than the backend.
-                      for (final f in _families.entries)
-                        if (f.key != 'other' || (counts['other'] ?? 0) > 0)
-                          KitFilterChip(
-                            f.value,
-                            count: counts[f.key] ?? 0,
-                            selected: _filter == f.key,
-                            onPressed: f.key == 'all' || (counts[f.key] ?? 0) > 0
-                                ? () => setState(() => _filter = f.key)
-                                : null,
-                          ),
-                    ],
-                  ),
-                  if (shown.isEmpty)
-                    KitCard(
-                      child: Text('Nothing of that kind yet.',
-                          style: KitText.meta(context)),
-                    )
-                  else
-                    for (final bucket in _buckets) ...[
-                      if (shown.any((r) => r.bucket == bucket)) ...[
-                        SectionHeader(bucket, first: bucket == _buckets.first),
+              else if (buckets.isEmpty && !failed)
+                const KitDNone('Nothing of that kind yet.')
+              else
+                for (var i = 0; i < buckets.length; i++) ...[
+                  // `.dp-act-g + .dp-act-g { margin-top: 48px }` — outside
+                  // the section, so When's jump lands its head 24 under the
+                  // top.
+                  if (i > 0 || failed) const SizedBox(height: 48),
+                  KeyedSubtree(
+                    key: _sec.keyOf(buckets[i].$1),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        KitSectionHead(
+                          buckets[i].$1,
+                          small: true,
+                          meta: kitCounted(buckets[i].$2.length, 'event'),
+                        ),
                         KitTimeline(
                           rows: [
-                            for (final r
-                                in shown.where((r) => r.bucket == bucket))
+                            for (final r in buckets[i].$2)
                               KitTimelineRow(
                                 icon: r.icon,
                                 tone: r.tone,
@@ -202,8 +262,10 @@ class _ActivityPageState extends State<ActivityPage> {
                                 subject: r.subject,
                                 badge: r.badgeKind == null
                                     ? null
-                                    : KitFileBadge(kitDocKind(r.badgeKind!),
-                                        size: KitBadgeSize.inline),
+                                    : KitFileBadge(
+                                        kitDocKind(r.badgeKind!),
+                                        size: KitBadgeSize.inline,
+                                      ),
                                 detail: r.detail,
                                 time: r.time,
                                 live: r.live,
@@ -221,9 +283,9 @@ class _ActivityPageState extends State<ActivityPage> {
                           ],
                         ),
                       ],
-                    ],
+                    ),
+                  ),
                 ],
-              ],
             ],
           ),
         );
@@ -244,36 +306,6 @@ class _ActivityPageState extends State<ActivityPage> {
       default:
         context.go('/sources');
     }
-  }
-}
-
-/// The empty feed. An offer, not an apology (§7): a reader whose account has
-/// done nothing yet is shown what would put something here.
-class _ActivityEmpty extends StatelessWidget {
-  const _ActivityEmpty();
-
-  @override
-  Widget build(BuildContext context) {
-    return KitEmptyState(
-      icon: Icons.timeline_outlined,
-      title: 'Nothing has happened *yet.*',
-      standfirst: 'This is the record of your account — every source added, '
-          'every passage indexed, every letter sent.',
-      suggestions: [
-        KitSuggestion(
-            icon: Icons.upload_outlined,
-            label: 'Add your first source',
-            onTap: () => context.go('/sources')),
-        KitSuggestion(
-            icon: Icons.cloud_outlined,
-            label: 'Connect a service to import from',
-            onTap: () => context.go('/sources')),
-        KitSuggestion(
-            icon: Icons.mail_outlined,
-            label: 'Set when your letter arrives',
-            onTap: () => context.go('/settings')),
-      ],
-    );
   }
 }
 

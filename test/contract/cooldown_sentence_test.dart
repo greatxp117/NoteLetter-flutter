@@ -204,6 +204,9 @@ void main() {
 
       await tester.pumpWidget(_study());
       await tester.pumpAndSettle();
+      // Direction D: the programs stand under the masthead (F-145).
+      await tester.ensureVisible(find.text('Study now'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Study now'));
       await tester.pumpAndSettle();
 
@@ -225,6 +228,9 @@ void main() {
           _CannedAdapter(429, '<html>429</html>', json: false);
 
       await tester.pumpWidget(_study());
+      await tester.pumpAndSettle();
+      // Direction D: the programs stand under the masthead (F-145).
+      await tester.ensureVisible(find.text('Study now'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Study now'));
       await tester.pumpAndSettle();

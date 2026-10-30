@@ -557,6 +557,9 @@ void main() {
           _Canned((_) => (429, _envelope(sentence, 'RATE_LIMITED', 58)));
       await tester.pumpWidget(_app(StudyPage()));
       await tester.pumpAndSettle();
+      // Direction D: the programs stand under the masthead (F-145).
+      await tester.ensureVisible(_button('Study now').first);
+      await tester.pumpAndSettle();
       await tester.tap(_button('Study now').first);
       await tester.pumpAndSettle();
 

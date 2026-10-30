@@ -145,8 +145,9 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
   // redirect would send the frame to `/` under the sign-in page's name.
   if (signedOutRoutes.contains(route)) {
     await FirebaseAuth.instance.signOut();
-  } else if (h.state == 'empty-account') {
-    // `sources-empty` (F-141): the Library of an account with NO documents —
+  } else if (h.state == 'empty-account' || h.state == 'empty-review') {
+    // `sources-empty` (F-141) and `review-empty` (F-145): an account with NO
+    // documents — the Library's empty catalogue, For your review's §37 —
     // the same empty@noteletter.test web's `inEmptyAccount` signs up, created
     // here when this emulator boot has not seen it. Onboarded, as web's
     // `nl-onboarded`, so the first-run wizard does not wrap the frame.
@@ -488,6 +489,19 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
             'another state under sources-empty');
       }
       await tester.ensureVisible(dz.first);
+      await settle();
+      return;
+    // F-145: For your review in an account with nothing waiting — web's
+    // `review-empty` (`inEmptyAccount(page, out, '/review', '.review-empty')`).
+    case 'empty-review':
+      final none = find.text('Nothing waiting for you');
+      for (var i = 0; i < 40 && none.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      if (none.evaluate().isEmpty) {
+        fail('For your review drew no empty state — this frame would be '
+            'another state under review-empty');
+      }
       await settle();
       return;
     // The camera roll in D (F-146, 5.43.0) on /sources —

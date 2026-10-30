@@ -2368,12 +2368,12 @@ a new obligation on a finished screen is a new item.
 - notes: Folds F-133 (the generative-AI switch and Video reading) into D's Settings. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-145 · Direction D: Deep study, Activity and For your review (5.42.0, ADR-197)
-- status: open
+- status: in-progress
 - screen: study, activity, review
 - route: /study, /study/session/{id}, /activity, /review
 - spec: spec/screens/study.md; spec/screens/activity.md; spec/screens/review.md
-- web: src/pages/StudyView.jsx; src/pages/ActivityView.jsx; src/pages/ReviewView.jsx
-- flutter: lib/pages/study_page.dart; lib/pages/study/session_player.dart; lib/pages/activity_page.dart; lib/pages/review_page.dart
+- web: src/pages/StudyView.jsx; src/pages/study/ProgramEditor.jsx; src/pages/study/SessionPlayer.jsx; src/pages/ActivityView.jsx; src/pages/ReviewView.jsx; src/kit/d/Ledger.jsx; src/styles/app-d-pages.css; src/styles/app-study.css
+- flutter: lib/pages/study_page.dart; lib/pages/study/session_player.dart; lib/pages/study/program_editor.dart; lib/pages/activity_page.dart; lib/pages/review_page.dart; lib/widgets/kit/kit_d_study.dart (new); lib/widgets/kit/kit_d_pages.dart (new); lib/widgets/kit/kit_d_home.dart; lib/widgets/kit/kit_d_frame.dart; lib/widgets/kit/kit_d_library.dart; lib/widgets/kit/kit_headers.dart; lib/widgets/kit/kit_form.dart; lib/widgets/kit/kit_program_card.dart; lib/widgets/kit/kit_rows.dart; lib/widgets/kit/kit_empty.dart; test/kit/d_study_review_activity_test.dart (new)
 - folds: 5.42.0
 - device_test: integration_test: study programs and a session's sheet, Activity's When filter, the review empty state
 - shots: study; activity; review; review-empty

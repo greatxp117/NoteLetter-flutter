@@ -109,6 +109,10 @@ void main() {
         reason: 'the failure has to be said');
     expect(find.byType(KitEmptyState), findsNothing,
         reason: '§7 is an offer; drawn here it asserts an empty account');
+    expect(find.text('Nothing of that kind yet.'), findsNothing,
+        reason: 'nor does a refused feed claim there is nothing of a kind');
+    expect(find.text('ACTIVITY\u00a0· — EVENTS'), findsOneWidget,
+        reason: 'the folio\'s figure is unmeasured, never a zero');
     expect(find.textContaining('permission-denied'), findsOneWidget,
         reason: "§14 PARTS — the server's own sentence, quoted");
   });
@@ -135,9 +139,13 @@ void main() {
     );
   });
 
-  testWidgets('§7 still speaks when nothing failed', (tester) async {
+  // Direction D (F-145, screens/activity.md §Composition): an answered feed
+  // with nothing in it says so in the column's one line — web never drew a
+  // §7 here, and the D screen draws none (this client's own §7 offer is gone
+  // with it). Still never while anything failed.
+  testWidgets('the empty line still speaks when nothing failed', (tester) async {
     await _pump(tester, _StubActivity());
-    expect(find.byType(KitEmptyState), findsOneWidget);
+    expect(find.text('Nothing of that kind yet.'), findsOneWidget);
     expect(find.byType(KitFailureBlock), findsNothing);
   });
 
