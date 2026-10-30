@@ -21,6 +21,7 @@ EMU_DEFINES="--dart-define=USE_EMULATOR=true \
 --dart-define=EMULATOR_FIRESTORE_PORT=$EMU_FIRESTORE_PORT \
 --dart-define=EMULATOR_AUTH_PORT=$EMU_AUTH_PORT \
 --dart-define=EMULATOR_FUNCTIONS_PORT=$EMU_FUNCTIONS_PORT \
+--dart-define=EMULATOR_STORAGE_PORT=$EMU_STORAGE_PORT \
 --dart-define=EMULATOR_FUNCTIONS_SHIM=true"
 
 # Resolved from git, not from $0: this file is SOURCED, and a sourced file's

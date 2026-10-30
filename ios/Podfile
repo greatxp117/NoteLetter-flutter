@@ -50,5 +50,14 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # Xcode 27.1 accepts deployment targets 15.0 and up only, and a pod that
+    # still declares 9.0–13.0 (GoogleSignIn, gRPC, abseil…) is a build ERROR,
+    # which `flutter build ios` reports with no cause (2026-10-29). The app's
+    # own floor is 15.0, so raising a pod to it changes nothing the app runs on.
+    target.build_configurations.each do |config|
+      if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 15.0
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
   end
 end

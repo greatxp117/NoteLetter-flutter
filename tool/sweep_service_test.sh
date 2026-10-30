@@ -53,5 +53,22 @@ got="$(sqlite3 "$tcc" "select auth_value||'/'||auth_version from access \
 [ "$got" = "2/2" ] || { echo "tool: photo permission not set ($got)" >&2; exit 1; }
 echo "tool: full photo access; sweep service test on $udid (emulator firestore:$EMU_FIRESTORE_PORT auth:$EMU_AUTH_PORT shim:$EMU_FUNCTIONS_PORT)"
 
+# 5.40.0: the test asks for a photo to be taken between two passes (a file in
+# its tmp/), and a pass from the change token must read only that photo.
+(
+  for _ in $(seq 1 900); do
+    data="$(xcrun simctl get_app_container "$udid" "$bundle" data 2>/dev/null || true)"
+    if [ -n "$data" ] && [ -f "$data/tmp/sweep-take-a-photo" ]; then
+      rm -f "$data/tmp/sweep-take-a-photo"
+      xcrun simctl addmedia "$udid" "$photos/sweep-dense.jpg"
+      echo "tool: took a photo (sweep-dense.jpg) for the change-token pass"
+      exit 0
+    fi
+    sleep 1
+  done
+) &
+watcher=$!
+trap 'kill "$watcher" 2>/dev/null || true; rm -rf "$photos"; xcrun simctl privacy "$udid" reset photos "$bundle" 2>/dev/null || true' EXIT
+
 # shellcheck disable=SC2086
 flutter test integration_test/sweep_service_test.dart -d "$udid" --timeout none $EMU_DEFINES

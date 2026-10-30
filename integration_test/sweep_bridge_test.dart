@@ -202,7 +202,8 @@ void main() {
     debugPrint('SWEEP rendered ${r.path} (${r.bytes} bytes)');
     await file.delete();
 
-    await expectLater(bridge.examine('no-such-asset/L0/001'),
+    // An id this platform could mint: Android's is a MediaStore _ID.
+    await expectLater(bridge.examine(Platform.isAndroid ? '999999999' : 'no-such-asset/L0/001'),
         throwsA(isA<PlatformException>().having((e) => e.code, 'code', 'notFound')));
   });
 }

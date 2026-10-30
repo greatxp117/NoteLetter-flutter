@@ -10,11 +10,19 @@
 // link for that one, so the app's own uploader (S4: the native background
 // URLSession) sends the bytes exactly as it would to GCS.
 //
-// Only localhost: anything else is refused, so nothing here can send bytes to
-// a real bucket.
+// Since backend aaede52 (2026-10-20) the shim names its OWN write route
+// instead, `/__storage/<bucket>/<object>`, which takes the bare PUT and writes
+// the bytes into the storage emulator. That link is passed through as it is,
+// and only its host moves on Android (the host's loopback is 10.0.2.2 there).
+// The resumable swap stays for a shim older than that.
+//
+// Only the host's loopback: anything else is refused, so nothing here can
+// send bytes to a real bucket.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/camera_sweep_service.dart';
 import 'package:flutter_app/services/firestore_service.dart' show CaptureMatch;
 
@@ -76,8 +84,17 @@ class EmulatorPutStandIn implements SweepEndpoints {
         capturedAt: capturedAt);
     final url = r['uploadUrl'];
     if (url is! String) return r;
-    final put = await resumable(url, mimeType);
-    uploads.add(StandInUpload(assetKey, url, put, size, DateTime.now()));
+    final String put, readBack;
+    final write = shimWrite(url);
+    if (write != null) {
+      final (bucket, object) = write;
+      put = Platform.isAndroid ? Uri.parse(url).replace(host: '10.0.2.2').toString() : url;
+      readBack = '$storageOrigin/storage/v1/b/$bucket/o/${Uri.encodeComponent(object)}?alt=media';
+    } else {
+      put = await resumable(url, mimeType);
+      readBack = url;
+    }
+    uploads.add(StandInUpload(assetKey, readBack, put, size, DateTime.now()));
     final via = this.via;
     return {
       ...r,
@@ -93,12 +110,28 @@ class EmulatorPutStandIn implements SweepEndpoints {
     return live.findCapture(assetKey);
   }
 
+  /// The storage emulator, as this device reaches it.
+  static String get storageOrigin =>
+      'http://${ApiService.emulatorHost}:${const int.fromEnvironment('EMULATOR_STORAGE_PORT', defaultValue: 9199)}';
+
+  static bool _loopback(String host) =>
+      host == 'localhost' || host == '127.0.0.1' || host == '10.0.2.2';
+
+  /// The shim's own write route, `http://<loopback>/__storage/<bucket>/<object>`
+  /// → (bucket, object); null for any other link.
+  static (String, String)? shimWrite(String url) {
+    final u = Uri.parse(url);
+    final s = u.pathSegments;
+    if (!_loopback(u.host) || s.length != 3 || s[0] != '__storage') return null;
+    return (s[1], s[2]);
+  }
+
   /// `http://localhost:<port>/storage/v1/b/<bucket>/o/<object>?alt=media`
   /// (dev_server.py's stand-in) → (origin, bucket, object).
   static (String, String, String) parse(String url) {
     final u = Uri.parse(url);
     final s = u.pathSegments;
-    if (!(u.host == 'localhost' || u.host == '127.0.0.1') ||
+    if (!_loopback(u.host) ||
         s.length != 6 ||
         s[0] != 'storage' ||
         s[1] != 'v1' ||
@@ -127,7 +160,7 @@ class EmulatorPutStandIn implements SweepEndpoints {
       throw StateError('the storage emulator opened no upload (${r.statusCode})');
     }
     final u = Uri.parse(location);
-    if (!(u.host == 'localhost' || u.host == '127.0.0.1')) {
+    if (!_loopback(u.host)) {
       throw StateError('not the storage emulator: $location');
     }
     return location;

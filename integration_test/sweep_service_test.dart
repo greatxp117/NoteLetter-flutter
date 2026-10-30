@@ -9,8 +9,12 @@
 //   - a full sweep FILES captures through the real builder and the real
 //     backend (the dev shim), one document per asset key (INV-14), and its
 //     bytes land;
-//   - a second sweep files NOTHING, because the ledger skips every settled
-//     photo before it touches a pixel;
+//   - a second sweep files NOTHING: it reads only what changed since the
+//     first one (5.40.0, ADR-195; iOS's persistent change history), and a
+//     whole walk skips every settled photo before it touches a pixel;
+//   - a photo taken between passes (the script adds one when asked) is the
+//     ONLY photo the next pass reads, and its tray card comes back after a
+//     relaunch, because it is `waiting`;
 //   - the dry run writes NOTHING (ledger, tray, endpoint, Firestore) and finds
 //     an already-filed photo as a duplicate by its asset key, which is the
 //     real-phone check for photos the Swift app swept.
@@ -22,6 +26,7 @@
 // sends the bytes there. The storage trigger does not run either (no
 // functions emulator), so a filed document stays `pending_upload`.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
@@ -190,15 +195,75 @@ void main() {
         bridge: bridge, ledger: ledger, endpoints: ep, uploader: uploader);
     await svc.attachUploads();
     final sessionsBefore = ep.sessions.length, putsBefore = ep.uploads.length;
+    expect(ledger.changeMark, isNotNull,
+        reason: 'pass 1 finished, and iOS 16+ keeps a history (5.40.0)');
     final pass2 = await svc.sweep();
     debugPrint('sweep: pass 2 $pass2');
-    expect(pass2.handled, 0, reason: 'every photo already has a standing verdict');
-    expect(pass2.settled, greaterThanOrEqualTo(tray.length));
+    expect(pass2.fromChangeToken, isTrue, reason: 'only what changed since pass 1');
+    expect(pass2.handled, 0, reason: 'nothing new, and every photo has a standing verdict');
     expect(svc.candidates, isEmpty);
     expect(ep.sessions.length, sessionsBefore, reason: 'the second sweep sent a session');
     expect(ep.uploads.length, putsBefore);
     expect((await _captures(uid)).length, after.length,
         reason: 'the second sweep filed something');
+
+    // ── 3b. The whole library again, the mark forgotten: still nothing ──────
+    await ledger.setChangeMark(null);
+    final walk = await svc.sweep();
+    debugPrint('sweep: whole walk $walk');
+    expect(walk.fromChangeToken, isFalse);
+    expect(walk.handled, 0);
+    expect(walk.settled, greaterThanOrEqualTo(tray.length),
+        reason: 'the ledger skips every settled photo');
+    expect(ledger.changeMark, isNotNull, reason: 'a walk that finished leaves a mark');
+    expect(ep.sessions.length, sessionsBefore);
+
+    // ── 3c. A photo taken between passes is the only one read ───────────────
+    // tool/sweep_service_test.sh watches for this file and adds sweep-dense.jpg
+    // again: a new localIdentifier with the same key (INV-14).
+    final mark = ledger.changeMark!;
+    final ask = File('${Directory.systemTemp.path}/sweep-take-a-photo')..writeAsStringSync('');
+    debugPrint('sweep: asked for a photo at ${ask.path}');
+    SweepChanges? seen;
+    for (var i = 0; i < 180 && seen == null; i++) {
+      final c = await bridge.changesSince(mark.token);
+      expect(c, isNotNull, reason: 'the token a walk just took can answer');
+      final inWindow = await bridge.fetchImages(since: _since, localIdentifiers: c!.localIdentifiers);
+      if (inWindow.total > 0) {
+        seen = c;
+      } else {
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    }
+    expect(seen, isNotNull, reason: 'the photo the script took never reached the history');
+    debugPrint('sweep: ${seen!.localIdentifiers.length} change(s) since the mark');
+    final examinedBefore = svc.examined;
+    final pass4 = await svc.sweep();
+    debugPrint('sweep: pass after a photo was taken $pass4');
+    expect(pass4.fromChangeToken, isTrue);
+    expect(pass4.handled, 1, reason: 'only the new photo is read');
+    expect(svc.examined - examinedBefore, 1);
+    expect(pass4.toTray, 1, reason: 'sweep-dense.jpg is a candidate, and this is Review mode');
+    final card = svc.candidates.single;
+    expect(keys, contains(card.assetKey), reason: 'a re-import is the same key (INV-14)');
+    expect(ledger.verdict(card.localIdentifier), LedgerVerdict.waiting);
+    expect(ep.sessions.length, sessionsBefore, reason: 'nothing is sent before approval');
+
+    // ── 3d. A relaunch forgets the tray; a pass from the token finds it ─────
+    await svc.close();
+    ledger = await SweepLedger.load(store);
+    expect(ledger.verdict(card.localIdentifier), LedgerVerdict.waiting,
+        reason: 'waiting persisted in the App Group');
+    svc = CameraSweepService(
+        bridge: bridge, ledger: ledger, endpoints: ep, uploader: uploader);
+    await svc.attachUploads();
+    final pass5 = await svc.sweep();
+    debugPrint('sweep: pass after a relaunch $pass5');
+    expect(pass5.fromChangeToken, isTrue);
+    expect(pass5.toTray, 1);
+    expect(svc.candidates.map((a) => a.localIdentifier), [card.localIdentifier]);
+    await svc.dismiss(svc.candidates.single);
+    expect(svc.candidates, isEmpty);
 
     // ── 4. Dry run on a reset ledger: already filed, found by asset key ──────
     // A fresh install over a library another install already swept — the
