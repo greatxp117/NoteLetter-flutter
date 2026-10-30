@@ -86,16 +86,24 @@ class SupersessionConfirm {
       edited != false || inStudy != false;
 
   /// The consequence sentences after the operation's own [lead], in order.
+  ///
+  /// [editedLine] replaces the edited-passage sentence whole, for an
+  /// operation whose own words for it are not "replaced by …" (Re-process,
+  /// 5.27.0 — web `SupersessionBody`'s `editedLine`). It covers the definite
+  /// case only: a caller holding the chunks — the reader — never has an
+  /// unread edit fact, and one that could keeps the "could not check" line.
   static List<String> lines({
     required String lead,
     required bool? edited,
     required bool? inStudy,
     String editedBy = 'a fresh extraction',
+    String? editedLine,
   }) =>
       [
         lead,
         if (edited == true)
-          'Your edits to these passages will be replaced by $editedBy.',
+          editedLine ??
+              'Your edits to these passages will be replaced by $editedBy.',
         if (edited == null)
           'We could not check whether these passages were edited. If they '
               'were, your edits will be replaced by $editedBy.',
@@ -192,6 +200,23 @@ class SupersessionConfirm {
       'the version in ${_providerName[provider] ?? 'the original'}';
   static String providerName(String? provider) =>
       _providerName[provider] ?? '$provider';
+
+  /// Re-process's own wording (5.27.0, ADR-183; reader.md §Re-process), web's
+  /// `REPROCESS`. It runs as an update in place — ADR-172's semantics: a
+  /// passage whose text comes out the same keeps its id, read marks, shelves
+  /// and study schedule, and a run that fails leaves everything standing. So,
+  /// like Update from source, only an edited passage is a consequence — study
+  /// membership is not one — and the confirm is still ALWAYS shown.
+  static const reprocessTitle = 'Re-process this source?';
+  static const reprocessLead =
+      'This source will be read again from its original. Passages that come '
+      'out the same are kept as they are; the rest are rebuilt, pictures '
+      'included.';
+  static const reprocessEditedLine =
+      'Your edits to passages that change will be replaced.';
+  static const reprocessConfirmLabel = 'Re-process';
+  static const reprocessCancelLabel = 'Keep it as it is';
+  static const reprocessBusyLabel = 'Queuing…';
 
   static const _providerName = {
     'google_drive': 'Google Drive',

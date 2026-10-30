@@ -735,14 +735,26 @@ class FirestoreService {
 
   /// Passages the reader actually read, flushed as ONE batch (INV-03b: never
   /// one write per scroll event). Each chunk gets its own +1, which the rules
-  /// allow because that rule is per document. Fire-and-forget, exactly like
-  /// [logReadEvent] — a failed log must never block the UI.
-  Future<void> logChunksRead(String documentId, List<String> chunkIds) async {
+  /// allow because that rule is per document. The event is always
+  /// `chunk_read`, so the counter that moves is `chunks.view_count` and
+  /// nothing else (INV-03a/03b) — whoever calls it: the dwell rule's batch,
+  /// **Mark as read** (5.27.0, ADR-184) or the study player.
+  ///
+  /// Resolves with **the ids the batch committed**, and `[]` when nothing was
+  /// (a signed-out caller, a refused or failed commit) — web's
+  /// `logChunksRead`, which resolves `[]` on failure. It never throws: a
+  /// failed log must never block the UI, so a caller that does not care may
+  /// still fire and forget. A caller that does (Mark as read; the reader's
+  /// fold-in of a confirmed batch) reads its answer instead of guessing: an id
+  /// absent from it was NOT recorded, and nothing may show it read.
+  Future<List<String>> logChunksRead(
+      String documentId, List<String> chunkIds) async {
     final uid = _uid;
     final ids = chunkIds.where((id) => id.isNotEmpty).toSet().toList();
-    if (uid == null || ids.isEmpty) return;
+    if (uid == null || ids.isEmpty) return const [];
     try {
       final batch = _db.batch();
+      final written = <String>[];
       for (final id in ids) {
         final ref = _db.collection('chunks').doc(id);
         final snap = await ref.get();
@@ -758,10 +770,16 @@ class FirestoreService {
           'chunk_id': id,
           'created_at': FieldValue.serverTimestamp(),
         });
+        written.add(id);
       }
+      if (written.isEmpty) return const [];
       await batch.commit();
-    } catch (_) {
-      // fire-and-forget
+      return written;
+    } catch (e) {
+      // Audible, as web's console.warn is: a denied batch means the reader
+      // dwelled (or pressed) and nothing was recorded.
+      debugPrint('[read-tracking] logChunksRead failed for $documentId: $e');
+      return const [];
     }
   }
 

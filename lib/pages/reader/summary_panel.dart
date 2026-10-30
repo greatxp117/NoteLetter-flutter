@@ -121,9 +121,16 @@ class _RegenerateControlState extends State<_RegenerateControl> {
               // 4.3.1: regenerate applies the CURRENT prompt, so a reader
               // looking at a summary they want different is one step from the
               // field that changes it. Permissive (SHOULD).
+              // Direction D: the style lives in the page's own settings
+              // panel (Source details, kit §28) — the link opens it; only a
+              // page with no such panel sends it to Settings.
               KitSettingLink('Edit your summary style',
                   icon: Icons.arrow_forward,
-                  onTap: () => context.go('/settings')),
+                  onTap: () {
+                    if (!KitPageTools.instance.openSettings('summaries')) {
+                      context.go('/settings');
+                    }
+                  }),
             ],
           ),
           if (_failure != null) ...[
@@ -209,7 +216,10 @@ class SummaryPanel extends StatelessWidget {
         // The page draws none: it tried to at 4.64.0 and every section got two,
         // which is what the fidelity pair caught.
         ui.intro('Summary'),
-        if (doc.summary?.isNotEmpty ?? false) ui.note(doc.summary!),
+        // In D the Summary's lede is the first section's: serif 22/34 at
+        // most 60ch (19/30 on a phone) — `screens/reader.md` §Composition.
+        if (doc.summary?.isNotEmpty ?? false)
+          ui.inSection ? KitSummaryLede(doc.summary!) : ui.note(doc.summary!),
         const SizedBox(height: 20),
         if (doc.themes.isNotEmpty) ...[
           Wrap(

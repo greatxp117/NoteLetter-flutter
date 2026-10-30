@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:go_router/go_router.dart';
@@ -350,15 +351,12 @@ void main() {
     //    first frame;
     //  - a COUNTED passage renders full regardless of scroll (by design), so a
     //    counted fixture can never show the bar rising either.
-    // With either one, this test passes or fails for reasons that have nothing
-    // to do with whether the mark works.
     const docId = 'device-run-long-doc';
     // The catch is the whole point: rules L65 reads `resource.data.user_id`,
     // and `resource` is NULL for a document that does not exist, so a missing
     // fixture comes back as permission-denied rather than as an absent
-    // document. Uncaught, that throws here and the reason below — the one that
-    // names the fix — is never reached. Every emulator restart re-imports the
-    // seed and drops this fixture, so it is the common case, not the rare one.
+    // document. Every emulator restart re-imports the seed and drops this
+    // fixture, so it is the common case, not the rare one.
     DocumentSnapshot<Map<String, dynamic>>? doc;
     try {
       doc = await FirebaseFirestore.instance
@@ -388,70 +386,31 @@ void main() {
       reason: 'fixture chunks must be uncounted, or the fill is pinned full',
     );
 
-    // Deep-link straight to the reader rather than tapping through the
-    // library: what is under test is the mark, not the navigation.
     final router = await pumpApp(tester);
     router.go('/reader/$docId');
-    await pumpFor(tester, total: const Duration(seconds: 3));
+    await _readerLoaded(tester);
 
-    // The header composes from the kit (§Composition): the Reading frame, a
-    // back control naming the library, a §2.1 chapter opening led by the
-    // document's file badge, and the §8 stat cluster. Asserted on the REAL
-    // renderer because composition is precisely what no contract test sees —
-    // this screen kept its own AppBar, its own `_metaRow` and six accent pills
-    // through every green gate.
-    expect(find.byType(KitBackControl), findsOneWidget);
-    expect(find.byType(ChapterOpening), findsOneWidget,
-        reason: 'the reader opens a chapter — one header, then body swaps');
-    expect(
-      find.descendant(
-          of: find.byType(ChapterOpening), matching: find.byType(KitFileBadge)),
-      findsOneWidget,
-      reason: 'the file badge LEADS the header (§2.1 lead, §6.4)',
-    );
-    final cluster = tester.widget<KitStatCluster>(find.byType(KitStatCluster));
-    expect(cluster.form, KitStatForm.separated,
-        reason: 'the reader header draws the SEPARATED row (§8)');
-    expect(cluster.ruled, isFalse,
-        reason:
-            'the --ruled modifier is a report treatment; a header inside a '
-            'screen frame does not take it (4.46.0, ADR-084)');
-    expect(
-      cluster.stats.any((st) => st.label == 'Passages read'),
-      isTrue,
-      reason: 'coverage is rendered here and only here',
-    );
-    // The stat row must reflect the read it just logged: `doc_opened` is
-    // written AFTER the document is fetched, so a client that renders the
-    // snapshot unmodified shows "Views 0" for the whole session on a first
-    // open (reader.md §Data).
-    final views = cluster.stats.firstWhere((st) => st.label == 'Views');
-    expect(views.value, isNotNull, reason: 'a read document is measured');
-    expect(int.parse(views.value!), greaterThan(0),
+    // Direction D (screens/reader.md §Composition): the D frame — a crumb
+    // whose back control names the screen it was opened from, the masthead,
+    // and the sheet's catalogue card (the running head on a phone). Asserted
+    // on the REAL renderer because composition is what no contract test sees.
+    expect(find.byType(KitDBackControl), findsOneWidget);
+    expect(find.byType(KitMasthead), findsOneWidget);
+    // The catalogue card must reflect the read it just logged: `doc_opened`
+    // is written AFTER the document is fetched, so a client that renders the
+    // snapshot unmodified shows "Views 0" all session (reader.md §Data).
+    final ledger = tester.widget<KitFigures>(
+        find.byType(KitFigures, skipOffstage: false));
+    final views = ledger.ledger!.firstWhere((r) => r.term == 'Views');
+    expect(int.parse(views.value), greaterThan(0),
         reason: 'Views must fold in what the doc_opened write committed');
+    expect(ledger.ledger!.any((r) => r.term == 'Passages read'), isTrue,
+        reason: 'coverage is rendered here and only here');
 
-    // The §19 rail is a pinned header UNDER the chapter opening, and on a
-    // phone the opening (four actions in three rows, two stat rows, Mark
-    // finished) is taller than the screen plus the cache extent, so the rail
-    // is not laid out until the reader scrolls toward it. This skipped the tap
-    // silently when it found no jump (2026-10-07); a reader DRAGS to the rail,
-    // and so does this.
-    // `_dragUntilFound`, never flutter_test's scrollUntilVisible or
-    // dragUntilVisible: BOTH end in `Scrollable.ensureVisible`, which over a
-    // PINNED header scrolled deep into the document — past every passage, so
-    // every mark was already full before the drags below ("no fill rose",
-    // twice on 2026-10-07).
-    final manuscript = find.text('Manuscript').hitTestable();
-    await _dragUntilFound(tester, manuscript);
-    await pumpFor(tester, total: const Duration(milliseconds: 750));
-    await tester.tap(manuscript.first);
-    await pumpFor(tester, total: const Duration(seconds: 2));
-
-    expect(
-      find.byType(PassageMark),
-      findsWidgets,
-      reason: 'the manuscript must render the extent mark at rest',
-    );
+    // To the manuscript by a Contents jump (the running head on a phone).
+    await _readerJump(tester, 'Manuscript');
+    expect(find.byType(PassageMark), findsWidgets,
+        reason: 'the manuscript must render the extent mark at rest');
 
     // The mark's fill is the heightFactor of the FractionallySizedBox inside
     // it — read from the live tree rather than from any test-only hook.
@@ -468,75 +427,50 @@ void main() {
     final before = fills();
     expect(before, isNotEmpty);
 
-    // A REAL gesture. `drag` synthesises the same pointer stream a finger
-    // produces, so the scroll position actually moves and the mark's listener
-    // fires — unlike a programmatic jumpTo, which moves even an unscrollable
-    // pane and would prove nothing (umbrella CLAUDE.md).
-    final scrollable = find.byType(Scrollable);
-    expect(scrollable, findsWidgets);
+    // A REAL gesture: `drag` synthesises a finger's pointer stream, so the
+    // scroll position actually moves — unlike a programmatic jumpTo, which
+    // moves even an unscrollable pane and would prove nothing.
     var prev = before;
     var everRose = false;
     for (var i = 0; i < 5; i++) {
-      await tester.drag(scrollable.first, const Offset(0, -320));
+      await tester.drag(_readerScrollable, const Offset(0, -320));
       await pumpFor(tester, total: const Duration(seconds: 1));
       final now = fills();
-      // HIGH-WATER MARK: it may rise or hold, never retreat. A bar that went
-      // down would say the reader had un-read something.
+      // HIGH-WATER MARK: it may rise or hold, never retreat.
       for (var j = 0; j < now.length && j < prev.length; j++) {
-        expect(
-          now[j],
-          greaterThanOrEqualTo(prev[j] - 0.001),
-          reason: 'passage $j fill retreated: ${prev[j]} -> ${now[j]}',
-        );
+        expect(now[j], greaterThanOrEqualTo(prev[j] - 0.001),
+            reason: 'passage $j fill retreated: ${prev[j]} -> ${now[j]}');
         if (now[j] > prev[j] + 0.001) everRose = true;
       }
       prev = now;
     }
-    expect(
-      everRose,
-      isTrue,
-      reason:
-          'no passage fill rose across five real drags — the mark is '
-          'not tracking scroll at all',
-    );
+    expect(everRose, isTrue,
+        reason: 'no passage fill rose across five real drags — the mark is '
+            'not tracking scroll at all');
 
     // Scroll back UP: re-reading is still reading, so the mark must hold.
     final atBottom = fills();
     for (var i = 0; i < 5; i++) {
-      await tester.drag(scrollable.first, const Offset(0, 320));
+      await tester.drag(_readerScrollable, const Offset(0, 320));
       await pumpFor(tester, total: const Duration(seconds: 1));
     }
     final backAtTop = fills();
     for (var j = 0; j < backAtTop.length && j < atBottom.length; j++) {
-      expect(
-        backAtTop[j],
-        greaterThanOrEqualTo(atBottom[j] - 0.001),
-        reason: 'passage $j retreated on scrolling back up',
-      );
+      expect(backAtTop[j], greaterThanOrEqualTo(atBottom[j] - 0.001),
+          reason: 'passage $j retreated on scrolling back up');
     }
   });
 
-  // F-10's device obligation. Listen, Original, SpeedRead and History had
-  // never been opened on a device run at all — each is a body swap under the
-  // reader's one header, so a run that only ever sees the Summary panel
-  // exercises none of them, and a panel that throws on first build is
-  // indistinguishable from a panel nobody looked at.
+  // F-10's device obligation: every section BUILDS on a device. A panel that
+  // throws on first build is indistinguishable from one nobody looked at.
   testWidgets('the reader opens every panel', (tester) async {
-    // The canonical seed's own complete document — this test is about the
-    // sections building, not about length, so it needs no long-doc fixture.
-    //
-    // Since 4.64.0 (ADR-100) the six are STACKED and each control is a jump,
-    // not a tab: tapping one scrolls to a section that is already mounted. The
-    // test is unchanged in what it proves — that every section builds without
-    // throwing — and `the reader scrolls from Summary to History without a
-    // tap` is what proves they are reached by scrolling.
     final router = await pumpApp(tester);
     router.go('/reader/seed-doc-pdf-complete');
-    await pumpFor(tester, total: const Duration(seconds: 3));
+    await _readerLoaded(tester);
 
-    // The labels exactly as `readerRailItems` spells them — 'Speed read', not
-    // 'SpeedRead'. A list written from memory fails on the label rather than on
-    // the section, which is a red test about nothing.
+    // The labels exactly as `readerSections` spells them — 'Speed read', not
+    // 'SpeedRead'. Each is a Contents jump (kit §29), which MOUNTS the
+    // section on its way (screens/reader.md §Continuous scroll).
     for (final label in const [
       'Manuscript',
       'Speed read',
@@ -545,139 +479,76 @@ void main() {
       'History',
       'Summary',
     ]) {
-      // Offstage-inclusive: since the Priority row (F-99) the opening is
-      // taller than a phone's viewport, so the sticky rail starts below it and
-      // a default finder skips it. ensureVisible below brings it on.
-      final tab = find.text(label, skipOffstage: false);
-      if (tab.evaluate().isEmpty) {
-        fail('the reader draws no "$label" jump — reader.md §Continuous scroll '
-            'lists six sections and this run found five');
-      }
-      // Printed per panel because the first run of this test timed out after
-      // twelve minutes with no indication of WHERE: a hang reports the test,
-      // never the step, and four of these six panels had never been opened on
-      // a device at all.
       debugPrint('PANEL: jumping to $label');
-      await tester.ensureVisible(tab.first);
-      await tester.tap(tab.first, warnIfMissed: false);
-      await pumpFor(tester, total: const Duration(seconds: 2));
+      await _readerJump(tester, label);
       debugPrint('PANEL: $label built');
-      // An exception during build is swallowed into the widget tree as an
-      // ErrorWidget rather than failing the tap, so the tap alone proves
-      // nothing: a panel that throws still "opens".
       expect(tester.takeException(), isNull,
           reason: 'the $label section threw while building');
       expect(find.byType(ErrorWidget), findsNothing,
           reason: 'the $label section built an ErrorWidget');
+      expect(_readerSections(tester).current,
+          label == 'Speed read' ? 'speedread' : label.toLowerCase(),
+          reason: 'Contents marked a section the jump did not land on');
     }
   });
 
   // ── ADR-100 / ADR-051 ──────────────────────────────────────────────────────
-  // The reader is one document on one scroll, and the acceptance test is the
-  // DEEP LINK rather than the scroll: `?p=` scrolled into the manuscript, which
-  // was not mounted until the reader picked its tab, so on the web reference
-  // that link had never once fired from a cold open (CHANGELOG 4.64.0). This
-  // client must not reproduce it — which is why the second half opens the link
-  // cold and taps nothing.
+  // The reader is one document on one scroll. Sections below the manuscript
+  // MOUNT ON APPROACH (direction D, web `useSectionRail`) — never on a click —
+  // so scrolling alone reaches every one; and the acceptance test is the DEEP
+  // LINK: `?p=` scrolls into the manuscript, which is mounted on open.
   testWidgets("the reader scrolls from Summary to History without a tap, and "
       "the rail's current jump follows the scroll", (tester) async {
     const docId = 'device-run-long-doc';
     final router = await pumpApp(tester);
     router.go('/reader/$docId');
-    await pumpFor(tester, total: const Duration(seconds: 4));
+    await _readerLoaded(tester);
 
-    String current() => tester
-        .widget<KitSectionRail>(find.byType(KitSectionRail))
-        .current;
-
-    // Every section is MOUNTED on open — no tap, no reveal. This is the whole
-    // of ADR-100: a section behind a control is a render target nobody mounts.
-    // Offstage counts: mounted is the claim, not on screen.
-    for (final panel in [
-      SummaryPanel,
-      ManuscriptPanel,
-      SpeedReadPanel,
-      ListenPanel,
-      HistoryPanel,
-    ]) {
+    String? current() => _readerSections(tester).current;
+    // The two anchors' hosts are mounted on open, unconditionally.
+    for (final panel in [SummaryPanel, ManuscriptPanel]) {
       expect(find.byType(panel, skipOffstage: false), findsOneWidget,
           reason: '$panel is not mounted on open');
     }
-    // The rail itself is a pinned header under the chapter opening; on a
-    // phone the opening is taller than the screen and its cache, so the rail
-    // is laid out only once the reader scrolls toward it (2026-10-07). A real
-    // drag brings it in — the header still on screen, so Summary is current.
-    // `_dragUntilFound`: flutter_test's scrollUntilVisible and
-    // dragUntilVisible both close with an ensureVisible, which over the pinned
-    // rail jumped to the end of the document (History, twice on 2026-10-07).
-    await _dragUntilFound(tester, find.byType(KitSectionRail).hitTestable());
-    await pumpFor(tester, total: const Duration(milliseconds: 750));
-    expect(find.byType(KitSectionRail), findsOneWidget,
-        reason: 'the reader draws no §19 rail');
     expect(current(), 'summary',
         reason: 'the reader opens at the top of the document');
 
-    // A REAL gesture. Programmatic scrolling moves even a pane a reader cannot
-    // scroll (umbrella traps), so this drags — repeatedly, because the long
-    // document is several viewports tall — and watches the rail report.
-    final seen = <String>{current()};
-    for (var i = 0; i < 60 && current() != 'history'; i++) {
-      await tester.drag(
-        find.byType(CustomScrollView),
-        const Offset(0, -520),
-        warnIfMissed: false,
-      );
+    // A REAL gesture, repeatedly: the long document is several viewports
+    // tall. Contents REPORTS, and each section mounts as it nears.
+    final seen = <String?>{current()};
+    for (var i = 0; i < 80 && current() != 'history'; i++) {
+      await tester.drag(_readerScrollable, const Offset(0, -520),
+          warnIfMissed: false);
       await pumpFor(tester, total: const Duration(milliseconds: 750));
       seen.add(current());
     }
-    final pos = tester
-        .widget<CustomScrollView>(find.byType(CustomScrollView))
-        .controller!
-        .position;
+    final pos = tester.state<ScrollableState>(_readerScrollable).position;
     debugPrint('DEVICE-RUN reader scroll: reported ${seen.toList()} '
         'offset=${pos.pixels.round()}/${pos.maxScrollExtent.round()}');
     expect(current(), 'history',
         reason: 'scrolling did not reach the last section — either a section '
-            'is not mounted or the rail is not reporting position');
-    // It passed through the middle rather than jumping end to end: the rail
-    // REPORTS, and a report that only ever names the first and last section is
-    // not following the scroll.
+            'never mounted or Contents is not reporting position');
     expect(seen.length, greaterThan(2), reason: 'reported only $seen');
+    for (final panel in [SpeedReadPanel, ListenPanel, HistoryPanel]) {
+      expect(find.byType(panel, skipOffstage: false), findsOneWidget,
+          reason: '$panel never mounted on the way down');
+    }
 
-    // A JUMP arrives, and the rail reports where it arrived (§19). This is the
-    // half nothing asserted: the drag above proves the report follows a real
-    // scroll, and a jump is the other way the reader moves. It also pins the
-    // landing — §19 is explicit that a jump leaving a section's header under
-    // the sticky rail has not arrived at it.
-    // The rail scrolls HORIZONTALLY (§19: labels are names and stay on one
-    // line), so the jump being tapped has to be brought into the rail's own
-    // viewport first — and `warnIfMissed` stays ON, because the first run of
-    // this assertion tapped nothing, the scroll never moved, and the rail
-    // answered `history` perfectly correctly from the end of the scroll. A
-    // silent miss reads exactly like a rail that marks the wrong section.
-    await tester.ensureVisible(find.text('Listen'));
-    await tester.pump();
-    await tester.tap(find.text('Listen'));
-    await pumpFor(tester, total: const Duration(seconds: 2));
-    // Both numbers BEFORE either assertion: a run that fails has to say where
-    // the jump actually landed, or the next attempt is a guess.
-    final railBottom = tester.getBottomLeft(find.byType(KitSectionRail)).dy;
-    // The Listen SECTION's eyebrow — the header's stat cluster draws a
-    // LISTEN label too since F-77 (1).
+    // A JUMP arrives, and Contents reports where it arrived: the section's
+    // head 24 under the top of the page's scroller (kit §29).
+    await _readerJump(tester, 'Listen');
+    final top = tester.getTopLeft(_readerScrollable).dy;
     final head = tester
-        .getTopLeft(find.descendant(
-            of: find.byType(ListenPanel), matching: find.text('LISTEN')))
+        .getTopLeft(find.byKey(_readerSections(tester).keyOf('listen')))
         .dy;
     debugPrint('DEVICE-RUN reader jump: current=${current()} '
-        'head=$head railBottom=$railBottom');
+        'head=${head.round()} top=${top.round()}');
     expect(current(), 'listen',
-        reason: 'the rail marked a section the jump did not land on');
-    expect(head, greaterThanOrEqualTo(railBottom - 1),
-        reason: "the section's own header landed UNDER the rail, which §19 "
-            'says is not arriving at it');
+        reason: 'Contents marked a section the jump did not land on');
+    expect(head - top, closeTo(24, 3),
+        reason: 'the jump did not land the section 24 under the top');
 
-    // Cold open on a passage link — no tap anywhere, which is the condition
-    // the web defect survived under for 49 versions.
+    // Cold open on a passage link — no tap anywhere.
     final chunks = await FirebaseFirestore.instance
         .collection('chunks')
         .where('user_id', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
@@ -688,54 +559,27 @@ void main() {
             'scroll that had to happen');
     final target = chunks.docs.last.id;
     router.go('/reader/$docId?p=$target');
-    await pumpFor(tester, total: const Duration(seconds: 6));
-    // The link landed INSIDE the document, not at its top: the manuscript is
-    // mounted on open, so the anchor exists for the scroll to reach.
-    //
-    // The OFFSET is the assertion, not the reported section — at the bottom of
-    // the scroll the rail reports the last section whatever brought it there,
-    // so `current != 'summary'` alone would also be true of a reader that did
-    // not move at all if the document were short. This is a fresh route, so
-    // its scroller starts at 0 and any offset is the anchor's doing.
-    final after = tester
-        .widget<CustomScrollView>(find.byType(CustomScrollView))
-        .controller!
-        .position;
+    await _readerLoaded(tester);
+    await pumpFor(tester, total: const Duration(seconds: 4));
+    // The OFFSET is the assertion: a fresh route's scroller starts at 0, so
+    // any offset is the anchor's doing.
+    final after = tester.state<ScrollableState>(_readerScrollable).position;
     debugPrint('DEVICE-RUN reader deep link: current=${current()} '
         'offset=${after.pixels.round()}');
     expect(after.pixels, greaterThan(100),
         reason: 'a `?p=` cold open left the reader at the top of the document '
-            '— the passage link has not been honoured (ADR-051), which is the '
-            'defect this whole item exists to avoid reproducing');
+            '— the passage link has not been honoured (ADR-051)');
   });
 
   testWidgets('the reader opens the source file', (tester) async {
-    // §15.1 (ADR-075) and §6.4.2. Two facts this asserts that nothing else
-    // can, because both are about a REQUEST the client makes on a real
-    // endpoint:
-    //
-    //  1. the Original panel reaches `fn_get_raw_document_url` at all — this
-    //     client declared no builder for it until now, so the source viewer
-    //     was unreachable rather than unbuilt;
-    //  2. a successful answer carrying a URL renders the §15.1 VIEW, not the
-    //     "no original file is stored" sentence. Those two are the same
-    //     picture to every gate that does not run the request: the panel drew
-    //     one sentence for a failure, an absent object and a link for its
-    //     whole life.
+    // §15.1 (ADR-075) and §6.4.2: the Original section reaches
+    // `fn_get_raw_document_url` and a URL renders the §15.1 VIEW, not the
+    // "no original file is stored" sentence.
     final router = await pumpApp(tester);
     router.go('/reader/seed-doc-pdf-complete');
+    await _readerLoaded(tester);
+    await _readerJump(tester, 'Original');
     await pumpFor(tester, total: const Duration(seconds: 3));
-
-    // The panel strip SCROLLS on a phone — `Original` is the fifth of six and
-    // starts off-screen, so a bare tap lands on nothing, warns, and leaves the
-    // Summary panel on screen. Ensure it is visible first, exactly as the
-    // every-panel run does.
-    // Offstage-inclusive for the same reason: the rail starts below the
-    // opening since the Priority row (F-99).
-    await tester.ensureVisible(find.text('Original', skipOffstage: false));
-    await tester.pump();
-    await tester.tap(find.text('Original'), warnIfMissed: false);
-    await pumpFor(tester, total: const Duration(seconds: 4));
 
     expect(tester.takeException(), isNull);
     expect(
@@ -747,9 +591,7 @@ void main() {
           'state, and not this one',
     );
     // F-124: the PDF is DRAWN — its pages rendered by the platform (PDFKit
-    // here) from the bytes the signed URL serves, not rule 1's sentence. The
-    // first page's image is the proof: a stage that opened the document and
-    // drew nothing would show the sheet and no picture.
+    // here) from the bytes the signed URL serves.
     final page1 = find.byKey(const ValueKey('kit-pdf-page-1'));
     for (var i = 0; i < 40; i++) {
       final drawn = find.descendant(of: page1, matching: find.byType(Image));
@@ -762,35 +604,32 @@ void main() {
     expect(find.descendant(of: page1, matching: find.byType(Image)),
         findsOneWidget,
         reason: 'the first page was never rendered');
-    // The toolbar: download, open, and — on a device — share the file out.
     expect(find.byIcon(Icons.download_outlined), findsOneWidget);
     expect(find.byIcon(Icons.open_in_new), findsWidgets);
     expect(find.byTooltip('Share original'), findsOneWidget);
   });
 
   testWidgets("the reader sets a source's priority", (tester) async {
-    // reader.md §Source priority (4.118.0, ADR-155; ruled into the reader
-    // 2026-10-13, F-99). The widget test proves the row's rules over a seam;
-    // this proves the WRITE: a real fn_update_document through the shim, the
-    // stamp it leaves in Firestore, and the reset Default sends — and leaves
-    // the seed as it found it (no stamp, 0.5), so the frames after it draw
-    // Default.
+    // reader.md §Source priority (4.118.0, ADR-155). The WRITE: a real
+    // fn_update_document through the shim, the stamp it leaves, and the reset
+    // Default sends — leaving the seed as it found it (no stamp, 0.5). In
+    // direction D the row is in Source details, the page's settings panel.
     const docId = 'seed-doc-pdf-complete';
     final ref = FirebaseFirestore.instance.collection('documents').doc(docId);
     final router = await pumpApp(tester);
     router.go('/reader/$docId');
-    await pumpFor(tester, total: const Duration(seconds: 3));
+    await _readerLoaded(tester);
+    await _openSourceDetails(tester);
 
     final label = find.text('PRIORITY');
     expect(label, findsOneWidget,
-        reason: 'the reader draws no Priority row under its Shelves row');
-    await tester.ensureVisible(label);
-    await tester.pump();
+        reason: 'Source details draws no Priority row under its Shelves row');
     final track = find.descendant(
-        of: find.byType(SourcePriorityRow), matching: find.byType(KitSegmented));
+        of: find.byType(SourcePriorityRow),
+        matching: find.byType(KitSlideSwitch<String>));
     String lit() {
-      final seg = tester.widget<KitSegmented>(track);
-      return seg.segments[seg.selected].label;
+      final sw = tester.widget<KitSlideSwitch<String>>(track);
+      return sw.options.firstWhere((o) => o.value == sw.value).label;
     }
 
     expect(lit(), 'Default', reason: 'the seed carries no stamp');
@@ -817,6 +656,291 @@ void main() {
     expect(reset['source_priority'], 0.5);
     expect(reset.containsKey('source_priority_set_at'), isFalse,
         reason: 'Default (null) deletes the stamp');
+    expect(tester.takeException(), isNull);
+  });
+
+  // F-142 (direction D, screens/reader.md §Composition): the source page on
+  // a phone — the six sections under their §31 heads, the running head that
+  // says where the reader is with its reading-progress rule, and Source
+  // details dropping from the app header.
+  testWidgets(
+      "the six sections, the running head '§ II · Manuscript · 2 of 6' and its "
+      "progress rule, Source details in the panel", (tester) async {
+    KitPageTools.instance.reset();
+    final router = await pumpApp(tester);
+    router.go('/reader/seed-doc-pdf-complete');
+    await _readerLoaded(tester);
+
+    // ── the masthead: crumb (back, then the folio under it), title ──
+    final back = find.byType(KitDBackControl);
+    expect(back, findsOneWidget, reason: 'the crumb draws the way back');
+    final folio = find.textContaining(RegExp(r'^FINANCE · DOCUMENT · ADDED '));
+    expect(folio, findsOneWidget, reason: 'the folio is {shelf} · {kind} · Added');
+    expect(tester.getTopLeft(folio).dy,
+        greaterThan(tester.getTopLeft(back).dy + 10),
+        reason: 'on a phone the folio stands UNDER the back control');
+    expect(find.text('Quarterly Tax Summary'), findsWidgets);
+    // The page's one action at the tab bar's centre, by its short label.
+    expect(
+        find.descendant(
+            of: find.byType(KitTabBar), matching: find.text('To letter')),
+        findsOneWidget,
+        reason: "the tab bar's centre is the page's action, *To letter*");
+
+    // ── the running head: § I · Summary · 1 of 6 ──
+    final peek = find.byKey(const ValueKey('d-peek'));
+    expect(peek, findsOneWidget, reason: 'a phone runs the sheet as a head');
+    String line() => [
+          for (final w in tester.widgetList<Text>(find.descendant(
+              of: peek, matching: find.byType(Text))))
+            w.data ?? w.textSpan?.toPlainText() ?? '',
+        ].join(' · ');
+    debugPrint('DEVICE-RUN F-142 running head at rest: "${line()}"');
+    expect(line(), contains('§ I'));
+    expect(line(), contains('Summary'));
+    expect(line(), contains('1 of 6'));
+    double progress() => tester
+        .widget<FractionallySizedBox>(find.byKey(const ValueKey('rx-progress')))
+        .widthFactor!;
+    expect(progress(), closeTo(0, 0.01), reason: 'nothing read at the top');
+
+    // Dropped, Contents lists the six sections in their normative order.
+    await tester.tap(peek);
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
+    final rows = [
+      for (final s in const [
+        'Summary', 'Manuscript', 'Speed read', 'Listen', 'Original', 'History',
+      ])
+        find.descendant(of: find.byType(KitContents), matching: find.text(s)),
+    ];
+    for (final r in rows) {
+      expect(r, findsOneWidget, reason: 'Contents lacks a row: $r');
+    }
+    for (var i = 1; i < rows.length; i++) {
+      expect(tester.getTopLeft(rows[i]).dy,
+          greaterThan(tester.getTopLeft(rows[i - 1]).dy),
+          reason: 'Contents is out of the normative order');
+    }
+    // The identity block is the sheet's on a desk; the running head drops it.
+    expect(find.byKey(const ValueKey('rx-identity')), findsNothing);
+    // Re-process is offered (the seed PDF has a stored original), Delete last.
+    final also = tester
+        .widgetList<KitAlsoButton>(find.byType(KitAlsoButton))
+        .map((b) => b.label)
+        .toList();
+    debugPrint('DEVICE-RUN F-142 Also: $also');
+    expect(also, contains('Re-process'));
+    expect(also.last, 'Delete', reason: 'Delete is the last of Also');
+
+    // A Contents row folds the head and lands Manuscript under it.
+    await tester.tap(rows[1]);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    // Folded, the body stays mounted but inert: nothing in it takes a tap.
+    expect(rows[1].hitTestable(), findsNothing,
+        reason: 'choosing a row folds the head');
+    debugPrint('DEVICE-RUN F-142 running head after the jump: "${line()}" '
+        'progress=${progress().toStringAsFixed(3)}');
+    expect(line(), contains('§ II'));
+    expect(line(), contains('Manuscript'));
+    expect(line(), contains('2 of 6'));
+    expect(progress(), greaterThan(0),
+        reason: 'the progress rule did not fill as the page scrolled');
+    final p1 = progress();
+
+    // ── the six sections: a real scroll mounts and reaches each ──
+    for (var i = 0; i < 40 && _readerSections(tester).current != 'history';
+        i++) {
+      await tester.drag(_readerScrollable, const Offset(0, -520),
+          warnIfMissed: false);
+      await pumpFor(tester, total: const Duration(milliseconds: 600));
+    }
+    for (final t in const [
+      'Summary', 'Manuscript', 'Speed read', 'Listen', 'Original', 'History',
+    ]) {
+      expect(
+          find.descendant(
+              of: find.byType(KitSecHead, skipOffstage: false),
+              matching: find.text(t, skipOffstage: false)),
+          findsOneWidget,
+          reason: 'no §31 head for $t');
+    }
+    for (final panel in [
+      SummaryPanel, ManuscriptPanel, SpeedReadPanel, ListenPanel, HistoryPanel,
+    ]) {
+      expect(find.byType(panel, skipOffstage: false), findsOneWidget,
+          reason: '$panel never mounted');
+    }
+    expect(tester.takeException(), isNull);
+    expect(line(), contains('6 of 6'));
+    expect(progress(), greaterThan(p1), reason: 'the rule did not keep filling');
+    // On to the scroll's end (the footer): the rule is then whole.
+    final pos = tester.state<ScrollableState>(_readerScrollable).position;
+    for (var i = 0; i < 20 && pos.pixels < pos.maxScrollExtent - 1; i++) {
+      await tester.drag(_readerScrollable, const Offset(0, -520),
+          warnIfMissed: false);
+      await pumpFor(tester, total: const Duration(milliseconds: 600));
+    }
+    debugPrint('DEVICE-RUN F-142 at the end: "${line()}" '
+        'progress=${progress().toStringAsFixed(3)} '
+        'offset=${pos.pixels.round()}/${pos.maxScrollExtent.round()}');
+    expect(progress(), closeTo(1, 0.02), reason: 'the end is the whole rule');
+
+    // ── Source details: the header's gear drops the page's panel ──
+    await _openSourceDetails(tester);
+    final headerBottom = tester.getBottomLeft(find.byType(KitAppHeader)).dy;
+    expect(tester.getTopLeft(find.byKey(const ValueKey('d-panel'))).dy,
+        closeTo(headerBottom, 1),
+        reason: 'the panel drops from the app header');
+    for (final t in const ['FILING', 'SHELVES', 'PRIORITY', 'SUMMARY STYLE']) {
+      expect(find.text(t), findsOneWidget, reason: 'Source details lacks $t');
+    }
+    // The shelves as §35 tags: no chip, the shelf's name underlined.
+    expect(find.descendant(
+            of: find.byType(KitShelfChipEditor),
+            matching: find.byType(KitShelfTag)),
+        findsOneWidget,
+        reason: 'Filing draws the document shelf as a §35 tag');
+    // On a phone the panel runs to the page's foot, so it closes by its own
+    // Close (Escape and the scrim are the other two, kit §28).
+    await tester.tap(find.byKey(const ValueKey('d-panel-close')));
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    expect(find.byKey(const ValueKey('d-panel')), findsNothing,
+        reason: 'Close closes the panel');
+    expect(tester.takeException(), isNull);
+  });
+
+  // F-132 (folded into F-142): moving a passage boundary on a phone
+  // (screens/reader.md §Moving a passage boundary). The grip takes the
+  // gesture, the drop line follows the finger to the nearest offered cut, the
+  // page scrolls by itself at the scroller's edge, a release re-cuts both
+  // passages locally (nothing written until Save — this Discards), and Up /
+  // Down on the focused grip move one offered cut with focus kept.
+  testWidgets(
+      "drag a passage's grip on the phone: the line follows, the page scrolls "
+      "at the edge, the release re-cuts; Up/Down on a hardware keyboard",
+      (tester) async {
+    final router = await pumpApp(tester);
+    router.go('/reader/seed-doc-pdf-complete');
+    await _readerLoaded(tester);
+    await _readerJump(tester, 'Manuscript');
+    await tester.tap(find.text('Edit text'));
+    await pumpFor(tester, total: const Duration(seconds: 1));
+
+    final grip = find.byKey(const ValueKey('ms-grip-2'));
+    expect(grip, findsOneWidget, reason: 'no grip on passage 2');
+    expect(find.byKey(const ValueKey('ms-grip-1')), findsNothing,
+        reason: "the first passage's start is the document's start");
+    expect(
+        find.descendant(
+            of: grip,
+            matching: find.byWidgetPredicate((w) =>
+                w is Semantics &&
+                w.properties.label == 'Move where passage 2 begins')),
+        findsOneWidget,
+        reason: 'the grip is named for the passage it moves');
+    final picture = find.descendant(
+        of: find.byType(ManuscriptPanel), matching: find.byType(Image));
+    expect(picture, findsWidgets, reason: "passage 1's picture is not drawn");
+    await Scrollable.ensureVisible(tester.element(picture.first),
+        alignment: 0.3, duration: Duration.zero);
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+
+    // ── the line follows, and the release re-cuts ──
+    final unsaved = find.text('unsaved edits', skipOffstage: false);
+    Future<void> discard() async {
+      final d = find.text('Discard', skipOffstage: false);
+      await tester.ensureVisible(d);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(d);
+      await pumpFor(tester, total: const Duration(milliseconds: 800));
+      expect(unsaved, findsNothing, reason: 'Discard left the edit');
+    }
+
+    // Discard also leaves editing: back in, for the next part.
+    Future<void> editAgain() async {
+      final e = find.text('Edit text', skipOffstage: false);
+      await tester.ensureVisible(e);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(e);
+      await pumpFor(tester, total: const Duration(seconds: 1));
+    }
+
+    final from = tester.getCenter(grip);
+    final g = await tester.startGesture(from);
+    await g.moveBy(const Offset(0, -24));
+    await tester.pump(const Duration(milliseconds: 100));
+    final line = find.byKey(const ValueKey('ms-dropline'));
+    expect(line, findsOneWidget, reason: 'no drop line while dragging');
+    final y0 = tester.getTopLeft(line).dy;
+    final to = Offset(from.dx, tester.getTopLeft(picture.first).dy + 6);
+    for (var i = 1; i <= 8; i++) {
+      await g.moveTo(Offset.lerp(from, to, i / 8)!);
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+    await tester.pump(const Duration(milliseconds: 200));
+    final y1 = tester.getTopLeft(line).dy;
+    debugPrint('DEVICE-RUN F-132 drop line ${y0.round()} -> ${y1.round()} '
+        '(picture top ${tester.getTopLeft(picture.first).dy.round()})');
+    expect(y1, lessThan(y0 - 20), reason: 'the line did not follow the finger');
+    expect(find.text('PASSAGE BEGINS HERE'), findsOneWidget);
+    await g.up();
+    await pumpFor(tester, total: const Duration(milliseconds: 800));
+    expect(line, findsNothing, reason: 'the line outlived the release');
+    expect(unsaved, findsOneWidget, reason: 'the release re-cut nothing');
+    expect(tester.getTopLeft(picture.first).dy,
+        greaterThan(tester.getTopLeft(grip).dy),
+        reason: 'passage 2 does not begin at the picture');
+    await discard();
+    await editAgain();
+
+    // ── the page scrolls at the edge; Escape then changes nothing ──
+    await Scrollable.ensureVisible(
+        tester.element(find.byKey(const ValueKey('ms-grip-2'), skipOffstage: false)),
+        alignment: 0.6, duration: Duration.zero);
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    final pos = tester.state<ScrollableState>(_readerScrollable).position;
+    final before = pos.pixels;
+    final top = tester.getTopLeft(_readerScrollable).dy;
+    final from2 = tester.getCenter(grip);
+    final g2 = await tester.startGesture(from2);
+    await g2.moveBy(const Offset(0, -24));
+    await tester.pump(const Duration(milliseconds: 100));
+    await g2.moveTo(Offset(from2.dx, top + 20));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    debugPrint('DEVICE-RUN F-132 edge scroll ${before.round()} -> '
+        '${pos.pixels.round()}');
+    expect(pos.pixels, lessThan(before - 20),
+        reason: 'the page did not scroll by itself at the top edge');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump(const Duration(milliseconds: 100));
+    await g2.up();
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    expect(line, findsNothing);
+    expect(unsaved, findsNothing, reason: 'Escape re-cut the passages');
+
+    // ── Up / Down on the focused grip ──
+    await Scrollable.ensureVisible(
+        tester.element(find.byKey(const ValueKey('ms-grip-2'), skipOffstage: false)),
+        alignment: 0.5, duration: Duration.zero);
+    await tester.pump(const Duration(milliseconds: 300));
+    final node = tester
+        .widget<Focus>(find
+            .descendant(of: grip, matching: find.byType(Focus))
+            .first)
+        .focusNode!;
+    node.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    expect(unsaved, findsOneWidget, reason: 'Up moved no boundary');
+    expect(node.hasFocus, isTrue, reason: 'focus left the grip');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await pumpFor(tester, total: const Duration(milliseconds: 600));
+    expect(node.hasFocus, isTrue, reason: 'focus left the grip on Down');
+    debugPrint('DEVICE-RUN F-132 Up re-cut, focus kept through Up and Down');
+    await discard();
     expect(tester.takeException(), isNull);
   });
 
@@ -3153,31 +3277,64 @@ void main() {
   });
 }
 
-/// The reader's own vertical scroller — the first Scrollable under its
-/// CustomScrollView (the rail's horizontal row is a descendant of it).
+/// The source page's primary scroller — the first Scrollable under its D page
+/// (the running head's dropped body comes after it in the page's stack).
 final Finder _readerScrollable = find
     .descendant(
-        of: find.byType(CustomScrollView), matching: find.byType(Scrollable))
+        of: find.byKey(const ValueKey('rx-page')),
+        matching: find.byType(Scrollable))
     .first;
 
-/// Drags the reader by [step] until [finder] finds something — a reader's
-/// drag, and NOTHING after it.
-///
-/// flutter_test's `dragUntilVisible` is this loop plus a closing
-/// `Scrollable.ensureVisible(element(finder))` (controller.dart), the same
-/// closing call `scrollUntilVisible` makes. Over a widget inside a PINNED
-/// `SliverPersistentHeader` that reveal scrolled to the end of the document,
-/// so the rail reported History and every passage mark was already full
-/// before the test's own drags began. Both reruns on 2026-10-07 failed on it.
-Future<void> _dragUntilFound(WidgetTester tester, Finder finder,
-    {Offset step = const Offset(0, -200), int maxDrags = 20}) async {
-  for (var i = 0; i < maxDrags && finder.evaluate().isEmpty; i++) {
-    await tester.drag(_readerScrollable, step, warnIfMissed: false);
-    await tester.pump(const Duration(milliseconds: 50));
+/// Wait for the source page to have read its document (the loading page is
+/// `rx-loading`).
+Future<void> _readerLoaded(WidgetTester tester) async {
+  final page = find.byKey(const ValueKey('rx-page'));
+  for (var i = 0; i < 80 && page.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
   }
-  expect(finder, findsWidgets,
-      reason: 'not reached after $maxDrags drags of ${step.dy}');
+  expect(page, findsOneWidget, reason: 'the source page never loaded');
+  for (var i = 0; i < 8; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+}
 
+/// The source page's sections (kit §29) — read off the running head's line.
+KitSections _readerSections(WidgetTester tester) => tester
+    .widget<KitSecPeek>(find.byType(KitSecPeek, skipOffstage: false))
+    .sections;
+
+/// A Contents jump (kit §29/§30): on a phone, drop the running head and tap
+/// the section's row, which folds it and scrolls there.
+Future<void> _readerJump(WidgetTester tester, String label) async {
+  final peek = find.byKey(const ValueKey('d-peek'));
+  if (peek.evaluate().isNotEmpty) {
+    await tester.tap(peek);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+  }
+  final row = find.descendant(
+      of: find.byType(KitContents), matching: find.text(label));
+  expect(row, findsWidgets, reason: 'no Contents row for $label');
+  await tester.tap(row.last);
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+}
+
+/// The page's settings panel, from the app header's gear (kit §28, §30).
+Future<void> _openSourceDetails(WidgetTester tester) async {
+  final gear = find.descendant(
+      of: find.byType(KitAppHeader),
+      matching: find.byWidgetPredicate((w) =>
+          w is KitSettingsButton && w.settings.label == 'Source details'));
+  expect(gear, findsOneWidget, reason: 'the header draws Source details');
+  await tester.tap(gear);
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(const Duration(milliseconds: 150));
+  }
+  expect(find.byKey(const ValueKey('d-panel')), findsOneWidget,
+      reason: 'Source details did not open');
 }
 
 /// Drags the screen with REAL gestures until its primary scroll is at the end

@@ -169,6 +169,28 @@ void main() {
       child: const SizedBox(height: 400, child: Text('column')),
     );
 
+    // F-142's device holds: going from Home (inner shell) to the source page
+    // (outer shell), Home re-registered AFTER the source page and then
+    // disposed — and the chrome was left with no tools at all.
+    test('the leaving page cannot take the arriving page\'s tools with it',
+        () {
+      final tools = KitPageTools.instance;
+      final home = Object(), reader = Object();
+      KitSettingsHandle h(String l) => KitSettingsHandle(
+          label: l, open: false, held: false, has: const [],
+          toggle: () {}, show: () {});
+      tools.register(home, null, h('Letter settings'));
+      tools.register(reader, null, h('Source details'));
+      tools.register(home, null, h('Letter settings')); // the transition
+      expect(tools.settings?.label, 'Letter settings');
+      tools.clear(home);
+      expect(tools.settings?.label, 'Source details',
+          reason: 'the page still mounted takes the chrome back');
+      tools.clear(reader);
+      expect(tools.settings, isNull);
+      expect(tools.action, isNull);
+    });
+
     testWidgets('wide: Search, the action, the gear in the masthead rail', (
       tester,
     ) async {

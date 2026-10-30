@@ -1,4 +1,5 @@
-/// The dwell rule (contract 3.1.0, ADR-039 §3) — when a passage counts as read.
+/// The dwell rule (contract 3.1.0, ADR-039 §3; halved 5.27.0, ADR-184) — when
+/// a passage counts as read.
 ///
 /// Extracted as pure arithmetic so it can be asserted directly; the widget that
 /// watches visibility cannot be.
@@ -9,19 +10,26 @@ library;
 /// read.
 const readingWpm = 220;
 
-/// The longest any passage must be dwelled on. Keeps a 2,000-word chunk
-/// reachable rather than effectively unmarkable.
-const dwellCapSeconds = 20;
+/// The longest any passage must be dwelled on — ten seconds since 5.27.0
+/// (ADR-184; twenty before). Keeps a 2,000-word chunk reachable, and a long
+/// passage counted while it is still being read, rather than effectively
+/// unmarkable.
+const dwellCapSeconds = 10;
 
-/// `min(0.5 × word_count / 220 × 60, 20)` seconds of continuous visibility.
+/// `min(0.25 × word_count / 220 × 60, 10)` seconds of continuous visibility —
+/// 50 words 3.4 s, 100 words 6.8 s, 147 words or more 10 s (reader.md
+/// §Reading state, halved 5.27.0, ADR-184).
 ///
-/// HALF the estimated reading time, because a reader who has spent half a
-/// passage's worth of attention on it has read it in every sense this system
-/// can observe. A fixed short dwell was rejected: it marks a 1,500-word passage
-/// read after two seconds, and a signal confidently wrong about the case it
-/// exists for is worse than no signal.
+/// A QUARTER of the estimated reading time, capped at ten seconds. ADR-039
+/// asked for half, capped at twenty — and every passage over about 147 words,
+/// most of what the chunker makes, sat at the twenty-second cap, so a passage
+/// counted only after twenty seconds of holding still. The factor and the cap
+/// were both halved, and a reader who has read it sooner presses **Mark as
+/// read** (ADR-184). A fixed short dwell is still rejected: it marks a
+/// 1,500-word passage read after two seconds, and a signal confidently wrong
+/// about the case it exists for is worse than no signal.
 Duration dwellFor(int wordCount) {
-  final seconds = (0.5 * wordCount / readingWpm) * 60;
+  final seconds = (0.25 * wordCount / readingWpm) * 60;
   final capped = seconds.clamp(0.0, dwellCapSeconds.toDouble());
   return Duration(milliseconds: (capped * 1000).round());
 }

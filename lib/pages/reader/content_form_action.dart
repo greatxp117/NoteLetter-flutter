@@ -109,10 +109,12 @@ class ContentFormAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!offeredFor(doc)) return const SizedBox.shrink();
-    return KitButton.ghost(
+    // Direction D: one of the sheet's quieter Also rows (kit §29), not a
+    // header action (reader.md §Composition).
+    return KitAlsoButton(
       _isRecipe ? 'Not a recipe' : 'Treat as recipe',
       icon: Icons.title,
-      onPressed: () => _open(context),
+      onTap: () => _open(context),
     );
   }
 }

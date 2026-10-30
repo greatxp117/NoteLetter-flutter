@@ -12,6 +12,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_d_parts.dart' show KitDScope, KitShelfTag;
 import 'kit_failure.dart';
 
 /// One chip in a §20 row: the shelf, and whether the item has it only because
@@ -98,18 +99,25 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final label = widget.label;
+    // Direction D (kit §35, the Filing form; web `.hx-d .ms-shelves`): on a D
+    // page every chip is a shelf TAG — its name in italic serif underlined in
+    // the shelf's colour, no border, fill or swatch — and the add control
+    // takes the same type with no border.
+    final d = KitDScope.of(context);
     return Wrap(
-      spacing: 5,
-      runSpacing: 5,
+      spacing: d ? 14 : 5,
+      runSpacing: d ? 6 : 5,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (label != null)
           Padding(
             padding: const EdgeInsets.only(right: 5),
-            child: Text(label.toUpperCase(), style: _labelStyle(t)),
+            child: Text(label.toUpperCase(),
+                style: d ? _labelStyleD(t) : _labelStyle(t)),
           ),
-        for (final c in widget.chips) _chip(context, t, c),
-        _addControl(t),
+        for (final c in widget.chips)
+          d ? _tag(context, t, c) : _chip(context, t, c),
+        _addControl(t, d: d),
         if (widget.error != null) KitFailureInline(widget.error!, dense: true),
       ],
     );
@@ -154,7 +162,34 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
     );
   }
 
-  Widget _addControl(Tokens t) {
+  /// §35's form of a chip: the tag, then its remove control. A shelf the
+  /// passage inherits from its source sits at .62.
+  Widget _tag(BuildContext context, Tokens t, KitShelfChip c) {
+    final colour = AppColors.shelfColor(c.shelf.color, dark: t.isDark); // pair-ok: a shelf's stored colour is a fixed data token
+    return Opacity(
+      opacity: c.inherited ? 0.62 : 1,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: KitShelfTag(title: c.shelf.title, color: colour)),
+          const SizedBox(width: 2),
+          Semantics(
+            button: true,
+            label: widget.removeLabel(c.shelf),
+            excludeSemantics: true,
+            child: _RoundTap(
+              size: 20,
+              enabled: !widget.busy,
+              onTap: () => widget.onRemove(c.shelf.id),
+              child: Icon(Icons.close, size: 12, color: t.fgSubtle),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _addControl(Tokens t, {bool d = false}) {
     final open = _pickerOpen;
     return _anchored(
       onOutside: () => _close(refocus: false),
@@ -182,13 +217,14 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
           child: _DashedTap(
             key: _anchorKey,
             enabled: !widget.busy,
+            plain: d,
             onTap: () => open ? _close(refocus: false) : _open(),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.add, size: 11, color: t.fgSubtle),
-                const SizedBox(width: 4),
-                Text('Shelf', style: _chipStyle(t.fgSubtle)),
+                Icon(Icons.add, size: d ? 14 : 11, color: d ? t.fgLede : t.fgSubtle),
+                SizedBox(width: d ? 6 : 4),
+                Text('Shelf', style: d ? _tagStyleD(t) : _chipStyle(t.fgSubtle)),
               ],
             ),
           ),
@@ -481,6 +517,14 @@ TextStyle _labelStyle(Tokens t) => AppTheme.mono(
 
 TextStyle _chipStyle(Color c) =>
     TextStyle(fontFamily: AppTheme.fontSans, fontSize: 11, color: c);
+
+/// The D page's row label (web `.rx .doc-shelves-label`): mono 10.5, `.12em`.
+TextStyle _labelStyleD(Tokens t) => AppTheme.mono(
+    fontSize: 10.5, letterSpacing: 0.12 * 10.5, color: t.fgSubtle);
+
+/// §35's type, for the add control beside the tags.
+TextStyle _tagStyleD(Tokens t) => AppTheme.serif(
+    fontSize: 14.5, fontStyle: FontStyle.italic, color: t.fgLede);
 
 /// §20.1's panel. A combobox: focus stays in the search field, one row is
 /// active, ↑/↓ move it through the list and on to the create row (stopping at
@@ -987,11 +1031,15 @@ class _DashedTap extends StatefulWidget {
   final bool enabled;
   final VoidCallback onTap;
   final Widget child;
+
+  /// §35's form: no dashed border, the tag's own height.
+  final bool plain;
   const _DashedTap(
       {super.key,
       required this.enabled,
       required this.onTap,
-      required this.child});
+      required this.child,
+      this.plain = false});
 
   @override
   State<_DashedTap> createState() => _DashedTapState();
@@ -1015,14 +1063,15 @@ class _DashedTapState extends State<_DashedTap> {
         child: Opacity(
           opacity: widget.enabled ? 1 : AppSpacing.heldOpacity,
           child: Container(
-            height: 20,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            height: widget.plain ? 28 : 20,
+            padding: EdgeInsets.symmetric(horizontal: widget.plain ? 4 : 8),
             decoration: BoxDecoration(
               color: _hover && widget.enabled ? t.hover : null,
               borderRadius: BorderRadius.circular(r),
             ),
-            foregroundDecoration:
-                _Dashed(color: t.borderStrong, radius: r),
+            foregroundDecoration: widget.plain
+                ? null
+                : _Dashed(color: t.borderStrong, radius: r),
             // No `alignment`: a Container with one takes all the width it is
             // offered, and in the row's Wrap that is a whole line — the add
             // control dropped under the chips at full width (the first frame).

@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
@@ -12,8 +15,11 @@ import '../../shared/extraction_markers.dart';
 import '../../shared/leave_guard.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
+import '../../theme/app_spacing.dart';
+import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
+import 'passage_boundary.dart';
 import 'passage_mark.dart';
 import 'reader_prefs.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -32,7 +38,10 @@ class _EditChunk {
   /// the dwell rule counts (see [passageWords]). Empty for a split-created
   /// passage, which has nothing stored yet.
   final String storedText;
-  final bool atomic; // img/table/figure/pre — read-only, deletable only
+
+  /// img/table/figure/pre — read-only, deletable only. Not final: moving a
+  /// passage boundary can carry an atomic block into or out of a passage.
+  bool atomic;
   bool userEdited;
   bool dirty;
   bool deleted = false;
@@ -81,6 +90,17 @@ class ManuscriptPanel extends StatefulWidget {
   /// §Step jump branch 2 — the source opened at an offset.
   final void Function(String url)? onOpenLink;
 
+  /// Passages whose `chunk_read` write CONFIRMED — the dwell rule's batch and
+  /// **Mark as read** (5.27.0, ADR-184) alike — with the ids the write
+  /// committed and no others. The reader folds them into its chunks (web
+  /// `foldInChunksRead`: `view_count` 0 → 1, once), so "Passages read" moves
+  /// while you read; the chunks come back down as [chunks] and the passage
+  /// draws read. Never called for a write that was refused.
+  ///
+  /// It can arrive after this panel has unmounted: unmount is one of the dwell
+  /// batch's flush points, and its answer comes back later.
+  final void Function(List<String> chunkIds)? onChunksRead;
+
   const ManuscriptPanel(
       {super.key,
       required this.docId,
@@ -89,7 +109,14 @@ class ManuscriptPanel extends StatefulWidget {
       required this.onSaved,
       this.anchorChunkId,
       this.onSeekAudio,
-      this.onOpenLink});
+      this.onOpenLink,
+      this.onChunksRead});
+
+  /// While true no dwell timer starts — a frame or a device test that must
+  /// hold an unread passage on screen past the 10 s cap. **Mark as read**
+  /// still writes on a press.
+  @visibleForTesting
+  static bool debugPauseDwell = false;
 
   @override
   State<ManuscriptPanel> createState() => _ManuscriptPanelState();
@@ -329,6 +356,9 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       t.cancel();
     }
     _flushTimer?.cancel();
+    _settle?.cancel();
+    _stopDrag();
+    _dropY.dispose();
     // Flush on the way out — unmount is one of the three flush points.
     _flush();
     for (final c in _controllers.values) {
@@ -340,15 +370,30 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   static const _atomicRe =
       r'<\s*(img|table|figure|pre)\b';
 
+  static bool _isAtomic(String html) =>
+      RegExp(_atomicRe, caseSensitive: false).hasMatch(html);
+
+  /// A passage's editing text: one paragraph per top-level block that has
+  /// text, a blank line between them — so the editor shows the passage's
+  /// blocks as the blocks they are, and a boundary drag can find where each
+  /// one starts. It collapsed every block into one line until F-132, which
+  /// left no block anywhere to move a boundary to.
+  static String _editText(String html) => passageBlocks(html)
+      .map(_stripTags)
+      .where((t) => t.isNotEmpty)
+      .join('\n\n');
+
   List<_EditChunk> _initFrom(List<Chunk> chunks) {
     _controllers.clear();
+    _fieldKeys.clear();
+    _blockKeys.clear();
     return chunks.map((c) {
       final html = (c.html ?? '').trim();
-      final atomic = html.isNotEmpty && RegExp(_atomicRe, caseSensitive: false).hasMatch(html);
+      final atomic = html.isNotEmpty && _isAtomic(html);
       return _EditChunk(
         chunkId: c.chunkId,
         html: html.isEmpty ? '<p>${_esc(c.text)}</p>' : html,
-        text: html.isEmpty ? c.text : _stripTags(html),
+        text: html.isEmpty ? c.text : _editText(html),
         storedText: c.text,
         atomic: atomic,
         userEdited: c.userEdited,
@@ -502,6 +547,330 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     });
   }
 
+  // ── Moving a passage boundary (reader.md §Moving a passage boundary) ─────
+  // The grip on a passage moves where it begins, between whole blocks of it
+  // and the visible passage before it. `passage_boundary.dart` holds the rules
+  // (which cuts are offered, the re-cut); this is the gesture. The drag
+  // measures the sheet's own render: a text passage's blocks are its editing
+  // text's paragraphs (found in its field by caret position), an atomic
+  // passage's are drawn one by one under keys of their own.
+
+  /// Each editing field, by passage — the drag reads its RenderEditable.
+  final Map<_EditChunk, GlobalKey> _fieldKeys = {};
+
+  /// Each atomic passage's blocks while editing, by passage.
+  final Map<_EditChunk, List<GlobalKey>> _blockKeys = {};
+
+  _Drag? _drag;
+
+  /// `.ms-dropline`'s top, in the sheet's coordinates. A notifier, so a
+  /// pointer move repaints the line and nothing else.
+  final ValueNotifier<double?> _dropY = ValueNotifier(null);
+
+  /// The visible passage before [b], or null for the first.
+  _EditChunk? _before(_EditChunk b) {
+    final vis = _visible;
+    final j = vis.indexOf(b);
+    return j > 0 ? vis[j - 1] : null;
+  }
+
+  /// Re-cut [b] and the passage before it at [k], exactly as a split or a
+  /// merge changes the local list: both keep their ids, both are edited, and
+  /// nothing is written until Save. A cut the rules refuse changes nothing.
+  void _moveBoundary(_EditChunk b, int k) {
+    _commit();
+    final a = _before(b);
+    if (a == null) return;
+    final cut = recut(a.html, b.html, k);
+    if (cut == null) return;
+    setState(() {
+      for (final (p, html) in [(a, cut.a), (b, cut.b)]) {
+        p.html = html;
+        p.text = _editText(html);
+        p.atomic = _isAtomic(html);
+        p.dirty = true;
+      }
+      _rebuildControllers();
+    });
+  }
+
+  /// Up and Down on a focused grip: one offered cut at once. The grip keeps
+  /// its place in the tree, so focus stays on it.
+  void _stepBoundary(_EditChunk b, int dir) {
+    _commit();
+    final a = _before(b);
+    if (a == null) return;
+    final from = currentCut(a.html);
+    final k = stepCut(a.html, b.html, from, dir);
+    if (k != from) _moveBoundary(b, k);
+  }
+
+  void _startDrag(_EditChunk b) {
+    if (_drag != null) return;
+    // What the save would write now, so the drag cuts what is on screen.
+    _commit();
+    final a = _before(b);
+    if (a == null) return;
+    final origin = currentCut(a.html);
+    final cuts = offeredCuts(a.html, b.html);
+    if (!cuts.contains(origin)) cuts.add(origin);
+    final d = _Drag(a: a, b: b, cuts: cuts, origin: origin);
+    final y = _lineY(d, origin);
+    if (y == null) return; // not laid out: nothing to measure against
+    HardwareKeyboard.instance.addHandler(_onDragKey);
+    setState(() => _drag = d);
+    _dropY.value = y;
+    // While the pointer sits near the scroller's top or bottom edge the page
+    // scrolls by itself, so a boundary can travel further than one screen.
+    d.ticker = Timer.periodic(
+        const Duration(milliseconds: 16), (_) => _autoscroll(d));
+  }
+
+  /// The drop line goes to the offered cut nearest the pointer.
+  void _retarget(_Drag d) {
+    final y = d.pointerY;
+    if (y == null) return;
+    var best = d.target;
+    var dist = double.infinity;
+    for (final k in d.cuts) {
+      final top = _nodeTop(d, k);
+      if (top == null) continue;
+      final gap = (top - y).abs();
+      if (gap < dist) {
+        dist = gap;
+        best = k;
+      }
+    }
+    d.target = best;
+    final line = _lineY(d, best);
+    if (line != null) _dropY.value = line;
+  }
+
+  /// The reader's primary scroller — the enclosing [Scrollable], the one the
+  /// progress rule reads — scrolls 14 a tick within 64 of its edge.
+  void _autoscroll(_Drag d) {
+    final y = d.pointerY;
+    final pos = _position;
+    if (y == null || pos == null || !pos.hasPixels) return;
+    final box = pos.context.storageContext.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) return;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final bottom = top + box.size.height;
+    final step = y < top + 64 ? -14.0 : (y > bottom - 64 ? 14.0 : 0.0);
+    if (step == 0) return;
+    final next = (pos.pixels + step)
+        .clamp(pos.minScrollExtent, pos.maxScrollExtent)
+        .toDouble();
+    if (next == pos.pixels) return;
+    pos.jumpTo(next);
+    // Measured after the frame that moved the passages.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && identical(_drag, d)) _retarget(d);
+    });
+  }
+
+  /// Release ([apply]) re-cuts at the line; a release at the origin, Escape
+  /// or a cancelled pointer changes nothing.
+  void _endDrag(bool apply) {
+    final d = _drag;
+    if (d == null) return;
+    _stopDrag();
+    if (mounted) setState(() {});
+    if (apply && d.target != d.origin) _moveBoundary(d.b, d.target);
+  }
+
+  void _stopDrag() {
+    _drag?.ticker?.cancel();
+    _drag = null;
+    _dropY.value = null;
+    HardwareKeyboard.instance.removeHandler(_onDragKey);
+  }
+
+  bool _onDragKey(KeyEvent e) {
+    if (e is KeyDownEvent &&
+        e.logicalKey == LogicalKeyboardKey.escape &&
+        _drag != null) {
+      _endDrag(false);
+      return true;
+    }
+    return false;
+  }
+
+  /// Block [k] of the two passages joined: A's blocks, then B's.
+  double? _nodeTop(_Drag d, int k) {
+    final inA = passageBlocks(d.a.html).length;
+    return k < inA ? _blockTop(d.a, k) : _blockTop(d.b, k - inA);
+  }
+
+  /// `lineY`: the boundary's line sits 7 above the block that would begin
+  /// the passage, in the sheet's coordinates.
+  double? _lineY(_Drag d, int k) {
+    final top = _nodeTop(d, k);
+    final sheet = _sheetKey.currentContext?.findRenderObject() as RenderBox?;
+    if (top == null || sheet == null || !sheet.attached) return null;
+    return top - sheet.localToGlobal(Offset.zero).dy - 7;
+  }
+
+  /// The global top of block [j] of passage [p] as it is drawn while editing.
+  double? _blockTop(_EditChunk p, int j) {
+    if (p.atomic) {
+      final keys = _blockKeys[p];
+      if (keys == null || j < 0 || j >= keys.length) return null;
+      final box = keys[j].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.attached || !box.hasSize) return null;
+      return box.localToGlobal(Offset.zero).dy;
+    }
+    final editable =
+        _editableIn(_fieldKeys[p]?.currentContext?.findRenderObject());
+    if (editable == null || !editable.attached || !editable.hasSize) {
+      return null;
+    }
+    final offsets = _blockOffsets(p.html, p.text);
+    if (j < 0 || j >= offsets.length) return null;
+    final caret =
+        editable.getLocalRectForCaret(TextPosition(offset: offsets[j]));
+    return editable.localToGlobal(Offset(0, caret.top)).dy;
+  }
+
+  static RenderEditable? _editableIn(RenderObject? root) {
+    if (root == null) return null;
+    if (root is RenderEditable) return root;
+    RenderEditable? found;
+    root.visitChildren((child) => found ??= _editableIn(child));
+    return found;
+  }
+
+  /// Where each of [html]'s blocks begins in the editing [text]: the blocks
+  /// with text are its paragraphs in order (see [_editText]; an edited
+  /// passage's html is built from them by [_textToHtml]), and a block with
+  /// none — a rule — begins where the next paragraph does.
+  static List<int> _blockOffsets(String html, String text) {
+    final starts = <int>[];
+    void add(int from, int to) {
+      final seg = text.substring(from, to);
+      final lead = seg.length - seg.trimLeft().length;
+      if (seg.trim().isNotEmpty) starts.add(from + lead);
+    }
+
+    var at = 0;
+    for (final m in RegExp(r'\n\s*\n').allMatches(text)) {
+      add(at, m.start);
+      at = m.end;
+    }
+    add(at, text.length);
+    final out = <int>[];
+    var next = 0;
+    for (final block in passageBlocks(html)) {
+      if (_stripTags(block).isNotEmpty && next < starts.length) {
+        out.add(starts[next++]);
+      } else {
+        out.add(next < starts.length ? starts[next] : text.length);
+      }
+    }
+    return out;
+  }
+
+  /// `.ms-dropline` — a 2px accent rule across the sheet, labelled at its
+  /// right end in mono 9 caps on the accent.
+  Widget _dropLine(Tokens t) => IgnorePointer(
+        child: SizedBox(
+          height: 2,
+          child: Stack(clipBehavior: Clip.none, children: [
+            Positioned.fill(child: ColoredBox(color: t.accent)),
+            Positioned(
+              right: 0,
+              top: -9,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: t.accent,
+                  borderRadius: AppRadius.xsR,
+                ),
+                // The caller sets caps (F-33); the words are the spec's.
+                child: Text('Passage begins here'.toUpperCase(),
+                    style: KitText.monoMeta(context,
+                        fontSize: 9, letterSpacing: 0.08, color: t.accentFg)),
+              ),
+            ),
+          ]),
+        ),
+      );
+
+  /// An atomic passage while editing, block by block under its own keys —
+  /// what a boundary drag measures. The same render as at rest, per block.
+  Widget _atomicBlocks(_EditChunk c, ReaderUi ui) {
+    final blocks = passageBlocks(c.html);
+    final keys = _blockKeys.putIfAbsent(c, () => []);
+    while (keys.length < blocks.length) {
+      keys.add(GlobalKey());
+    }
+    if (keys.length > blocks.length) keys.removeRange(blocks.length, keys.length);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (var j = 0; j < blocks.length; j++)
+        KeyedSubtree(
+          key: keys[j],
+          child: _html(_markShared(markSanitizedHtml(blocks[j].trim())), ui),
+        ),
+    ]);
+  }
+
+  /// `.ms-readfoot` — Mark as read's slot (5.27.0, ADR-184; reader.md
+  /// §Reading state). Drawn for EVERY passage at rest, read or not, and one
+  /// control line tall either way: the dwell turns a passage read while the
+  /// reader is usually already in the next one, and a slot that collapsed
+  /// then moved the text they were reading up by its height. What changes is
+  /// what is IN the slot, never the slot.
+  ///
+  /// The control — a quiet end-aligned caption at `--fg-subtle` — is always
+  /// shown here: a finger has no hover to reveal it (`@media (hover: none)`).
+  /// Never on a read passage; there is no mark unread.
+  Widget _readFoot(ReaderUi ui, _EditChunk c, {required bool last}) {
+    final t = ui.tokens;
+    final id = c.chunkId;
+    final read = _isRead(c);
+    final marking = id != null && _marking.contains(id);
+    final failed = id != null && !read && _markFailed.contains(id);
+    return Padding(
+      // Into the last paragraph's own seam, so the foot costs one caption
+      // line; the last passage has none to borrow from.
+      padding: EdgeInsets.only(top: last ? AppSpacing.s2 : 6),
+      child: ConstrainedBox(
+        // The control's own line: its 6 top and bottom, and `--lh-xs` 16.
+        constraints: const BoxConstraints(minHeight: 16 + 12),
+        child: Align(
+          alignment: AlignmentDirectional.topEnd,
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpacing.s3,
+            children: [
+              if (failed) const KitFailureInline(_markFailedSentence, dense: true),
+              if (!read && id != null)
+                Semantics(
+                  key: ValueKey('ms-readmark-$id'),
+                  button: true,
+                  enabled: !marking,
+                  child: Opacity(
+                    opacity: marking ? AppSpacing.heldOpacity : 1,
+                    child: InkWell(
+                      onTap: marking ? null : () => _markRead(id),
+                      borderRadius: AppRadius.smR,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(marking ? 'Marking…' : 'Mark as read',
+                            style: KitText.small(context,
+                                color: t.fgSubtle, height: 16)),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     _commit();
     final visibleNow = _chunks.where((c) => !c.deleted).toList();
@@ -554,6 +923,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   }
 
   void _discard() {
+    _stopDrag();
     setState(() {
       _chunks = _initFrom(widget.chunks);
       _editing = false;
@@ -561,21 +931,49 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     });
   }
 
-  // ── Read tracking (3.1.0, ADR-039) ───────────────────────────────────────
+  // ── Read tracking (3.1.0, ADR-039; halved 5.27.0, ADR-184) ─────────────
   // A passage is read once continuously visible for
-  // `min(0.5 x words / 220 x 60, 20)` seconds. The timer RESETS when it leaves,
-  // so a fast scroll to the bottom marks nothing — that is the whole point of
-  // the rule, and the reason a fixed short dwell was rejected.
+  // `min(0.25 x words / 220 x 60, 10)` seconds ([dwellFor]). The timer RESETS
+  // when it leaves, so a fast scroll to the bottom marks nothing — that is the
+  // whole point of the rule, and the reason a fixed short dwell was rejected.
+  //
+  // The bookkeeping is shared with Mark as read below, so a press and the
+  // timer can never both write one passage: `_readThisSession` (no timer arms
+  // for these again this mount), `_dwellTimers` (armed), `_pendingFlush`
+  // (dwelled, waiting for the batch) and `_inflight` (id → the batch write
+  // carrying it).
   final Map<String, Timer> _dwellTimers = {};
   final Set<String> _readThisSession = {};
   final Set<String> _pendingFlush = {};
+  final Map<String, Future<List<String>>> _inflight = {};
   Timer? _flushTimer;
+  Timer? _settle;
+
+  /// Ids whose `chunk_read` write this panel saw COMMIT. A passage draws read
+  /// from the `chunks` prop (`view_count > 0`, which the reader's fold-in
+  /// moves) or from here — never from a timer that fired or a press that is
+  /// still in flight (write before you move).
+  final Set<String> _committed = {};
+
+  /// Mark as read (5.27.0, ADR-184): writes in flight, and writes refused.
+  /// Neither is read state.
+  final Set<String> _marking = {};
+  final Set<String> _markFailed = {};
+
+  static const _markFailedSentence =
+      "This passage couldn't be marked read. Try again.";
+
+  bool _isRead(_EditChunk c) {
+    final id = c.chunkId;
+    return id != null && (_countedIds.contains(id) || _committed.contains(id));
+  }
 
   void _onVisibility(_EditChunk c, double fraction) {
     if (!mounted || _editing) return;   // editing is not reading
     // A split-created passage has no id yet — nothing to record against.
     final id = c.chunkId;
     if (id == null || id.isEmpty || _readThisSession.contains(id)) return;
+    if (ManuscriptPanel.debugPauseDwell) return;
 
     // Not a fixed threshold: a passage taller than the screen can never be
     // 50% visible, so anything at all counts as on-screen and the DWELL is
@@ -596,18 +994,83 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
   // Batched (ADR-039 §4): accumulate and flush once, never one write per
   // scroll event. Firestore's +1 rule is per document, so many distinct
-  // chunks commit together happily.
+  // chunks commit together happily. A short debounce (web's `settleSoon`) so
+  // the CONFIRMED read arrives seconds after the dwell rather than on the 15s
+  // tick — still one commit for passages finishing together — and the 15s
+  // tick as the longest a dwelled passage waits.
   void _scheduleFlush() {
+    _settle?.cancel();
+    _settle = Timer(const Duration(milliseconds: 1500), _flush);
     _flushTimer ??= Timer(const Duration(seconds: 15), _flush);
   }
 
   Future<void> _flush() async {
     _flushTimer?.cancel();
     _flushTimer = null;
+    _settle?.cancel();
+    _settle = null;
     if (_pendingFlush.isEmpty) return;
     final ids = _pendingFlush.toList();
     _pendingFlush.clear();
-    await FirestoreService.instance.logChunksRead(widget.docId, ids);
+    // Fire-and-forget, like every read write — but what the batch COMMITTED
+    // is told to the reader, so the passage turns read and "Passages read"
+    // moves as you read. Non-optimistic: a refused batch resolves `[]` and
+    // moves nothing.
+    final write = FirestoreService.instance.logChunksRead(widget.docId, ids);
+    // Held per id while it flies, so a Mark as read pressed on one of them
+    // waits for THIS write instead of sending a second +1.
+    for (final id in ids) {
+      _inflight[id] = write;
+    }
+    final committed = await write;
+    for (final id in ids) {
+      if (identical(_inflight[id], write)) _inflight.remove(id);
+    }
+    if (committed.isNotEmpty) _confirmRead(committed);
+  }
+
+  /// A write committed: these passages draw read here, and the reader folds
+  /// them into its chunks.
+  void _confirmRead(List<String> ids) {
+    if (mounted) setState(() => _committed.addAll(ids));
+    widget.onChunksRead?.call(ids);
+  }
+
+  /// **Mark as read** (5.27.0, ADR-184; reader.md §Reading state). Writes
+  /// this one passage's `chunk_read` at once, through the dwell rule's own
+  /// write (INV-03b) — an explicit press is not a scroll event, so one id
+  /// written at once conforms to batching — and takes the passage out of the
+  /// dwell's hands first: its timer cancelled, out of the pending batch,
+  /// counted for this mount. A passage whose dwell batch is already in flight
+  /// waits for THAT write rather than sending a second +1, and writes itself
+  /// only if that one was refused.
+  ///
+  /// Write before you move: "Marking…" while the write flies, and the passage
+  /// turns read only when it commits. A refusal leaves it unread with §14.2
+  /// beside the control, and hands it back to the dwell rule.
+  Future<void> _markRead(String id) async {
+    final riding = _inflight[id];
+    _dwellTimers.remove(id)?.cancel();
+    _readThisSession.add(id);
+    _pendingFlush.remove(id);
+    setState(() {
+      _marking.add(id);
+      _markFailed.remove(id);
+    });
+    var committed = riding == null ? const <String>[] : await riding;
+    if (!committed.contains(id)) {
+      committed =
+          await FirestoreService.instance.logChunksRead(widget.docId, [id]);
+      if (committed.contains(id)) _confirmRead(committed);
+    }
+    if (!mounted) return;
+    setState(() {
+      _marking.remove(id);
+      if (!committed.contains(id)) {
+        _readThisSession.remove(id);
+        _markFailed.add(id);
+      }
+    });
   }
 
   /// Which passages are marked read, taken from the `chunks` PROP rather than
@@ -702,10 +1165,11 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         final realIdx = _chunks.indexOf(c);
         // Counted state comes from the `chunks` PROP, not the local edit copy
         // (which drops counters), so a confirmed chunk_read batch lights the
-        // mark up live.
-        final counted = c.chunkId != null &&
-            (_countedIds.contains(c.chunkId) ||
-                _readThisSession.contains(c.chunkId));
+        // mark up live — and from a write this panel saw commit. Never from a
+        // dwell timer that merely fired: the mark said "read" for a write that
+        // could still be refused until 5.27.0 (ADR-184 — the passage turns
+        // read only when it commits).
+        final counted = _isRead(c);
 
         final body =
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -718,6 +1182,9 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             if (_editing) const SizedBox(height: 13),
             if (_editing && !c.atomic)
               TextField(
+                // Found again by a boundary drag, which measures where each
+                // of the passage's blocks starts inside it.
+                key: _fieldKeys.putIfAbsent(c, GlobalKey.new),
                 controller: _controllerFor(realIdx, c),
                 maxLines: null,
                 onChanged: (_) {
@@ -733,6 +1200,11 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                   contentPadding: EdgeInsets.zero,
                 ),
               )
+            // An atomic passage while editing: its blocks one by one, so a
+            // boundary drag can measure where each begins. Read-only, as
+            // before.
+            else if (_editing)
+              _atomicBlocks(c, ui)
             // The Recipe body swap (4.6.0, ADR-042). It renders INSIDE the
             // passage container rather than instead of it, so the gutter mark,
             // the dwell rule and INV-03b read tracking behave exactly as on any
@@ -762,6 +1234,10 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                     style: KitText.fine(context, color: ui.muted)),
               ),
             if (_editing && !c.atomic) _splitControl(ui, i),
+            // Mark as read's slot — at rest, for EVERY passage, read or not
+            // (the recipe body too, which is a passage like any other).
+            if (!_editing)
+              _readFoot(ui, c, last: i == visible.length - 1),
           ]);
 
         // The anchor key rides the OUTERMOST element of the passage, so
@@ -791,8 +1267,13 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             // seams to 30, because there they are the thing being handled.
             // A passage is never a card of its own: the SHEET is the card
             // (F-43 — this drew a bordered card per passage while editing).
+            // At rest the read foot (below) carries the seam: 6 over it, 4
+            // under it, as web's `.ms-readfoot` borrows 8 of the last
+            // paragraph's 14.
             margin: EdgeInsets.only(
-                bottom: i == visible.length - 1 ? 0 : (_editing ? 30 : 14)),
+                bottom: i == visible.length - 1
+                    ? 0
+                    : (_editing ? 30 : AppSpacing.s1)),
             decoration: _editing
                 ? null
                 // The letter's passage, for 2.6 seconds (4.15.0, ADR-051).
@@ -861,14 +1342,26 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
       if (_dirty)
         Padding(
           padding: const EdgeInsets.only(top: 12),
-          child: Row(children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // A Wrap, not a Row: on a phone the sentence and the two buttons
+          // do not fit one line, and the Row overflowed by 105 the first time
+          // a phone held unsaved edits on a device (F-142's batch). The
+          // buttons keep the trailing edge while they fit beside it.
+          child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+            Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               Text('Text edited',
                   style: KitText.ui(context, color: ui.fg, weight: FontWeight.w600)),
               Text('saving re-embeds changed passages',
                   style: KitText.fine(context, color: ui.muted)),
             ]),
-            const Spacer(),
+            Row(mainAxisSize: MainAxisSize.min, children: [
             TextButton.icon(
               onPressed: _saving ? null : _discard,
               icon: const Icon(Icons.undo, size: 14),
@@ -885,6 +1378,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                   : const Icon(Icons.check, size: 14),
               label: const Text('Save & re-index'),
             ),
+            ]),
           ]),
         ),
     ]);
@@ -1058,9 +1552,26 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             key: _sheetKey,
             constraints: BoxConstraints(
                 maxWidth: ReaderPrefs.current.value.measureWidth),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: chunks),
+            // `.ms-dropline` is laid OVER the passages, never inserted into
+            // them: nothing moves while a boundary is dragged except the line.
+            child: Stack(clipBehavior: Clip.none, children: [
+              Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: chunks),
+              if (_drag != null)
+                ValueListenableBuilder<double?>(
+                  valueListenable: _dropY,
+                  builder: (context, y, _) => y == null
+                      ? const SizedBox.shrink()
+                      : Positioned(
+                          key: const ValueKey('ms-dropline'),
+                          top: y,
+                          left: 0,
+                          right: 0,
+                          child: _dropLine(t),
+                        ),
+                ),
+            ]),
           ),
         ),
       ),
@@ -1087,73 +1598,146 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     ]);
   }
 
-  /// `.ms-chunk-head` — the passage number in an accent chip, a rule to the
-  /// controls, the word count, then Merge up and the remove control.
+  /// `.ms-chunk-head` — the boundary grip (every passage after the first),
+  /// the passage number in an accent chip, a rule to the controls, the word
+  /// count, then Merge up and the remove control.
+  ///
+  /// One row while it fits. Where it does not — a phone, with the grip, the
+  /// EDITED mark and Merge up all present — it wraps, as web's head does
+  /// under 720 (`.ms-chunk-head { flex-wrap: wrap; row-gap: 8px }`); the
+  /// rule, which only fills what a row leaves over, goes. A Row there drew
+  /// past the sheet's edge.
   Widget _chunkHead(ReaderUi ui, List<_EditChunk> visible, int i) {
     final t = ui.tokens;
     final c = visible[i];
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 24),
-      child: Row(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: t.accentChipBg,
-            borderRadius: AppRadius.xsR,
-            border: Border.all(color: t.accentChipBorder),
-          ),
-          child: Text('№ ${(i + 1).toString().padLeft(2, '0')}',
-              style: KitText.monoMeta(context,
-                  letterSpacing: 0.08, color: t.accentText)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Container(height: 1, color: t.rule)),
-        const SizedBox(width: 12),
-        // `.ms-sheet.editing .ms-chunk-words` (web 13c910c): mono 11 at
-        // --fg-muted. Shown only while editing, so always the muted step.
-        Text('~${_words(c)} words',
-            style: KitText.monoMeta(context, color: t.fgMuted)),
-        // reader.md §Sections asks for the `user_edited` badge; the reference
-        // draws none in the manuscript. This client keeps the spec's, said
-        // in the head's own voice rather than as a pill of its own.
-        if (c.userEdited) ...[
-          const SizedBox(width: 12),
-          Text('EDITED', style: KitText.monoCaps(context, letterSpacing: 0.06)),
-        ],
-        if (i > 0 && !c.atomic && !visible[i - 1].atomic) ...[
-          const SizedBox(width: 12),
-          // `.ms-merge` — mono caps on `--surface-sunken`.
-          Material(
-            color: t.surfaceSunken,
-            shape: RoundedRectangleBorder(
-                borderRadius: AppRadius.xsR,
-                side: BorderSide(color: t.border)),
-            child: InkWell(
-              borderRadius: AppRadius.xsR,
-              onTap: () => _mergeUp(i),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.vertical_align_top, size: 12, color: t.fgMuted),
-                  const SizedBox(width: 5),
-                  Text('MERGE UP',
-                      style: KitText.monoCaps(context,
-                          letterSpacing: 0.06, color: t.fgMuted)),
-                ]),
-              ),
-            ),
-          ),
-        ],
-        IconButton(
-          tooltip: 'Remove passage',
-          visualDensity: VisualDensity.compact,
-          onPressed: visible.length <= 1 ? null : () => _remove(i),
-          icon: Icon(Icons.delete_outline, size: 14, color: ui.criticalText),
-        ),
-      ]),
+    final dragging = _drag != null && identical(_drag!.b, c);
+    final number = '№ ${(i + 1).toString().padLeft(2, '0')}';
+    final numberStyle = KitText.monoMeta(context,
+        letterSpacing: 0.08,
+        // `.ms-chunk.dragging .ms-chunk-no`: the dragged passage's number in
+        // the accent.
+        color: dragging ? t.accentFg : t.accentText);
+    final words = '~${_words(c)} words';
+    final wordsStyle = KitText.monoMeta(context, color: t.fgMuted);
+    final editedStyle = KitText.monoCaps(context, letterSpacing: 0.06);
+    final mergeStyle =
+        KitText.monoCaps(context, letterSpacing: 0.06, color: t.fgMuted);
+    final canMerge = i > 0 && !c.atomic && !visible[i - 1].atomic;
+
+    final grip = i > 0
+        ? _BoundaryGrip(
+            // `ms-grip-<n>`: n is the passage it moves, as its name says.
+            key: ValueKey('ms-grip-${i + 1}'),
+            label: 'Move where passage ${i + 1} begins',
+            dragging: dragging,
+            onStart: () => _startDrag(c),
+            onMove: (y) {
+              final d = _drag;
+              if (d == null) return;
+              d.pointerY = y;
+              _retarget(d);
+            },
+            onEnd: _endDrag,
+            onStep: (dir) => _stepBoundary(c, dir),
+          )
+        : null;
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: dragging ? t.accent : t.accentChipBg,
+        borderRadius: AppRadius.xsR,
+        border: Border.all(color: dragging ? t.accent : t.accentChipBorder),
+      ),
+      child: Text(number, style: numberStyle),
     );
+    // `.ms-sheet.editing .ms-chunk-words` (web 13c910c): mono 11 at
+    // --fg-muted. Shown only while editing, so always the muted step.
+    final wordsLabel = Text(words, style: wordsStyle);
+    // reader.md §Sections asks for the `user_edited` badge; the reference
+    // draws none in the manuscript. This client keeps the spec's, said in
+    // the head's own voice rather than as a pill of its own.
+    final edited = c.userEdited ? Text('EDITED', style: editedStyle) : null;
+    final merge = canMerge ? _mergeControl(t, i, mergeStyle) : null;
+    final remove = IconButton(
+      tooltip: 'Remove passage',
+      visualDensity: VisualDensity.compact,
+      onPressed: visible.length <= 1 ? null : () => _remove(i),
+      icon: Icon(Icons.delete_outline, size: 14, color: ui.criticalText),
+    );
+
+    return LayoutBuilder(builder: (context, box) {
+      final scaler = MediaQuery.textScalerOf(context);
+      double w(String text, TextStyle style) {
+        final tp = TextPainter(
+          text: TextSpan(text: text, style: style),
+          textDirection: TextDirection.ltr,
+          textScaler: scaler,
+        )..layout();
+        final width = tp.width;
+        tp.dispose();
+        return width;
+      }
+
+      // Every part's own width, the rule at nothing: what one row needs.
+      final need = (grip == null ? 0 : _BoundaryGrip.size + 8) +
+          w(number, numberStyle) + 18 +
+          24 +
+          w(words, wordsStyle) +
+          (edited == null ? 0 : 12 + w('EDITED', editedStyle)) +
+          (merge == null ? 0 : 12 + 35 + w('MERGE UP', mergeStyle)) +
+          40;
+      if (box.maxWidth.isFinite && need > box.maxWidth) {
+        return Wrap(
+          spacing: 12,
+          runSpacing: AppSpacing.s2,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              if (grip != null) ...[grip, const SizedBox(width: 8)],
+              chip,
+            ]),
+            wordsLabel,
+            if (edited != null) edited,
+            if (merge != null) merge,
+            remove,
+          ],
+        );
+      }
+      return ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 24),
+        child: Row(children: [
+          if (grip != null) ...[grip, const SizedBox(width: 8)],
+          chip,
+          const SizedBox(width: 12),
+          Expanded(child: Container(height: 1, color: t.rule)),
+          const SizedBox(width: 12),
+          wordsLabel,
+          if (edited != null) ...[const SizedBox(width: 12), edited],
+          if (merge != null) ...[const SizedBox(width: 12), merge],
+          remove,
+        ]),
+      );
+    });
   }
+
+  /// `.ms-merge` — mono caps on `--surface-sunken`.
+  Widget _mergeControl(Tokens t, int i, TextStyle style) => Material(
+        color: t.surfaceSunken,
+        shape: RoundedRectangleBorder(
+            borderRadius: AppRadius.xsR, side: BorderSide(color: t.border)),
+        child: InkWell(
+          borderRadius: AppRadius.xsR,
+          onTap: () => _mergeUp(i),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.vertical_align_top, size: 12, color: t.fgMuted),
+              const SizedBox(width: 5),
+              Text('MERGE UP', style: style),
+            ]),
+          ),
+        ),
+      );
 
   /// `.ms-split` — a dashed rule either side of the label. The reference
   /// reveals the label on hover; a finger has no hover, so here it is always
@@ -1265,4 +1849,129 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         ...styles,
         'table': (styles['table'] ?? Style()).merge(Style(fontSize: FontSize(15))),
       };
+}
+
+/// A boundary drag in progress: the two passages, the cuts on offer, where
+/// the boundary started and where the line now is.
+class _Drag {
+  final _EditChunk a;
+  final _EditChunk b;
+  final List<int> cuts;
+  final int origin;
+  int target;
+  double? pointerY;
+  Timer? ticker;
+
+  _Drag({
+    required this.a,
+    required this.b,
+    required this.cuts,
+    required this.origin,
+  }) : target = origin;
+}
+
+/// `.ms-grip` — the 22px handle at the start of an editing head, before the
+/// passage number, on every passage after the first. A button named for the
+/// passage it moves ("Move where passage {n} begins"); it takes the vertical
+/// drag, so the page does not scroll under it, and Up/Down when focused.
+class _BoundaryGrip extends StatefulWidget {
+  static const double size = 22;
+
+  final String label;
+  final bool dragging;
+  final VoidCallback onStart;
+  final ValueChanged<double> onMove;
+  final ValueChanged<bool> onEnd;
+  final ValueChanged<int> onStep;
+
+  const _BoundaryGrip({
+    super.key,
+    required this.label,
+    required this.dragging,
+    required this.onStart,
+    required this.onMove,
+    required this.onEnd,
+    required this.onStep,
+  });
+
+  @override
+  State<_BoundaryGrip> createState() => _BoundaryGripState();
+}
+
+class _BoundaryGripState extends State<_BoundaryGrip> {
+  final FocusNode _focus = FocusNode(debugLabel: 'ms-grip');
+  bool _hover = false;
+  bool _cancelled = false;
+  bool _focused = false;
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final dir = e.logicalKey == LogicalKeyboardKey.arrowUp
+        ? -1
+        : (e.logicalKey == LogicalKeyboardKey.arrowDown ? 1 : 0);
+    if (dir == 0) return KeyEventResult.ignored;
+    widget.onStep(dir);
+    return KeyEventResult.handled;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final ring = _focused &&
+        FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+    final lit = _hover || ring || widget.dragging;
+    return Semantics(
+      button: true,
+      label: widget.label,
+      child: Focus(
+        focusNode: _focus,
+        onKeyEvent: _onKey,
+        onFocusChange: (f) => setState(() => _focused = f),
+        child: MouseRegion(
+          cursor: widget.dragging
+              ? SystemMouseCursors.grabbing
+              : SystemMouseCursors.grab,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          // A pointer CANCELLED after the drag was accepted reaches a drag
+          // recognizer as an END, not a cancel — and §Moving a passage
+          // boundary says a cancelled pointer changes nothing. The Listener
+          // hears the cancel first (it is deeper in the hit path than the
+          // gesture arena's router), so the end that follows applies nothing.
+          child: Listener(
+            onPointerDown: (_) => _cancelled = false,
+            onPointerCancel: (_) => _cancelled = true,
+            child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            dragStartBehavior: DragStartBehavior.down,
+            onVerticalDragStart: (_) => widget.onStart(),
+            onVerticalDragUpdate: (d) => widget.onMove(d.globalPosition.dy),
+            onVerticalDragEnd: (_) => widget.onEnd(!_cancelled),
+            onVerticalDragCancel: () => widget.onEnd(false),
+            child: Container(
+              width: _BoundaryGrip.size,
+              height: _BoundaryGrip.size,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: lit ? t.hover : null,
+                borderRadius: AppRadius.xsR,
+                border: ring ? Border.all(color: t.accent, width: 2) : null,
+              ),
+              child: Icon(Icons.drag_indicator,
+                  size: 15, color: lit ? t.fgMuted : t.fgSubtle),
+            ),
+          ),
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -92,9 +92,11 @@ class KitSettingsHandle {
 
 /// §27's app-level store: the mounted page writes its action and its
 /// settings here, and the app header and tab bar — outside the page — read
-/// them. One writer at a time (the current route's page); its disposal clears
-/// both, so a page with no tools leaves the chrome showing none. A control
-/// the chrome draws calls the page's LATEST handler, read at the press.
+/// them. The chrome draws the most recent registrant's (the current route's
+/// page); a page's disposal takes its tools away and hands the chrome back to
+/// the page still mounted, so a page with no tools leaves the chrome showing
+/// none. A control the chrome draws calls the page's LATEST handler, read at
+/// the press.
 ///
 /// [scrim] is the dismiss callback of whatever D overlay is open (the panel,
 /// the dropped running head): the tab bar draws the overlay's scrim over
@@ -103,7 +105,6 @@ class KitPageTools extends ChangeNotifier {
   KitPageTools._();
   static final KitPageTools instance = KitPageTools._();
 
-  Object? _owner;
   KitPageAction? _action;
   KitSettingsHandle? _settings;
   String _key = '#';
@@ -119,28 +120,41 @@ class KitPageTools extends ChangeNotifier {
       '${a == null ? '' : '${a.label}|${a.short}|${a.disabled}|${a.icon.codePoint}'}'
       '#${s == null ? '' : '${s.label}|${s.open}|${s.held}'}';
 
+  /// Every mounted page that has registered, the most recent last: the
+  /// chrome draws the LAST one's tools. A stack, not one slot, because a
+  /// route change can have the outgoing page register AFTER the incoming
+  /// one. Home sits in the inner shell's navigator, where its own route still
+  /// reads as current while the outer navigator replaces it with the source
+  /// page; Home re-registered during the transition, then disposed and
+  /// cleared the slot — and the source page, which had nothing to rebuild
+  /// it, drew no gear and no centre action (F-142's device holds, traced
+  /// 2026-10-30). Removing the leaving page now hands the chrome back to the
+  /// page that is still mounted.
+  final List<(Object, KitPageAction?, KitSettingsHandle?)> _live = [];
+
   /// Store [owner]'s tools now (so a press reads the latest handler) and tell
   /// the chrome after the frame when something it draws changed.
   void register(Object owner, KitPageAction? action, KitSettingsHandle? s) {
-    _owner = owner;
-    _action = action;
-    _settings = s;
-    final k = _keyOf(action, s);
-    if (k != _key) {
-      _key = k;
-      _announce();
-    }
+    _live.removeWhere((e) => identical(e.$1, owner));
+    _live.add((owner, action, s));
+    _apply();
   }
 
-  /// [owner]'s page is gone: clear what it wrote, unless another page has
-  /// written since (a route transition mounts the next before this goes).
+  /// [owner]'s page is gone: take what it wrote away. If it was the one the
+  /// chrome drew, the most recent page still mounted takes its place.
   void clear(Object owner) {
-    if (!identical(_owner, owner)) return;
-    _owner = null;
-    _action = null;
-    _settings = null;
-    if (_key != '#') {
-      _key = '#';
+    final before = _live.length;
+    _live.removeWhere((e) => identical(e.$1, owner));
+    if (_live.length != before) _apply();
+  }
+
+  void _apply() {
+    final top = _live.isEmpty ? null : _live.last;
+    _action = top?.$2;
+    _settings = top?.$3;
+    final k = _keyOf(_action, _settings);
+    if (k != _key) {
+      _key = k;
       _announce();
     }
   }
@@ -167,7 +181,7 @@ class KitPageTools extends ChangeNotifier {
 
   @visibleForTesting
   void reset() {
-    _owner = null;
+    _live.clear();
     _action = null;
     _settings = null;
     _key = '#';
@@ -212,6 +226,20 @@ class KitMasthead extends StatelessWidget {
   final String title;
   final String? stand;
 
+  /// A title still being read (the source page's cold open): drawn in the
+  /// title's place, e.g. a skeleton line.
+  final Widget? titleWidget;
+
+  /// What stands under the title in place of (or after) a standfirst, before
+  /// the rule — the source page's byline and its freshness notice (W2's
+  /// `byline` slot).
+  final Widget? byline;
+
+  /// On a phone the crumb stacks: the back control, then the folio UNDER it,
+  /// 16 above the title (the source page's phone order, `screens/reader.md`
+  /// §Composition). Elsewhere the crumb runs on one line.
+  final bool crumbStacks;
+
   const KitMasthead({
     super.key,
     required this.folio,
@@ -219,6 +247,9 @@ class KitMasthead extends StatelessWidget {
     this.back,
     this.tools,
     this.stand,
+    this.titleWidget,
+    this.byline,
+    this.crumbStacks = false,
   });
 
   @override
@@ -241,8 +272,27 @@ class KitMasthead extends StatelessWidget {
         );
         // The crumb: the back control's 8px of side padding is taken back out,
         // as web's `margin: -14px -8px` does, so its text sits on the edge.
+        final stacked = back != null && phone && crumbStacks;
         final lead = back == null
             ? folioText
+            : stacked
+            // The back control's 44px hit area overhangs the line it draws
+            // on by 14 above and below (web's `margin: -14px -8px`), so its
+            // visible line is 16 tall and the folio wraps under it.
+            ? Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 22),
+                    // A source that could not be read has no folio: the back
+                    // control stands alone.
+                    child: folio.isEmpty
+                        ? const SizedBox(width: double.infinity)
+                        : SizedBox(width: double.infinity, child: folioText),
+                  ),
+                  Positioned(left: -8, top: -14, child: back!),
+                ],
+              )
             : Row(
                 children: [
                   Transform.translate(offset: const Offset(-8, 0), child: back),
@@ -297,7 +347,7 @@ class KitMasthead extends StatelessWidget {
         // A crumb's 44px hit area: its 14 above and below come back out of the
         // rail's own spacing (web's negative margins).
         final crumb = back != null;
-        final pad = phone ? 18.0 : 28.0;
+        final pad = stacked ? 16.0 : (phone ? 18.0 : 28.0);
         final titleSize = phone ? 40.0 : (0.05 * cw).clamp(44.0, 80.0);
         final titleStyle = AppTheme.serif(
           fontSize: titleSize,
@@ -329,13 +379,16 @@ class KitMasthead extends StatelessWidget {
           children: [
             Padding(
               padding: EdgeInsets.only(
-                bottom: crumb ? math.max(0, pad - 28) : pad,
+                bottom: stacked ? pad : (crumb ? math.max(0, pad - 28) : pad),
               ),
               child: Transform.translate(
-                offset: Offset(0, crumb ? -14 : 0),
+                offset: Offset(0, crumb && !stacked ? -14 : 0),
                 child: rail,
               ),
             ),
+            if (titleWidget != null)
+              titleWidget!
+            else
             Semantics(
               header: true,
               child: Text.rich(
@@ -364,6 +417,7 @@ class KitMasthead extends StatelessWidget {
                   ),
                 ),
               ),
+            ?byline,
             Container(
               height: 6,
               margin: EdgeInsets.only(top: phone ? 22 : 30),
@@ -722,11 +776,17 @@ class KitDSheet {
   final Widget body;
   final bool foldOnPick;
 
+  /// Drawn along the running head line's foot, inset 18 each side — the
+  /// source page's 2px reading-progress rule (`screens/reader.md`; web
+  /// `.d-peek-prog`). The page's own; nothing else draws one.
+  final Widget? foot;
+
   const KitDSheet({
     required this.label,
     required this.peek,
     required this.body,
     this.foldOnPick = false,
+    this.foot,
   });
 }
 
@@ -763,8 +823,23 @@ class KitSheetScope extends InheritedWidget {
 /// [current] is the section nearest the top of the page's scroller — the
 /// last once the scroll reaches its end — and [jump] scrolls the primary
 /// scroller smoothly to a section, 24px above it. [KitDPage] attaches it.
+///
+/// **Mounting on approach** (the source page, `screens/reader.md` §Continuous
+/// scroll; web `useSectionRail`): given [eager], only those sections are
+/// mounted at first, and every other one mounts once its top comes within
+/// [near] of the viewport's foot — never on a click, so scrolling guarantees
+/// it. It only ever grows. A jump mounts everything up to and including its
+/// target BEFORE it scrolls: a section whose predecessors are still reserves
+/// is at the wrong offset.
+///
+/// **A landed jump is held** until the reader's own hand scrolls: a browser
+/// keeps a landed jump where it landed when content ABOVE it changes size
+/// (scroll anchoring) and Flutter does not, so a page whose sections answer
+/// late calls [reanchor] when one changes size, and [release] on a drag
+/// (F-77 found the target ~90px off after Original's answer grew).
 class KitSections extends ChangeNotifier {
-  KitSections(this._ids);
+  KitSections(this._ids, {Iterable<String>? eager})
+    : _mounted = eager == null ? null : {...eager};
 
   List<String> _ids;
   final Map<String, GlobalKey> _keys = {};
@@ -772,6 +847,52 @@ class KitSections extends ChangeNotifier {
   ScrollController? _sc;
   bool _pending = false;
   bool _still = false;
+
+  /// Null: every section is mounted (a page with no lazy sections).
+  final Set<String>? _mounted;
+
+  /// How far below the viewport a section starts mounting (web `NEAR`).
+  static const double near = 800;
+
+  /// The section a jump landed on, held until [release].
+  String? _held;
+
+  bool isMounted(String id) => _mounted == null || _mounted.contains(id);
+
+  /// Mount [ids] now (a jump, a deep link into a section).
+  void mount(Iterable<String> ids) {
+    final m = _mounted;
+    if (m == null) return;
+    final before = m.length;
+    m.addAll(ids);
+    if (m.length != before) {
+      notifyListeners();
+      _schedule();
+    }
+  }
+
+  /// The reader's own hand moved the page: a held jump is let go.
+  void release() => _held = null;
+
+  /// Something above a held jump changed size: put its section back 24 under
+  /// the top, at once (never mid-animation).
+  void reanchor() {
+    final id = _held;
+    final sc = _sc;
+    if (id == null || sc == null || !sc.hasClients) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (_held != id || !sc.hasClients) return;
+      if (sc.position.isScrollingNotifier.value) return;
+      final top = _top(id);
+      if (top == null) return;
+      final p = sc.position;
+      final to = (p.pixels + top - 24).clamp(
+        p.minScrollExtent,
+        p.maxScrollExtent,
+      );
+      if ((to - p.pixels).abs() > 0.5) sc.jumpTo(to);
+    });
+  }
 
   List<String> get ids => _ids;
   set ids(List<String> v) {
@@ -830,6 +951,20 @@ class KitSections extends ChangeNotifier {
   void _read() {
     final sc = _sc;
     if (sc == null || !sc.hasClients) return;
+    final m = _mounted;
+    if (m != null) {
+      final reach = sc.position.viewportDimension + near;
+      final grow = [
+        for (final id in _ids)
+          if (!m.contains(id) && (_top(id) ?? double.infinity) < reach) id,
+      ];
+      if (grow.isNotEmpty) {
+        // A section that just mounted moves every one below it: measure
+        // again against the new layout, or the cascade stops at whatever
+        // fitted first.
+        mount(grow);
+      }
+    }
     final have = _ids.where((id) => _top(id) != null).toList();
     String? on = have.isNotEmpty
         ? have.first
@@ -849,8 +984,30 @@ class KitSections extends ChangeNotifier {
     }
   }
 
-  /// Scroll the page's primary scroller to [id], 24 above it.
+  /// Scroll the page's primary scroller to [id], 24 above it — after
+  /// mounting everything up to it, when the page mounts on approach.
   void jump(String id) {
+    final m = _mounted;
+    if (m != null) {
+      final upto = _ids.sublist(0, _ids.indexOf(id) + 1);
+      if (!upto.every(m.contains)) {
+        mount(upto);
+        _held = id;
+        _current = id;
+        notifyListeners();
+        // Laid out first: the offset aimed at is the one it lands in.
+        SchedulerBinding.instance.addPostFrameCallback((_) => _scrollTo(id));
+        SchedulerBinding.instance.ensureVisualUpdate();
+        return;
+      }
+    }
+    _held = id;
+    _scrollTo(id);
+    _current = id;
+    notifyListeners();
+  }
+
+  Future<void> _scrollTo(String id) async {
     final sc = _sc;
     final top = _top(id);
     if (sc == null || top == null || !sc.hasClients) return;
@@ -862,10 +1019,14 @@ class KitSections extends ChangeNotifier {
     if (_still) {
       sc.jumpTo(to);
     } else {
-      sc.animateTo(to, duration: AppMotion.durSlow, curve: AppMotion.easeQuill);
+      await sc.animateTo(
+        to,
+        duration: AppMotion.durSlow,
+        curve: AppMotion.easeQuill,
+      );
     }
-    _current = id;
-    notifyListeners();
+    // Whatever grew above it while the scroll ran, it lands where it said.
+    reanchor();
   }
 
   @override
@@ -892,11 +1053,16 @@ class KitContents extends StatelessWidget {
   final KitSections sections;
   final String label;
 
+  /// The page's own jump, when it does more than [KitSections.jump] (the
+  /// source page counts a deliberate move to a section: `reader_mode_used`).
+  final ValueChanged<String>? onJump;
+
   const KitContents({
     super.key,
     required this.items,
     required this.sections,
     this.label = 'Contents',
+    this.onJump,
   });
 
   @override
@@ -921,7 +1087,8 @@ class KitContents extends StatelessWidget {
                     label: '${KitD.numeral(i)} ${it.label}',
                     selected: on,
                     onTap: () {
-                      sections.jump(it.id);
+                      final j = onJump;
+                      j == null ? sections.jump(it.id) : j(it.id);
                       KitSheetScope.pick(context);
                     },
                     builder: (context, hover, focus) => Stack(
@@ -1326,50 +1493,113 @@ class KitFigurePeek extends StatelessWidget {
   }
 }
 
+/// One row of [KitFigures]: a mono caps [term] beside a serif [value]; [of]
+/// is a subtler tail on the value (` of 64`); [meter] a hairline under the
+/// row filled in the accent to one count over its own total (the source
+/// page's *Passages read 20 of 64*) — never a share of counts that overlap.
+class KitFigureRow {
+  final String term;
+  final String value;
+  final String? of;
+  final double? meter;
+  const KitFigureRow(this.term, this.value, {this.of, this.meter});
+}
+
 /// §29's **Figures** — a small ledger of facts about what is open: a mono caps
 /// term beside a serif value, ruled. Every value is a measurement (ADR-109):
 /// pass `'—'` for unmeasured, and leave out a row the page cannot support.
+/// [ledger] takes the rows that carry a tail or a meter (W2's Figures meter).
 class KitFigures extends StatelessWidget {
   final List<(String, String)> rows;
+  final List<KitFigureRow>? ledger;
   final String? label;
 
-  const KitFigures({super.key, required this.rows, this.label});
+  const KitFigures({super.key, required this.rows, this.label})
+    : ledger = null;
+
+  const KitFigures.ledger({
+    super.key,
+    required List<KitFigureRow> this.ledger,
+    this.label,
+  }) : rows = const [];
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final all = ledger ?? [for (final r in rows) KitFigureRow(r.$1, r.$2)];
+    final valueStyle = AppTheme.serif(fontSize: 15.5, color: t.fg).copyWith(
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
     return Padding(
       padding: const EdgeInsets.only(top: 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (label != null) KitDLabel(label!, first: true),
-          for (final r in rows)
+          for (final r in all)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 7),
               decoration: BoxDecoration(
                 border: Border(bottom: BorderSide(color: t.rule)),
               ),
-              child: Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.end,
-                spacing: 12,
-                runSpacing: 4,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    r.$1.toUpperCase(),
-                    style: AppTheme.mono(
-                      fontSize: 10.5,
-                      letterSpacing: 0.12 * 10.5,
-                      color: t.fgSubtle,
-                    ),
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.end,
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        r.term.toUpperCase(),
+                        style: AppTheme.mono(
+                          fontSize: 10.5,
+                          letterSpacing: 0.12 * 10.5,
+                          color: t.fgSubtle,
+                        ),
+                      ),
+                      Text.rich(
+                        TextSpan(
+                          text: r.value,
+                          children: [
+                            if (r.of != null)
+                              TextSpan(
+                                text: r.of,
+                                style: AppTheme.serif(
+                                  fontSize: 14,
+                                  color: t.fgSubtle,
+                                ),
+                              ),
+                          ],
+                        ),
+                        style: valueStyle,
+                      ),
+                    ],
                   ),
-                  Text(
-                    r.$2,
-                    style: AppTheme.serif(fontSize: 15.5, color: t.fg).copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                  if (r.meter != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: ExcludeSemantics(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: SizedBox(
+                            height: 3,
+                            child: ColoredBox(
+                              color: t.surfaceSunken,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: FractionallySizedBox(
+                                  widthFactor: r.meter!.clamp(0.0, 1.0),
+                                  heightFactor: 1,
+                                  child: ColoredBox(color: t.accent),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -1591,31 +1821,43 @@ class _KitRunningHeadState extends State<KitRunningHead> {
               key: const ValueKey('d-peek'),
               onTap: () => _set(!_open),
               expanded: _open,
-              builder: (context, hover, focus) => Container(
-                constraints: const BoxConstraints(minHeight: 46),
-                padding: const EdgeInsets.fromLTRB(18, 0, 14, 0),
-                decoration: focus
-                    ? BoxDecoration(
-                        border: Border.all(color: t.accent, width: 2),
-                        borderRadius: AppRadius.xlR,
-                      )
-                    : null,
-                child: Row(
-                  children: [
-                    Expanded(child: widget.sheet.peek),
-                    const SizedBox(width: 10),
-                    AnimatedRotation(
-                      turns: _open ? 0.5 : 0,
-                      duration: slow,
-                      curve: AppMotion.easeQuill,
-                      child: Icon(
-                        Icons.keyboard_arrow_down,
-                        size: 18,
-                        color: t.fgMuted,
-                      ),
+              builder: (context, hover, focus) => Stack(
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(minHeight: 46),
+                    padding: const EdgeInsets.fromLTRB(18, 0, 14, 0),
+                    decoration: focus
+                        ? BoxDecoration(
+                            border: Border.all(color: t.accent, width: 2),
+                            borderRadius: AppRadius.xlR,
+                          )
+                        : null,
+                    child: Row(
+                      children: [
+                        Expanded(child: widget.sheet.peek),
+                        const SizedBox(width: 10),
+                        AnimatedRotation(
+                          turns: _open ? 0.5 : 0,
+                          duration: slow,
+                          curve: AppMotion.easeQuill,
+                          child: Icon(
+                            Icons.keyboard_arrow_down,
+                            size: 18,
+                            color: t.fgMuted,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  if (widget.sheet.foot != null)
+                    Positioned(
+                      left: 18,
+                      right: 18,
+                      bottom: 0,
+                      height: 2,
+                      child: IgnorePointer(child: widget.sheet.foot!),
+                    ),
+                ],
               ),
             ),
             ClipRect(
@@ -1718,12 +1960,25 @@ class KitDPage extends StatefulWidget {
   final ScrollController? controller;
   final Widget child;
 
+  /// [KitMasthead.titleWidget], [KitMasthead.byline], [KitMasthead.crumbStacks].
+  final Widget? titleWidget;
+  final Widget? byline;
+  final bool crumbStacks;
+
+  /// The grid's distance under the masthead wider than a phone (§29's 36;
+  /// the source page stands its grid 40 under).
+  final double gridTop;
+
   const KitDPage({
     super.key,
     required this.folio,
     required this.title,
     required this.child,
     this.back,
+    this.titleWidget,
+    this.byline,
+    this.crumbStacks = false,
+    this.gridTop = 36,
     this.stand,
     this.search = true,
     this.field,
@@ -1858,7 +2113,7 @@ class _KitDPageState extends State<KitDPage> {
           onClose: _close,
           child: KitScrollView.secondary(
             reason: 'the settings panel scrolls inside itself (§28)',
-            child: s.body(context, _close),
+            child: KitPanelScope(child: s.body(context, _close)),
           ),
         ),
       ),
@@ -1940,6 +2195,9 @@ class _KitDPageState extends State<KitDPage> {
             tools: tools,
             title: widget.title,
             stand: widget.stand,
+            titleWidget: widget.titleWidget,
+            byline: widget.byline,
+            crumbStacks: widget.crumbStacks,
           );
           Widget grid;
           if (sheet == null || phone) {
@@ -1998,7 +2256,7 @@ class _KitDPageState extends State<KitDPage> {
                   children: [
                     masthead,
                     ?widget.under,
-                    SizedBox(height: phone ? 26 : 36),
+                    SizedBox(height: phone ? 26 : widget.gridTop),
                     grid,
                   ],
                 ),

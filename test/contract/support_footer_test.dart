@@ -519,12 +519,18 @@ void main() {
               '`// scroll-secondary: <why>`');
     });
 
-    test('the reader\'s scroll ends with the footer sliver', () {
+    // Direction D (F-142): the source page is a KitDPage, whose primary
+    // scroller is KitScrollView — the one that ends with the footer — and it
+    // builds no scroller of its own.
+    test('the reader\'s scroll is the D page\'s, which ends with the footer',
+        () {
       final src = File('lib/pages/reader_page.dart').readAsStringSync();
-      final last = src.lastIndexOf('KitShellFooterSliver()');
-      expect(last, greaterThan(0));
-      expect(src.indexOf('SliverToBoxAdapter', last), -1,
-          reason: 'nothing after the footer: it ends the document');
+      expect(src, contains('KitDPage('));
+      expect(RegExp(r'CustomScrollView\(|SingleChildScrollView\(|ListView\(')
+              .hasMatch(src),
+          isFalse,
+          reason: 'a scroller of the reader\'s own would not end with the '
+              'footer');
     });
 
     test('only the shell hands the footer down', () {

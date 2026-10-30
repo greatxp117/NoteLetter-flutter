@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -7,11 +6,12 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import '../shared/reader_origin.dart';
 import '../shared/source_host.dart';
-import '../theme/app_spacing.dart';
 import '../models/chunk.dart';
 import '../models/document.dart';
+import '../models/tag.dart';
 import '../services/firestore_service.dart';
 import '../shared/extraction_markers.dart';
+import '../state/documents_notifier.dart';
 import '../state/tags_notifier.dart';
 import 'reader/content_form_action.dart';
 import 'reader/delete_source.dart';
@@ -22,45 +22,48 @@ import 'reader/original_panel.dart';
 import 'reader/reader_prefs.dart';
 import 'reader/reader_ui.dart';
 import 'reader/reading_cost.dart';
+import 'reader/reprocess_action.dart';
 import 'reader/source_freshness.dart';
 import 'reader/source_priority.dart';
 import 'reader/speed_read_panel.dart';
 import 'reader/summary_panel.dart';
+import 'settings/summaries_section.dart';
 import 'tags/shelf_sheet.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
-import '../theme/tokens.dart';
 import '../widgets/app_layout.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/kit/kit.dart';
+import '../widgets/sidebar.dart' show shellAiOn;
 import '../services/analytics.dart';
 import '../services/error_text.dart';
 
-/// Reader — one-shot doc + chunks (`chunk_index` asc), fires `logReadEvent`
-/// on open (INV-03). Six sections + source-freshness banner + Reorganize
-/// action. See reader.md.
+/// The source page (the Reader) — one-shot doc + chunks (`chunk_index` asc),
+/// fires `logReadEvent` on open (INV-03). See `screens/reader.md`.
 ///
 /// **One document on one scroll** (4.64.0, ADR-100). Summary · Manuscript ·
-/// Speed read · Listen · Original · History are all present, all mounted and
-/// all reached by scrolling, in that order — which is normative, because the
-/// rail's positions mean nothing across clients otherwise. They were six TABS
-/// until now, and the cost is the one ADR-100 records: the ordinary path
-/// through the reader (summary, then text) was the one path that needed a tap,
-/// and the manuscript — which is what `?p=` and `[data-shared]` scroll into —
-/// was not mounted on a cold open, so **neither jump had ever fired from a
-/// link**. Nothing failed; the document opened at its top.
+/// Speed read · Listen · Original · History are all present and reached by
+/// scrolling, in that order — which is normative, because the Contents'
+/// positions mean nothing across clients otherwise. They were six TABS until
+/// 4.64.0, and the manuscript — which `?p=` and `[data-shared]` scroll into —
+/// was not mounted on a cold open, so neither jump had ever fired from a link.
 ///
-/// Composition (`screens/reader.md` §Composition): the **Reading** frame (760),
-/// a back control naming the screen the Reader was opened FROM (§The way back,
-/// ADR-101), a §2.1 chapter opening led by the document's file badge, the
-/// byline beneath it, then the §8 stat cluster in its **separated row** form —
-/// one header for the whole scroll, with each section opening on its own §3
-/// section header beneath the §19 rail.
+/// **Direction D** (`screens/reader.md` §Composition; web `ReaderHybrid` +
+/// `SecD` in `pages/ReaderView.jsx`): the D frame ([KitDPage]) — the masthead
+/// (a crumb whose back control names the screen the Reader was opened FROM,
+/// §The way back, then the folio; the title; the byline and the freshness
+/// notice in the standfirst's place), the one toolbar (*Add to letter*, short
+/// *To letter*; the gear is *Source details*), the sheet *In this volume*
+/// (the identity block, Contents, the catalogue card, Finish, Also) — on a
+/// phone the running head, with its reading-progress rule — and the six
+/// sections in the column, each under its §31 head, mounting on approach.
+/// Until D this was a Reading frame under a §2.1 chapter opening with the
+/// actions, shelves, priority and stat rows above a sticky §19 rail.
 ///
-/// It sits OUTSIDE `AppLayout` and inside `SupportShell` (INV-22) — the reader
-/// is the app's one full-bleed reading surface, and the support footer is the
-/// shell's, which no screen may forget: it ends the document
-/// ([KitShellFooterSliver], ADR-173).
+/// It is routed OUTSIDE the rail-and-pane shell (its unsaved-edit guard hangs
+/// on its own route) and wraps itself in [AppLayout], so it stands inside the
+/// shell's chrome at every width, as web's does; INV-22's footer is composed
+/// by `SupportShell` above both and ends the primary scroll.
 class ReaderPage extends StatefulWidget {
   final String docId;
 
@@ -72,52 +75,74 @@ class ReaderPage extends StatefulWidget {
   /// on a cold open: a newsletter link, a notification, a shared URL.
   final String? from;
 
-  const ReaderPage({
-    super.key,
-    required this.docId,
-    this.passageId,
-    this.from,
-  });
+  const ReaderPage({super.key, required this.docId, this.passageId, this.from});
 
   @override
   State<ReaderPage> createState() => _ReaderPageState();
 }
 
-/// The section order, and it is NORMATIVE (`screens/reader.md` §Continuous
-/// scroll): the rail's positions are meaningless across clients otherwise.
-const List<String> _sectionIds = [
-  'summary',
-  'manuscript',
-  'speedread',
-  'listen',
-  'original',
-  'history',
+/// The six sections, in the order `screens/reader.md` §Continuous scroll makes
+/// normative, with the label each one's §31 head and Contents row read.
+const List<(String, String)> readerSections = [
+  ('summary', 'Summary'),
+  ('manuscript', 'Manuscript'),
+  ('speedread', 'Speed read'),
+  ('listen', 'Listen'),
+  ('original', 'Original'),
+  ('history', 'History'),
 ];
 
-/// The rail's jumps, in `_sectionIds` order — the two vocabularies are the
-/// same list, read once, because a section the rail never names is a section
-/// that disappears with no error (the `KIND_ORDER` shape).
-///
-/// Original's count is the document's KIND word (`kitKindLabel`), never its
-/// raw `type`: an image set's jump read "IMAGE_SET" beside a header plate
-/// that says NOTE (web 938a2f4). Top-level so that word is testable without a
-/// reader's Firestore.
+/// Rendered on open, never deferred: the summary because it is the top of the
+/// page, and the manuscript because `?p=` (ADR-051) and `[data-shared]`
+/// (ADR-095) scroll to elements inside it. The four below mount on approach.
+const List<String> _eager = ['summary', 'manuscript'];
+
+/// The sheet's Contents: one row per section this source HAS (kit §29) — the
+/// Summary is absent while generative AI is off (5.29.0, ADR-186, INV-34),
+/// and the Manuscript is then § I. *Original* carries the document's kind as
+/// its count (`PDF`, `NOTE` — §6.4.1's word, never the raw `type`: an image
+/// set's row read "IMAGE_SET" once, web 938a2f4). The section list and this
+/// one are the same list, read once: a section Contents never names is a
+/// section that disappears with no error (the `KIND_ORDER` shape).
 @visibleForTesting
-List<KitSectionRailItem> readerRailItems(Document doc) => [
-  const KitSectionRailItem('summary', 'Summary', Icons.auto_awesome_outlined),
-  // The reference's IcoSparkle / IcoText / IcoGauge / IcoHeadset / IcoFile /
-  // IcoClock, in the glyphs this client draws them with elsewhere.
-  const KitSectionRailItem('manuscript', 'Manuscript', Icons.title),
-  const KitSectionRailItem('speedread', 'Speed read', Icons.speed_outlined),
-  const KitSectionRailItem('listen', 'Listen', Icons.headset_outlined),
-  KitSectionRailItem(
-    'original',
-    'Original',
-    Icons.insert_drive_file_outlined,
-    count: kitKindLabel(doc.type),
-  ),
-  const KitSectionRailItem('history', 'History', Icons.schedule),
+List<KitContentsItem> readerContentsItems(Document doc, {bool aiOn = true}) => [
+  for (final (id, label) in readerSections)
+    if (aiOn || id != 'summary')
+      KitContentsItem(
+        id,
+        label,
+        count: id == 'original' ? kitKindLabel(doc.type) : null,
+      ),
 ];
+
+/// The masthead's folio: `{shelf} · {kind} · Added {Mon D, YYYY}` — the first
+/// of the shelves the document is on (*Unshelved* without), the kind as §33's
+/// word for its type (*Document*, *Web clip*, *Video*…), the added date.
+@visibleForTesting
+String readerFolio(Document doc, Tag? shelf) => [
+  shelf?.title ?? 'Unshelved',
+  kitTypeLabel(doc.type),
+  if (doc.createdAt != null) 'Added ${readerDate(doc.createdAt!)}',
+].join(' · ');
+
+/// `Jul 1, 2026` (web `toLocaleDateString('en-US', {month: 'short', day:
+/// 'numeric', year: 'numeric'})`).
+String readerDate(int ts) {
+  final d = DateTime.fromMillisecondsSinceEpoch(ts);
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+/// The document's first shelf among those the library holds (web `shelfOf`).
+Tag? _shelfOf(Document doc, List<Tag> shelves) {
+  for (final t in shelves) {
+    if (doc.tagIds.contains(t.id)) return t;
+  }
+  return null;
+}
 
 /// One Listen line: what is spoken, and when it starts (null → the panel falls
 /// back to word-count-proportional timing).
@@ -141,6 +166,7 @@ class _ReaderPageState extends State<ReaderPage> {
   String? _error;
   String? _errorRequestId;
   bool _notFound = false;
+
   /// The detailed reading breakdown is **opt-in and off by default** (4.1.0):
   /// the reader is a reading surface, and instrumentation shown to someone who
   /// did not ask for it is noise on the one screen that should be quiet. The
@@ -150,35 +176,30 @@ class _ReaderPageState extends State<ReaderPage> {
   Document? _document;
   List<Chunk> _chunks = const [];
 
-  /// §19's rail REPORTS the section that currently crosses its own bottom edge
-  /// — it never sets one. A tap marks a jump only because the scroll it causes
-  /// arrives there, which is why this is written from the scroll and not from
-  /// the tap.
-  String _current = 'summary';
-
+  /// The page's primary scroller: the sections follow it, and the running
+  /// head's reading-progress rule is its fraction.
   final ScrollController _scroll = ScrollController();
 
-  /// The scroll VIEWPORT, so the rail's line can be measured rather than
-  /// computed. It was `KitSectionRail.height + MediaQuery.paddingOf(context).top`
-  /// — and this screen sits under a `SafeArea` that has already consumed that
-  /// padding, so the value was 0 and the line sat 59px too high: every report
-  /// named the section BEFORE the one the reader was in, and a jump to Listen
-  /// marked Speed read. The web reference measures the same way
-  /// (`scrollerTop(scroller) + RAIL_H`), for the same reason.
-  final GlobalKey _viewportKey = GlobalKey();
+  /// Which section the reader is in (REPORTED from the scroll, never set by a
+  /// tap), which have mounted, and the way to one (kit §29, web
+  /// `useSectionRail`). Rebuilt when the section list changes (AI on/off).
+  KitSections? _sections;
+  bool? _sectionsAiOn;
 
-  /// One key per section, for the jump and for the report. They are the only
-  /// thing that knows where a section IS: heights here are the panels' own and
-  /// nothing may guess them (a guessed offset lands a jump in the middle of the
-  /// section above).
-  final Map<String, GlobalKey> _sectionKeys = {
-    for (final id in _sectionIds) id: GlobalKey(),
-  };
+  KitSections _sectionsFor(bool aiOn) {
+    final have = _sections;
+    if (have != null && _sectionsAiOn == aiOn) return have;
+    have?.dispose();
+    _sectionsAiOn = aiOn;
+    return _sections = KitSections([
+      for (final (id, _) in readerSections)
+        if (aiOn || id != 'summary') id,
+    ], eager: _eager);
+  }
 
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(_reportSoon);
     _load();
     ReaderPrefs.current.addListener(_onReaderPrefs);
     ReaderPrefs.ensureLoaded();
@@ -187,135 +208,9 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   void dispose() {
     ReaderPrefs.current.removeListener(_onReaderPrefs);
-    _scroll.removeListener(_reportSoon);
+    _sections?.dispose();
     _scroll.dispose();
     super.dispose();
-  }
-
-  /// The scroll listener. A scroll notification arrives when the offset
-  /// changes, BEFORE that frame's layout — so measuring then read the previous
-  /// frame's positions, and after an animation's last tick nothing measured
-  /// again. A jump to Manuscript on the seed's tax summary landed exactly on
-  /// the rail while the rail kept saying Summary (F-55; measured on device:
-  /// the head read 137 against a 110 line at the landing offset, and 110 one
-  /// frame later). Measure after the frame, once per frame.
-  bool _reportScheduled = false;
-  void _reportSoon() {
-    if (_reportScheduled) return;
-    _reportScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _reportScheduled = false;
-      _reportCurrent();
-    });
-  }
-
-  /// Which section crosses the rail's bottom edge. Read off the real render
-  /// boxes rather than from a running total of heights: a section's height is
-  /// its panel's own, and a client that added them up would be reporting a
-  /// position it had invented.
-  void _reportCurrent() {
-    if (!mounted) return;
-    final viewport = _viewportKey.currentContext?.findRenderObject();
-    if (viewport is! RenderBox || !viewport.attached) return;
-    final railBottom =
-        viewport.localToGlobal(Offset.zero).dy + KitSectionRail.height;
-    // At the END of the scroll the rule's line is unreachable: the last
-    // sections sit in the tail of the viewport, below the rail, and no amount
-    // of scrolling can bring their heads under it — so a reader looking at
-    // History would be told they are in Listen, at the one position every
-    // reader reaches. The rail reports where the reader IS; at the bottom that
-    // is the last section. (Measured, not assumed: the run that found this
-    // ended at offset 7623 of 7622 with `listen` marked.)
-    if (_scroll.hasClients &&
-        _scroll.offset >= _scroll.position.maxScrollExtent - 1) {
-      if (_current != _sectionIds.last) {
-        setState(() => _current = _sectionIds.last);
-      }
-      return;
-    }
-    String current = _sectionIds.first;
-    for (final id in _sectionIds) {
-      final box = _sectionKeys[id]?.currentContext?.findRenderObject();
-      if (box is! RenderBox || !box.attached) continue;
-      final top = box.localToGlobal(Offset.zero).dy;
-      // "Crosses the rail's bottom edge": the last section whose top has gone
-      // past it. A tolerance of one logical pixel, because a jump lands
-      // exactly on the boundary and a strict `<` reports the section above.
-      if (top - railBottom <= 1) current = id;
-    }
-    if (current != _current) setState(() => _current = current);
-  }
-
-  /// The section a jump landed on, held until the reader scrolls by hand.
-  ///
-  /// A browser keeps a landed jump where it landed when content ABOVE it
-  /// changes size (scroll anchoring); Flutter does not. The sections above
-  /// History load on their own clocks — the Original panel's answer, the
-  /// listen panel's — and each one that grew after a jump pushed the target
-  /// down: tapping History left it ~90 under the rail with Original still
-  /// marked (the 2026-10-07 and 2026-10-12 reader-history frames, F-77).
-  String? _anchored;
-
-  /// A section changed size: if a jump is being held, put its section back
-  /// under the rail.
-  bool _onSectionSize(SizeChangedLayoutNotification _) {
-    final id = _anchored;
-    if (id != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _anchored != id || !_scroll.hasClients) return;
-        final box = _sectionKeys[id]?.currentContext?.findRenderObject();
-        if (box is! RenderBox || !box.attached) return;
-        final target = RenderAbstractViewport.of(box)
-            .getOffsetToReveal(box, 0)
-            .offset
-            .clamp(0.0, _scroll.position.maxScrollExtent);
-        if ((target - _scroll.offset).abs() > 0.5) _scroll.jumpTo(target);
-        _reportSoon();
-      });
-    }
-    return false;
-  }
-
-  /// The reader's own hand ends the hold.
-  bool _onScrollStart(ScrollStartNotification n) {
-    if (n.dragDetails != null) _anchored = null;
-    return false;
-  }
-
-  /// A jump scrolls; it never hides. The target offset is the rail's own
-  /// height — a jump that lands a section's header UNDERNEATH the sticky rail
-  /// has not arrived at it (§19).
-  Future<void> _jumpTo(String id) async {
-    _anchored = id;
-    final ctx = _sectionKeys[id]?.currentContext;
-    final box = ctx?.findRenderObject();
-    if (box is! RenderBox || !_scroll.hasClients) return;
-    // Computed, not nudged. `Scrollable.ensureVisible` followed by "and now
-    // scroll back by the rail's height" overshot by exactly that much —
-    // ensureVisible ALREADY lands below a pinned header, so the correction
-    // landed the reader a whole section early (tapped `Listen`, arrived in
-    // `Speed read`, which is what the device run reported). `getOffsetToReveal`
-    // ignores pinned slivers by contract, so the rail's height is subtracted
-    // once, here, against a number that never included it.
-    // `getOffsetToReveal` ALREADY clears the pinned rail — it counts a pinned
-    // sliver's obstruction extent — so the offset it returns is the one that
-    // lands this section's head just under the rail. Subtracting the rail's
-    // height on top of that scrolled one section too far, twice over: first
-    // after `ensureVisible`, then after this. The device run said so both
-    // times, in the same words — tapped `Listen`, arrived in `Speed read`.
-    final target = RenderAbstractViewport.of(box)
-        .getOffsetToReveal(box, 0)
-        .offset
-        .clamp(0.0, _scroll.position.maxScrollExtent);
-    await _scroll.animateTo(
-      target,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-    );
-    // Measure once the landing frame is LAID OUT (see [_reportSoon]).
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
-    _reportCurrent();
   }
 
   void _onReaderPrefs() {
@@ -394,6 +289,22 @@ class _ReaderPageState extends State<ReaderPage> {
     });
   }
 
+  /// Fold a CONFIRMED batch of `chunk_read` writes into the chunks already in
+  /// memory, so *Passages read* and the 4.1.0 breakdown move as you read. The
+  /// reader holds chunks as a one-shot read (INV-02), so nothing else would
+  /// notice — and a figure that only changes on reload reads as broken. Only
+  /// ids the write confirmed arrive here, and each moves a chunk 0 → 1 once.
+  void _foldInChunksRead(List<String> ids) {
+    if (!mounted || ids.isEmpty) return;
+    final set = ids.toSet();
+    setState(() {
+      _chunks = [
+        for (final c in _chunks)
+          set.contains(c.chunkId) ? c.withChunkRead() : c,
+      ];
+    });
+  }
+
   /// What a reader that SPEAKS says. A marker's channel name and body, never
   /// its brackets — `"On screen: you."`, not `"bracket on screen colon you
   /// bracket"` (4.52.0, ADR-089 §17).
@@ -414,283 +325,440 @@ class _ReaderPageState extends State<ReaderPage> {
   /// its timed paragraphs would drop the photo slides out of the transcript
   /// list entirely. A keyframe `<figure>` (4.82.0, ADR-116) is the exception:
   /// it follows its sentence and has no words of its own, so a reel with one
-  /// keeps its per-sentence lines.
-  ///
-  /// Until this existed the client took `firstMatch` per chunk, which is the
-  /// chunk's own start under both shapes and therefore never wrong — it simply
-  /// gave up sentence-level seek, one line where the reference offers twenty.
-  /// Mirrors the web ReaderView's `listenLines`.
+  /// keeps its per-sentence lines. Mirrors the web ReaderView's `listenLines`.
   List<_ListenLine> get _listenLines {
     final out = <_ListenLine>[];
     for (final c in _chunks) {
       final body = html_parser.parseFragment(c.html ?? '');
       final blocks = body.children;
       final timed = blocks
-          .where((el) =>
-              el.localName == 'p' && el.attributes['data-start'] != null)
+          .where(
+            (el) => el.localName == 'p' && el.attributes['data-start'] != null,
+          )
           .toList();
-      final allParagraphs = blocks.isNotEmpty &&
-          blocks.every(
-              (el) => el.localName == 'p' || el.localName == 'figure');
+      final allParagraphs =
+          blocks.isNotEmpty &&
+          blocks.every((el) => el.localName == 'p' || el.localName == 'figure');
       if (timed.length > 1 && allParagraphs) {
         for (final p in timed) {
-          out.add(_ListenLine(markersForSpeech(p.text),
-              double.tryParse(p.attributes['data-start'] ?? '')));
+          out.add(
+            _ListenLine(
+              markersForSpeech(p.text),
+              double.tryParse(p.attributes['data-start'] ?? ''),
+            ),
+          );
         }
       } else {
-        out.add(_ListenLine(
+        out.add(
+          _ListenLine(
             markersForSpeech(c.text),
             timed.isNotEmpty
                 ? double.tryParse(timed.first.attributes['data-start'] ?? '')
-                : null));
+                : null,
+          ),
+        );
       }
     }
     return out;
   }
 
-  List<String> get _listenParas =>
-      _listenLines.map((l) => l.text).toList();
-  List<double?> get _lineStarts =>
-      _listenLines.map((l) => l.start).toList();
+  List<String> get _listenParas => _listenLines.map((l) => l.text).toList();
+  List<double?> get _lineStarts => _listenLines.map((l) => l.start).toList();
 
-  /// The one own-audio predicate (reader/reading_cost.dart; reader.md §Header).
-  static bool _hasOwnAudio(Document doc) => hasOwnAudio(doc);
+  /// The page's ONE action (kit §27): *Add to letter*, the tab bar's *To
+  /// letter* — it goes to Letter settings. Held while the source is read.
+  KitPageAction _toLetter({bool disabled = false}) => KitPageAction(
+    label: 'Add to letter',
+    short: 'To letter',
+    icon: Icons.mail_outlined,
+    disabled: disabled,
+    onPressed: disabled ? () {} : () => context.go('/letters/settings'),
+  );
 
-
-  /// component-kit §1.1 / reader.md §Composition: the reference renders the
-  /// reader INSIDE the shell, so a phone keeps the shell's app bar (menu ·
-  /// quill lockup · search) above the reader's own back control. Below the
-  /// breakpoint this page wraps itself in [AppLayout]'s compact branch; wide
-  /// is unchanged (the reader keeps its full-bleed frame). Done here, not in
-  /// the route table, so the routes of every other screen do not move. INV-22's
-  /// footer is composed by `SupportShell` above both, and ends this screen's
-  /// scroll as the last sliver ([KitShellFooterSliver], ADR-173).
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, c) {
-          final page = _page(context);
-          return c.maxWidth >= AppSpacing.compactWidth
-              ? page
-              : AppLayout(child: page);
-        },
-      );
+  Widget build(BuildContext context) => AppLayout(child: _page(context));
 
   Widget _page(BuildContext context) {
     final doc = _document;
-
-    if (_loading) {
-      return const KitLoadingPage();
-    }
-    if (_notFound || (_error != null && doc == null)) {
-      return _notReadable();
-    }
-
-    final complete = doc!.status == DocumentStatus.complete;
-    final canReorg = complete && _chunks.length >= 2;
-    final readCount = _chunks.where((c) => c.viewCount > 0).length;
-
-    // Wide, the reader is the one authenticated screen OUTSIDE `AppLayout`,
-    // so nothing above it pays for the status bar — the AppBar this screen
-    // used to carry did, and dropping it put the back control under the
-    // notch. On a phone the shell's app bar pays for it (see [build]), and
-    // this SafeArea finds nothing left to pad.
-    //
-    // SLIVERS, because §19's rail is STICKY: it has to stay on screen to be
-    // able to say where the reader is, and a row inside an ordinary scroller
-    // scrolls away with the content it names.
-    return SafeArea(
-      bottom: false,
-      // The viewport's height, measured once around the scroll view, for the
-      // last section's reach (F-77 4). Not a SliverLayoutBuilder per section:
-      // a sliver builder runs only at layout, and a section beyond the cache
-      // extent is never laid out — so its key had no context and a jump to
-      // it did nothing (the device run's Manuscript tap, 2026-10-07).
-      // A held jump stays landed while the sections above it load (F-77):
-      // their size changes reach [_onSectionSize]; a drag ends the hold.
-      child: LayoutBuilder(builder: (context, viewport) =>
-          NotificationListener<ScrollStartNotification>(
-        onNotification: _onScrollStart,
-        child: NotificationListener<SizeChangedLayoutNotification>(
-        onNotification: _onSectionSize,
-        child: CustomScrollView(
-        key: _viewportKey,
-        controller: _scroll,
-        slivers: [
-          SliverToBoxAdapter(
-            child: KitFrameBand(
-              width: KitFrameWidth.reading,
-              child: Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.s5),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _backControl(),
-                    const SizedBox(height: 18),
-                    ChapterOpening(
-                      mark: KitFileBadge(
-                        kitDocKind(doc.type),
-                        size: KitBadgeSize.header,
-                      ),
-                      folio: _shelfLabel(doc),
-                      title: doc.title.isEmpty ? 'Untitled' : doc.title,
-                      // The header runs straight into the byline and the stat
-                      // row; the chapter rule would read as a divider between
-                      // a title and its own subtitle.
-                      rule: false,
-                      actions: [
-                        // web `IcoChat` — the speech bubble Support draws.
-                        KitButton.ghost(
-                          'Ask about this',
-                          icon: Icons.chat_bubble_outline,
-                          onPressed: () => context.go('/ask'),
-                        ),
-                        // 4.103.0 (ADR-136): the analysis runs in the
-                        // background and its plan waits in For your review,
-                        // where the sheet opens over it.
-                        if (canReorg)
-                          // web `IcoText`, as Treat as recipe draws it.
-                          KitButton.ghost(
-                            _reorganizing ? 'Asking…' : 'Reorganize',
-                            icon: Icons.title,
-                            onPressed: _reorganizing
-                                ? null
-                                : () => _requestReorganize(doc),
-                          ),
-                        // reader.md §Supersession confirm (4.6.0, ADR-042).
-                        if (ContentFormAction.offeredFor(doc))
-                          ContentFormAction(
-                            docId: widget.docId,
-                            doc: doc,
-                            chunks: _chunks,
-                            onQueued: () => _reload(),
-                          ),
-                        KitButton.secondary(
-                          'Add to letter',
-                          icon: Icons.mail_outlined,
-                          onPressed: () => context.go('/settings'),
-                        ),
-                        // reader.md §Deleting a source (4.105.0, ADR-138).
-                        if (DeleteSourceAction.offeredFor(doc))
-                          DeleteSourceAction(
-                            docId: widget.docId,
-                            doc: doc,
-                            passages: _chunks.length,
-                            shelves: context.watch<TagsNotifier>().tags,
-                            onDeleted: _goBack,
-                          ),
-                      ],
-                    ),
-                    _bylineRow(doc),
-                    if (complete) _documentShelves(doc),
-                    // §Source priority (ADR-155): the number committed is the
-                    // one sent, and only once the server accepted it.
-                    if (complete)
-                      SourcePriorityRow(
-                        docId: widget.docId,
-                        doc: doc,
-                        onSaved: (v) => setState(() =>
-                            _document = _document?.withSourcePriority(v)),
-                      ),
-                    SourceFreshness(docId: widget.docId, doc: doc),
-                    const SizedBox(height: 14),
-                    _statRow(doc, readCount),
-                    if (_showStats) ...[
-                      const SizedBox(height: 16),
-                      _breakdown(),
-                    ],
-                    const SizedBox(height: 14),
-                    _finishControl(doc),
-                    const SizedBox(height: 10),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: KitSectionRailHeader(
-              items: readerRailItems(doc),
-              current: _current,
-              // The reader's own ground. Wide it sits outside `AppLayout`, on
-              // the support shell's `--surface`; on a phone it is inside
-              // AppLayout's compact branch, on the shell's `--bg` — the
-              // reference's `.src-rail` ground (F-77 (3)). Either other token
-              // is a band across the page rather than the page's own top.
-              background: MediaQuery.sizeOf(context).width <
-                      AppSpacing.compactWidth
-                  ? Tokens.of(context).bg
-                  : Tokens.of(context).surface,
-              onJump: (id) {
-                // Which section the reader actually reads in. A jump is a use
-                // of a mode; the scroll that reaches the same section is not,
-                // and neither is a tap on the section already current.
-                if (id != _current) {
-                  Analytics.track('reader_mode_used', {'mode': id});
-                }
-                _jumpTo(id);
-              },
-            ),
-          ),
-          for (final id in _sectionIds)
-            SliverToBoxAdapter(
-              child: KitFrameBand(
-                width: KitFrameWidth.reading,
-                // §19's section: ruled off from the one above, and the last
-                // one tall enough that a jump to it reaches the rail (F-77 4,
-                // 5; web `.src-section`).
-                child: SizeChangedLayoutNotifier(
-                child: KitRailSection(
-                  sectionKey: _sectionKeys[id],
-                  first: id == _sectionIds.first,
-                  minHeight: id == _sectionIds.last
-                      ? KitRailSection.lastReach(viewport.maxHeight)
-                      : null,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // No section header here: every panel already opens on
-                      // its own §3 eyebrow, and several carry a measured detail
-                      // in it (the transcript's duration, the original's host,
-                      // the history's event count) that the page cannot know.
-                      // Drawing one here gave every section TWO — caught by the
-                      // pair, which is what the pair is for.
-                      if (!complete && id != 'summary')
-                        ReaderUi(context).empty(
-                          Icons.hourglass_empty,
-                          'Still processing',
-                          'This section needs the finished passages. Check '
-                              'back once processing completes.',
-                        )
-                      else
-                        _section(id),
-                    ],
-                  ),
-                ),
-                ),
-              ),
-            ),
-          const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.s20)),
-          // INV-22 (ADR-173): the reader's footer is at the end of the
-          // document — the last sliver, and at the pane's bottom edge when
-          // the document is shorter than the pane.
-          const KitShellFooterSliver(),
-        ],
-      )))),
-    );
+    if (_notFound || (_error != null && doc == null)) return _notReadable();
+    if (_loading || doc == null) return _readerLoading();
+    return _readerPage(doc);
   }
 
-  /// kit §2.2's back control — the one part of that header this screen takes.
-  /// It NAMES the screen the Reader was opened from and returns there
-  /// (ADR-101); a cold open, and any `?from=` this app does not recognise, say
-  /// `Library` and go to Sources, which is the honest answer when nothing is
-  /// known. Rendered by both states — loaded and NOT FOUND — because the
-  /// failure state is the one a reader most needs a way out of.
-  Widget _backControl() {
+  /// §The way back's control, as the crumb's §39 back control: it NAMES the
+  /// screen the Reader was opened from and returns there (ADR-101); a cold
+  /// open, and any `?from=` this app does not recognise, say `Library` and go
+  /// to Sources. Every state draws it — loaded, loading and NOT FOUND —
+  /// because the failure state is the one a reader most needs a way out of.
+  KitDBackControl _backControl() {
     final origin = readerOrigin(
       widget.from,
       tags: context.watch<TagsNotifier>().tags,
     );
-    return KitBackControl(origin.label, onTap: _goBack);
+    return KitDBackControl(origin.label, onTap: _goBack);
+  }
+
+  /// While the source is read, D already stands (reader.md §Composition,
+  /// Loading): the masthead's crumb, folio and title, the sheet's identity
+  /// block and its cover are drawn from the row the documents listing already
+  /// holds — so a tapped cover has somewhere to land — and everything that
+  /// waits on the document's own read is skeleton lines. With no row (a cold
+  /// open from a letter link before the listing answers) the title and the
+  /// identity block are skeleton lines too: nothing unread is drawn.
+  Widget _readerLoading() {
+    final shelves = context.watch<TagsNotifier>().tags;
+    Document? row;
+    for (final d in context.watch<DocumentsNotifier>().documents) {
+      if (d.id == widget.docId) {
+        row = d;
+        break;
+      }
+    }
+    final shelf = row == null ? null : _shelfOf(row, shelves);
+    final author = row?.author?.trim();
+    return KitDPage(
+      key: const ValueKey('rx-loading'),
+      back: _backControl(),
+      crumbStacks: true,
+      gridTop: 40,
+      folio: row == null
+          ? ''
+          : [shelf?.title ?? 'Unshelved', kitTypeLabel(row.type)].join(' · '),
+      title: row == null ? '' : (row.title.isEmpty ? 'Untitled' : row.title),
+      titleWidget: row == null
+          ? const KitSkeletonLines(lines: [KitSkelLine(0.6, true)], top: 0)
+          : null,
+      byline: author != null && author.isNotEmpty
+          ? KitReaderByline(author: author)
+          : const KitSkeletonLines(lines: [KitSkelLine(0.3)], top: 14),
+      action: _toLetter(disabled: true),
+      // Held, not absent: the gear is where Source details will be. It opens
+      // nothing until the source is read.
+      settings: KitPageSettings(
+        label: 'Source details',
+        held: true,
+        body: (context, close) => const SizedBox.shrink(),
+      ),
+      controller: _scroll,
+      sheet: KitDSheet(
+        label: 'In this volume',
+        peek: const KitPeekWait('In this volume'),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (row != null) KitReaderIdentity(doc: row, shelf: shelf),
+            const KitSkeletonLines(
+              lines: [
+                KitSkelLine(0.4), KitSkelLine(), KitSkelLine(), //
+                KitSkelLine(0.6), KitSkelLine(), KitSkelLine(),
+                KitSkelLine(0.5),
+              ],
+              top: 20,
+            ),
+          ],
+        ),
+      ),
+      child: const KitSkeletonLines(
+        lines: [
+          KitSkelLine(0.4, true), KitSkelLine(), KitSkelLine(), //
+          KitSkelLine(0.7), KitSkelLine(), KitSkelLine(), KitSkelLine(0.6),
+        ],
+        top: 0,
+      ),
+    );
+  }
+
+  /// A 404 is the only one of these the heading was ever telling the truth
+  /// about: it is the D page titled *Source not found* with the read's own
+  /// sentence as its standfirst. Every other refusal is the D page titled
+  /// *Source* with §14.1 in the column (component-kit §14, ADR-070). Both keep
+  /// the crumb, and neither leaks a foreign document's existence.
+  Widget _notReadable() {
+    final missing = _notFound;
+    return KitDPage(
+      key: const ValueKey('rx-failed'),
+      back: _backControl(),
+      crumbStacks: true,
+      gridTop: 40,
+      folio: '',
+      title: missing ? 'Source not found' : 'Source',
+      // web api.js `getDocument`'s 404 sentence.
+      stand: missing ? 'Document not found' : null,
+      controller: _scroll,
+      child: missing
+          ? const SizedBox.shrink()
+          : KitFailureBlock(
+              sentence: 'This source could not be loaded.',
+              detail: _error!,
+              requestId: _errorRequestId,
+              onRetry: _load,
+            ),
+    );
+  }
+
+  Widget _readerPage(Document doc) {
+    final shelves = context.watch<TagsNotifier>().tags;
+    final shelf = _shelfOf(doc, shelves);
+    final aiOn = shellAiOn(context);
+    final sections = _sectionsFor(aiOn);
+    final items = readerContentsItems(doc, aiOn: aiOn);
+    final complete = doc.status == DocumentStatus.complete;
+    final total = _chunks.length;
+    final readCount = _chunks.where((c) => c.viewCount > 0).length;
+
+    // Byline & reading cost (2.13.0, ADR-020 — §Header): what the document IS
+    // before what the system did to it. Every part optional.
+    final author = doc.author?.trim();
+    final host = sourceHost(doc.sourceUrl);
+    final byline = KitReaderByline(
+      // Rendered AS STORED — never reformatted, re-cased or split.
+      author: author == null || author.isEmpty ? null : doc.author,
+      // publish_date is an ISO `YYYY-MM-DD` STRING: a calendar date with NO
+      // timezone conversion, and never `created_at` in its place.
+      published: _fmtPublishDate(doc.publishDate),
+      host: host,
+      onSource: doc.sourceUrl == null
+          ? null
+          : () => launchUrlString(
+              doc.sourceUrl!,
+              mode: LaunchMode.externalApplication,
+            ),
+      // max(1, ceil(word_count / 220)) from the STORED count; omitted for a
+      // document with its own audio (ADR-143) and where none is stored.
+      readingTime: readingTimeLabel(doc),
+    );
+
+    // Filing (§Document shelves, §Source priority) and the summary style live
+    // in Source details, the page's settings panel (kit §28).
+    final filing = complete;
+    final details = (filing || aiOn)
+        ? KitPageSettings(
+            label: 'Source details',
+            has: aiOn ? const ['summaries'] : const [],
+            body: (context, close) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // The panel's first label stands 18 under its head's rule
+                // (web `.d-pnl-h + .d-l`); a group after a reused Settings
+                // section, 28 (`.d-pnl .set-section + .d-l`).
+                if (filing) ...[
+                  const KitDLabel('Filing', top: 18),
+                  _documentShelves(shelves),
+                  const SizedBox(height: 14),
+                  SourcePriorityRow(
+                    docId: widget.docId,
+                    doc: _document ?? doc,
+                    onSaved: (v) => setState(
+                      () => _document = _document?.withSourcePriority(v),
+                    ),
+                  ),
+                ],
+                // Settings' own section, not a copy: one writer of the style.
+                // Absent while generative AI is off (5.29).
+                if (aiOn) ...[
+                  KitDLabel('Summary style', top: filing ? 28 : 18),
+                  const SummariesSection(),
+                ],
+              ],
+            ),
+          )
+        : null;
+
+    // Also: the quieter actions, destructive last (kit §29). Each carries its
+    // own §18 confirm where it re-derives or deletes. Only what this source
+    // can do is listed, so the label never stands over nothing.
+    final canReorganize = complete && total >= 2;
+    final also = <Widget>[
+      if (aiOn)
+        // web `IcoChat` — the speech bubble Support draws.
+        KitAlsoButton(
+          'Ask about this',
+          icon: Icons.chat_bubble_outline,
+          onTap: () => context.go('/ask'),
+        ),
+      // 4.103.0 (ADR-136): the analysis runs in the background and its plan
+      // waits in For your review, where the sheet opens over it.
+      if (canReorganize)
+        KitAlsoButton(
+          _reorganizing ? 'Asking…' : 'Reorganize',
+          icon: Icons.title,
+          onTap: _reorganizing ? null : () => _requestReorganize(doc),
+        ),
+      // reader.md §Supersession confirm (4.6.0, ADR-042).
+      if (ContentFormAction.offeredFor(doc))
+        ContentFormAction(
+          docId: widget.docId,
+          doc: doc,
+          chunks: _chunks,
+          onQueued: () => _reload(),
+        ),
+      // reader.md §Re-process (5.27.0, ADR-183): after the content-form
+      // action, before Delete.
+      if (ReprocessAction.offeredFor(doc))
+        ReprocessAction(
+          docId: widget.docId,
+          doc: doc,
+          chunks: _chunks,
+          onQueued: () => _reload(),
+        ),
+      // reader.md §Deleting a source (4.105.0, ADR-138).
+      if (DeleteSourceAction.offeredFor(doc))
+        DeleteSourceAction(
+          docId: widget.docId,
+          doc: doc,
+          passages: total,
+          shelves: shelves,
+          onDeleted: _goBack,
+        ),
+    ];
+
+    final finished = doc.finishedAt != null;
+    void jump(String id) {
+      // Which section the reader actually reads in: a jump is a use of a
+      // mode; the scroll that reaches the same section is not, and neither is
+      // a tap on the section already current.
+      if (id != sections.current) {
+        Analytics.track('reader_mode_used', {'mode': id});
+      }
+      sections.jump(id);
+    }
+
+    final sheetBody = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KitReaderIdentity(doc: doc, shelf: shelf),
+        const KitReaderSheetLabel('In this volume'),
+        KitContents(
+          items: items,
+          sections: sections,
+          label: 'Sections of this source',
+          onJump: jump,
+        ),
+        // The catalogue card: every figure comes from the document this
+        // screen already loaded. Two may be the dash: Words where the indexer
+        // stored no count, Listen where a document with its own audio has no
+        // stored length; a document WITHOUT its own audio draws no Listen row
+        // (ADR-143). Coverage is rendered here and only here: every chunk is
+        // in memory, so it costs no extra read, and its meter is that one
+        // count over the total — never a share of the overlapping ways.
+        KitFigures.ledger(
+          label: 'The catalogue card',
+          ledger: [
+            KitFigureRow('Passages', '$total'),
+            KitFigureRow(
+              'Words',
+              doc.wordCount == null ? '—' : _grouped(doc.wordCount!),
+            ),
+            if (showsListen(doc))
+              KitFigureRow('Listen', listenValue(doc) ?? '—'),
+            KitFigureRow(
+              'Added',
+              doc.createdAt == null ? '—' : readerDate(doc.createdAt!),
+            ),
+            KitFigureRow('Views', '${doc.viewCount}'),
+            KitFigureRow(
+              'Last read',
+              doc.lastViewedAt == null
+                  ? 'Never'
+                  : readerDate(doc.lastViewedAt!),
+            ),
+            KitFigureRow(
+              'Passages read',
+              '$readCount',
+              of: ' of $total',
+              meter: total == 0 ? 0 : readCount / total,
+            ),
+          ],
+        ),
+        if (_showStats) _breakdown(),
+        // Finish / un-finish (3.1.0, ADR-039): the control says which it will
+        // do, and says what "finished" is worth. Quiet on the sheet: the
+        // page's one brick button is its action.
+        KitReaderFinish(
+          label: _finishBusy
+              ? (finished ? 'Un-finishing…' : 'Marking…')
+              : (finished ? 'Mark unfinished' : 'Mark finished'),
+          note: finished
+              ? 'You finished this on ${readerDate(doc.finishedAt!)}.'
+              : 'Reaching the end marks this for you — this is for when you '
+                    'got there another way.',
+          onPressed: _finishBusy ? null : () => _setFinished(!finished),
+          error: _finishError,
+        ),
+        KitSheetAlso(children: also),
+      ],
+    );
+
+    return NotificationListener<ScrollStartNotification>(
+      // The reader's own hand ends a held jump.
+      onNotification: (n) {
+        if (n.dragDetails != null) sections.release();
+        return false;
+      },
+      child: KitDPage(
+        key: const ValueKey('rx-page'),
+        back: _backControl(),
+        crumbStacks: true,
+        gridTop: 40,
+        folio: readerFolio(doc, shelf),
+        title: doc.title.isEmpty ? 'Untitled' : doc.title,
+        byline: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            byline,
+            KitReaderMastNote(
+              child: SourceFreshness(docId: widget.docId, doc: doc),
+            ),
+          ],
+        ),
+        action: _toLetter(),
+        settings: details,
+        controller: _scroll,
+        sections: sections,
+        sheet: KitDSheet(
+          label: 'In this volume',
+          foldOnPick: true,
+          peek: KitSecPeek(items: items, sections: sections),
+          foot: KitReadProgress(controller: _scroll),
+          body: sheetBody,
+        ),
+        // A section that answers late (Original's signed URL, Listen) grows
+        // the page above a held jump: put the jump back.
+        child: NotificationListener<SizeChangedLayoutNotification>(
+          onNotification: (_) {
+            sections.reanchor();
+            return false;
+          },
+          child: ListenableBuilder(
+            listenable: sections,
+            builder: (context, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  KitReaderSection(
+                    sectionKey: sections.keyOf(items[i].id),
+                    n: i,
+                    title: items[i].label,
+                    mounted: sections.isMounted(items[i].id),
+                    builder: (context) => SizeChangedLayoutNotifier(
+                      child: ReaderSectionScope(
+                        child: !complete && items[i].id != 'summary'
+                            ? ReaderUi(context).empty(
+                                Icons.hourglass_empty,
+                                'Still processing',
+                                'This section needs the finished passages. '
+                                    'Check back once processing completes.',
+                              )
+                            : _section(items[i].id),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   bool _reorganizing = false;
@@ -703,21 +771,27 @@ class _ReaderPageState extends State<ReaderPage> {
       await Api.instance.requestReorgPlan(widget.docId);
       if (mounted) {
         AppToast.show(
-            context,
-            'Drafting a reorganization of “$title” in the background. '
-            "You'll find it in For your review.");
+          context,
+          'Drafting a reorganization of “$title” in the background. '
+          "You'll find it in For your review.",
+        );
       }
     } on ApiException catch (e) {
       if (mounted) {
-        AppToast.show(context,
-            'This document could not be reorganized. ${e.message}',
-            type: ToastType.error);
+        AppToast.show(
+          context,
+          'This document could not be reorganized. ${e.message}',
+          type: ToastType.error,
+        );
       }
     } catch (_) {
       // Not swallowed: said as the error toast, with no envelope to quote.
       if (mounted) {
-        AppToast.show(context, 'This document could not be reorganized.',
-            type: ToastType.error);
+        AppToast.show(
+          context,
+          'This document could not be reorganized.',
+          type: ToastType.error,
+        );
       }
     } finally {
       if (mounted) setState(() => _reorganizing = false);
@@ -734,80 +808,54 @@ class _ReaderPageState extends State<ReaderPage> {
       context.pop();
       return;
     }
-    context.go(readerOrigin(widget.from,
-            tags: context.read<TagsNotifier>().tags)
-        .path);
-  }
-
-  /// 404 / foreign document, and a document that could not be read at all.
-  /// Never leaks existence: both say the same thing.
-  Widget _notReadable() {
-    // Wide, the reader is the one authenticated screen OUTSIDE `AppLayout`,
-    // so nothing above it pays for the status bar — the AppBar this screen
-    // used to carry did, and dropping it put the back control under the
-    // notch. On a phone the shell's app bar pays for it (see [build]), and
-    // this SafeArea finds nothing left to pad.
-    return SafeArea(
-      bottom: false,
-      child: KitPage(
-        width: KitFrameWidth.reading,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _backControl(),
-            const SizedBox(height: 18),
-            const ChapterOpening(title: 'Source not found', rule: false),
-            if (_error != null)
-              KitFailureBlock(
-                sentence: 'This source could not be loaded.',
-                detail: _error!,
-                requestId: _errorRequestId,
-                onRetry: _load,
-              ),
-          ],
-        ),
-      ),
+    context.go(
+      readerOrigin(widget.from, tags: context.read<TagsNotifier>().tags).path,
     );
   }
 
   /// §Document shelves (4.83.0, ADR-117; 4.104.0, ADR-137): a §20 editor over
-  /// the whole document's `tag_ids`, shown for every complete document — with
-  /// no shelves at all it is the add control alone, and its picker is where a
-  /// first shelf is made from here. The reference's `DocumentShelves`.
-  Widget _documentShelves(Document doc) {
-    final tags = context.watch<TagsNotifier>().tags;
+  /// the whole document's `tag_ids` — each drawn as a §35 shelf tag in D —
+  /// shown for every complete document; with no shelves at all it is the add
+  /// control alone, and its picker is where a first shelf is made from here.
+  /// It sits in Source details, read from the document as it is NOW (the
+  /// panel outlives the build that opened it).
+  /// [tags] are the ones [build] watched: this runs inside the panel's own
+  /// build, where watching from the page's context is not allowed.
+  Widget _documentShelves(List<Tag> tags) {
     final byId = {for (final t in tags) t.id: t};
-    final current = doc.tagIds;
-    return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 4),
-      child: KitShelfChipEditor(
-        label: 'Shelves',
-        chips: [
-          for (final id in current)
-            if (byId[id] != null) KitShelfChip(byId[id]!),
-        ],
-        addable: [for (final t in tags) if (!current.contains(t.id)) t],
-        busy: _shelvesBusy,
-        error: _shelvesError,
-        removeLabel: (s) => 'Take this source off ${s.title}',
-        onAdd: (id) => _writeShelves([...current, id]),
-        onRemove: (id) =>
-            _writeShelves([for (final x in current) if (x != id) x]),
-        // The sheet hands the new id back once `fn_create_tag` resolved, and
-        // the add runs then — built from the list last READ at that moment,
-        // not the one this row was drawn from.
-        onCreate: (name) => showShelfSheet(
-          context,
-          // The document is complete, so the library holds a source to scan.
-          canBackfill: true,
-          land: null,
-          initialName: name,
-          createSubtitle: 'This source goes on it as soon as it is created.',
-          onCreated: (id) {
-            final read = _document?.tagIds ?? current;
-            if (!read.contains(id)) _writeShelves([...read, id]);
-          },
-        ),
+    final current = _document?.tagIds ?? const <String>[];
+    return KitShelfChipEditor(
+      label: 'Shelves',
+      chips: [
+        for (final id in current)
+          if (byId[id] != null) KitShelfChip(byId[id]!),
+      ],
+      addable: [
+        for (final t in tags)
+          if (!current.contains(t.id)) t,
+      ],
+      busy: _shelvesBusy,
+      error: _shelvesError,
+      removeLabel: (s) => 'Take this source off ${s.title}',
+      onAdd: (id) => _writeShelves([...current, id]),
+      onRemove: (id) => _writeShelves([
+        for (final x in current)
+          if (x != id) x,
+      ]),
+      // The sheet hands the new id back once `fn_create_tag` resolved, and
+      // the add runs then — built from the list last READ at that moment,
+      // not the one this row was drawn from.
+      onCreate: (name) => showShelfSheet(
+        context,
+        // The document is complete, so the library holds a source to scan.
+        canBackfill: true,
+        land: null,
+        initialName: name,
+        createSubtitle: 'This source goes on it as soon as it is created.',
+        onCreated: (id) {
+          final read = _document?.tagIds ?? current;
+          if (!read.contains(id)) _writeShelves([...read, id]);
+        },
       ),
     );
   }
@@ -834,17 +882,6 @@ class _ReaderPageState extends State<ReaderPage> {
     }
   }
 
-  /// The document's shelf, as the folio line — the reference's `shelfLabel`.
-  /// `Unshelved` rather than an empty folio: the row is the screen's place in
-  /// the library, and an absent one reads as a missing part.
-  String _shelfLabel(Document doc) {
-    final tags = context.watch<TagsNotifier>().tags;
-    for (final t in tags) {
-      if (doc.tagIds.contains(t.id)) return t.title;
-    }
-    return 'Unshelved';
-  }
-
   Widget _section(String id) {
     switch (id) {
       case 'manuscript':
@@ -853,19 +890,20 @@ class _ReaderPageState extends State<ReaderPage> {
           doc: _document!,
           chunks: _chunks,
           onSaved: _reload,
+          onChunksRead: _foldInChunksRead,
           anchorChunkId: widget.passageId,
           // §Step jump branch 1, keyed on **type OR field**: an uploaded
           // recording and an uploaded video both carry `source_audio_url:
           // null` by design, so a client that tests only the field draws a
           // dead chip on every voice memo and every video.
-          onSeekAudio: _hasOwnAudio(_document!)
+          onSeekAudio: hasOwnAudio(_document!)
               ? (start) {
-                  // §Step jump: the chip asks Listen to start at a time. On a
-                  // scroll that is a JUMP, not a tab change — and the seek is
-                  // set first, because the section is already mounted and
-                  // would otherwise play from the top while the scroll runs.
+                  // §Step jump: the chip asks Listen to start at a time — a
+                  // JUMP, which mounts Listen if the reader has not reached
+                  // it. The seek is set first, so a mounted section does not
+                  // play from the top while the scroll runs.
                   setState(() => _listenSeek = start);
-                  _jumpTo('listen');
+                  _sections?.jump('listen');
                 }
               : null,
           onOpenLink: (url) =>
@@ -899,60 +937,6 @@ class _ReaderPageState extends State<ReaderPage> {
     }
   }
 
-  /// Byline & reading cost (2.13.0, ADR-020 — screens/reader.md §Header).
-  /// What the document IS, before what the system did to it. Every part is
-  /// optional; the row disappears entirely when none apply.
-  Widget _bylineRow(Document doc) {
-    final t = Tokens.of(context);
-    final parts = <String>[];
-
-    // Rendered AS STORED — never reformatted, re-cased or split.
-    if (doc.author != null && doc.author!.trim().isNotEmpty) {
-      parts.add(doc.author!);
-    }
-
-    // publish_date is an ISO `YYYY-MM-DD` STRING, not a Timestamp: INV-06 does
-    // not apply, so it is formatted as a calendar date with NO timezone
-    // conversion. Converting it would render an article published "January 3"
-    // as "January 2" for every reader west of UTC. And createdAt is never
-    // substituted — "when you saved it" and "when it was published" differ.
-    final published = _fmtPublishDate(doc.publishDate);
-    if (published != null) parts.add(published);
-
-    final host = sourceHost(doc.sourceUrl);
-    if (host != null) parts.add(host);
-
-    // max(1, ceil(word_count / 220)) — normative, so every client says the
-    // same number. 220 wpm is the same constant the read-tracking dwell rule
-    // uses; a client must not hold two opinions about reading speed.
-    //
-    // Omitted when the document has its own audio — its length is the Listen
-    // stat, and a reading time over the transcript of a recording is the
-    // wrong number (4.108.0, ADR-143) — and when no count is stored, which has
-    // no reading time rather than a recounted one (ADR-144). It fell back to
-    // counting chunk `text` until 4.108.0, as the reference did.
-    final readingTime = readingTimeLabel(doc);
-    if (readingTime != null) parts.add(readingTime);
-
-    if (parts.isEmpty) return const SizedBox.shrink();
-
-    final row = Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Text(
-        parts.join('  ·  '),
-        style: KitText.ui(context, color: t.fgMuted),
-      ),
-    );
-
-    // The whole byline links to the source when there is one.
-    if (doc.sourceUrl == null) return row;
-    return InkWell(
-      onTap: () =>
-          launchUrlString(doc.sourceUrl!, mode: LaunchMode.externalApplication),
-      child: row,
-    );
-  }
-
   /// `YYYY-MM-DD` → "3 January 2026". Returns null rather than guessing when
   /// the string is not the shape the contract promises.
   static String? _fmtPublishDate(String? iso) {
@@ -978,176 +962,30 @@ class _ReaderPageState extends State<ReaderPage> {
     return '${int.parse(m.group(3)!)} ${months[mo - 1]} ${m.group(1)}';
   }
 
-  /// §8, **separated row** — serif numerals over mono caps labels, each closed
-  /// by a 1px rule, the last unseparated. NOT wrapped top and bottom: the
-  /// `--ruled` modifier is a report treatment, and the kit said otherwise until
-  /// 4.46.0 because it was transcribed from a dead web class (ADR-084).
-  ///
-  /// LISTEN (4.108.0, ADR-143 — option A): drawn **only when the document has
-  /// its own audio** ([hasOwnAudio]), as `duration_seconds` in `m:ss`
-  /// (`h:mm:ss` from an hour), §8's unmeasured dash where that is null. A
-  /// document without its own audio draws NO Listen stat — a dash says "not
-  /// measured", and there is nothing to measure. Until 4.108.0 this was a
-  /// permanent dash on every document: the reference read `audio_seconds`,
-  /// which nothing writes, while `duration_seconds` sat undocumented.
-  ///
-  /// WORDS is the stored `word_count`, the dash where none is stored.
-  Widget _statRow(Document doc, int readCount) {
-    return KitStatCluster(
-      stats: [
-        KitStat('${_chunks.length}', 'Passages'),
-        KitStat(wordsValue(doc), 'Words'),
-        if (showsListen(doc)) KitStat(listenValue(doc), 'Listen'),
-        KitStat(
-          doc.createdAt != null ? _fmtDate(doc.createdAt!) : '—',
-          'Added',
-        ),
-        KitStat('${doc.viewCount}', 'Views'),
-        KitStat(
-          doc.lastViewedAt != null ? _fmtDate(doc.lastViewedAt!) : 'Never',
-          'Last read',
-        ),
-        // Coverage, rendered HERE and only here (screens/reader.md): every chunk
-        // is already in memory, so it costs no extra read — the same number on a
-        // list screen would be one query per row. Since 4.0.0 view_count counts
-        // only chunk_read, so this means passages READ and can no longer be moved
-        // by a newsletter delivery or a search glance. The denominator is context
-        // beside the numeral, not a second figure.
-        KitStat(
-          '$readCount',
-          'Passages read',
-          denominator: '${_chunks.length}',
-        ),
-      ],
-    );
-  }
+  /// `toLocaleString()` — 1,234.
+  static String _grouped(int n) =>
+      '$n'.replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
 
   /// Detailed reading stats (4.1.0) — every figure a filter over chunks
-  /// already in memory, so the whole breakdown costs **zero extra reads**, and
-  /// that is the entire reason it is affordable here and nowhere else.
-  ///
-  /// **These categories overlap and are never presented as a partition.** A
-  /// passage can be read here AND have arrived in a letter AND have been
-  /// opened from a search; only "never reached you" is exclusive. A bar, a
-  /// percentage or a set of parts summing to `chunk_count` would reintroduce
-  /// in the presentation layer exactly the conflation 4.0.0 removed from the
-  /// counters.
-  ///
-  /// **Absent means zero, never unknown**: `search_view_count` is absent on
-  /// every pre-4.0.0 chunk and `chunk_read` did not exist before 3.1.0, so on
-  /// older documents these read low. That is accurate — those events were
-  /// never recorded — and rendering it as "no data" would imply the number is
-  /// unavailable rather than known to be zero.
-  Widget _breakdown() {
-    final read = _chunks.where((c) => c.viewCount > 0).length;
-    final searched = _chunks.where((c) => c.searchViewCount > 0).length;
-    final lettered = _chunks
-        .where((c) => c.lastIncludedInNewsletter != null)
-        .length;
-    final untouched = _chunks
+  /// already in memory, so the whole breakdown costs **zero extra reads**.
+  /// The categories overlap and are never presented as a partition; absent
+  /// means zero, never unknown.
+  Widget _breakdown() => KitReadingBreakdown(
+    read: _chunks.where((c) => c.viewCount > 0).length,
+    searched: _chunks.where((c) => c.searchViewCount > 0).length,
+    lettered: _chunks.where((c) => c.lastIncludedInNewsletter != null).length,
+    untouched: _chunks
         .where(
           (c) =>
               c.viewCount == 0 &&
               c.searchViewCount == 0 &&
               c.lastIncludedInNewsletter == null,
         )
-        .length;
+        .length,
+  );
 
-    Widget line(int n, String what) => Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: '$n ',
-              style: KitText.title(context,
-                  fontSize: 16, weight: FontWeight.w500),
-            ),
-            TextSpan(text: what),
-          ],
-        ),
-        style: KitText.meta(context),
-      ),
-    );
-
-    return KitPanel(
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Eyebrow('How these passages reached you'),
-            SizedBox(height: 4),
-            Lede(
-              'Ways overlap — a passage can arrive more than one way.',
-              fontSize: 14,
-              height: 21,
-              maxWidth: 440,
-            ),
-          ],
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            line(read, 'read in the reader'),
-            line(searched, 'opened from a search'),
-            line(lettered, 'arrived in a letter'),
-            line(untouched, 'not yet reached you'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// Finish / un-finish (3.1.0, ADR-039). The label says which it will do —
-  /// never a checkbox whose meaning the reader has to infer — and the write is
-  /// NOT optimistic: `finished_at` comes back from the response rather than
-  /// being minted locally.
-  ///
-  /// The detailed-stats toggle is NOT here: it is Aa → Reading stats on the
-  /// manuscript (F-74), the reference's only door to it (F-77 (2)).
-  Widget _finishControl(Document doc) {
-    final finished = doc.finishedAt != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 12,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            finished
-                ? KitButton.secondary(
-                    _finishBusy ? 'Un-finishing…' : 'Mark unfinished',
-                    onPressed: _finishBusy ? null : () => _setFinished(false),
-                  )
-                : KitButton.primary(
-                    _finishBusy ? 'Marking…' : 'Mark finished',
-                    onPressed: _finishBusy ? null : () => _setFinished(true),
-                  ),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 340),
-              child: Text(
-                finished
-                    ? 'You finished this on ${_fmtDate(doc.finishedAt!)}.'
-                    : 'Reaching the end marks this for you — this is for when '
-                          'you got there another way.',
-                style: KitText.small(context,
-                    color: Tokens.of(context).fgSubtle, height: 18),
-              ),
-            ),
-          ],
-        ),
-        // §14.2 — the rejection answers beside the control that refused it,
-        // in the control's own flow. Nothing else moved: the label is still
-        // what it was before the tap.
-        if (_finishError != null) ...[
-          const SizedBox(height: 8),
-          KitFailureInline(_finishError!),
-        ],
-      ],
-    );
-  }
-
+  /// Finish / un-finish (3.1.0, ADR-039). NOT optimistic: `finished_at` comes
+  /// back from a re-read rather than being minted locally.
   Future<void> _setFinished(bool finished) async {
     setState(() {
       _finishBusy = true;
@@ -1173,24 +1011,5 @@ class _ReaderPageState extends State<ReaderPage> {
     } finally {
       if (mounted) setState(() => _finishBusy = false);
     }
-  }
-
-  String _fmtDate(int ts) {
-    final d = DateTime.fromMillisecondsSinceEpoch(ts);
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 }

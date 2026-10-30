@@ -9,7 +9,8 @@ import '../../widgets/kit/kit.dart';
 /// §Deleting a source (`screens/reader.md`, 4.105.0, ADR-138). Reference:
 /// `DeleteSource` in `ReaderView.jsx`.
 ///
-/// The ghost *Delete* at the end of the header's actions, and its §18
+/// The ghost *Delete* row at the end of the sheet's *Also* (direction D; the
+/// end of the header's actions until D), and its §18
 /// confirmation: it names what is lost and what is kept, holds until
 /// `fn_delete_document` answers, keeps a refusal inside the panel, and on
 /// success hands back to the reader, which returns to where it was opened
@@ -72,10 +73,13 @@ class DeleteSourceAction extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => KitButton.ghost(
+  // Direction D: the LAST of the sheet's Also rows, and the only one in
+  // `--critical-text` (kit §29; reader.md §Deleting a source).
+  Widget build(BuildContext context) => KitAlsoButton(
         'Delete',
         icon: Icons.delete_outline,
-        onPressed: () => _confirm(context),
+        danger: true,
+        onTap: () => _confirm(context),
       );
 }
 

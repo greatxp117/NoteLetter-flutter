@@ -5,9 +5,11 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../services/error_text.dart';
 import '../../widgets/kit/kit.dart';
+import 'reader_prefs.dart';
 import 'reader_ui.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
+import '../../theme/app_spacing.dart';
 
 /// Reader → Listen panel. A podcast/video carries its real source audio
 /// (`source_audio_url`, 2.7.0/ADR-016) + real per-line transcript timestamps
@@ -73,9 +75,39 @@ class _ListenPanelState extends State<ListenPanel> {
   /// The step jump waiting for the player to be ready, if any.
   double? _pendingSeek;
 
+  /// Listen's playback speed (reader.md §Playback speed) — the reader
+  /// preference, read live: a choice made on another document, or before
+  /// this one's audio loaded, is the one that plays.
+  double get _rate => ReaderPrefs.current.value.rate;
+  double? _appliedRate;
+
+  void _onPrefs() {
+    if (!mounted) return;
+    if (_rate != _appliedRate) _applyRate();
+    setState(() {});
+  }
+
+  /// Sets the player's rate and nothing else: pitch stays the platform's,
+  /// the times beside the bar stay media time and the active line still
+  /// follows the position, so speed never changes which line is lit or where
+  /// a seek lands. Applied on every change AND on every load — the plugin
+  /// holds a rate set before its source and applies it when it plays, and a
+  /// rate it refuses (an Android before M) leaves the audio at 1× rather
+  /// than failing the panel.
+  Future<void> _applyRate() async {
+    final rate = _rate;
+    _appliedRate = rate;
+    try {
+      await _player.setPlaybackRate(rate);
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
+    ReaderPrefs.current.addListener(_onPrefs);
+    _applyRate();
+    ReaderPrefs.ensureLoaded().then((_) => _onPrefs());
     _pendingSeek = widget.seekTo;
     // Podcast/video: the real episode is already available — load it directly,
     // no "Generate audio" step. Otherwise a narration generated before is
@@ -126,6 +158,7 @@ class _ListenPanelState extends State<ListenPanel> {
 
   @override
   void dispose() {
+    ReaderPrefs.current.removeListener(_onPrefs);
     _player.dispose();
     super.dispose();
   }
@@ -137,7 +170,10 @@ class _ListenPanelState extends State<ListenPanel> {
       await _player.setSourceUrl(url);
     } catch (_) {
       if (mounted) setState(() => _error = _loadFailed);
+      return;
     }
+    // A new source may reset the rate; it is applied again on every load.
+    if (mounted) _applyRate();
   }
 
   Future<void> _toggle() async {
@@ -289,7 +325,11 @@ class _ListenPanelState extends State<ListenPanel> {
       // `--r-md` box with a Material slider and a waveform glyph).
       Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
+        // `.player { padding: 22px 18px }` under 680: the Speed track needs
+        // the width a phone's card leaves only at 18.
+        padding: MediaQuery.sizeOf(context).width <= 680
+            ? const EdgeInsets.symmetric(horizontal: 18, vertical: 22)
+            : const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
         decoration: BoxDecoration(
           color: ui.card,
           borderRadius: AppRadius.lgR,
@@ -367,6 +407,7 @@ class _ListenPanelState extends State<ListenPanel> {
             const SizedBox(width: 22),
             _skip(ui, back: false),
           ]),
+          _speedRow(ui),
         ]),
       ),
       const SizedBox(height: 30),
@@ -403,6 +444,54 @@ class _ListenPanelState extends State<ListenPanel> {
         );
       }),
     ]);
+  }
+
+  /// `.player-foot` — the Speed row under the controls, over a `--rule`
+  /// hairline: its `.pf-label` and kit §34's switch of six rates, one chosen
+  /// (reader.md §Playback speed). A reader preference, so nothing is written
+  /// to the server and the fill slides on the press. Beside its label on a
+  /// desk; on a phone the track takes a line of its own under it, where
+  /// beside the label it ran past the card's edge (web `.player-foot
+  /// .pf-group`). The one breakpoint, as §6.8's track stacks (CLAUDE.md
+  /// §Composition deviations).
+  Widget _speedRow(ReaderUi ui) {
+    final p = ReaderPrefs.current.value;
+    final label = Text('SPEED', style: KitText.monoCaps(context));
+    // Six rates need about 300 of the card; a narrower phone scales the
+    // track down rather than drawing it past the card.
+    final track = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: AlignmentDirectional.centerStart,
+      child: KitSlideSwitch<double>(
+        label: 'Speed',
+        value: p.rate,
+        options: [
+          for (final r in ReaderPrefs.rates)
+            KitSlideOption(r, ReaderPrefs.rateLabel(r)),
+        ],
+        onChanged: (r) => ReaderPrefs.set(p.copyWith(rate: r)),
+      ),
+    );
+    final stacked =
+        MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
+    return Container(
+      margin: const EdgeInsets.only(top: 22),
+      padding: const EdgeInsets.only(top: 18),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: ui.tokens.rule)),
+      ),
+      child: stacked
+          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              ExcludeSemantics(child: label),
+              const SizedBox(height: AppSpacing.s2),
+              track,
+            ])
+          : Row(children: [
+              ExcludeSemantics(child: label),
+              const SizedBox(width: AppSpacing.s2),
+              Flexible(child: track),
+            ]),
+    );
   }
 
   /// `.pbtn` with its `.skip-n` — the circular arrow at `--fg-muted` and the

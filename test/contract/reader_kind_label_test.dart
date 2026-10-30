@@ -89,9 +89,11 @@ void main() {
     });
   });
 
-  group("the rail's Original jump counts the KIND", () {
+  // Direction D: the sheet's Contents row (kit §29), the §19 rail's jump
+  // until D.
+  group("Contents' Original row counts the KIND", () {
     String originalCount(Document d) =>
-        readerRailItems(d).firstWhere((i) => i.id == 'original').count!;
+        readerContentsItems(d).firstWhere((i) => i.id == 'original').count!;
 
     test('an image set is NOTE, not IMAGE_SET', () {
       expect(originalCount(_doc('image_set')), 'NOTE');

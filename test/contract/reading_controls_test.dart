@@ -21,7 +21,9 @@ import 'package:flutter_app/widgets/kit/kit.dart';
 class _QuietFirestore extends FirestoreService {
   _QuietFirestore() : super.stub();
   @override
-  Future<void> logChunksRead(String documentId, List<String> chunkIds) async {}
+  Future<List<String>> logChunksRead(
+          String documentId, List<String> chunkIds) async =>
+      const [];
 }
 
 Future<void> _pumpPanel(WidgetTester tester, String html,

@@ -4,7 +4,6 @@ import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../services/error_text.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 
@@ -38,7 +37,8 @@ String priorityChoice(Document doc) {
 
 /// §Source priority (4.118.0, ADR-155; built on web 2026-10-12, ruled into the
 /// reader 2026-10-13). Under the Shelves row and in its anatomy: the mono caps
-/// label, a §6.8 Segmented control, the stored number in mono beside it, and
+/// label, a kit §34 Switch (§6.8's Segmented control until D), the stored
+/// number in mono beside the label, and
 /// one quiet line under them. A finished source's own settings — its shelves,
 /// its priority and Delete — live here, the one screen about a single source
 /// (ADR-138 §Rationale); the library rows carry no control (`sources.md`
@@ -109,7 +109,6 @@ class _SourcePriorityRowState extends State<SourcePriorityRow> {
     final t = Tokens.of(context);
     final on = priorityChoice(widget.doc);
     final value = widget.doc.sourcePriority;
-    final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
 
     final label = Text('PRIORITY', style: KitText.monoCaps(context));
     // The stored number, never one solved for: a document with none draws no
@@ -119,53 +118,46 @@ class _SourcePriorityRowState extends State<SourcePriorityRow> {
         : Text(value.toStringAsFixed(2),
             style: KitText.monoMeta(context,
                 fontSize: 12, letterSpacing: 0.02, color: t.fgMuted));
-    final track = Semantics(
-      container: true,
+    // Kit §34's sliding switch, the `pri` variant (§6.8's segmented control
+    // until direction D). It moves only when `on` moves — after the write —
+    // and while one is in flight the whole switch is held and the pressed
+    // option says so.
+    final track = KitSlideSwitch<String>(
       label: 'Priority',
-      child: KitSegmented(
-        groupLabel: 'Priority',
-        segments: [
-          for (final c in priorityChoices)
-            KitSegment(_busy == c.id ? 'Saving…' : c.label),
-        ],
-        selected: priorityChoices.indexWhere((c) => c.id == on),
-        onChanged: _busy != null ? null : (i) => _choose(priorityChoices[i]),
-      ),
+      variant: KitSlideVariant.priority,
+      held: _busy != null,
+      value: on,
+      options: [
+        for (final c in priorityChoices)
+          KitSlideOption(c.id, _busy == c.id ? 'Saving…' : c.label,
+              disabled: _busy != null),
+      ],
+      onChanged: (id) =>
+          _choose(priorityChoices.firstWhere((c) => c.id == id)),
     );
     const gapX = SizedBox(width: 10);
     const gapY = SizedBox(height: 8);
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // On a phone the track fills the width (§6.8) and the figure rides
-          // beside the label — after a full-width track it would be a number
-          // alone on a line (the reference below 680px).
-          if (compact) ...[
-            Row(children: [label, if (figure != null) ...[gapX, figure]]),
-            gapY,
-            track,
-          ] else
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [label, track, ?figure],
-            ),
-          gapY,
-          Text(
-            'How much this source weighs in search and your letters — a '
-            'nudge, not a guarantee.',
-            style: KitText.note(context),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 6),
-            KitFailureInline(_error!),
-          ],
+    // In Source details (kit §28): the label and the figure on one line, the
+    // switch under them at its own width, then the quiet line — web's
+    // `.doc-priority` wrap in the panel (reader-details, light and phone).
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [label, if (figure != null) ...[gapX, figure]]),
+        gapY,
+        track,
+        gapY,
+        Text(
+          'How much this source weighs in search and your letters — a '
+          'nudge, not a guarantee.',
+          style: KitText.note(context),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 6),
+          KitFailureInline(_error!),
         ],
-      ),
+      ],
     );
   }
 }

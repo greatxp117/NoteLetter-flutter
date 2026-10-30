@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../theme/app_spacing.dart';
 
-/// The reader's typography, its detailed-stats toggle and where the reader
-/// stopped — web `pages/reader/readerPrefs.js`.
+/// The reader's typography, its detailed-stats toggle, Listen's playback
+/// speed and where the reader stopped — web `pages/reader/readerPrefs.js`.
 ///
 /// **Client-local and explicitly NOT contract state** (reader.md §Reading state
 /// & typography, ADR-020): no Firestore field, no endpoint, no sync, and no
@@ -29,12 +29,27 @@ class ReaderPrefs {
   /// same kind of thing: a display choice, per device, never synced.
   final bool stats;
 
+  /// Listen's playback speed (reader.md §Playback speed, F-132) — one of
+  /// [rates], 1 by default. Per device for the reason typography is: it
+  /// describes the listener, not the document, and is never written to the
+  /// backend.
+  final double rate;
+
   const ReaderPrefs({
     this.size = 'md',
     this.face = 'serif',
     this.measure = 'normal',
     this.stats = false,
+    this.rate = 1,
   });
+
+  /// `LISTEN_RATES`.
+  static const rates = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+
+  /// A rate as the Speed switch names it — web's `${r}×`: "0.75×", "1×",
+  /// "1.5×", "2×", never Dart's "1.0".
+  static String rateLabel(double r) =>
+      '${r == r.truncateToDouble() ? r.toInt() : r}\u00d7';
 
   /// `TYPE_SIZES` — id, label, px. Medium is the pre-2.13.0 fixed value.
   static const sizes = [
@@ -75,16 +90,27 @@ class ReaderPrefs {
   }
 
   ReaderPrefs copyWith(
-          {String? size, String? face, String? measure, bool? stats}) =>
+          {String? size,
+          String? face,
+          String? measure,
+          bool? stats,
+          double? rate}) =>
       ReaderPrefs(
         size: size ?? this.size,
         face: face ?? this.face,
         measure: measure ?? this.measure,
         stats: stats ?? this.stats,
+        rate: rate ?? this.rate,
       );
 
-  Map<String, Object> toJson() =>
-      {'size': size, 'face': face, 'measure': measure, 'stats': stats};
+  Map<String, Object> toJson() => {
+        'size': size,
+        'face': face,
+        'measure': measure,
+        'stats': stats,
+        // Stored as web stores it: `1`, not `1.0`, where the rate is whole.
+        'rate': rate == rate.truncateToDouble() ? rate.toInt() : rate,
+      };
 
   /// An unknown or missing value falls back to the default, per field — as
   /// web's `read()` validates each against its table.
@@ -97,6 +123,11 @@ class ReaderPrefs {
       face: oneOf(m['face'], [for (final f in faces) f.$1], 'serif'),
       measure: oneOf(m['measure'], [for (final x in measures) x.$1], 'normal'),
       stats: m['stats'] is bool ? m['stats'] as bool : (legacyStats ?? false),
+      // An unknown stored value — a rate no switch offers, a string, nothing
+      // at all — reads as 1×, as web's `LISTEN_RATES.includes`.
+      rate: m['rate'] is num && rates.contains((m['rate'] as num).toDouble())
+          ? (m['rate'] as num).toDouble()
+          : 1,
     );
   }
 
@@ -106,10 +137,11 @@ class ReaderPrefs {
       other.size == size &&
       other.face == face &&
       other.measure == measure &&
-      other.stats == stats;
+      other.stats == stats &&
+      other.rate == rate;
 
   @override
-  int get hashCode => Object.hash(size, face, measure, stats);
+  int get hashCode => Object.hash(size, face, measure, stats, rate);
 
   // ── The store ─────────────────────────────────────────────────────────────
 

@@ -87,6 +87,22 @@ class KitDScope extends InheritedWidget {
   bool updateShouldNotify(KitDScope oldWidget) => false;
 }
 
+/// Marks the inside of a §28 settings panel (web `.d-pnl`). A Settings
+/// section reused there — the source page's *Summary style*, the Library's
+/// own — drops its section header and its rows' icon plates, and its row list
+/// goes flat: no card, border, shadow or row inset (web `.d-pnl .set-section
+/// .lib-section-h, .d-pnl .set-row-ico {display: none}` and `.d-pnl
+/// :is(.set-rows, .set-row)`). The panel's own [KitDLabel] names the group.
+class KitPanelScope extends InheritedWidget {
+  const KitPanelScope({super.key, required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<KitPanelScope>() != null;
+
+  @override
+  bool updateShouldNotify(KitPanelScope oldWidget) => false;
+}
+
 /// A pressable D part: hover (a fine pointer only), keyboard focus and
 /// activation in one place, so every part draws its states from the same two
 /// booleans. [label] replaces the subtree's semantics when given.
@@ -378,20 +394,29 @@ class KitSecHead extends StatelessWidget {
   final String title;
   final List<Widget> actions;
 
+  /// False when the caller places the 72 (56 on a phone) above the section
+  /// itself — a section that WRAPS its body (web `SecHeadLine` in `SecD`) is
+  /// measured from its hairline, as a browser measures a box without its
+  /// margin, so a jump lands the hairline 24 under the top.
+  final bool margin;
+
   const KitSecHead({
     super.key,
     required this.n,
     required this.title,
     this.actions = const [],
+    this.margin = true,
   });
+
+  /// The space above every section after the first.
+  static double gap(BuildContext context) => KitD.phone(context) ? 56 : 72;
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final first = n == 0;
-    final phone = KitD.phone(context);
     return Container(
-      margin: EdgeInsets.only(top: first ? 0 : (phone ? 56 : 72)),
+      margin: EdgeInsets.only(top: first || !margin ? 0 : gap(context)),
       padding: EdgeInsets.only(top: first ? 0 : 22, bottom: 20),
       decoration: first
           ? null
@@ -1234,9 +1259,13 @@ class KitSkelLine {
 }
 
 /// A D page's loading lines (web `.hx-skel-set`, W2's kit request): bars 12
-/// tall (a headline's 40), radius 4 (6), 10 apart, 16 above, on a
-/// `--surface-sunken` → `--surface-raised` shimmer that runs 1.6s, still under
-/// reduced motion. Hidden from assistive technology; the region is busy.
+/// tall (a headline's 40), radius 4 (6), 10 apart, 16 above, on the theme's
+/// own ink as an overlay — `--hover-strong` under a `--hover` shine that runs
+/// 1.6s, still under reduced motion — so they read a step off whatever they
+/// sit on (page, sheet, the letter's paper) in both themes (kit §29, W3).
+/// Never `--surface-sunken`: it is darker than the dark page, and the lines
+/// drew as near-black bars. Hidden from assistive technology; the region is
+/// busy.
 /// [center] centres the bars (the letter card's loading head).
 class KitSkeletonLines extends StatefulWidget {
   final List<KitSkelLine> lines;
@@ -1292,7 +1321,7 @@ class _KitSkeletonLinesState extends State<KitSkeletonLines>
                 gradient: LinearGradient(
                   begin: Alignment(x - 1, 0),
                   end: Alignment(x + 1, 0),
-                  colors: [t.surfaceSunken, t.surfaceRaised, t.surfaceSunken],
+                  colors: [t.hoverStrong, t.hover, t.hoverStrong],
                 ),
               ),
             );

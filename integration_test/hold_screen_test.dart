@@ -188,6 +188,9 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
       await tester.pump(const Duration(milliseconds: 200));
     }
   }
+  // Mark as read's frame is of an UNREAD passage: the dwell clock is paused
+  // before the reader opens, or it would count the subject read mid-hold.
+  ManuscriptPanel.debugPauseDwell = h.state == 'mark-as-read';
   router.go(route);
   for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 200));
@@ -243,6 +246,11 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
   await leaveState(tester, h.state);
 }
 
+/// The boundary drag `edit-drag` holds down across both themes — sent as
+/// device events (no crosshair), so it is cancelled the same way.
+(LiveTestWidgetsFlutterBinding, int, Offset)? _heldDrag;
+const int _dragPointer = 9142;
+
 /// Undo what [reachState] WROTE. A batch is one emulator boot, so a state that
 /// changes stored data (not only the screen) would otherwise draw itself under
 /// every later hold's name — the `reader` frame after `reader-priority` would
@@ -275,6 +283,20 @@ Future<void> leaveState(WidgetTester tester, String holdState) async {
       await LocalFlags.setSourceView('list');
     case 'priority-high':
       await _pressPriority(tester, 'Default');
+    case 'mark-as-read':
+      ManuscriptPanel.debugPauseDwell = false;
+    case 'edit-drag':
+      final held = _heldDrag;
+      if (held != null) {
+        final (binding, viewId, at) = held;
+        binding.handlePointerEventForSource(
+            PointerCancelEvent(
+                pointer: _dragPointer, position: at, viewId: viewId),
+            source: TestBindingEventSource.device);
+        binding.shouldPropagateDevicePointerEvents = false;
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      _heldDrag = null;
     case 'summary-reset-confirm':
       // The panel is cancelled — nothing it offers is sent — and the stored
       // style the hold wrote is taken away, as web's `fsRestoreSummaryPrompt`
@@ -330,25 +352,83 @@ Future<void> _stillThePlate(WidgetTester tester) async {
   }
 }
 
-/// Bring a §19 rail jump on screen. Since the reader's Priority row (F-99)
-/// the opening is taller than a phone's viewport, so the sticky rail starts
-/// BELOW it — and a finder skips a sliver outside the viewport, so `find.text`
-/// saw no jump at all ("No element", the 2026-10-13 batch). Found offstage,
-/// then revealed by the WHOLE jump, not its label: the rail scrolls sideways,
-/// and revealing the Text put the label at the rail's leading edge and cut
-/// its glyph off (the 2026-10-07 speed-read frame). [sideways] false reveals
-/// only the RAIL, vertically: a jump already in the rail's first view
-/// (Manuscript) must not slide the rail, or the frame starts it where the
-/// reference's never does (the 2026-10-13 manuscript frame lost "Summary").
-Future<void> _revealRailJump(WidgetTester tester, String label,
-    {bool sideways = true}) async {
-  await tester.ensureVisible(sideways
-      ? find
-          .ancestor(
-              of: find.text(label, skipOffstage: false).first,
-              matching: find.byType(GestureDetector, skipOffstage: false))
-          .first
-      : find.byType(KitSectionRail, skipOffstage: false).first);
+/// A Contents jump on the source page (direction D, kit §29): on a phone the
+/// sheet is the running head — open it, then tap the section's row, which
+/// folds it again and scrolls the page to the section 24 under the top; wider,
+/// the row is in the sheet beside the column. Until D this revealed a jump on
+/// the sticky §19 rail.
+Future<void> _readerJump(WidgetTester tester, String label) async {
+  final page = find.byKey(const ValueKey('rx-page'));
+  for (var i = 0; i < 60 && page.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  expect(page, findsOneWidget, reason: 'the source page never loaded');
+  final peek = find.byKey(const ValueKey('d-peek'));
+  if (peek.evaluate().isNotEmpty) {
+    await tester.tap(peek);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+  }
+  final row = find.descendant(
+      of: find.byType(KitContents), matching: find.text(label));
+  expect(row, findsWidgets, reason: 'no Contents row for $label');
+  await tester.tap(row.last);
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+}
+
+/// Open the page's settings panel (kit §28): the app header's gear at 1024
+/// and under, the masthead's wider — the source page's *Source details*.
+Future<void> _openPageSettings(WidgetTester tester, String label) async {
+  // By the widget, not its semantics label: a hold runs with no semantics
+  // tree, so `bySemanticsLabel` finds nothing (the first batch, 2026-10-30).
+  final page = find.byKey(const ValueKey('rx-page'));
+  for (var i = 0; i < 60 && page.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  final gear = find.byWidgetPredicate(
+      (w) => w is KitSettingsButton && w.settings.label == label);
+  for (var i = 0; i < 60 && gear.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  if (gear.evaluate().isEmpty) {
+    debugPrint('HOLD-DIAG gears=${[
+      for (final w in tester.widgetList<KitSettingsButton>(
+          find.byType(KitSettingsButton, skipOffstage: false)))
+        w.settings.label
+    ]} tools=${KitPageTools.instance.settings?.label} '
+        'page=${page.evaluate().length} '
+        'route=${page.evaluate().isEmpty ? '-' : '${ModalRoute.of(tester.element(page))?.settings.name}/${ModalRoute.of(tester.element(page))?.isCurrent}/${ModalRoute.of(tester.element(page))?.isActive}'} '
+        'routes=${[for (final e in find.byType(Navigator, skipOffstage: false).evaluate()) (e as StatefulElement).state is NavigatorState ? 'nav' : '?']} '
+        'header=${find.byType(KitAppHeader, skipOffstage: false).evaluate().length}');
+  }
+  expect(gear, findsWidgets, reason: 'no $label gear');
+  await tester.tap(gear.first);
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  expect(find.byKey(const ValueKey('d-panel')), findsOneWidget,
+      reason: 'the $label panel did not open');
+}
+
+/// A row of the sheet's *Also* (kit §29): opened from the running head on a
+/// phone, brought on inside it, and tapped.
+Future<void> _tapAlso(WidgetTester tester, String label) async {
+  final peek = find.byKey(const ValueKey('d-peek'));
+  if (peek.evaluate().isNotEmpty) {
+    await tester.tap(peek);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+  }
+  final row = find.descendant(
+      of: find.byType(KitAlsoButton), matching: find.text(label));
+  expect(row, findsOneWidget, reason: 'no $label in the sheet\'s Also');
+  await tester.ensureVisible(row);
+  await tester.pump(const Duration(milliseconds: 200));
+  await tester.tap(row);
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 200));
   }
@@ -358,10 +438,11 @@ Future<void> _revealRailJump(WidgetTester tester, String label,
 /// accept it — the segment moves only then (write before you move).
 Future<void> _pressPriority(WidgetTester tester, String label) async {
   final track = find.descendant(
-      of: find.byType(SourcePriorityRow), matching: find.byType(KitSegmented));
+      of: find.byType(SourcePriorityRow),
+      matching: find.byType(KitSlideSwitch<String>));
   String lit() {
-    final seg = tester.widget<KitSegmented>(track);
-    return seg.segments[seg.selected].label;
+    final sw = tester.widget<KitSlideSwitch<String>>(track);
+    return sw.options.firstWhere((o) => o.value == sw.value).label;
   }
 
   await tester.ensureVisible(track);
@@ -578,8 +659,9 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // than no pair: a frame is evidence, and a mislabelled one is false
     // evidence nobody re-checks.
     case 'manuscript':
-      await _revealRailJump(tester, 'Manuscript', sideways: false);
-      await tester.tap(find.text('Manuscript').first);
+      // Direction D: a Contents jump from the running head (kit §29/§30), as
+      // web's `readerJump` is; it lands the section 24 under the top.
+      await _readerJump(tester, 'Manuscript');
       await settle();
       // byType, not the panel's copy. The first version asserted
       // `textContaining('Manuscript · the extracted text')` and failed on a
@@ -592,6 +674,88 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(find.byType(ManuscriptPanel), findsOneWidget,
           reason: 'the manuscript panel did not open — this frame would be the '
               'summary');
+      return;
+    // reader.md §Re-process (5.27.0, ADR-183; F-130 folded into F-142): the
+    // §18 panel, danger, over the reader, opened from the sheet's Also (the
+    // running head on a phone). Photographed, never confirmed — a confirm
+    // would queue the seed document for every later frame (web's own hold).
+    case 'reprocess-confirm':
+      await _tapAlso(tester, 'Re-process');
+      expect(find.text('Re-process this source?'), findsOneWidget,
+          reason: 'the confirmation did not open — this frame would be the '
+              'sheet');
+      return;
+    // reader.md §Reading state, Mark as read (5.27.0, ADR-184): its own
+    // document (tool/seed_unread_doc.py, web's `web-shot-unread`) — the first
+    // passage stored READ, the next two unread and long enough to sit at the
+    // 10 s cap. The dwell clock is paused for the hold (set before the route
+    // opened, below), so the frame cannot turn the subject read mid-shot. On
+    // touch the control is shown on every unread passage.
+    case 'mark-as-read':
+      final mark = find.byKey(
+          const ValueKey('ms-readmark-web-shot-unread-chunk-1'),
+          skipOffstage: false);
+      for (var i = 0; i < 60 && mark.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(mark, findsOneWidget,
+          reason: 'run tool/seed_unread_doc.py first — Mark as read is not '
+              'drawn on the unread passage');
+      await Scrollable.ensureVisible(tester.element(mark),
+          alignment: 0.6, duration: Duration.zero);
+      await settle();
+      expect(find.byKey(const ValueKey('ms-readmark-web-shot-unread-chunk-0'),
+              skipOffstage: false),
+          findsNothing,
+          reason: 'the read passage offers Mark as read');
+      return;
+    // reader.md §Moving a passage boundary (F-132 folded into F-142): edit
+    // mode, passage 2's grip held and carried up to the top of passage 1's
+    // picture, so the frame shows the drop line and the dragging states — as
+    // web's `reader-edit-drag`. The gesture stays DOWN through both themes;
+    // [leaveState] cancels it, so nothing is re-cut and no unsaved edit is
+    // left behind.
+    case 'edit-drag':
+      await _readerJump(tester, 'Manuscript');
+      await settle();
+      await tester.tap(find.text('Edit text'));
+      await settle();
+      final grip = find.byKey(const ValueKey('ms-grip-2'), skipOffstage: false);
+      expect(grip, findsOneWidget, reason: 'no grip on passage 2');
+      final picture = find
+          .descendant(
+              of: find.byType(ManuscriptPanel),
+              matching: find.byType(Image, skipOffstage: false))
+          .first;
+      await Scrollable.ensureVisible(tester.element(picture),
+          alignment: 0.3, duration: Duration.zero);
+      await settle();
+      final from = tester.getCenter(grip);
+      final to = Offset(from.dx, tester.getTopLeft(picture).dy + 6);
+      // As DEVICE events: the live test binding paints a red crosshair over
+      // every held TEST pointer, which would sit in both frames (2026-10-30).
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.shouldPropagateDevicePointerEvents = true;
+      final viewId = tester.view.viewId;
+      void send(PointerEvent e) => binding.handlePointerEventForSource(e,
+          source: TestBindingEventSource.device);
+      send(PointerDownEvent(
+          pointer: _dragPointer, position: from, viewId: viewId));
+      _heldDrag = (binding, viewId, to);
+      var at = from;
+      for (var i = 1; i <= 8; i++) {
+        final next = Offset.lerp(from, to, i / 8)!;
+        send(PointerMoveEvent(
+            pointer: _dragPointer,
+            position: next,
+            delta: next - at,
+            viewId: viewId));
+        at = next;
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      await settle();
+      expect(find.byKey(const ValueKey('ms-dropline')), findsOneWidget,
+          reason: 'no drop line — the drag did not take');
       return;
     // Three sections the reference now frames (F-43): a rail jump each, as
     // `manuscript` is. `listen` draws the PLAYER only once
@@ -606,12 +770,8 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
         'listen': 'Listen',
         'history': 'History',
       }[holdState]!;
-      // The rail scrolls sideways on a phone: Listen and History start off
-      // its right edge, and a tap there hits nothing. Revealed by the WHOLE
-      // jump, not its label: revealing the Text put the label at the rail's
-      // leading edge and cut its glyph off (the 2026-10-07 speed-read frame).
-      await _revealRailJump(tester, label);
-      await tester.tap(find.text(label).first);
+      // A Contents jump (direction D): the section mounts on the way.
+      await _readerJump(tester, label);
       await settle();
       final panel = {
         'speed-read': SpeedReadPanel,
@@ -709,8 +869,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // the pattern makes, so the frame has to be the manuscript of a distilled
     // document rather than a screen of its own.
     case 'recipe':
-      await _revealRailJump(tester, 'Manuscript', sideways: false);
-      await tester.tap(find.text('Manuscript').first);
+      await _readerJump(tester, 'Manuscript');
       await settle();
       expect(find.byType(KitRecipeBody), findsOneWidget,
           reason: 'no recipe body — run tool/seed_recipe_and_sources.py first; '
@@ -1066,17 +1225,29 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // chosen through a REAL fn_update_document (the shim), so the lit segment
     // and the 0.80 beside it are the server's answer. [leaveState] presses
     // Default after both frames: the seed carries no stamp.
+    // Direction D: Filing lives in Source details, the page's settings panel
+    // (kit §28) — web's `readerDetails` opens it from the gear.
     case 'priority-high':
+      await _openPageSettings(tester, 'Source details');
       await _pressPriority(tester, 'High');
-      // The row back at the reference frame's place: the header above it.
-      await tester.drag(find.byType(CustomScrollView).first, const Offset(0, 2000));
+      // The press brought the switch on inside the panel's own scroller; put
+      // the panel back at its top, as web's frame is (Filing, then Priority).
+      tester
+          .state<ScrollableState>(find
+              .descendant(
+                  of: find.byKey(const ValueKey('d-panel')),
+                  matching: find.byType(Scrollable))
+              .first)
+          .position
+          .jumpTo(0);
       await settle();
       return;
     case 'shelf-picker':
     case 'shelf-picker-search':
+      await _openPageSettings(tester, 'Source details');
+      // Already on screen at the panel's top: an ensureVisible would align
+      // it to the top edge and scroll Filing's label away (2026-10-30).
       final plus = find.text('Shelf');
-      await tester.ensureVisible(plus);
-      await settle();
       await tester.tap(plus);
       await settle();
       final search = find.byKey(const ValueKey('shelf-pick-search'));
@@ -1223,8 +1394,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // 2 · reader-type: the Aa popover open over the manuscript — §6.8's
     // compact variant.
     case 'reader-type':
-      await _revealRailJump(tester, 'Manuscript', sideways: false);
-      await tester.tap(find.text('Manuscript').first);
+      await _readerJump(tester, 'Manuscript');
       await settle();
       final aa = find.widgetWithText(KitButton, 'Aa', skipOffstage: false);
       expect(aa, findsOneWidget, reason: 'no Aa control on the manuscript');
@@ -1317,8 +1487,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // {Provider}" line and Update from {Provider} beneath the intro, before
     // the file. The seed PDF came from Google Drive.
     case 'original-update':
-      await _revealRailJump(tester, 'Original', sideways: true);
-      await tester.tap(find.text('Original').first);
+      await _readerJump(tester, 'Original');
       await settle();
       final update = find.textContaining(RegExp(r'^Update from '),
           skipOffstage: false);

@@ -7,6 +7,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_d_parts.dart' show KitPanelScope;
 import 'kit_controls.dart';
 import 'kit_text.dart';
 
@@ -399,6 +400,9 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // Inside a §28 panel the panel's own label names the group (web `.d-pnl
+    // .set-section .lib-section-h { display: none }`).
+    if (KitPanelScope.of(context)) return const SizedBox(height: 14);
     return Padding(
       padding: EdgeInsets.only(top: first ? 0 : AppSpacing.s8, bottom: 14),
       child: Row(

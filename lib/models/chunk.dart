@@ -55,6 +55,29 @@ class Chunk {
     this.tagOverrides,
   });
 
+  /// This chunk once a `chunk_read` the write CONFIRMED has landed: 0 → 1,
+  /// the +1 the rules permit, exactly once (a read chunk stays as it is). The
+  /// reader holds its chunks as a one-shot read (INV-02), so this is how
+  /// *Passages read* moves as you read (web `foldInChunksRead`).
+  Chunk withChunkRead() => viewCount > 0
+      ? this
+      : Chunk(
+          chunkId: chunkId,
+          documentId: documentId,
+          chunkIndex: chunkIndex,
+          text: text,
+          html: html,
+          sourceType: sourceType,
+          sourcePriority: sourcePriority,
+          userEdited: userEdited,
+          createdAt: createdAt,
+          viewCount: viewCount + 1,
+          lastViewedAt: lastViewedAt,
+          searchViewCount: searchViewCount,
+          lastIncludedInNewsletter: lastIncludedInNewsletter,
+          tagOverrides: tagOverrides,
+        );
+
   factory Chunk.fromJson(Map<String, dynamic> json) {
     return Chunk(
       chunkId: json['chunk_id'] as String? ?? '',

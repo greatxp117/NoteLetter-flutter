@@ -65,6 +65,11 @@ class KitConfirm extends StatefulWidget {
   /// cooldown governs.
   final String? waitKey;
 
+  /// The confirming control's label while [onConfirm] is in flight — web
+  /// ConfirmDialog's `busyLabel` (Re-process's *Queuing…*). Null keeps
+  /// *Working…*.
+  final String? busyLabel;
+
   const KitConfirm({
     super.key,
     required this.title,
@@ -75,6 +80,7 @@ class KitConfirm extends StatefulWidget {
     this.danger = true,
     required this.onConfirm,
     this.waitKey,
+    this.busyLabel,
   });
 
   /// Show it. Resolves **true** only when the action succeeded — a dismissal
@@ -90,6 +96,7 @@ class KitConfirm extends StatefulWidget {
     bool danger = true,
     required Future<String?> Function() onConfirm,
     String? waitKey,
+    String? busyLabel,
   }) {
     return showDialog<bool>(
       context: context,
@@ -109,6 +116,7 @@ class KitConfirm extends StatefulWidget {
         danger: danger,
         onConfirm: onConfirm,
         waitKey: waitKey,
+        busyLabel: busyLabel,
       ),
     );
   }
@@ -192,10 +200,12 @@ class _KitConfirmState extends State<KitConfirm> {
             onPressed: _busy ? null : () => Navigator.of(context).pop(false),
           ),
           if (widget.danger)
-            KitButton.danger(_busy ? 'Working…' : widget.confirmLabel,
+            KitButton.danger(
+                _busy ? (widget.busyLabel ?? 'Working…') : widget.confirmLabel,
                 wait: held, onPressed: _busy ? null : _run)
           else
-            KitButton.primary(_busy ? 'Working…' : widget.confirmLabel,
+            KitButton.primary(
+                _busy ? (widget.busyLabel ?? 'Working…') : widget.confirmLabel,
                 wait: held, onPressed: _busy ? null : _run),
         ],
       ),

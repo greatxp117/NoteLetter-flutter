@@ -109,9 +109,13 @@ void main() {
       ));
     }
 
+    // Kit §34's switch in direction D (§6.8's segmented control before it).
+    KitSlideSwitch<String> sw(WidgetTester tester) => tester
+        .widget<KitSlideSwitch<String>>(find.byType(KitSlideSwitch<String>));
+
     String lit(WidgetTester tester) {
-      final seg = tester.widget<KitSegmented>(find.byType(KitSegmented));
-      return seg.segments[seg.selected].label;
+      final s = sw(tester);
+      return priorityChoices.firstWhere((c) => c.id == s.value).label;
     }
 
     testWidgets('draws Default lit and the stored number beside it while unset',
@@ -144,8 +148,7 @@ void main() {
       expect(saved, isEmpty);
       expect(find.text('Saving…'), findsOneWidget);
       expect(lit(tester), 'Default');
-      expect(tester.widget<KitSegmented>(find.byType(KitSegmented)).onChanged,
-          isNull);
+      expect(sw(tester).held, isTrue);
       await tester.tap(find.text('Low'));
       await tester.pump();
       expect(calls, [('d1', 0.8)], reason: 'a held track sends nothing');

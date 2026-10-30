@@ -312,7 +312,9 @@ class _QuietFirestore extends FirestoreService {
   _QuietFirestore() : super.stub();
 
   @override
-  Future<void> logChunksRead(String documentId, List<String> chunkIds) async {}
+  Future<List<String>> logChunksRead(
+          String documentId, List<String> chunkIds) async =>
+      const [];
 }
 
 /// `mayLeave` must not touch the context when nothing is registered — that is

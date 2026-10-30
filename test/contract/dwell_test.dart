@@ -1,4 +1,4 @@
-/// The dwell rule (contract 3.1.0, ADR-039 §3).
+/// The dwell rule (contract 3.1.0, ADR-039 §3; halved 5.27.0, ADR-184).
 ///
 /// Pinned because the rule can be wrong in only one direction that matters: a
 /// threshold too low marks a long passage read on a fast scroll past it, which
@@ -20,7 +20,9 @@ import 'package:flutter_app/theme/app_theme.dart';
 class _QuietFirestore extends FirestoreService {
   _QuietFirestore() : super.stub();
   @override
-  Future<void> logChunksRead(String documentId, List<String> chunkIds) async {}
+  Future<List<String>> logChunksRead(
+          String documentId, List<String> chunkIds) async =>
+      const [];
 }
 
 void main() {
@@ -30,13 +32,25 @@ void main() {
     expect(readingWpm, 220);
   });
 
-  test('half the estimated reading time', () {
-    // 220 words ~ 1 minute to read, so half is ~30s -- but the cap applies.
-    expect(dwellFor(220).inSeconds, dwellCapSeconds);
-    // 150 words -> 0.5 * 150/220 * 60 ~ 20.4s, also capped.
-    expect(dwellFor(150).inSeconds, dwellCapSeconds);
-    // 100 words -> 0.5 * 100/220 * 60 ~ 13.6s, under the cap.
-    expect(dwellFor(100).inSeconds, 13);
+  // ADR-184 halved the factor AND the cap: min(0.25 x words/220 x 60, 10).
+  // The spec's own worked examples, computed — ADR-039's were wrong by ten.
+  test('a quarter of the estimated reading time, capped at ten seconds', () {
+    expect(dwellCapSeconds, 10);
+    // 50 words -> 0.25 * 50/220 * 60 = 3.41s.
+    expect(dwellFor(50), const Duration(milliseconds: 3409));
+    // 100 words -> 0.25 * 100/220 * 60 = 6.82s.
+    expect(dwellFor(100), const Duration(milliseconds: 6818));
+    // 146 words is the last under the cap; 147 words and up wait ten.
+    expect(dwellFor(146).inMilliseconds, lessThan(10000));
+    expect(dwellFor(147), const Duration(seconds: 10));
+    expect(dwellFor(220), const Duration(seconds: 10));
+  });
+
+  test('neither half of the old rule survives', () {
+    // 0.5 x 100/220 x 60 = 13.6s, and a 20s cap: both were the pre-5.27.0
+    // rule, and a client still holding either one disagrees with web.
+    expect(dwellFor(100).inSeconds, lessThan(13));
+    expect(dwellFor(1000).inSeconds, lessThan(20));
   });
 
   test('a short passage is quick but never instant', () {

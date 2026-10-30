@@ -194,8 +194,16 @@ class KitHomeLower extends StatelessWidget {
 
 // ── The letter, as it is sent ───────────────────────────────────────────────
 
-String _lowerFirst(String s) =>
-    s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
+/// The next letter's phrase (`Today, 8:00 AM`, `Monday, 8:00 AM`) inside a
+/// sentence: only a leading *Today* / *Tomorrow* is lower-cased there; a
+/// weekday's name and the clock's AM/PM keep their case (web `lower`,
+/// f1e6ed3). D's first port lower-cased the WHOLE phrase in two decks, so
+/// they read "…arrives monday, 8:00 am".
+@visibleForTesting
+String kitNextInSentence(String s) => s.replaceFirstMapped(
+  RegExp(r'^(Today|Tomorrow)\b'),
+  (m) => m[1]!.toLowerCase(),
+);
 
 /// Home's letter as it is sent (web `EditionLetter`): a paper card under its
 /// **letterhead** — the seal disc and feather, the wordmark *NoteLetter* with
@@ -321,19 +329,17 @@ class KitEditionLetter extends StatelessWidget {
       } else if (first) {
         deck =
             'Add a source, and the first letter arrives '
-            '${next != null ? _lowerFirst(next) : 'the next morning'}, drawn '
+            '${next != null ? kitNextInSentence(next) : 'the next morning'}, drawn '
             'from whatever is indexed by then.';
       } else if (libState == KitLibState.reading) {
-        // Web lower-cases the WHOLE next-delivery phrase here (`toLowerCase`)
-        // where the empty case lower-cases its first letter; ported verbatim.
         deck =
             'Your library is being read. ${next != null ? 'The first '
-                      'letter arrives ${next.toLowerCase()}, drawn from what’s '
+                      'letter arrives ${kitNextInSentence(next)}, drawn from what’s '
                       'indexed by then.' : 'Tomorrow’s letter will draw from '
                       'what’s indexed so far.'}';
       } else if (libState == KitLibState.ready && next != null) {
         deck =
-            'The first letter arrives ${next.toLowerCase()}, drawn from '
+            'The first letter arrives ${kitNextInSentence(next)}, drawn from '
             'what’s indexed by then.';
       }
       return [
@@ -378,7 +384,7 @@ class KitEditionLetter extends StatelessWidget {
         ),
         KitButton.ghost(
           ghost != null
-              ? 'Next letter ${_lowerFirst(ghost)}'
+              ? 'Next letter ${kitNextInSentence(ghost)}'
               : 'Letter settings',
           icon: Icons.schedule,
           onPressed: onSettings,

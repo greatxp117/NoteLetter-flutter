@@ -99,6 +99,15 @@ void main() {
     }
   }
 
+  // web f1e6ed3: D's port lower-cased the WHOLE next-delivery phrase, so the
+  // deck read "…arrives monday, 8:00 am". Only Today / Tomorrow drop their
+  // capital inside a sentence; a weekday and AM/PM keep theirs.
+  test('the next letter\'s phrase inside a sentence', () {
+    expect(kitNextInSentence('Today, 8:00 AM'), 'today, 8:00 AM');
+    expect(kitNextInSentence('Tomorrow, 7:00 AM'), 'tomorrow, 7:00 AM');
+    expect(kitNextInSentence('Monday, 8:00 AM'), 'Monday, 8:00 AM');
+  });
+
   group('the stored letter, read without opening it', () {
     test('its head drops No. rather than guess it', () {
       final h = kitLetterHead(

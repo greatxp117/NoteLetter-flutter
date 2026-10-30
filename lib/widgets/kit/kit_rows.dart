@@ -10,6 +10,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../shared/passage_figure.dart';
 import '../../theme/tokens.dart';
+import 'kit_d_parts.dart' show KitPanelScope;
 import 'kit_controls.dart';
 import 'kit_shell.dart' show KitGlyph, KitQuill;
 import 'kit_source_link.dart';
@@ -35,6 +36,18 @@ class KitRowList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // Flat inside a §28 panel (web `.d-pnl :is(.set-rows, .set-row)`).
+    if (KitPanelScope.of(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const SizedBox(height: 18),
+            rows[i],
+          ],
+        ],
+      );
+    }
     return ClipRRect(
       borderRadius: AppRadius.mdR,
       child: Container(
@@ -705,8 +718,13 @@ class KitSettingRow extends StatelessWidget {
         ],
       ],
     );
+    // Inside a §28 panel: no inset and no icon plate (web `.d-pnl
+    // .set-row-ico { display: none }`, `.d-pnl .set-row { padding: 0 }`).
+    final panel = KitPanelScope.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: panel
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -714,6 +732,7 @@ class KitSettingRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (!panel) ...[
               leading ??
                   Container(
                     width: 38,
@@ -736,6 +755,7 @@ class KitSettingRow extends StatelessWidget {
                     child: KitGlyph(icon, size: 18, color: t.accent),
                   ),
               const SizedBox(width: 18),
+              ],
               Expanded(child: main),
               if (trailing.isNotEmpty && !stackTrailing) ...[
                 const SizedBox(width: 18),

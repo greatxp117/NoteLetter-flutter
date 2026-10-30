@@ -57,6 +57,19 @@ class Document {
   final DocumentStatus status;
   final String? sourceUrl;
   final String? gcsPath;
+
+  /// `gcs_paths` — an image set's pages, in upload order (data-model.md).
+  /// Empty on every other document. Read for Re-process's "has an original"
+  /// (5.27.0, ADR-183): a set has no single `gcs_path`.
+  final List<String> gcsPaths;
+
+  /// `source_passage` (2.31.0, ADR-032) — present only on a document filed
+  /// from text a reader selected on a page; null on every other document.
+  /// Kept whole and never switched on (`source` is an open vocabulary): what
+  /// a client asks is only whether it is there — Re-process is not offered
+  /// on a passage, which has no original to read again.
+  final Map<String, dynamic>? sourcePassage;
+
   final int? createdAt;
   final int? processedAt;
   final int? chunkCount;
@@ -237,6 +250,8 @@ class Document {
     this.mimeType,
     this.sourceUrl,
     this.gcsPath,
+    this.gcsPaths = const [],
+    this.sourcePassage,
     this.createdAt,
     this.processedAt,
     this.chunkCount,
@@ -289,6 +304,8 @@ class Document {
       mimeType: mimeType,
       sourceUrl: sourceUrl,
       gcsPath: gcsPath,
+      gcsPaths: gcsPaths,
+      sourcePassage: sourcePassage,
       createdAt: createdAt,
       processedAt: processedAt,
       chunkCount: chunkCount,
@@ -342,6 +359,8 @@ class Document {
       mimeType: mimeType,
       sourceUrl: sourceUrl,
       gcsPath: gcsPath,
+      gcsPaths: gcsPaths,
+      sourcePassage: sourcePassage,
       createdAt: createdAt,
       processedAt: processedAt,
       chunkCount: chunkCount,
@@ -394,6 +413,8 @@ class Document {
       mimeType: mimeType,
       sourceUrl: sourceUrl,
       gcsPath: gcsPath,
+      gcsPaths: gcsPaths,
+      sourcePassage: sourcePassage,
       createdAt: createdAt,
       processedAt: processedAt,
       chunkCount: chunkCount,
@@ -447,6 +468,8 @@ class Document {
       mimeType: mimeType,
       sourceUrl: sourceUrl,
       gcsPath: gcsPath,
+      gcsPaths: gcsPaths,
+      sourcePassage: sourcePassage,
       createdAt: createdAt,
       processedAt: processedAt,
       chunkCount: chunkCount,
@@ -494,6 +517,12 @@ class Document {
       status: DocumentStatus.fromString(json['status'] as String?),
       sourceUrl: json['source_url'] as String?,
       gcsPath: json['gcs_path'] as String?,
+      gcsPaths: json['gcs_paths'] is List
+          ? (json['gcs_paths'] as List).whereType<String>().toList()
+          : const [],
+      sourcePassage: json['source_passage'] is Map
+          ? (json['source_passage'] as Map).cast<String, dynamic>()
+          : null,
       createdAt: tsMs(json['created_at']),
       processedAt: tsMs(json['processed_at']),
       chunkCount: json['chunk_count'] as int?,

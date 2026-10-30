@@ -25,8 +25,14 @@ import '../../widgets/kit/kit.dart';
 /// be a `/contract-change`, not a refactor.
 class ReaderUi {
   final bool dark;
+
+  /// Inside one of the D page's sections (§31's head names it), a panel's
+  /// opening eyebrow is not drawn twice (web `.rx .panel-intro >
+  /// .eyebrow:first-child { display: none }`).
+  final bool inSection;
   ReaderUi(BuildContext context)
-      : dark = Theme.of(context).brightness == Brightness.dark;
+      : dark = Theme.of(context).brightness == Brightness.dark,
+        inSection = ReaderSectionScope.of(context);
 
   /// The token object for this brightness, so a caller that needs a token this
   /// facade does not name (the Html style map) does not add a third copy.
@@ -68,16 +74,22 @@ class ReaderUi {
         child: Lede(text, fontSize: 15, height: 23, maxWidth: 480),
       );
 
-  Widget intro(String eyebrowText, [String? noteText]) => Padding(
-        padding: const EdgeInsets.only(bottom: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            eyebrow(eyebrowText),
-            if (noteText != null) note(noteText),
-          ],
-        ),
-      );
+  Widget intro(String eyebrowText, [String? noteText]) {
+    if (inSection && noteText == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!inSection) eyebrow(eyebrowText),
+          if (noteText != null)
+            inSection
+                ? Lede(noteText, fontSize: 15, height: 23, maxWidth: 480)
+                : note(noteText),
+        ],
+      ),
+    );
+  }
 
   /// `.rsvp-track` — the 4px progress rail Listen and Speed read share: a
   /// `--surface-sunken` pill with an `--accent` fill. Where [onSeek] is given
@@ -191,4 +203,17 @@ class _DashPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DashPainter old) => old.color != color;
+}
+
+/// Marks a reader panel as standing inside a D section, under its §31 head —
+/// the head names the section, so [ReaderUi.intro] drops the panel's own
+/// opening eyebrow. The reader page wraps each section's panel in it.
+class ReaderSectionScope extends InheritedWidget {
+  const ReaderSectionScope({super.key, required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ReaderSectionScope>() != null;
+
+  @override
+  bool updateShouldNotify(ReaderSectionScope oldWidget) => false;
 }
