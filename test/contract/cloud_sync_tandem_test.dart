@@ -168,11 +168,12 @@ void main() {
       final cloud = _ConnectedCloud(const CloudIntegration(
           provider: 'google_drive', tokenValid: true, folderIds: ['f1']));
       await pumpSources(tester, SourcesStubService(), cloud: cloud);
-      // The connected card IS the disconnect (web `ConnectCard`): the card is
-      // fixed since 2026-10-08, with no Disconnect button inside it.
-      final card = find.widgetWithText(KitConnectCard, 'Google Drive');
-      await tester.ensureVisible(card);
-      await tester.tap(card);
+      // Direction D: the service row's one quiet control (web `Services`).
+      final row = find.widgetWithText(KitServiceRow, 'Google Drive');
+      final disconnect =
+          find.descendant(of: row, matching: find.widgetWithText(KitLibAct, 'Disconnect'));
+      await tester.ensureVisible(disconnect);
+      await tester.tap(disconnect);
       await tester.pumpAndSettle();
       expect(find.textContaining('asks Google Drive to revoke'), findsOneWidget);
       expect(find.textContaining('files already downloaded finish'),
@@ -181,7 +182,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
           find.descendant(
-              of: find.byType(KitProcNote),
+              of: find.byType(KitLibNote),
               matching: find.textContaining('did not confirm')),
           findsOneWidget);
     });

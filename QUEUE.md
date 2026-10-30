@@ -4,6 +4,7 @@ folded-through: 4.52.1
 pin-holds-at: 4.4.0
 retired-shots: shelf-backfill-review   # 4.102.0 (ADR-136): the in-sheet review is a stored task now; its pair is web's review-backfill on /review
 retired-paths: lib/pages/library/document_detail_sheet.dart   # F-99 (2026-10-13): the library row's Priority & tags sheet; a finished source's priority is the reader's (sources.md §Per-source affordances)
+retired-web-paths: src/pages/sources/ShelfView.jsx; src/styles/app-sources-shelf.css; src/pages/letters/LetterBarActions.jsx   # direction D (web redesign-d 2026-10-30): W1 deleted the spine view (the Library is List / Grid); W4 deleted the letter bar's actions (a68efb7)
 
 Driver: `/flutter-next` (one item per run, top to bottom). Refresh: `/parity flutter`.
 Lint: `python3 tool/queue.py lint`. Format and rules: the header of `tool/queue.py`.
@@ -2315,15 +2316,15 @@ a new obligation on a finished screen is a new item.
 - notes: Masthead, the one toolbar (moved to the app header and tab bar at 1024 and under), the settings panel dropping from the header, the sheet as a running head at 680 and under, register rows, covers (15 types incl. social_video), the List/Grid choice, sliding switches, shelf tags, row hover, D empty states, grow fields, 44px back controls; the compact rail and the Reader's card (Xavier 2026-10-30). Kit widgets by name, never inline per screen (ADR-041). In tandem with web (Xavier 2026-10-30). design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-141 · Direction D: Home, the Library and Add a source (5.42.0, ADR-197)
-- status: open
-- screen: library, sources
-- route: /, /sources
-- spec: spec/screens/library.md; spec/screens/sources.md
-- web: src/pages/LibraryHome.jsx; src/pages/SourcesBrowse.jsx; src/overlays/QuickAdd.jsx
-- flutter: lib/pages/library_page.dart; lib/pages/sources_page.dart; lib/pages/sources/browse_section.dart
+- status: done 2026-10-30
+- screen: library, sources, add
+- route: /, /sources, /sources/add
+- spec: spec/screens/library.md; spec/screens/sources.md; spec/component-kit.md
+- web: src/pages/LibraryHome.jsx; src/pages/SourcesBrowse.jsx; src/pages/AddSource.jsx; src/kit/d/Catalogue.jsx; src/kit/d/Shelves.jsx; src/kit/d/LetterQuick.jsx
+- flutter: lib/pages/library_page.dart; lib/pages/sources_page.dart; lib/pages/sources/browse_section.dart; lib/pages/sources/source_facets.dart (new); lib/pages/add_source_page.dart (new); lib/widgets/kit/kit_d_home.dart (new); lib/widgets/kit/kit_d_library.dart (new); lib/widgets/kit/kit_d_shelves.dart (new); lib/widgets/kit/kit_d_catalogue.dart (new); lib/widgets/kit/kit_d_letter.dart (new)
 - folds: 5.42.0
 - device_test: integration_test: Home's sections, the Library's facets and List/Grid, empty and first-reading states
-- shots: library; sources; sources-empty
+- shots: library; sources; sources-empty; add
 - extra_gates: flutter test test/contract
 - notes: HomeHybrid and LibHybrid. Needs F-140. Ports from web's phone frames (isMobile). design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 

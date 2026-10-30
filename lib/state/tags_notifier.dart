@@ -29,6 +29,14 @@ class TagsNotifier extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }, onError: (e) {
+      // As DocumentsNotifier's: the failed subscription is dropped, so the
+      // next `start` — the next screen that needs the shelves — reads again.
+      // Kept, it pinned the error for the life of the app: Home (F-141), which
+      // reads the shelves to know whether the library is measured, drew a
+      // refused read after a sign-in whose first read had been refused, and
+      // nothing could ever clear it.
+      _sub?.cancel();
+      _sub = null;
       _error = describeSdkError(e);
       _loading = false;
       notifyListeners();

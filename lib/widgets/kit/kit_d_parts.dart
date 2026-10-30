@@ -482,6 +482,11 @@ class KitSlideSwitch<T> extends StatefulWidget {
   /// panel).
   final bool expand;
 
+  /// The options fill the track's width each by its own label (`flex: 1 1
+  /// auto`, `padding: 0 8px` — the Library's *Order by*), where [expand]
+  /// gives every option the same width.
+  final bool fill;
+
   /// Option height; 26 by default (§34), 32/36 where the phone asks.
   final double? height;
 
@@ -494,6 +499,7 @@ class KitSlideSwitch<T> extends StatefulWidget {
     this.held = false,
     this.variant = KitSlideVariant.plain,
     this.expand = false,
+    this.fill = false,
     this.height,
   });
 
@@ -502,6 +508,19 @@ class KitSlideSwitch<T> extends StatefulWidget {
 }
 
 class _KitSlideSwitchState<T> extends State<KitSlideSwitch<T>> {
+  static Widget _label(String text, Color fg, bool pri) => Text(
+    text,
+    maxLines: 1,
+    softWrap: false,
+    overflow: TextOverflow.fade,
+    style: TextStyle(
+      fontFamily: AppTheme.fontSans,
+      fontSize: 12.5,
+      fontWeight: pri ? FontWeight.w400 : FontWeight.w500,
+      color: fg,
+    ),
+  );
+
   final GlobalKey _track = GlobalKey();
   final Map<int, GlobalKey> _keys = {};
   Rect? _box;
@@ -554,10 +573,12 @@ class _KitSlideSwitchState<T> extends State<KitSlideSwitch<T>> {
             duration: KitD.dur(context, AppMotion.durBase),
             curve: AppMotion.easeOut,
             height: h,
-            padding: EdgeInsets.only(
-              left: view ? 9 : (pri ? 12 : 11),
-              right: pri ? 12 : 11,
-            ),
+            padding: widget.fill
+                ? const EdgeInsets.symmetric(horizontal: 8)
+                : EdgeInsets.only(
+                    left: view ? 9 : (pri ? 12 : 11),
+                    right: pri ? 12 : 11,
+                  ),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               // Until the fill is measured the chosen option paints its own
@@ -575,23 +596,23 @@ class _KitSlideSwitchState<T> extends State<KitSlideSwitch<T>> {
                     KitGlyph(o.icon!, size: 14, color: fg),
                     SizedBox(width: view ? 6 : 4),
                   ],
-                  Text(
-                    o.label,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: AppTheme.fontSans,
-                      fontSize: 12.5,
-                      fontWeight: pri ? FontWeight.w400 : FontWeight.w500,
-                      color: fg,
-                    ),
-                  ),
+                  if (widget.fill || widget.expand)
+                    Flexible(child: _label(o.label, fg, pri))
+                  else
+                    _label(o.label, fg, pri),
                 ],
               ),
             ),
           );
         },
       );
-      options.add(widget.expand ? Expanded(child: opt) : opt);
+      options.add(
+        widget.fill
+            ? Expanded(flex: o.label.length + 4, child: opt)
+            : widget.expand
+            ? Expanded(child: opt)
+            : opt,
+      );
       if (i < widget.options.length - 1) options.add(const SizedBox(width: 2));
     }
     final track = Container(
@@ -623,7 +644,9 @@ class _KitSlideSwitchState<T> extends State<KitSlideSwitch<T>> {
               ),
             ),
           Row(
-            mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisSize: widget.expand || widget.fill
+                ? MainAxisSize.max
+                : MainAxisSize.min,
             children: options,
           ),
         ],
@@ -876,10 +899,23 @@ class KitUnreadDot extends StatelessWidget {
 /// The short progress bar of a source still being read (`.hx-bar`): 32 × 3 on
 /// `--surface-sunken`, an `--accent` fill; [live] slides a 28% fill on a 1.8s
 /// `--ease-in-out` loop, still under reduced motion. Only a document actually
-/// `processing` is live.
+/// `processing` is live. [value] (0..1) is a MEASURED fraction — the bytes a
+/// client's own upload has committed, the one phase with a real fraction
+/// (ADR-024) — and [done] fills it in `--positive` (`.lx-bar.done`). [fill]:
+/// the fill's colour, `--accent` by default (`.reg-stage .hx-bar i`); the
+/// Library's processing rows pass `--fg-muted` (`.lx-bar`, the kit's own).
 class KitStageBar extends StatefulWidget {
   final bool live;
-  const KitStageBar({super.key, this.live = false});
+  final double? value;
+  final bool done;
+  final Color? fill;
+  const KitStageBar({
+    super.key,
+    this.live = false,
+    this.value,
+    this.done = false,
+    this.fill,
+  });
 
   @override
   State<KitStageBar> createState() => _KitStageBarState();
@@ -905,7 +941,10 @@ class _KitStageBarState extends State<KitStageBar>
   }
 
   void _sync() {
-    final run = widget.live && !KitD.still(context);
+    final run = widget.live &&
+        widget.value == null &&
+        !widget.done &&
+        !KitD.still(context);
     if (run && !_c.isAnimating) _c.repeat();
     if (!run && _c.isAnimating) _c.stop();
   }
@@ -926,7 +965,14 @@ class _KitStageBarState extends State<KitStageBar>
         height: 3,
         color: t.surfaceSunken,
         alignment: Alignment.centerLeft,
-        child: widget.live
+        child: widget.done || widget.value != null
+            ? AnimatedContainer(
+                duration: KitD.dur(context, AppMotion.durSlow),
+                curve: AppMotion.easeQuill,
+                width: 32 * (widget.done ? 1 : widget.value!.clamp(0.0, 1.0)),
+                color: widget.done ? t.positive : (widget.fill ?? t.accent),
+              )
+            : widget.live
             ? AnimatedBuilder(
                 animation: _c,
                 builder: (context, _) {
@@ -935,7 +981,10 @@ class _KitStageBarState extends State<KitStageBar>
                   final x = (-1 + 4.6 * p) * 32 * 0.28;
                   return Transform.translate(
                     offset: Offset(x, 0),
-                    child: Container(width: 32 * 0.28, color: t.accent),
+                    child: Container(
+                      width: 32 * 0.28,
+                      color: widget.fill ?? t.accent,
+                    ),
                   );
                 },
               )
@@ -952,6 +1001,8 @@ class _KitStageBarState extends State<KitStageBar>
 /// EMPTY cell when never taken, ADR-109). In a column 760 or narrower author
 /// and shelf drop. A source still being read ([kitStageOf]) draws its stage —
 /// a bar and the stage word — in the shelf cell, no dot and an empty count.
+/// [lead] replaces the date cell: the Library's rank (`01`) when its
+/// catalogue is ordered by Most passages (web `RegisterRow`'s `lead`).
 class KitRegisterRow extends StatelessWidget {
   final Document doc;
 
@@ -959,6 +1010,7 @@ class KitRegisterRow extends StatelessWidget {
   final String? shelfTitle;
   final Color? shelfColor;
   final VoidCallback? onOpen;
+  final String? lead;
 
   const KitRegisterRow({
     super.key,
@@ -966,6 +1018,7 @@ class KitRegisterRow extends StatelessWidget {
     this.shelfTitle,
     this.shelfColor,
     this.onOpen,
+    this.lead,
   });
 
   @override
@@ -985,7 +1038,10 @@ class KitRegisterRow extends StatelessWidget {
           builder: (context, c) {
             final narrow = c.maxWidth <= KitD.regNarrow;
             final date = Text(
-              doc.createdAt == null ? '' : KitD.shortDate(doc.createdAt!),
+              lead ??
+                  (doc.createdAt == null
+                      ? ''
+                      : KitD.shortDate(doc.createdAt!)),
               maxLines: 1,
               style: AppTheme.mono(
                 fontSize: 11,
@@ -1022,24 +1078,30 @@ class KitRegisterRow extends StatelessWidget {
                 color: t.fgLede,
               ),
             );
+            // Wide, the stage takes the shelf cell's track; in a column 760
+            // or narrower it is web's `auto` track — its own width, beside a
+            // title that takes the rest (a Flexible inside an unbounded cell
+            // threw, and Home's phone drew no reading row at all).
+            final stageWord = stage == null
+                ? null
+                : Text(
+                    stage.label.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.mono(
+                      fontSize: 10.5,
+                      letterSpacing: 0.12 * 10.5,
+                      color: t.accentText,
+                    ),
+                  );
             final stageCell = stage == null
                 ? null
                 : Row(
+                    mainAxisSize: narrow ? MainAxisSize.min : MainAxisSize.max,
                     children: [
                       KitStageBar(live: stage.live),
                       const SizedBox(width: 10),
-                      Flexible(
-                        child: Text(
-                          stage.label.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.mono(
-                            fontSize: 10.5,
-                            letterSpacing: 0.12 * 10.5,
-                            color: t.accentText,
-                          ),
-                        ),
-                      ),
+                      if (narrow) stageWord! else Flexible(child: stageWord!),
                     ],
                   );
             final count = Text(
@@ -1156,6 +1218,106 @@ class KitGrowField extends StatelessWidget {
           hintMaxLines: 1,
           hintStyle: style.copyWith(color: t.fgSubtle),
         ),
+      ),
+    );
+  }
+}
+
+// ── The skeleton lines (web `.hx-skel-set`) ─────────────────────────────────
+
+/// One skeleton line's form: a [width] fraction of the column (null → whole)
+/// and [tall] for a headline's 40px bar (`.hx-skel.h1`).
+class KitSkelLine {
+  final double? width;
+  final bool tall;
+  const KitSkelLine([this.width, this.tall = false]);
+}
+
+/// A D page's loading lines (web `.hx-skel-set`, W2's kit request): bars 12
+/// tall (a headline's 40), radius 4 (6), 10 apart, 16 above, on a
+/// `--surface-sunken` → `--surface-raised` shimmer that runs 1.6s, still under
+/// reduced motion. Hidden from assistive technology; the region is busy.
+/// [center] centres the bars (the letter card's loading head).
+class KitSkeletonLines extends StatefulWidget {
+  final List<KitSkelLine> lines;
+  final bool center;
+  final double top;
+
+  const KitSkeletonLines({
+    super.key,
+    this.lines = const [KitSkelLine(0.6), KitSkelLine(), KitSkelLine(0.7)],
+    this.center = false,
+    this.top = 16,
+  });
+
+  @override
+  State<KitSkeletonLines> createState() => _KitSkeletonLinesState();
+}
+
+class _KitSkeletonLinesState extends State<KitSkeletonLines>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (KitD.still(context)) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    Widget bar(KitSkelLine l) => AnimatedBuilder(
+          animation: _c,
+          builder: (context, _) {
+            // background-size 200%: the bright middle travels one width.
+            final x = 1 - 2 * _c.value;
+            return Container(
+              height: l.tall ? 40 : 12,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(l.tall ? 6 : 4),
+                gradient: LinearGradient(
+                  begin: Alignment(x - 1, 0),
+                  end: Alignment(x + 1, 0),
+                  colors: [t.surfaceSunken, t.surfaceRaised, t.surfaceSunken],
+                ),
+              ),
+            );
+          },
+        );
+    return ExcludeSemantics(
+      child: Padding(
+        padding: EdgeInsets.only(top: widget.top),
+        child: LayoutBuilder(builder: (context, c) {
+          final w = c.maxWidth.isFinite ? c.maxWidth : 320.0;
+          return Column(
+            crossAxisAlignment: widget.center
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < widget.lines.length; i++) ...[
+                if (i > 0) const SizedBox(height: 10),
+                SizedBox(
+                  width: w * (widget.lines[i].width ?? 1),
+                  child: bar(widget.lines[i]),
+                ),
+              ],
+            ],
+          );
+        }),
       ),
     );
   }

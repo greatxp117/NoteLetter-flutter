@@ -151,10 +151,15 @@ class UnreadCloud extends CloudNotifier {
 }
 
 class StubTags extends TagsNotifier {
+  StubTags([this.shelves = const []]);
+
+  /// The shelves the Library's Shelf facet and covers read (none by default).
+  final List<Tag> shelves;
+
   @override
   void start() {}
   @override
-  List<Tag> get tags => const [];
+  List<Tag> get tags => shelves;
 }
 
 class StubActivity extends ActivityNotifier {
@@ -164,10 +169,15 @@ class StubActivity extends ActivityNotifier {
   List<ActivityItem> get items => const [];
 }
 
-/// Mounts [SourcesPage] with the real `CloudNotifier`, `OrgNotifier` and
-/// `DocumentsNotifier` over [service].
+/// Mounts [SourcesPage] — the Library in direction D (F-141) — with the real
+/// `CloudNotifier`, `OrgNotifier` and `DocumentsNotifier` over [service], and
+/// [shelves] for the Shelf facet and the covers' cloth.
 Future<void> pumpSources(WidgetTester tester, SourcesStubService service,
-    {DocumentsNotifier? documents, CloudNotifier? cloud}) async {
+    {DocumentsNotifier? documents,
+    CloudNotifier? cloud,
+    List<Tag> shelves = const [],
+    UploadNotifier? upload,
+    bool dark = false}) async {
   FirestoreService.instance = service;
   // The harness that swaps the singleton puts it back. Leaving that to each
   // caller is what `test_isolation_test` refuses, and it was right to: this
@@ -178,14 +188,15 @@ Future<void> pumpSources(WidgetTester tester, SourcesStubService service,
     providers: [
       ChangeNotifierProvider<DocumentsNotifier>(
           create: (_) => documents ?? DocumentsNotifier()),
-      ChangeNotifierProvider<TagsNotifier>(create: (_) => StubTags()),
+      ChangeNotifierProvider<TagsNotifier>(create: (_) => StubTags(shelves)),
       ChangeNotifierProvider<CloudNotifier>(create: (_) => cloud ?? QuietCloud()),
       ChangeNotifierProvider<OrgNotifier>(create: (_) => QuietOrg()),
       ChangeNotifierProvider<ActivityNotifier>(create: (_) => StubActivity()),
-      ChangeNotifierProvider<UploadNotifier>(create: (_) => UploadNotifier()),
+      ChangeNotifierProvider<UploadNotifier>(
+          create: (_) => upload ?? UploadNotifier()),
     ],
     child: MaterialApp(
-      theme: AppTheme.light,
+      theme: dark ? AppTheme.dark : AppTheme.light,
       home: const Scaffold(body: SourcesPage()),
     ),
   ));

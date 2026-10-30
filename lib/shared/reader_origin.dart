@@ -22,6 +22,8 @@ import '../models/tag.dart';
 const Map<String, String> readerOriginLabels = <String, String>{
   '/': 'Home',
   '/sources': 'Library',
+  // Add a source's Just added (direction D) — web's backOrigin label.
+  '/sources/add': 'Add a source',
   '/search': 'Search',
   '/ask': 'Ask',
   '/activity': 'Activity',

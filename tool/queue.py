@@ -6,6 +6,7 @@
     python3 tool/queue.py done F-02       → done (stamps today's date)
     python3 tool/queue.py block F-02 "device test: <first error line>"
     python3 tool/queue.py add < item.json append an item (used by /parity and /feature)
+    python3 tool/queue.py set F-02 shots "a; b"   rewrite one field of an OPEN item
     python3 tool/queue.py lint            every block well-formed, every path real (exit 1)
 
 WHY A FILE WITH A SCHEMA, AND A SCRIPT
@@ -61,6 +62,20 @@ listed path to exist, and a done item is never edited, so without this line
 deleting dead code a finished item once touched (F-99 removed
 `lib/pages/library/document_detail_sheet.dart`, which F-43 lists) would fail
 the lint forever. A retired path must be GONE, and some item must list it.
+
+`retired-web-paths:` (optional, `;`-separated) is the same twin for a `web:`
+path: a file a done item names that a later WEB change deleted. Direction D
+(2026-10-30, W1) deleted `src/pages/sources/ShelfView.jsx` and
+`src/styles/app-sources-shelf.css` (the spine view), which F-08 and F-40 name
+— the lint then failed on two finished items no Flutter change had touched,
+for as long as the web tree carries the deletion. A retired web path must be
+GONE from `NoteLetter-web/`, and some item must list it.
+
+`set` rewrites ONE field of an item that is not done — the way a queue entry
+written before its web reference landed is corrected to what web now has (the
+path, the shots) without a hand edit lint cannot tell from drift. It refuses
+`status` (start / done / block own it), a done item, and a field the schema
+does not have.
 
 Lists split on `;`. A path tagged `(new)` need not exist yet. `spec:` paths are
 relative to NoteLetter-contracts/, `web:` to NoteLetter-web/, `flutter:` to this
@@ -233,6 +248,39 @@ def cmd_block(item_id: str, reason: str) -> int:
     return 0
 
 
+def cmd_set(item_id: str, field: str, value: str) -> int:
+    """Rewrite one field of an open / in-progress / blocked item in place
+    (FORMAT, `set`). A list field takes `;`-separated values."""
+    if field == "status":
+        sys.exit("queue: `status` moves only by start / done / block")
+    if field not in FIELDS:
+        sys.exit(f"queue: no field `{field}` — fields are {', '.join(FIELDS)}")
+    if not value.strip():
+        sys.exit("queue: set needs a value (`none` for an empty list)")
+    text = QUEUE.read_text(encoding="utf-8")
+    _, items = parse(text)
+    item = next((x for x in items if x["id"] == item_id), None)
+    if item is None:
+        sys.exit(f"queue: no item {item_id}")
+    if status_kind(item) == "done":
+        sys.exit(f"queue: {item_id} is done; a done item is never edited — add a new one")
+    lines = text.splitlines()
+    at = None
+    for i in range(item["_start"], item["_end"]):
+        if lines[i].startswith(f"- {field}:"):
+            at = i
+            break
+    if at is None:
+        sys.exit(f"queue: {item_id} has no `{field}` line")
+    end = at + 1
+    while end < item["_end"] and lines[end].startswith("  ") and lines[end].strip():
+        end += 1
+    lines[at:end] = [f"- {field}: {value.strip()}"]
+    QUEUE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"{item_id}: {field} → {value.strip()}")
+    return 0
+
+
 def cmd_add(payload: dict) -> int:
     """Append one item. Payload: {"title", "after"?: "F-NN", <fields>}; list
     fields may be lists. The id is the next free F-NN. `after` inserts behind
@@ -331,6 +379,15 @@ def cmd_lint() -> int:
                    for it in items):
             problems.append(f"header: `{path}` is a retired path but no item lists it "
                             f"in `flutter:` — a retirement nothing needs is noise")
+    web_gone = set(as_list(header.get("retired-web-paths", "")))
+    for path in sorted(web_gone):
+        if (ROOT / "NoteLetter-web" / path).exists():
+            problems.append(f"header: `{path}` is a retired web path but it exists — "
+                            f"retire only what web deleted")
+        if not any(path in [e.split(" §")[0].split(" (")[0].strip()
+                            for e in as_list(it.get("web", ""))] for it in items):
+            problems.append(f"header: `{path}` is a retired web path but no item lists "
+                            f"it in `web:` — a retirement nothing needs is noise")
     for it in items:
         # Only a DONE item may keep a retired hold (its history); an open one
         # would be asking for a frame of a state that does not exist.
@@ -359,6 +416,11 @@ def cmd_lint() -> int:
                     if status_kind(it) != "done":
                         problems.append(f"{it['id']}: flutter names `{path}`, a retired "
                                         f"path — only a done item keeps its history")
+                    continue
+                if f == "web" and path in web_gone:
+                    if status_kind(it) != "done":
+                        problems.append(f"{it['id']}: web names `{path}`, a retired "
+                                        f"web path — only a done item keeps its history")
                     continue
                 if not (base / path).exists():
                     problems.append(f"{it['id']}: {f} path does not exist: {path}")
@@ -395,6 +457,8 @@ def main(argv: list[str]) -> int:
         return cmd_block(argv[1], argv[2])
     if cmd == "add":
         return cmd_add(json.load(sys.stdin))
+    if cmd == "set" and len(argv) == 4:
+        return cmd_set(argv[1], argv[2], argv[3])
     if cmd == "lint":
         return cmd_lint()
     print(__doc__.split("WHY", 1)[0])

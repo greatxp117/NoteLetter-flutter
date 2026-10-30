@@ -31,11 +31,12 @@ class AppLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     // The shell's verbs for every D page's kit parts (web `DShellProvider`):
-    // this client has no quick-search overlay, so Search goes where the
-    // overlay would lead — /search; Add a source is the Library's uploader.
+    // this client has no quick-search or quick-add overlay, so Search goes
+    // where the overlay would lead — /search — and Add a source is its own
+    // page, /sources/add (F-141).
     final shelled = KitDShell(
       openSearch: () => context.go('/search'),
-      openAdd: () => context.go('/sources'),
+      openAdd: () => context.go('/sources/add'),
       child: child,
     );
     final wide = MediaQuery.sizeOf(context).width > KitD.chromeMax;
@@ -55,7 +56,7 @@ class AppLayout extends StatelessWidget {
         route: route,
         aiOn: shellAiOn(context),
         onGo: (path) => context.go(path),
-        onAdd: () => context.go('/sources'),
+        onAdd: () => context.go('/sources/add'),
       ),
     );
   }

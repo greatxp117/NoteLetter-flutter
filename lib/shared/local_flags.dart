@@ -65,31 +65,15 @@ class LocalFlags {
   /// cached at mount would leave the badge lit on the screen that cleared it.
   static final ValueNotifier<int> activityLastSeen = ValueNotifier<int>(0);
 
-  /// How a list of volumes is drawn — the reference's `nl-sources-view`
-  /// (Sources: `list` · `cards` · `shelf`), `nl-recent-view` (the Library's
-  /// Recently read: `list` · `shelf`) and `nl-shelves-view` (the Library's
-  /// Shelves: `shelf` · `card`). **Per viewer, per device**, as the reference
-  /// keeps them in `localStorage`; the shelf is every one's default. A stored
-  /// value outside its set reads as the default rather than as a blank view.
-  static const String sourcesViewKey = 'nl-sources-view';
-  static const String recentViewKey = 'nl-recent-view';
-  static const String shelvesViewKey = 'nl-shelves-view';
-
-  static const sourcesViews = ['list', 'cards', 'shelf'];
-
   /// Direction D's ONE choice for every listing of sources (kit §32): `list`
   /// or `grid`, List by default, kept on this device under `nl-source-view`.
-  /// An unknown or unreadable value reads as List; the pre-D keys above are
-  /// ignored by it, never migrated. A [ValueNotifier], so every toggle and
-  /// every listing on screen follows a change at once (web broadcasts it).
+  /// An unknown or unreadable value reads as List. The pre-D keys
+  /// (`nl-sources-view`, `nl-recent-view`, `nl-shelves-view`: list / cards /
+  /// shelf, per section) are retired with their views (F-141) and ignored,
+  /// never migrated. A [ValueNotifier], so every toggle and every listing on
+  /// screen follows a change at once (web broadcasts it).
   static const String sourceViewKey = 'nl-source-view';
   static final ValueNotifier<String> sourceView = ValueNotifier('list');
-  static const recentViews = ['list', 'shelf'];
-  static const shelvesViews = ['shelf', 'card'];
-
-  static final ValueNotifier<String> sourcesView = ValueNotifier('shelf');
-  static final ValueNotifier<String> recentView = ValueNotifier('shelf');
-  static final ValueNotifier<String> shelvesView = ValueNotifier('shelf');
 
   /// The Library's setup checklist (web `shared/OnboardingChecklist.jsx`):
   /// hidden for good (`nl-onboard-dismissed`), opened or closed
@@ -139,9 +123,6 @@ class LocalFlags {
     shelfCollapsed.value = next;
   }
 
-  static String _oneOf(String? v, List<String> set) =>
-      v != null && set.contains(v) ? v : 'shelf';
-
   static Future<void>? _loading;
 
   /// Read the stored values once, whoever asks first.
@@ -156,9 +137,6 @@ class LocalFlags {
     scripture.value = prefs.getBool(scriptureKey) ?? false;
     onboarded.value = prefs.getBool(onboardedKey) ?? false;
     activityLastSeen.value = prefs.getInt(activityLastSeenKey) ?? 0;
-    sourcesView.value = _oneOf(prefs.getString(sourcesViewKey), sourcesViews);
-    recentView.value = _oneOf(prefs.getString(recentViewKey), recentViews);
-    shelvesView.value = _oneOf(prefs.getString(shelvesViewKey), shelvesViews);
     onboardDismissed.value = prefs.getBool(onboardDismissedKey) ?? false;
     onboardExpanded.value = prefs.getBool(onboardExpandedKey);
     onboardAsked.value = prefs.getBool(onboardAskedKey) ?? false;
@@ -170,19 +148,6 @@ class LocalFlags {
   /// Forget the one-time load, so a test can seed the store and read it again.
   @visibleForTesting
   static void resetForTest() => _loading = null;
-
-  /// Write before you move, as every setter here does: the view a reader
-  /// picked is the one they get back next launch, or the control never moved.
-  static Future<void> setView(ValueNotifier<String> which, String view) async {
-    final key = identical(which, sourcesView)
-        ? sourcesViewKey
-        : identical(which, recentView)
-            ? recentViewKey
-            : shelvesViewKey;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, view);
-    which.value = view;
-  }
 
   /// List / Grid (kit §32). Write before you move: the stored word lands
   /// first, then the notifier every toggle and listing reads.

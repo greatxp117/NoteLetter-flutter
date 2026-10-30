@@ -61,8 +61,11 @@ class _ConnectedCloud extends QuietCloud {
       provider == integration.provider ? integration : null;
 }
 
+/// Inside a service's row (direction D's Correspondence; the connect card
+/// until F-141): a sentence or a control that belongs under the provider's
+/// "Import from" header must never be drawn here.
 Finder _inCard(Finder f) =>
-    find.descendant(of: find.byType(KitConnectCard), matching: f);
+    find.descendant(of: find.byType(KitServiceRow), matching: f);
 
 Finder _link(String label) => find.widgetWithText(KitSettingLink, label);
 
@@ -117,27 +120,48 @@ void main() {
       expect(find.byType(KitButton), findsNothing);
     });
 
-    testWidgets('Sources: no control inside any card; the pill says Connected',
+    // Direction D (screens/sources.md §Composition, Correspondence): the
+    // connect cards are retired; a service is a ROW — its mark, its name,
+    // *Connected* or its line, and ONE quiet control. Everything a connected
+    // provider can do still lives under its "Import from" header, never in
+    // the row, and the rows stay ABOVE the panels so Disconnect and a second
+    // service remain reachable.
+    testWidgets('Sources: one control per service row; Connected says so',
         (tester) async {
       await pumpSources(tester, SourcesStubService(),
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true, folderIds: ['f1'])));
-      expect(find.byType(KitConnectCard), findsNWidgets(4));
-      expect(_inCard(find.byType(KitButton)), findsNothing);
-      expect(_inCard(find.byType(KitSettingLink)), findsNothing);
-      expect(_inCard(find.text('Sync now')), findsNothing);
+      expect(find.byType(KitConnectCard), findsNothing);
+      final rows = find.byType(KitServiceRow);
+      expect(rows, findsNWidgets(4));
+      Finder inRow(String name, Finder f) => find.descendant(
+          of: find.widgetWithText(KitServiceRow, name), matching: f);
+      for (final name in ['Google Drive', 'OneDrive', 'Notion', 'Dropbox']) {
+        expect(inRow(name, find.byType(KitLibAct)), findsOneWidget,
+            reason: '$name: one control, never a panel inside the row');
+        expect(inRow(name, find.byType(KitButton)), findsNothing);
+        expect(inRow(name, find.byType(KitSettingLink)), findsNothing);
+        expect(inRow(name, find.text('Sync now')), findsNothing);
+      }
+      expect(inRow('Google Drive', find.text('Connected')), findsOneWidget);
+      expect(inRow('Google Drive', find.text('Disconnect')), findsOneWidget);
+      expect(inRow('OneDrive', find.text('Files & folders')), findsOneWidget);
+      expect(inRow('OneDrive', find.text('Connect')), findsOneWidget);
+      // Rows above the panels: the connected provider's header follows them.
       expect(
-          find.descendant(
-              of: find.widgetWithText(KitConnectCard, 'Google Drive'),
-              matching: _pill('Connected', positive: true)),
-          findsOneWidget);
-      expect(
-          find.descendant(
-              of: find.widgetWithText(KitConnectCard, 'OneDrive'),
-              matching: _pill('Connect', positive: false)),
-          findsOneWidget);
+          tester.getTopLeft(find.text('IMPORT FROM GOOGLE DRIVE')).dy,
+          greaterThan(tester.getBottomLeft(rows.last).dy));
+      expect(find.text('IMPORTS · FILING · FOLDERS'), findsOneWidget);
       expect(find.text('Enable auto-organization'), findsNothing,
           reason: 'organizing is enabled from Settings now');
+    });
+
+    testWidgets('Sources: nothing connected offers the services', (tester) async {
+      await pumpSources(tester, SourcesStubService());
+      expect(find.byType(KitServiceRow), findsNWidgets(4));
+      expect(find.text('SERVICES THAT SEND YOU VOLUMES'), findsOneWidget);
+      expect(find.widgetWithText(KitLibAct, 'Connect'), findsNWidgets(4));
+      expect(find.textContaining('IMPORT FROM'), findsNothing);
     });
   });
 

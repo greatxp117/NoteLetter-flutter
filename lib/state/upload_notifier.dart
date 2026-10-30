@@ -16,6 +16,75 @@ class UploadNotifier extends ChangeNotifier {
 
   List<UploadFile> get files => List.unmodifiable(_files);
 
+  // ── What adding answered, and what it made (direction D, F-141) ───────────
+  //
+  // The Library and Add a source draw their intake from this notifier, which
+  // outlives either page: a drop on the empty Library unmounts its drop zone
+  // the moment the first row arrives, and what the add answered must still be
+  // said beside the rows it made (web `useIntake`'s `rejections`, `linkNote`,
+  // `uploadPcts` and `added`). None of this changes a request.
+
+  /// Every document id an add created this app session, in the order it was
+  /// created — a session's `docId`, a playlist's `docIds` and its `failed`.
+  /// Add a source's *Just added* reads the documents subscription for the
+  /// ones its visit made ([addedMark], [addedSince]).
+  final List<String> _added = [];
+
+  /// Where the created ids stand now; a page takes it on arrival.
+  int get addedMark => _added.length;
+
+  /// The ids created since [mark], oldest first.
+  List<String> addedSince(int mark) =>
+      List.unmodifiable(_added.skip(mark.clamp(0, _added.length)));
+
+  void _note(Iterable<String?> ids) {
+    var changed = false;
+    for (final id in ids) {
+      if (id == null || id.isEmpty || _added.contains(id)) continue;
+      _added.add(id);
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
+  /// docId → the fraction of its bytes the upload has COMMITTED (0..1) — the
+  /// one determinate phase there is (ADR-024, sources.md §States). Only while
+  /// the bytes are leaving; gone once they have landed or failed.
+  final Map<String, double> _put = {};
+  Map<String, double> get uploadFractions => Map.unmodifiable(_put);
+
+  /// The files and links this intake refused, each by NAME with its reason
+  /// (ADR-046: a batch that silently drops what it would not take is the
+  /// failure this replaces) — the local refusal, the server's, and a PUT that
+  /// failed after its row existed.
+  final List<({String name, String reason})> _refused = [];
+  List<({String name, String reason})> get refused =>
+      List.unmodifiable(_refused);
+
+  /// A playlist's measured count, said once (4.114.0, ADR-151); a single link
+  /// says nothing here, because its row is the statement.
+  String? _linkNote;
+  String? get linkNote => _linkNote;
+
+  /// A new add begins: what the last one answered is no longer the answer
+  /// (web `setRejections([])`, `setLinkNote(null)`).
+  void beginIntake() {
+    if (_refused.isEmpty && _linkNote == null) return;
+    _refused.clear();
+    _linkNote = null;
+    notifyListeners();
+  }
+
+  /// Say that [name] was refused — the caller's own refusal at the door.
+  void refuse(String name, String reason) {
+    _refused.add((name: name, reason: reason));
+    notifyListeners();
+  }
+
+  /// A page arriving starts with nothing answered (web: a new page, a new
+  /// intake). The created ids are kept — they are a record, not an answer.
+  void clearAnswered() => beginIntake();
+
   /// Row identity. A timestamp alone is not unique: `_pickFiles` starts every
   /// dropped file in one synchronous loop, and two of them can land in the
   /// same microsecond.
@@ -75,6 +144,7 @@ class UploadNotifier extends ChangeNotifier {
 
     // An image set is one capture from the upload surface, not twenty.
     Analytics.track('capture_started', {'surface': 'upload'});
+    String? setDoc;
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.1);
       final filesMeta = set
@@ -84,11 +154,16 @@ class UploadNotifier extends ChangeNotifier {
       final session =
           await Api.instance.createMultiImageSession(filesMeta, setName);
       final docId = session['docId'] as String;
+      setDoc = docId;
       final urls = (session['uploadUrls'] as List).cast<String>();
+      _put[docId] = 0;
       _patch(file.id, docId: docId, progress: 0.2);
+      _note([docId]);
 
       for (var i = 0; i < set.length; i++) {
         await ApiService.instance.putBytes(urls[i], set[i].bytes, set[i].mimeType);
+        // The whole set's committed images, one bar (5.10.0, ADR-170).
+        _put[docId] = (i + 1) / set.length;
         _patch(file.id, progress: 0.2 + 0.7 * ((i + 1) / set.length));
       }
 
@@ -98,14 +173,13 @@ class UploadNotifier extends ChangeNotifier {
       Analytics.track('capture_completed', {'surface': 'upload'});
     } on UnauthorizedException {
       await AuthService.instance.signOut();
-      _patch(file.id,
-          status: UploadStatus.error, errorMessage: 'Session expired.');
+      _fail(file.id, setName, 'Session expired.');
     } on ApiException catch (e) {
-      _patch(file.id, status: UploadStatus.error, errorMessage: e.message);
+      _fail(file.id, setName, e.message);
     } catch (_) {
-      _patch(file.id,
-          status: UploadStatus.error,
-          errorMessage: 'Image upload failed. Please try again.');
+      _fail(file.id, setName, 'Image upload failed. Please try again.');
+    } finally {
+      if (setDoc != null && _put.remove(setDoc) != null) notifyListeners();
     }
     return file.id;
   }
@@ -134,11 +208,11 @@ class UploadNotifier extends ChangeNotifier {
     final url = normalizeUrl(rawUrl);
     final type = url == null ? null : detectUrlType(url);
     if (url == null || type == null) {
-      return (
-        rejection: 'That doesn’t look like a link NoteLetter can read. Paste a full '
-            'web address, or a YouTube, Instagram, TikTok or podcast link.',
-        note: null,
-      );
+      const rejection =
+          'That doesn’t look like a link NoteLetter can read. Paste a full '
+          'web address, or a YouTube, Instagram, TikTok or podcast link.';
+      refuse(_linkName(rawUrl.trim()), rejection);
+      return (rejection: rejection, note: null);
     }
 
     final displayName =
@@ -184,6 +258,7 @@ class UploadNotifier extends ChangeNotifier {
     // filename, no mime type, no size. Started and completed are two events on
     // purpose — the gap between them is the abandonment this measures.
     Analytics.track('capture_started', {'surface': 'upload'});
+    String? fileDoc;
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.1);
 
@@ -191,7 +266,10 @@ class UploadNotifier extends ChangeNotifier {
           .createUploadSession(file.name, file.mimeType, file.size);
 
       final docId = session['docId'] as String;
+      fileDoc = docId;
+      _put[docId] = 0;
       _patch(file.id, docId: docId, progress: 0.25);
+      _note([docId]);
 
       // F-121 (INV-08, ADR-050): through the resumable session, as on web —
       // chunked, resumed from what the session committed, and never the bare
@@ -203,21 +281,24 @@ class UploadNotifier extends ChangeNotifier {
         filename: file.name,
         mimeType: file.mimeType,
         source: source,
-        onProgress: (f) => _patch(file.id, progress: 0.25 + 0.75 * f),
+        onProgress: (f) {
+          _put[docId] = f;
+          _patch(file.id, progress: 0.25 + 0.75 * f);
+        },
       );
 
       _patch(file.id, status: UploadStatus.completed, progress: 1.0);
       Analytics.track('capture_completed', {'surface': 'upload'});
     } on UnauthorizedException {
       await AuthService.instance.signOut();
-      _patch(file.id, status: UploadStatus.error, errorMessage: 'Session expired.');
+      _fail(file.id, file.name, 'Session expired.');
     } on ApiException catch (e) {
-      _patch(file.id, status: UploadStatus.error, errorMessage: e.message);
+      _fail(file.id, file.name, e.message);
     } catch (_) {
-      _patch(file.id, status: UploadStatus.error,
-          errorMessage: 'Upload failed. Please try again.');
+      _fail(file.id, file.name, 'Upload failed. Please try again.');
     } finally {
       _pending.remove(file.id);
+      if (fileDoc != null && _put.remove(fileDoc) != null) notifyListeners();
     }
   }
 
@@ -235,21 +316,27 @@ class UploadNotifier extends ChangeNotifier {
       // A playlist's answer is ONE success, said with the measured count
       // (4.114.0, ADR-151); a single link keeps the row's own line.
       final docIds = (result['docIds'] as List?)?.cast<String>();
+      final note = playlistAdded(result);
+      _note([
+        result['docId'] as String?,
+        ...?docIds,
+        ...((result['failed'] as List?)?.whereType<String>() ?? const []),
+      ]);
+      if (note != null) _linkNote = note;
       _patch(file.id,
           status: UploadStatus.completed,
           progress: 1.0,
           docId: result['docId'] as String?,
           docIds: docIds,
-          note: playlistAdded(result));
+          note: note);
       Analytics.track('capture_completed', {'surface': 'url'});
     } on UnauthorizedException {
       await AuthService.instance.signOut();
-      _patch(file.id, status: UploadStatus.error, errorMessage: 'Session expired.');
+      _fail(file.id, _linkName(url), 'Session expired.');
     } on ApiException catch (e) {
-      _patch(file.id, status: UploadStatus.error, errorMessage: e.message);
+      _fail(file.id, _linkName(url), e.message);
     } catch (_) {
-      _patch(file.id, status: UploadStatus.error,
-          errorMessage: 'Failed to ingest URL. Please try again.');
+      _fail(file.id, _linkName(url), 'Failed to ingest URL. Please try again.');
     }
   }
 
@@ -276,6 +363,19 @@ class UploadNotifier extends ChangeNotifier {
     if (errorMessage != null) f.errorMessage = errorMessage;
     if (note != null) f.note = note;
     notifyListeners();
+  }
+
+  /// The row fails, and the intake says so by name.
+  void _fail(String rowId, String name, String message) {
+    _refused.add((name: name, reason: message));
+    _patch(rowId, status: UploadStatus.error, errorMessage: message);
+  }
+
+  /// A refused link's name, as web names it: the address less its scheme,
+  /// cut at 60.
+  static String _linkName(String url) {
+    final bare = url.replaceFirst(RegExp(r'^https?://'), '');
+    return bare.length <= 60 ? bare : bare.substring(0, 60);
   }
 
   String _truncate(String url) {

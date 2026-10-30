@@ -11,6 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flutter_app/models/cloud_integration.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/shared/cloud_return.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
@@ -69,15 +70,28 @@ class _ClaimCloud extends CloudNotifier {
   final claimed = <String>[];
   final opened = <String>[];
 
+  /// The providers a claim has connected: the integration exists only once
+  /// the claim answered (the read at mount ran before it).
+  final live = <String>{};
+
   @override
   Future<void> loadIntegrations() async {}
+
+  @override
+  CloudIntegration? integrationFor(String provider) => live.contains(provider)
+      ? CloudIntegration(provider: provider, tokenValid: true)
+      : null;
 
   @override
   Future<({Map<String, dynamic>? answer, String? refusal})> claim(
       String claim) async {
     claimed.add(claim);
     if (gate != null) await gate;
-    return (answer: answer, refusal: refusal);
+    final a = answer;
+    if (a != null && a['cloud_connect'] == 'success' && a['provider'] is String) {
+      live.add(a['provider'] as String);
+    }
+    return (answer: a, refusal: refusal);
   }
 
   @override
@@ -172,7 +186,13 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.text('Finishing the Google Drive connection…'), findsNothing);
-      expect(find.text('Google Drive connected.'), findsOneWidget);
+      // Direction D: the return is said in the Library's notices strip and
+      // the first-import nudge over the panels — no toast.
+      expect(
+          find.text('Connected to Google Drive — import your first files '
+              'below.'),
+          findsOneWidget);
+      expect(find.text('Google Drive connected.'), findsNothing);
       expect(cloud.opened, ['google_drive'],
           reason: 'the first-import prompt fires on return');
       await tester.pump();
@@ -194,9 +214,11 @@ void main() {
       await tester.pump();
       expect(cloud.claimed, ['cap-claim-app']);
       expect(
-          find.text('Google Drive was already connected — sign-in refreshed, '
-              'nothing else changed.'),
+          find.text('Google Drive was already connected — your sign-in was '
+              'refreshed and nothing else changed.'),
           findsOneWidget);
+      expect(find.textContaining('import your first files'), findsNothing,
+          reason: 'no import nudge: nothing was added to import');
       expect(cloud.opened, isEmpty,
           reason: 'a re-authorisation adds nothing to import');
       await tester.pump(const Duration(seconds: 10));
@@ -225,7 +247,7 @@ void main() {
           claim: 'cap-claim-org-app', provider: 'google_drive'));
       await pumpSources(tester, SourcesStubService(), cloud: cloud);
       await tester.pump();
-      expect(find.text('Google Drive connected — auto-organization enabled.'),
+      expect(find.text('Auto-organization is now enabled for Google Drive.'),
           findsOneWidget);
       expect(cloud.opened, isEmpty);
       await tester.pump(const Duration(seconds: 10));
@@ -244,6 +266,13 @@ void main() {
               'approve to import your files.'),
           findsOneWidget);
       expect(cloud.claimed, isEmpty);
+      // Direction D: a reason banner is a notice on the accent rule, and it
+      // can be dismissed.
+      expect(find.byType(KitLibNotice), findsOneWidget);
+      await tester.tap(find.widgetWithText(KitHxLink, 'Dismiss'));
+      await tester.pump();
+      expect(find.textContaining('Access to Google Drive was declined'),
+          findsNothing);
     });
 
     testWidgets('a claim answered with an error names its reason',

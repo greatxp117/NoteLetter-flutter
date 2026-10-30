@@ -57,6 +57,10 @@ import 'package:flutter_app/services/sweep_ledger.dart';
 
 const seedEmail = 'seed@noteletter.test';
 const seedPassword = 'seed-password-1';
+
+/// The empty account web's theme-shots signs up for its empty frames.
+const emptyEmail = 'empty@noteletter.test';
+const emptyPassword = 'empty-password-1';
 const route = String.fromEnvironment('HOLD_ROUTE', defaultValue: '/activity');
 
 /// A STATE no route reaches — an opened letter, a typed query, a picker.
@@ -138,6 +142,19 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
   // redirect would send the frame to `/` under the sign-in page's name.
   if (signedOutRoutes.contains(route)) {
     await FirebaseAuth.instance.signOut();
+  } else if (h.state == 'empty-account') {
+    // `sources-empty` (F-141): the Library of an account with NO documents —
+    // the same empty@noteletter.test web's `inEmptyAccount` signs up, created
+    // here when this emulator boot has not seen it. Onboarded, as web's
+    // `nl-onboarded`, so the first-run wizard does not wrap the frame.
+    await LocalFlags.setOnboarded(true);
+    try {
+      await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: emptyEmail, password: emptyPassword);
+    } on FirebaseAuthException {
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: emptyEmail, password: emptyPassword);
+    }
   } else {
     // Every signed-in hold signs in itself: a batch can arrive here signed out
     // (after a signed-out hold), and a session persisted on the simulator
@@ -162,7 +179,14 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
       await tester.pump(const Duration(milliseconds: 200));
     }
   } else {
-    await tester.pumpAndSettle(const Duration(seconds: 2));
+    // Bounded pumps, never a settle: the app opens on Home, and Home in
+    // direction D (F-141) carries live stage bars in its desk ledger and
+    // Recently added whenever a source is being read — the seed's always is.
+    // A settle waited for a quiet frame that never came, and every hold hung
+    // before reaching its own route.
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
   }
   router.go(route);
   for (var i = 0; i < 30; i++) {
@@ -237,16 +261,18 @@ Future<void> leaveState(WidgetTester tester, String holdState) async {
       for (final k in SweepLedger.keys) {
         await store.write(k, null);
       }
+    // Direction D (F-141): List / Grid is ONE choice on the device
+    // (`nl-source-view`), List when none is stored — give it back.
     case 'recent-list':
-      await LocalFlags.setView(LocalFlags.recentView, 'shelf');
     case 'sources-cards':
-      await LocalFlags.setView(LocalFlags.sourcesView, 'shelf');
+    case 'letter-chips':
+      await LocalFlags.setSourceView('list');
     case 'unpin-held':
       ApiService.instance.resetTestSeams();
     case 'letter-cards':
-      // The card segment is the reader's stored choice; give the shelf
-      // segment back, or every later Home frame draws the cards.
-      await LocalFlags.setView(LocalFlags.shelvesView, 'shelf');
+      // Grid is the reader's stored choice; give List back, or every later
+      // Home and Library frame draws covers.
+      await LocalFlags.setSourceView('list');
     case 'priority-high':
       await _pressPriority(tester, 'Default');
     case 'summary-reset-confirm':
@@ -362,6 +388,20 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
 
   switch (holdState) {
     case '':
+      return;
+    // F-141: the empty Library, scrolled to its catalogue's drop zone as
+    // web's phone frame is (`inEmptyAccount` scrolls `.lx .lx-dz` into view).
+    case 'empty-account':
+      final dz = find.text('Drop files to begin');
+      for (var i = 0; i < 40 && dz.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      if (dz.evaluate().isEmpty) {
+        fail('the empty Library drew no drop zone — this frame would be '
+            'another state under sources-empty');
+      }
+      await tester.ensureVisible(dz.first);
+      await settle();
       return;
     // The camera-roll sweep (F-125 S3) — `tool/sweep_tray_test.sh frames`
     // adds the three pages and sets full photo access first. Its frames pair
@@ -1108,13 +1148,13 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           alignment: 0.9);
       await settle();
       return;
-    // sources.md §Composition body 3 — In your library, with the list / cards
-    // / shelf toggle (F-65), below the fold at rest. Shot for looking only:
-    // the web's `sources` frame is the top of the page.
+    // sources.md §Composition — the catalogue, below the fold at rest
+    // (direction D, F-141; it was "In your library" with the list / cards /
+    // shelf toggle). Shot for looking only: web's `sources` frame is the top
+    // of the page.
     case 'sources-browse':
       await settle();
-      final head = find.textContaining(
-          RegExp(r'^In your library', caseSensitive: false));
+      final head = find.text('The catalogue');
       for (var i = 0; i < 40; i++) {
         if (head.evaluate().isNotEmpty) break;
         await tester.pump(const Duration(milliseconds: 200));
@@ -1123,22 +1163,11 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           alignment: 0.05);
       await settle();
       return;
-    // The same, with the first spine pulled — its detail card (F-65). Look only.
+    // The spine shelf's pulled book (F-65) — retired with the spine view in
+    // direction D (sources.md §Composition; W1 deleted web's ShelfView). No
+    // item lists it; it fails rather than photograph another surface.
     case 'sources-book':
-      await settle();
-      final spine = find.byType(KitBookSpine);
-      for (var i = 0; i < 40; i++) {
-        if (spine.evaluate().isNotEmpty) break;
-        await tester.pump(const Duration(milliseconds: 200));
-      }
-      await tester.ensureVisible(spine.first);
-      await tester.tap(spine.first);
-      await settle();
-      await Scrollable.ensureVisible(
-          tester.element(find.byType(KitBookSpine).first),
-          alignment: 0.1);
-      await settle();
-      return;
+      fail('sources-book: the spine view is retired in direction D (F-141)');
     // library.md — Recently read and Shelves, below the fold at rest, with
     // their list / shelf toggles (F-54). Shot for looking only.
     // library.md §The letter chip (ruled 2026-10-14) — web 91026a9's
@@ -1148,20 +1177,20 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // `tool/seed_letter_chips.py [--off]` writes the data first.
     case 'letter-chips':
     case 'letter-cards':
+      // Direction D (F-141, kit §42): Home's shelves are the catalogue in
+      // List (the chips on each column's mark) and covers in Grid — web's
+      // D `library-letter-chips` / `-cards` / `-off`.
       final cards = holdState == 'letter-cards';
-      await LocalFlags.setView(LocalFlags.shelvesView, cards ? 'card' : 'shelf');
+      await LocalFlags.setSourceView(cards ? 'grid' : 'list');
       await settle();
       final target = cards
-          ? find.textContaining(RegExp(r'^shelves · \d', caseSensitive: false),
-              skipOffstage: false)
-          : find.ancestor(
-              of: find.text('Stories', skipOffstage: false),
-              matching: find.byType(KitShelfUnit, skipOffstage: false));
+          ? find.text('The shelves', skipOffstage: false)
+          : find.text('Stories', skipOffstage: false);
       for (var i = 0; i < 60 && target.evaluate().isEmpty; i++) {
         await tester.pump(const Duration(milliseconds: 200));
       }
       expect(target, findsWidgets,
-          reason: cards ? 'no Shelves section' : 'no Stories shelf unit');
+          reason: cards ? 'no Shelves section' : 'no Stories shelf');
       await Scrollable.ensureVisible(tester.element(target.first),
           alignment: 0.0, duration: Duration.zero);
       await settle();
@@ -1174,25 +1203,21 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // source's count cell empty. sources-uncounted: Sources' card view.
     case 'recent-list':
     case 'sources-cards':
+      // Direction D (F-141): library-uncounted is Home's Recently added in
+      // List (the uncounted source's count cell empty); sources-uncounted is
+      // the Library's catalogue in Grid — the wall (web W1's re-shoot).
       final list = holdState == 'recent-list';
-      await LocalFlags.setView(
-          list ? LocalFlags.recentView : LocalFlags.sourcesView,
-          list ? 'list' : 'cards');
+      await LocalFlags.setSourceView(list ? 'list' : 'grid');
       await settle();
-      // The uncounted source's own card (web shoots the whole card grid).
-      final at = list
-          ? find.textContaining(RegExp(r'^recently read', caseSensitive: false),
-              skipOffstage: false)
-          : find.ancestor(
-              of: find.text('Quarterly Tax Summary', skipOffstage: false),
-              matching: find.byType(KitSourceCard, skipOffstage: false));
+      final at = find.text(list ? 'Recently added' : 'The catalogue',
+          skipOffstage: false);
       for (var i = 0; i < 60 && at.evaluate().isEmpty; i++) {
         await tester.pump(const Duration(milliseconds: 200));
       }
       expect(at, findsWidgets,
-          reason: list ? 'no Recently read list' : 'no source cards');
+          reason: list ? 'no Recently added' : 'no catalogue');
       await Scrollable.ensureVisible(tester.element(at.first),
-          alignment: list ? 0.0 : 0.3, duration: Duration.zero);
+          alignment: 0.0, duration: Duration.zero);
       await settle();
       return;
     // 2 · reader-type: the Aa popover open over the manuscript — §6.8's
@@ -1312,8 +1337,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       return;
     case 'library-shelves':
       await settle();
-      final recentHead = find.textContaining(
-          RegExp(r'^Recently read', caseSensitive: false));
+      final recentHead = find.text('Recently added');
       for (var i = 0; i < 40; i++) {
         if (recentHead.evaluate().isNotEmpty) break;
         await tester.pump(const Duration(milliseconds: 200));

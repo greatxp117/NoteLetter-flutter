@@ -18,6 +18,8 @@ import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
+import 'package:flutter_app/state/documents_notifier.dart';
+import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/chat_notifier.dart';
 import 'package:flutter_app/shared/local_flags.dart';
 import 'package:flutter_app/state/search_notifier.dart';
@@ -274,54 +276,44 @@ void main() {
   testWidgets('the library home composes from the kit and really scrolls', (
     tester,
   ) async {
-    // `/` is the Library (screens/library.md). Composition is what no other
-    // gate here looks at: tokens, data and behaviour were all green while this
-    // screen was a different design (ADR-041), so the assertions below are
-    // about PARTS BEING PRESENT, in the roles the kit gives them.
+    // `/` is Home (screens/library.md §Composition, direction D since F-141).
+    // Composition is what no other gate here looks at: tokens, data and
+    // behaviour were all green while this screen was a different design
+    // (ADR-041), so the assertions below are about PARTS BEING PRESENT, in the
+    // roles the kit gives them. F-141's own run drives its sections.
     await pumpApp(tester);
-    // Bounded pumps rather than a settle: the library home lists live
-    // documents, and a processing one carries a looping indicator. With one in
-    // the feed a settle waits for a frame that never comes — this test hung for
-    // the full ten-minute settle timeout on exactly that.
+    // Bounded pumps rather than a settle: Home lists live documents, and a
+    // processing one carries a looping indicator.
     for (var i = 0; i < 16; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
 
-    // The chapter opening: folio, the greeting title with its accent clause,
-    // and the chapter rule. The dropped folio and the dropped accent clause are
-    // two of the four commonest ways a screen stops looking like this app.
-    expect(find.byType(ChapterOpening), findsOneWidget);
-    expect(find.byType(ChapterRule), findsWidgets);
+    // The D frame: the masthead (folio, the greeting with its accent clause,
+    // the double rule) — never the pre-D chapter opening.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.byType(KitMasthead), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsNothing);
     expect(
-      find.textContaining(RegExp('Good (morning|afternoon|evening)')),
-      findsOneWidget,
+      find.textContaining(RegExp('Good (morning|afternoon|evening)'),
+          findRichText: true),
+      findsWidgets,
     );
-
-    // Either the library has volumes — three sections, each opened by a
-    // section header — or it is empty, and then the DROP ZONE leads. An empty
-    // state that is a centred apology is a failed composition, not a state.
-    final seeded = find.byType(SectionHeader).evaluate().isNotEmpty;
-    if (seeded) {
-      // Recently read is the §21 shelf by default since 4.98.0 (ADR-131,
-      // library.md: spine shelf + a list toggle the reader's choice is kept
-      // under) — rows only when the reader chose the list. Either is the
-      // pattern; neither is a bare list.
-      expect(
-        find.byType(KitShelfView).evaluate().isNotEmpty ||
-            find.byType(KitRowList).evaluate().isNotEmpty,
-        isTrue,
-        reason: 'recently-read renders as the §21 shelf or §4.1 rows',
-      );
-      // The eyebrow renders its text UPPERCASED, so that is what is in the
-      // tree — matching the sentence-case source string finds nothing.
-      expect(find.textContaining('RECENTLY READ'), findsOneWidget);
-      expect(find.textContaining('SHELVES'), findsWidgets);
+    // Either the library has volumes — the letter, Recently added and the
+    // shelves — or it is empty, and then Your first sources leads with its
+    // drop zone. An empty state that is a centred apology is a failed
+    // composition, not a state.
+    if (find.text('Your first sources').evaluate().isEmpty) {
+      expect(find.byType(KitSecPeek), findsOneWidget,
+          reason: 'the sheet runs as the running head on a phone');
+      final scrollableHome = find.byType(Scrollable);
+      for (var i = 0; i < 8 && find.text('Recently added').evaluate().isEmpty; i++) {
+        await tester.drag(scrollableHome.first, const Offset(0, -400));
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+      expect(find.text('Recently added'), findsOneWidget);
     } else {
-      expect(
-        find.byType(KitDropZone),
-        findsOneWidget,
-        reason: 'the empty library leads with the drop zone, not a message',
-      );
+      expect(find.byKey(const ValueKey('d-first-dz')), findsOneWidget,
+          reason: 'the empty library leads with the drop zone, not a message');
     }
 
     // Only a REAL gesture proves a pane scrolls — a programmatic offset moves
@@ -329,8 +321,8 @@ void main() {
     // their whole lives that way (4.3.1).
     final scrollable = find.byType(Scrollable);
     expect(scrollable, findsWidgets);
-    final position = tester.widget<Scrollable>(scrollable.first).controller;
-    final before = position?.offset ?? 0;
+    final before =
+        tester.state<ScrollableState>(scrollable.first).position.pixels;
     await tester.drag(scrollable.first, const Offset(0, -400));
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 250));
@@ -339,7 +331,7 @@ void main() {
     // A page shorter than the viewport cannot scroll and must not be failed
     // for it; what would be a defect is a page with overflow that does not
     // move under a drag.
-    if (after.maxScrollExtent > 0) {
+    if (after.maxScrollExtent > before) {
       expect(
         after.pixels,
         greaterThan(before),
@@ -831,10 +823,9 @@ void main() {
   testWidgets('sources composes from the kit, in the contract order', (
     tester,
   ) async {
-    // Sources is the rail's *Library* (`/sources`) and screen 3/11 of the kit
-    // rebuild. Same reasoning as the library test: these assertions are about
-    // PARTS BEING PRESENT in the roles the kit gives them, which is the one
-    // layer no other gate here looks at.
+    // Sources is the rail's *Library* (`/sources`; screens/sources.md
+    // §Composition, direction D since F-141). Same reasoning as the library
+    // test: PARTS BEING PRESENT in the roles the kit gives them, in order.
     final router = await pumpApp(tester);
     router.go('/sources');
     // Fixed pumps, not `pumpAndSettle`: this screen holds live subscriptions
@@ -842,140 +833,81 @@ void main() {
     // that a screen with a spinner in it never has.
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 200));
-      if (find.byType(KitConnectCard).evaluate().isNotEmpty) break;
+      if (find.text('Correspondence').evaluate().isNotEmpty) break;
     }
-    // The route transition keeps the previous screen mounted for its duration,
-    // so a screen that has appeared is not yet a screen that is alone.
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 200));
     }
 
-    // The chapter opening, with its folio and its two-bar rule.
-    expect(find.byType(ChapterOpening), findsOneWidget);
-    expect(find.byType(ChapterRule), findsWidgets);
-    expect(
-      find.textContaining(RegExp('VOLUMES?')),
-      findsWidgets,
-      reason: 'the folio carries the screen count',
-    );
-
-    // The drop zone OPENS the screen (contract 4.5.3) — it is the first thing
-    // under the header, not the last thing on the page. A reader with an empty
-    // library must not have to scroll past a library they do not have.
-    expect(find.byType(KitDropZone), findsOneWidget);
-    final headerY = tester.getTopLeft(find.byType(ChapterOpening)).dy;
-    final dropY = tester.getTopLeft(find.byType(KitDropZone)).dy;
-    expect(dropY, greaterThan(headerY));
-
-    // The three sections, in order.
-    expect(find.textContaining('ADD TO YOUR LIBRARY'), findsOneWidget);
-    expect(find.textContaining('CONNECT A SERVICE'), findsOneWidget);
-
-    // Connect cards: the grid is the §5.1 variant, one per canonical provider.
-    expect(find.byType(KitConnectCard), findsNWidgets(4));
-
-    // Scroll to the browse section — the control bar and the row list are
-    // below the fold on a phone, which is exactly why the drop zone is not.
-    final scrollable = find.byType(Scrollable);
-    for (var i = 0; i < 8; i++) {
-      if (find.byType(KitControlBar).evaluate().isNotEmpty) break;
-      await tester.drag(scrollable.first, const Offset(0, -400));
-      await tester.pump(const Duration(milliseconds: 400));
-    }
-    expect(
-      find.byType(KitControlBar),
-      findsOneWidget,
-      reason: 'browse opens with the control bar (§6.6)',
-    );
-    expect(find.byType(KitFilterChip), findsWidgets);
-    expect(
-      find.byType(KitSegmented),
-      findsWidgets,
-      reason: 'the sort control is a segmented control (§6.8), not a menu',
-    );
-
-    // Either the library is empty and the offer leads, or there are volumes,
-    // drawn in the view the reader chose — never a table. The view is kept
-    // per device (`nl-sources-view`) and is the §21 shelf when none is stored
-    // (F-65), so this reads the view it finds instead of assuming the list:
-    // on a device with nothing stored the run found neither a row nor an
-    // empty state and failed on a correct screen (2026-10-13). The list is
-    // then reached through the toggle itself, and the view put back.
-    if (find.byType(KitEmptyState).evaluate().isNotEmpty) {
-      expect(find.byType(KitEmptyState), findsOneWidget);
-    } else {
-      final stored = LocalFlags.sourcesView.value;
-      expect(
-        find.byType(switch (stored) {
-          'shelf' => KitShelfView,
-          'cards' => KitSourceCardGrid,
-          _ => KitRowList,
-        }),
+    // The D frame: the masthead with its folio, The Library, the running head.
+    expect(find.byType(KitDPage), findsOneWidget);
+    expect(find.byType(ChapterOpening), findsNothing);
+    expect(find.text('The Library'), findsOneWidget);
+    expect(find.textContaining(RegExp('VOLUMES?'), findRichText: true),
         findsWidgets,
-        reason: 'the volumes are drawn in the stored view ($stored)',
-      );
-      final toList = find.descendant(
-        of: find.byType(KitControlBar),
-        matching: find.bySemanticsLabel('List view'),
-      );
-      await tester.ensureVisible(toList);
-      await tester.pump(const Duration(milliseconds: 200));
-      await tester.tap(toList);
-      for (var i = 0; i < 5; i++) {
-        await tester.pump(const Duration(milliseconds: 200));
+        reason: 'the folio carries the volumes');
+
+    // The column, in order: Correspondence, then Being catalogued while the
+    // pipeline holds something (the seed's), then the catalogue.
+    Future<double> yOf(String text) async {
+      final f = find.text(text);
+      final scrollable = find.byType(Scrollable).first;
+      for (var i = 0; i < 12 && f.evaluate().isEmpty; i++) {
+        await tester.drag(scrollable, const Offset(0, -400));
+        await tester.pump(const Duration(milliseconds: 300));
       }
-      expect(LocalFlags.sourcesView.value, 'list');
-      expect(find.byType(KitSourceRow), findsWidgets);
-      expect(find.byType(KitRowList), findsWidgets);
-      expect(
-        find.byType(DataTable),
-        findsNothing,
-        reason: 'the volume list is the row list; there is no table pattern',
-      );
-      await LocalFlags.setView(LocalFlags.sourcesView, stored);
-      await tester.pump(const Duration(milliseconds: 200));
+      expect(f, findsWidgets, reason: 'no "$text"');
+      await tester.ensureVisible(f.first);
+      await tester.pump(const Duration(milliseconds: 300));
+      final y = tester.getTopLeft(f.first).dy;
+      final pos = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .pixels;
+      return y + pos;
     }
 
-    // ── F-13 ────────────────────────────────────────────────────────────
-    // The drop zone says what it will take, from the ONE declaration. It
-    // advertised `EPUB` — a kind nothing in the backend can write — and
-    // promised a flat 100 MB, which is wrong for video by a factor of twenty.
-    expect(find.text('EPUB'), findsNothing,
-        reason: 'epub is advertised and unreachable — no document can have it');
-    expect(find.textContaining('2 GB for video'), findsOneWidget,
-        reason: 'the cap is per type (4.13.0); a flat 100 MB is a limit the '
-            'server does not have');
+    final corr = await yOf('Correspondence');
+    final being = await yOf('Being catalogued');
+    final cat = await yOf('The catalogue');
+    expect(corr < being && being < cat, isTrue,
+        reason: 'Correspondence, Being catalogued, the catalogue — in order');
 
     // Every processing row offers the SOURCE — failed, queued or uploading —
     // because `error_message` is a claim about a source and nothing else on
     // this screen shows the source. The seed carries a failed docx (`file`)
     // and a queued article (`link`), so both §6.4.2 branches are on screen.
-    // Processing rows are §22 processing CARDS since 4.98.0 (F-69), not §4.1
-    // source rows; counted as rows, every primary looked like a second one.
-    final procRows = find.byType(KitProcCard).evaluate().length;
-    debugPrint('DEVICE-RUN sources: $procRows processing card(s), '
+    await yOf('Being catalogued');
+    final procRows = find.byType(ProcessingRow).evaluate().length;
+    debugPrint('DEVICE-RUN sources: $procRows processing row(s), '
         'viewFile=${find.text('View file').evaluate().length}, '
         'openLink=${find.text('Open the link').evaluate().length}, '
         'retry=${find.text('Retry').evaluate().length}, '
         'indexAnyway=${find.text('Index it anyway').evaluate().length}');
+    expect(procRows, greaterThan(0));
     expect(
       find.text('View file').evaluate().isNotEmpty ||
           find.text('Open the link').evaluate().isNotEmpty ||
           find.text('View images').evaluate().isNotEmpty,
       isTrue,
-      reason: 'no processing row offers its source (§6.4.2) — this is the '
-          'affordance the tray exists to carry',
+      reason: 'no processing row offers its source (§6.4.2)',
     );
-
     // **Retry is never on a skipped row** and the two branches are disjoint:
-    // `fn_retry_document` refuses `skipped` by name, so a Retry there is a
-    // control that could not once have worked.
+    // one primary per row, never two.
     expect(
       find.text('Retry').evaluate().length +
           find.text('Index it anyway').evaluate().length,
       lessThanOrEqualTo(procRows),
       reason: 'one primary per row, never two',
     );
+
+    // The catalogue is the register in List — never a table.
+    await LocalFlags.setSourceView('list');
+    await yOf('The catalogue');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(KitLibRegister), findsOneWidget);
+    expect(find.byType(DataTable), findsNothing,
+        reason: 'the volume list is the register; there is no table pattern');
   });
 
   testWidgets(
@@ -2958,6 +2890,265 @@ void main() {
     expect(sec.current, 'second');
     expect(find.textContaining('2 of 2', findRichText: true), findsOneWidget,
         reason: 'the line says where the reader is now');
+    expect(tester.takeException(), isNull);
+  });
+
+  // F-141 (5.42.0, direction D; screens/library.md and sources.md
+  // §Composition): Home, the Library and their states on the REAL app, by
+  // real taps. Home: the edition's masthead, the running head's Contents
+  // moving the page, the desk ledger, the sections in order. The Library: a
+  // Kind facet narrowing the catalogue and the peek saying so, the A–Z order,
+  // List ↔ Grid following across Home and the Library. Then a fresh account:
+  // the empty state on both pages, and — one document arriving — the
+  // first-reading state on both, with nothing claimed that was not measured.
+  testWidgets(
+      "Home's sections, the Library's facets and List/Grid, empty and "
+      'first-reading states', (tester) async {
+    await LocalFlags.setOnboarded(true);
+    await LocalFlags.setSourceView('list');
+    KitPageTools.instance.reset();
+    final router = await pumpApp(tester);
+    final view = tester.view.physicalSize / tester.view.devicePixelRatio;
+    final peek = find.byKey(const ValueKey('d-peek'));
+    // Home's section head, never its Contents row of the same name.
+    final recentHead = find.descendant(
+        of: find.byType(KitSectionHead), matching: find.text('Recently added'));
+    Finder byType(String name) =>
+        find.byWidgetPredicate((w) => w.runtimeType.toString() == name);
+    Future<void> waitFor(Finder f, String what, {int seconds = 20}) async {
+      for (var i = 0; i < seconds * 4 && f.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(f, findsWidgets, reason: 'never drew $what');
+    }
+
+    // A route change keeps the page it leaves mounted until its transition
+    // ends — two running heads, two scrims — so every step waits for one.
+    Future<void> oneHead() async {
+      for (var i = 0; i < 40 && peek.evaluate().length != 1; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(peek, findsOneWidget, reason: 'the page change never finished');
+    }
+
+    // The running head's body stays mounted folded (inert, kit §30): its
+    // state is the scrim's — live only while the head is dropped.
+    bool dropped() => !tester
+        .widget<IgnorePointer>(find
+            .ancestor(
+                of: find.byKey(const ValueKey('d-dock-scrim')),
+                matching: find.byType(IgnorePointer))
+            .first)
+        .ignoring;
+    Future<void> drop() async {
+      if (!dropped()) await tester.tap(peek);
+      await pumpFor(tester, total: const Duration(milliseconds: 750));
+      expect(dropped(), isTrue, reason: 'tapping the line drops the sheet');
+    }
+
+    Future<void> fold() async {
+      if (dropped()) {
+        await tester.tapAt(Offset(view.width / 2, view.height - 140));
+        await pumpFor(tester, total: const Duration(milliseconds: 750));
+      }
+      expect(dropped(), isFalse, reason: 'the scrim folds the sheet');
+    }
+
+    // ── Home ──
+    router.go('/');
+    await waitFor(find.byType(KitDPage), 'the D page on Home');
+    await waitFor(find.textContaining(kitGreeting(), findRichText: true),
+        'the greeting');
+    await oneHead();
+    final folio = find.textContaining('SOURCES ·', findRichText: true);
+    await waitFor(folio, "the folio's figures");
+    final folioText = tester.widget<KitMasthead>(find.byType(KitMasthead)).folio;
+    debugPrint('DEVICE-RUN F-141 home folio "$folioText"');
+    expect(folioText, matches(RegExp(r' · [\d,]+ sources? · [\d,]+ passages?$')),
+        reason: 'the documents read answered: the folio is measured');
+    // The running head: § I · The letter, and its Contents.
+    expect(peek, findsOneWidget);
+    expect(tester.getTopLeft(peek).dy,
+        closeTo(tester.getBottomLeft(find.byType(KitAppHeader)).dy, 1));
+    expect(find.descendant(of: peek, matching: find.textContaining('The letter')),
+        findsWidgets, reason: 'Home opens at § I, the letter');
+    await drop();
+    for (final l in ['The letter', 'Recently added', 'The shelves']) {
+      expect(find.descendant(of: find.byType(KitContents), matching: find.text(l)),
+          findsOneWidget, reason: 'Contents lacks "$l"');
+    }
+    expect(find.text('ON YOUR DESK'), findsOneWidget,
+        reason: 'the desk ledger is the sheet’s figures');
+    debugPrint('DEVICE-RUN F-141 ledger: review '
+        '${find.text('set aside for your review').evaluate().isNotEmpty ? 'drawn' : 'absent'}'
+        ', being read '
+        '${find.textContaining('being read').evaluate().isNotEmpty ? 'drawn' : 'absent'}');
+    // Choosing The shelves folds the head and moves the page there.
+    await tester.tap(find.descendant(
+        of: find.byType(KitContents), matching: find.text('The shelves')));
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(dropped(), isFalse,
+        reason: 'choosing a Contents row folds the running head');
+    expect(find.descendant(of: peek, matching: find.textContaining('The shelves')),
+        findsWidgets, reason: 'the line says the page is at The shelves');
+    expect(find.text('Suggest shelves'), findsOneWidget);
+    expect(find.text('All shelves →'), findsOneWidget);
+    // Home's action is Add a source, at the tab bar's centre.
+    final centre = find.byKey(const ValueKey('d-tab-action'));
+    expect(find.descendant(of: centre, matching: find.text('Add')), findsOneWidget);
+    await tester.tap(centre);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(router.state.matchedLocation, '/sources/add');
+    await oneHead();
+    expect(find.text('Add to Your Library'), findsOneWidget);
+
+    // ── the Library: a facet, an order, List ↔ Grid ──
+    router.go('/sources');
+    await waitFor(find.text('The Library'), 'the Library');
+    await waitFor(find.textContaining('VOLUMES ·', findRichText: true),
+        "the Library's folio");
+    await waitFor(find.text('The catalogue'), 'the catalogue');
+    await oneHead();
+    expect(find.text('Correspondence'), findsOneWidget);
+    expect(find.descendant(of: peek, matching: find.text('All volumes')),
+        findsOneWidget, reason: 'the peek names what is showing');
+    await drop();
+    final youtube = find.descendant(
+        of: find.byType(KitFacet), matching: find.textContaining('YouTube'));
+    expect(youtube, findsWidgets, reason: 'the Kind facet lacks YouTube');
+    await tester.tap(youtube.first);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    await fold();
+    expect(find.descendant(of: peek, matching: find.text('YouTube')),
+        findsOneWidget, reason: 'the peek names the facet chosen');
+    await tester.ensureVisible(find.text('The catalogue'));
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+    expect(find.text('Dragon Story Readthrough'), findsWidgets);
+    expect(find.text('Quarterly Tax Summary'), findsNothing,
+        reason: 'the facet narrows the catalogue');
+    // Back to every kind, then A–Z: the jump letters.
+    await drop();
+    await tester.tap(find
+        .descendant(of: find.byType(KitFacet), matching: find.textContaining('All'))
+        .first);
+    await pumpFor(tester, total: const Duration(milliseconds: 750));
+    await drop();
+    await tester.tap(find.text('A–Z').first);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    await fold();
+    expect(find.bySemanticsLabel('Jump to a letter'), findsWidgets,
+        reason: 'ordered A–Z, the register files under initials');
+    // Grid: the wall, and the choice follows to Home.
+    await tester.ensureVisible(find.text('The catalogue'));
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+    await tester.tap(find.descendant(
+        of: find.byType(KitViewToggle), matching: find.bySemanticsLabel('Grid')).first);
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(LocalFlags.sourceView.value, 'grid');
+    expect(byType('KitLibWall'), findsOneWidget, reason: 'Grid is the wall');
+    router.go('/');
+    await waitFor(recentHead, 'Recently added');
+    await oneHead();
+    await tester.ensureVisible(recentHead);
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+    expect(find.byType(KitCoverStrip), findsOneWidget,
+        reason: 'List / Grid is one choice: Home follows the Library');
+    await LocalFlags.setSourceView('list');
+    await pumpFor(tester, total: const Duration(milliseconds: 500));
+
+    // ── a fresh account: empty, then first reading ──
+    final email =
+        'f141-${DateTime.now().microsecondsSinceEpoch}@noteletter.test';
+    await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(email: email, password: 'f141-run-1');
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    try {
+      KitPageTools.instance.reset();
+      // Firestore takes the new user's credential a beat after the switch: a
+      // listener opened in that beat is refused as the OLD user. A reader
+      // signs in through a screen, never in the same instant as a read.
+      await FirebaseAuth.instance.currentUser!.getIdToken(true);
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      final fresh = await pumpApp(tester);
+      fresh.go('/sources');
+      await waitFor(find.textContaining('Nothing here yet.'), 'the empty standfirst');
+      await oneHead();
+      expect(find.descendant(of: peek, matching: find.text('What you can add')),
+          findsOneWidget, reason: 'an empty library offers what it can take');
+      expect(find.textContaining('0 VOLUMES', findRichText: true), findsWidgets,
+          reason: 'a measured 0 is drawn');
+      await waitFor(find.text('Drop files to begin'), 'the drop zone');
+      expect(byType('KitLibRegister'), findsNothing);
+      fresh.go('/');
+      KitMasthead? mast() {
+        final m = find.byType(KitMasthead).evaluate();
+        return m.length == 1 ? m.single.widget as KitMasthead : null;
+      }
+
+      for (var i = 0; i < 80; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        final m = mast();
+        if (m != null && (m.stand ?? '').startsWith('Your library is empty')) {
+          break;
+        }
+      }
+      final ctx = tester.element(find.byType(KitMasthead).first);
+      final d = Provider.of<DocumentsNotifier>(ctx, listen: false);
+      final tg = Provider.of<TagsNotifier>(ctx, listen: false);
+      debugPrint('DEVICE-RUN F-141 fresh Home folio "${mast()?.folio}" '
+          'stand "${mast()?.stand}" docs loading=${d.loading} '
+          'error=${d.error} n=${d.documents.length} tags loading=${tg.loading} '
+          'error=${tg.error} uid=${FirebaseAuth.instance.currentUser?.uid}');
+      expect(mast()?.stand,
+          startsWith('Your library is empty for now. Bring in what you’ve read'),
+          reason: "Home's empty standfirst");
+      await oneHead();
+      expect(
+          find.descendant(
+              of: find.byType(KitSectionHead),
+              matching: find.text('Your first sources')),
+          findsOneWidget);
+      expect(find.text('Your first letter is waiting on your library'),
+          findsOneWidget);
+      expect(recentHead, findsNothing,
+          reason: 'an empty library draws no Recently added');
+
+      // One document arrives (the rules let its owner create it): the
+      // library is reading, and nothing has finished.
+      final ref = FirebaseFirestore.instance.collection('documents').doc();
+      await ref.set({
+        'user_id': uid,
+        'title': 'F-141 Arrival',
+        'type': 'pdf',
+        'status': 'processing',
+        'processing_stage': 'embedding',
+        'created_at': FieldValue.serverTimestamp(),
+        'view_count': 0,
+        'tag_ids': <String>[],
+      });
+      await waitFor(recentHead, 'Recently added while reading');
+      await tester.ensureVisible(recentHead);
+      await pumpFor(tester, total: const Duration(milliseconds: 500));
+      expect(find.text('F-141 Arrival'), findsWidgets,
+          reason: 'before anything finished, Recently added lists arrivals');
+      expect(find.text('ONE BEING READ'), findsOneWidget,
+          reason: "Recently added's meta counts what is being read");
+      expect(find.byKey(const ValueKey('d-first-dz')), findsNothing,
+          reason: 'a reading library offers no first sources');
+      fresh.go('/sources');
+      await waitFor(find.textContaining('Nothing has finished reading yet.'),
+          'the reading catalogue');
+      await oneHead();
+      expect(find.textContaining('One volume is being read now.'), findsOneWidget);
+      expect(find.text('Being catalogued'), findsOneWidget);
+      expect(find.text('Drop files to begin'), findsNothing,
+          reason: 'a reading library is not empty');
+      debugPrint('DEVICE-RUN F-141 fresh account $uid: empty → reading');
+    } finally {
+      await FirebaseAuth.instance.currentUser?.delete();
+      await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: seedEmail, password: seedPassword);
+    }
     expect(tester.takeException(), isNull);
   });
 }

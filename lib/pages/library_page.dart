@@ -1,46 +1,48 @@
-import 'dart:math' as math;
+import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/document.dart';
 import '../models/newsletter.dart';
-import '../models/tag.dart';
+import '../models/study.dart';
+import '../services/api.dart';
+import '../services/api_service.dart' show ApiException;
+import '../services/error_text.dart';
+import '../services/firestore_service.dart';
 import '../shared/local_flags.dart';
-import '../shared/passage_figure.dart';
-import '../shared/upload_types.dart';
-import '../shared/shelf_tree.dart';
 import '../state/documents_notifier.dart';
 import '../state/newsletter_notifier.dart';
+import '../state/review_inbox.dart';
 import '../state/settings_notifier.dart';
 import '../state/tags_notifier.dart';
-import '../theme/app_colors.dart';
-import '../theme/tokens.dart';
 import '../widgets/kit/kit.dart';
-import 'sources/shelf_books.dart';
-import 'tags/shelf_parts.dart' show shelfVolumes;
+import '../widgets/sidebar.dart' show shellAiOn;
+import 'tags/shelf_sheet.dart' show showShelfSheet;
 import 'tags/suggest_shelves.dart';
 
-/// **Library — the home screen** (`spec/screens/library.md`).
+/// **Home** (route `/`, the rail's *Home*; `spec/screens/library.md`
+/// §Composition, direction D). Web `pages/LibraryHome.jsx` — the prototype's
+/// HomeHybrid.
 ///
-/// The route the web reference calls `library` is its default view and the
-/// rail's *Home*; the rail's *Library* is Sources. This client had that
-/// inverted — a bespoke "digest" dashboard on `/` and a volume table here — so
-/// the screen the contract specifies existed nowhere and the screen it does not
-/// specify existed twice. The table moved to Sources (`sources/volumes_section
-/// .dart`), which is where `screens/sources.md` puts it.
+/// The edition's masthead (§26) — folio `{date} · {N} sources · {N}
+/// passages`, the greeting with its accent clause, a standfirst of the letter
+/// sentence and the desk sentence — with *Add a source* as the page's one
+/// action and *Letter settings* (§28 LetterQuick) as its settings. The sheet
+/// (§29, *On this page*) is Contents over the desk ledger; on a phone it runs
+/// as the running head (§30). The column: the setup checklist strip while
+/// setup is unfinished, *Your first sources* in an empty library, the letter
+/// as it is sent, Recently added beside Earlier letters, and the shelves
+/// (§42). Ask your library is not on Home.
 ///
-/// Composition (library.md §Composition, ADR-041), every part from the kit:
-///
-/// * **Frame** Index (980) inside a scroll container — §1.4/§1.5.
-/// * **Header** chapter opening: folio `{date} · {n} sources`, the greeting
-///   title with its **italic accent clause**, and a standfirst that says
-///   where the reader's letter stands (library.md §The letter).
-/// * **Body** three sections, each opened by a section header carrying its own
-///   count: the letter (hero card), recently read (source rows), shelves
-///   (a grid of shelf cards).
-/// * **Empty** the drop zone leads — an offer, not an apology.
+/// The library's state — empty / reading / ready — chooses the standfirst,
+/// the letter's text, the Contents and the lower sections; `loading` and
+/// `failed` are not states of the library and claim nothing: the folio's
+/// figures draw the dash, the lists the skeleton or §14.2, and the page never
+/// takes the empty state on a refused read (INV-24 — an empty list is not
+/// evidence of an empty library).
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
 
@@ -49,585 +51,512 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
+  final KitSections _sec = KitSections(const ['letter', 'recent', 'shelves']);
+
+  // Questions waiting in Deep study: the newest session (web `useStudyDue`).
+  StreamSubscription<List<StudySession>>? _studySub;
+  bool _studyLoaded = false;
+  String? _studyError;
+  StudySession? _studyNewest;
+
+  // The letter's parts, parsed once per record (the body is read as text).
+  Newsletter? _partsOf;
+  KitLetterParts? _parts;
+
   @override
   void initState() {
     super.initState();
+    LocalFlags.ensureLoaded();
+    _openStudy();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<DocumentsNotifier>().start();
       context.read<TagsNotifier>().start();
       context.read<NewsletterNotifier>().load();
-      // The checklist's "Set up your daily letter" step reads the settings
-      // doc, once per visit, as the reference's does.
+      // The schedule (the next-letter line, the letter chips), the checklist's
+      // letter step and LetterQuick all read the settings document.
       context.read<SettingsNotifier>().loadAll();
+      // The shell's one inbox (INV-30); idempotent — the rail starts it too.
+      context.read<ReviewInbox?>()?.start();
     });
-    LocalFlags.ensureLoaded();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // The client-local flags the checklist and the two view toggles read.
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        LocalFlags.recentView,
-        LocalFlags.shelvesView,
-        LocalFlags.onboardDismissed,
-        LocalFlags.onboardExpanded,
-        LocalFlags.onboardAsked,
-      ]),
-      builder: (context, _) => _build(context),
-    );
-  }
-
-  Widget _build(BuildContext context) {
-    return Consumer3<DocumentsNotifier, TagsNotifier, NewsletterNotifier>(
-      builder: (context, docs, tags, letters, _) {
-        if (docs.loading) {
-          return const KitLoadingPage();
-        }
-
-        final complete = docs.complete;
-        final home = _LibraryHome(
-          complete: complete,
-          shelves: tags.tags,
-          // The newest BUILT daily letter (4.99.0, ADR-132; web
-          // getLatestLetter) — the Letters card's own record. It was the
-          // newest daily RECORD of any status, the rule web left at 4.98.0.
-          letter: letters.latest,
-          // §14.2: a read that failed is not "no letter yet" (INV-24).
-          letterError: letters.error,
-          letterLoaded: letters.loaded,
-          documents: docs.documents,
-        );
-
-        // §14 before §7, and above whatever did load (C2). `complete.isEmpty`
-        // is true of a library that FAILED to load exactly as it is of one
-        // with nothing in it, and §7 is an offer: drawn here it tells a reader
-        // who has added things that they have added nothing. INV-24 has been
-        // in `DocumentsNotifier` since F-08 and this screen never read it.
-        if (docs.error != null) {
-          return KitPage(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                KitFailureBlock(
-                  sentence: 'Your library could not be loaded.',
-                  detail: docs.error!,
-                  onRetry: () => context.read<DocumentsNotifier>().refresh(),
-                ),
-                // What did arrive is still true, and is kept — but it is no
-                // longer the whole library, which is what the block says.
-                if (complete.isNotEmpty) home,
-              ],
-            ),
+  void _openStudy() {
+    try {
+      _studySub = FirestoreService.instance
+          .subscribeStudySessions(limit: 1)
+          .listen(
+            (rows) {
+              if (!mounted) return;
+              setState(() {
+                _studyLoaded = true;
+                _studyError = null;
+                _studyNewest = rows.isEmpty ? null : rows.first;
+              });
+            },
+            onError: (Object e) {
+              if (!mounted) return;
+              setState(() {
+                _studyLoaded = true;
+                _studyError = describeSdkError(e);
+              });
+            },
           );
-        }
-
-        if (complete.isEmpty) {
-          return _LibraryEmpty(documents: docs.documents);
-        }
-
-        return KitPage(child: home);
-      },
-    );
-  }
-}
-
-class _LibraryHome extends StatefulWidget {
-  final List<Document> complete;
-  final List<Tag> shelves;
-  final Newsletter? letter;
-  final String? letterError;
-
-  /// Whether the letter read has answered. Until it has, the standfirst says
-  /// nothing about the letter (library.md §The letter) — "being read" claims
-  /// there is none.
-  final bool letterLoaded;
-
-  /// Every document, in flight or not — the checklist's "Add your first
-  /// source" is done by the first one that exists, as the reference's is.
-  final List<Document> documents;
-
-  const _LibraryHome({
-    required this.complete,
-    required this.shelves,
-    required this.letter,
-    required this.documents,
-    required this.letterLoaded,
-    this.letterError,
-  });
-
-  @override
-  State<_LibraryHome> createState() => _LibraryHomeState();
-}
-
-/// The Library's view toggles (web `LibraryHome.jsx`): Recently read is list
-/// or shelf, Shelves is shelf or card — kept per viewer (`nl-recent-view`,
-/// `nl-shelves-view`), the shelf the default for both.
-const _recentViews = <({String id, String label, IconData icon})>[
-  (id: 'list', label: 'List view', icon: Icons.view_agenda_outlined),
-  (id: 'shelf', label: 'Shelf view', icon: Icons.shelves),
-];
-const _shelvesViews = <({String id, String label, IconData icon})>[
-  (id: 'shelf', label: 'Shelf view', icon: Icons.shelves),
-  (id: 'card', label: 'Card view', icon: Icons.grid_view),
-];
-
-class _LibraryHomeState extends State<_LibraryHome> {
-  /// One book pulled across every named shelf (the reference's shelfOpenId).
-  String? _shelfOpenId;
-
-  Widget _toggle(List<({String id, String label, IconData icon})> views,
-          ValueNotifier<String> which, String name) =>
-      KitSegmented(
-        groupLabel: name,
-        segments: [for (final v in views) KitSegment.icon(v.icon, v.label)],
-        selected: math.max(0, views.indexWhere((v) => v.id == which.value)),
-        onChanged: (i) => LocalFlags.setView(which, views[i].id),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    final complete = widget.complete;
-    final shelves = widget.shelves;
-    // Home shows TOP-LEVEL shelves, each holding its subtree (5.28.0, ADR-185).
-    final tree = ShelfTree(shelves);
-    final letter = widget.letter;
-    final letterError = widget.letterError;
-    // library.md §The letter: the letter can be days old, so it names its day.
-    final today = letter != null && _builtToday(letter.generatedAt);
-    // `{n} passages` only from a record that carries `chunk_ids` (ADR-109).
-    final ofLibrary = letter == null || !letter.chunkIdsKnown
-        ? ''
-        : ' — ${_passages(letter)} from your library';
-    final total = complete.length;
-    final recent = complete.take(12).toList();
-    final recentView = LocalFlags.recentView.value;
-    final shelvesView = LocalFlags.shelvesView.value;
-    // §The letter chip: whether the daily letter is on, read once here — not
-    // inside the ledges' LayoutBuilder, which builds during layout.
-    final letterOn = context.watch<SettingsNotifier>().letterOn;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ChapterOpening(
-          folio: '${_today()} · ${_plural(total, 'source')}',
-          title: '${_greeting()}, *reader*',
-          standfirst: letter != null
-              ? (today
-                  ? "Today's letter is ready$ofLibrary."
-                  : 'Your latest letter is from '
-                      // A record the recency query returned always carries
-                      // generated_at; `?? 0` is the reference's `new Date(null)`.
-                      '${_longDay(DateTime.fromMillisecondsSinceEpoch(letter.generatedAt ?? 0))}'
-                      '$ofLibrary.')
-              : letterError != null
-                  // Not "tomorrow's letter will draw…": that sentence is a
-                  // claim about a letter we could not read — and it names
-                  // no day, because we do not know the letter's.
-                  ? 'Your latest letter could not be read.'
-                  : widget.letterLoaded
-                      ? "Your library is being read. Tomorrow's letter will "
-                          "draw from what's indexed so far."
-                      : null,
-        ),
-
-        if (letter == null && letterError != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: KitFailureInline(letterError),
-          ),
-
-        // The setup checklist, as a strip (web OnboardingChecklist compact).
-        _SetupChecklist(documents: widget.documents, compact: true),
-
-        // `.lib-actions` — the search field and Add a source. They were a
-        // ghost `Search` and an `Add a source` in the header's actions slot.
-        KitLibraryActions(
-          onSearch: () => context.go('/search'),
-          onAdd: () => context.go('/sources'),
-        ),
-
-        // ── Today's / Latest letter ──────────────────────────────────────
-        if (letter != null) ...[
-          SectionHeader(
-            today ? "Today's letter" : 'Latest letter',
-            actionLabel: 'Preview the letter →',
-            onAction: () => context.go('/letters'),
-          ),
-          KitHeroCard(
-            // The letter's own masthead, as web draws it: `A LETTER` with
-            // raised capitals (`.masthead-title.versal`), never an accent
-            // clause (F-71).
-            title: 'A Letter',
-            versal: true,
-            // The reference's masthead number is the letter's subject; the
-            // date is the Sent cell's.
-            marker: (letter.subject?.isNotEmpty ?? false)
-                ? letter.subject
-                : _letterDate(letter.generatedAt),
-            // The librarian's note by its `data-nl-lede` marker, never a slice
-            // of the body — the head of a letterheaded body is the masthead
-            // (web 5d6fe8d). A letter with neither says what a letter is.
-            standfirst: letter.ledeOf(140).isNotEmpty
-                ? letter.ledeOf(140)
-                : 'Your daily reading, drawn from what you’ve added to your '
-                    'library.',
-            // Counted off the record this hero is drawn from. A record with
-            // no `chunk_ids` is the one unread state, and both figures draw
-            // §8's dash, never 0 (ADR-109). Min read is the Letters card's own
-            // arithmetic (`~{n+1}`, letters.md), as web's hero draws it; Sent
-            // only for a letter that was (ADR-132).
-            stats: [
-              KitStat(letter.chunkIdsKnown ? '${letter.chunkIds.length}' : null,
-                  'Passages'),
-              KitStat(
-                  letter.chunkIdsKnown
-                      ? '~${letter.chunkIds.length + 1}'
-                      : null,
-                  'Min read'),
-              if (letter.status == 'sent' &&
-                  _letterDate(letter.generatedAt) != null)
-                KitStat(_letterDate(letter.generatedAt)!, 'Sent'),
-            ],
-            actions: [
-              KitButton.primary('Preview & send',
-                  icon: Icons.mail_outlined,
-                  onPressed: () => context.go('/letters')),
-              KitButton.ghost('Schedule',
-                  icon: Icons.schedule,
-                  onPressed: () => context.go('/letters/settings')),
-            ],
-          ),
-        ],
-
-        // ── Recently read ────────────────────────────────────────────────
-        SectionHeader(
-          'Recently read · ${_plural(total, 'source')}',
-          tools: _toggle(_recentViews, LocalFlags.recentView, 'View'),
-          actionLabel: 'View all →',
-          onAction: () => context.go('/sources'),
-        ),
-        if (recentView == 'shelf')
-          // The shelf F-65 built, bare: this section's header is its head.
-          KitShelfView(
-            items: [for (final d in recent) bookOf(d, shelves, dark: Tokens.of(context).isDark)],
-            sort: 'recent',
-            grouped: false,
-            bare: true,
-            label: 'Recently read',
-          )
-        else
-          KitRowList(
-            rows: [
-              for (final d in recent.take(5))
-                KitSourceLink(
-                  docId: d.id,
-                  builder: (context, open) => KitSourceRow(
-                    leading: KitFileBadge(kitDocKind(d.type)),
-                    title: d.title.isEmpty ? 'Untitled' : d.title,
-                    // §States: a count never taken draws no figure — the
-                    // subtitle drops it and the count cell stays, empty.
-                    subtitle: [
-                      _shelfLabel(d, shelves),
-                      ?passagesLabel(d.chunkCount),
-                    ].join(' · '),
-                    count: d.chunkCount == null ? '' : '${d.chunkCount}',
-                    date: _rowDate(d.createdAt),
-                    onTap: open,
-                  ),
-                ),
-            ],
-          ),
-
-        // ── Shelves ──────────────────────────────────────────────────────
-        SectionHeader(
-          'Shelves · ${tree.roots.length}',
-          tools: _toggle(_shelvesViews, LocalFlags.shelvesView, 'Shelf layout'),
-          actionLabel: 'New shelf +',
-          onAction: () => context.go('/shelves'),
-        ),
-        if (shelves.isEmpty)
-          KitCard(
-            child: Text(
-              'No shelves yet — create one from the Shelves page.',
-              style: KitText.meta(context),
-            ),
-          )
-        else if (shelvesView == 'shelf')
-          // `.lib-shelves` — a titled ledge per shelf, wrapping 320–440 wide;
-          // one to a line on a phone.
-          LayoutBuilder(builder: (context, c) {
-            const gap = 18.0;
-            final per = math.max(1, ((c.maxWidth + gap) / (320 + gap)).floor());
-            final w = math.min(440.0, (c.maxWidth - gap * (per - 1)) / per);
-            return Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: [
-                  for (final s in tree.roots)
-                    SizedBox(
-                      width: w,
-                      child: KitShelfUnit(
-                        label: s.title,
-                        books: [
-                          for (final d in shelfVolumes(s, complete, tree))
-                            bookOf(d, shelves, dark: Tokens.of(context).isDark),
-                        ],
-                        openId: _shelfOpenId,
-                        onOpen: (id) => setState(() => _shelfOpenId = id),
-                        dot: AppColors.shelfColor(s.color, dark: Tokens.of(context).isDark) ?? // pair-ok: a shelf's stored colour is a fixed data token
-                            Tokens.of(context).fgSubtle,
-                        // §The letter chip: on the named head, Lead / Muted
-                        // only, and none while the letter is off.
-                        letterChip: KitLetterChip.forShelf(
-                            tree.letterMode(s.id).mode,
-                            letterOn: letterOn),
-                        subShelves: tree.childrenOf(s.id).length,
-                      ),
-                    ),
-                ],
-              ),
-            );
-          })
-        else
-          KitCardGrid(
-            children: [
-              for (final s in tree.roots)
-                Builder(builder: (context) {
-                  final vols = shelfVolumes(s, complete, tree);
-                  final subs = tree.childrenOf(s.id).length;
-                  final passages = vols.fold<int>(
-                      0, (n, d) => n + (d.chunkCount ?? 0));
-                  return KitShelfCard(
-                    title: s.title,
-                    colorToken: s.color,
-                    volumes: vols.length,
-                    meta: '${_plural(vols.length, 'volume')}'
-                        '${passages > 0 ? ' · ${_plural(passages, 'passage')}' : ''}'
-                        '${subs > 0 ? ' · ${subs == 1 ? '1 sub-shelf' : '$subs sub-shelves'}' : ''}',
-                    // A dot, a name and a count: Home's cards list no
-                    // volumes, and so never say "Empty shelf".
-                    listsVolumes: false,
-                    // The shelf's OWN page, now that it has one: the card
-                    // named a shelf and opened the index until F-08.
-                    onTap: () => context.go('/shelves/${s.id}'),
-                  );
-                }),
-              // The grid's New shelf and, beside it, Suggest shelves (ruled
-              // 2026-10-08, library.md §Suggesting shelves; F-89). The section
-              // header keeps its one trailing link (kit §3).
-              KitNewCard(
-                title: 'New shelf',
-                onTap: () => context.go('/shelves'),
-              ),
-              KitNewCard(
-                icon: KitSparkle.icon,
-                title: 'Suggest shelves',
-                onTap: () => showSuggestShelvesSheet(context,
-                    canBackfill: complete.isNotEmpty),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-}
-
-/// The setup checklist's data (web `shared/OnboardingChecklist.jsx`): five
-/// steps from live data — the account (done), a first source, a volume on a
-/// shelf, the letter set up, a first question asked (the one client-local
-/// flag) — plus whether it is hidden or open. Nothing here reaches Firestore.
-class _SetupChecklist extends StatefulWidget {
-  final List<Document> documents;
-  final bool compact;
-
-  const _SetupChecklist({required this.documents, required this.compact});
-
-  @override
-  State<_SetupChecklist> createState() => _SetupChecklistState();
-}
-
-class _SetupChecklistState extends State<_SetupChecklist> {
-  /// Decided once, on the first render: a reader who had the middle steps
-  /// done before this ever showed gets only the strip, never the card.
-  bool? _preDone;
-
-  @override
-  Widget build(BuildContext context) {
-    final settings = context.watch<SettingsNotifier>().newsletter;
-    final docs = widget.documents;
-    final steps = [
-      const KitSetupStep('Create your account', done: true),
-      KitSetupStep('Add your first source',
-          done: docs.isNotEmpty, onTap: () => context.go('/sources')),
-      KitSetupStep('File a volume onto a shelf',
-          done: docs.any((d) => d.tagIds.isNotEmpty),
-          onTap: () => context.go('/shelves')),
-      // `enabled === true || !!deliveryTime` on a settings doc that exists.
-      KitSetupStep('Set up your daily letter',
-          done: settings != null &&
-              (settings.enabled || settings.deliveryTime.isNotEmpty),
-          onTap: () => context.go('/letters/settings')),
-      KitSetupStep('Ask your library a question',
-          done: LocalFlags.onboardAsked.value,
-          onTap: () => context.go('/ask')),
-    ];
-    _preDone ??= steps[1].done && steps[2].done && steps[3].done;
-
-    if (LocalFlags.onboardDismissed.value || steps.every((s) => s.done)) {
-      return const SizedBox.shrink();
+    } catch (e) {
+      // A read that could not even be opened is a refused read: no row, and
+      // never the quiet sentence.
+      _studyLoaded = true;
+      _studyError = describeSdkError(e);
     }
-    final compact = widget.compact || _preDone!;
-    return KitSetupChecklist(
-      steps: steps,
-      compact: compact,
-      // The full card starts open (it IS the first-run hero); the strip
-      // starts closed; once toggled, the choice is remembered.
-      expanded: LocalFlags.onboardExpanded.value ?? !compact,
-      onExpanded: LocalFlags.setOnboardExpanded,
-      onHide: LocalFlags.setOnboardDismissed,
-    );
   }
-}
-
-/// The empty library. The **drop zone is the offer** — a reader with nothing
-/// indexed is shown where the first thing goes, not told that there is nothing
-/// here (`component-kit.md` §7).
-class _LibraryEmpty extends StatelessWidget {
-  final List<Document> documents;
-
-  const _LibraryEmpty({required this.documents});
 
   @override
-  Widget build(BuildContext context) {
-    return KitPage(
+  void dispose() {
+    _studySub?.cancel();
+    _sec.dispose();
+    super.dispose();
+  }
+
+  KitLetterParts? _partsFor(Newsletter? letter) {
+    if (!identical(letter, _partsOf)) {
+      _partsOf = letter;
+      _parts = kitLetterParts(letter);
+    }
+    return _parts;
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    // The client-local flags the checklist and the List / Grid choice read.
+    listenable: Listenable.merge([
+      LocalFlags.onboardDismissed,
+      LocalFlags.onboardExpanded,
+      LocalFlags.onboardAsked,
+      LocalFlags.sourceView,
+    ]),
+    builder: (context, _) => _home(context),
+  );
+
+  Widget _home(BuildContext context) {
+    final docs = context.watch<DocumentsNotifier>();
+    final tags = context.watch<TagsNotifier>();
+    final letters = context.watch<NewsletterNotifier>();
+    final settings = context.watch<SettingsNotifier>();
+    final inbox = context.watch<ReviewInbox?>()?.view;
+    final aiOn = shellAiOn(context);
+    final router = GoRouter.maybeOf(context);
+    void go(String to, {Object? extra}) => router?.go(to, extra: extra);
+    final now = DateTime.now();
+
+    // ── The library ─────────────────────────────────────────────────────────
+    final documents = docs.documents;
+    final loaded = !docs.loading && !tags.loading;
+    final libError = docs.error ?? tags.error;
+    final measured = loaded && libError == null;
+    final model = kitShelfModel(tags.tags, documents);
+    final incoming = documents
+        .where(
+          (d) =>
+              d.status == DocumentStatus.processing ||
+              d.status == DocumentStatus.queued,
+        )
+        .toList();
+    final empty = measured && documents.isEmpty;
+    final libState = libError != null
+        ? KitLibState.failed
+        : !loaded
+        ? KitLibState.loading
+        : empty
+        ? KitLibState.empty
+        : model.total > 0
+        ? KitLibState.ready
+        : KitLibState.reading;
+
+    // ── The letter, its schedule, the desk ──────────────────────────────────
+    // The newest BUILT daily letter (ADR-131/132). Not answered is in flight;
+    // answered with none is an answer; only the error is a failure.
+    final read = KitLetterRead(
+      answered: letters.loaded,
+      letter: letters.loaded ? letters.latest : null,
+      error: letters.error,
+    );
+    final parts = _partsFor(read.letter);
+    // Null until read; a refused read withdraws only the claims about the
+    // schedule (the next-letter line, the letter chips) — the panel shows it.
+    final stored = settings.newsletter;
+    final sched = stored != null
+        ? KitLetterSchedule.of(stored, now: now)
+        : (settings.error != null ? KitLetterSchedule.failed : null);
+    final letterOn = sched?.on == true;
+    final due = _studyError != null ? null : kitStudyDue(_studyNewest);
+
+    // Earlier letters: up to five SENT daily letters of the twelve newest,
+    // excluding the one shown — `kind != 'scripture'`, never `== 'daily'`.
+    // Absent on a failed read: the section claims nothing.
+    final newest = [...letters.history, ...letters.readings]
+      ..sort((a, b) => (b.generatedAt ?? 0).compareTo(a.generatedAt ?? 0));
+    final past = letters.error != null
+        ? const <Newsletter>[]
+        : newest
+              .take(12)
+              .where(
+                (l) =>
+                    !l.isScripture &&
+                    l.status == 'sent' &&
+                    l.id != read.letter?.id,
+              )
+              .take(5)
+              .toList();
+
+    // The desk ledger: every row a measurement. The review count is the
+    // shell's one inbox (INV-30); unmeasured, it draws the dash.
+    final ledger = <KitLedgerRow>[
+      if (due != null)
+        KitLedgerRow(
+          id: 'study',
+          n: '${due.left}',
+          line: due.left == 1 ? 'question waiting' : 'questions waiting',
+          sub: 'Deep study · ${due.programTitle}',
+          onTap: () => go('/study'),
+        ),
+      if (inbox != null && inbox.count != null && inbox.count != 0)
+        KitLedgerRow(
+          id: 'review',
+          // `500+` at the read limit, never 500 (screens/review.md §Data).
+          n: inbox.countText,
+          line: 'set aside for your review',
+          sub: kitReviewParts(
+            sources: inbox.sources.length,
+            holds: inbox.holds.length,
+            suggestions: inbox.suggestions.length,
+            proposals: inbox.proposals.length,
+          ).join(' · '),
+          onTap: () => go('/review'),
+        )
+      else if (inbox != null && inbox.loaded && inbox.count == null)
+        KitLedgerRow(
+          id: 'review',
+          n: null,
+          line: 'set aside for your review',
+          sub: 'Could not be counted',
+          onTap: () => go('/review'),
+        ),
+      if (incoming.isNotEmpty)
+        KitLedgerRow(
+          id: 'reading',
+          n: '${incoming.length}',
+          line: incoming.length == 1
+              ? 'volume being read'
+              : 'volumes being read',
+          reading: incoming,
+          onTap: () => go('/sources'),
+        ),
+    ];
+    final quiet =
+        ledger.isEmpty &&
+        measured &&
+        inbox?.count == 0 &&
+        _studyLoaded &&
+        _studyError == null;
+
+    // ── The page's words ────────────────────────────────────────────────────
+    final sources = measured ? kitThousands(model.total) : '—';
+    final passages = measured ? kitThousands(model.passages) : '—';
+    final folio =
+        '${kitLongDay(now.millisecondsSinceEpoch)} · '
+        '$sources ${measured && model.total == 1 ? 'source' : 'sources'} · '
+        '$passages ${measured && model.passages == 1 ? 'passage' : 'passages'}';
+    final standParts = [
+      kitLetterSentence(
+        read,
+        parts,
+        libState: libState,
+        sched: sched,
+        now: now,
+      ),
+      kitDeskSentence(
+        due: due,
+        review: inbox?.count,
+        atLimit: inbox?.atLimit ?? false,
+      ),
+    ].whereType<String>().join(' ');
+    final stand = empty
+        ? 'Your library is empty for now. Bring in what you’ve read, and '
+              'NoteLetter makes it searchable and starts writing you a daily '
+              'letter from it.'
+        : (standParts.isEmpty ? null : standParts);
+
+    // The sheet leads with Home's contents — only the sections the page has.
+    final secs = empty
+        ? const [
+            KitContentsItem('first', 'Your first sources'),
+            KitContentsItem('letter', 'The letter'),
+          ]
+        : [
+            const KitContentsItem('letter', 'The letter'),
+            const KitContentsItem('recent', 'Recently added'),
+            if (past.isNotEmpty)
+              const KitContentsItem('earlier', 'Earlier letters'),
+            const KitContentsItem('shelves', 'The shelves'),
+          ];
+    final ids = [for (final s in secs) s.id];
+    if (!listEquals(_sec.ids, ids)) _sec.ids = ids;
+
+    final view = LocalFlags.sourceView.value;
+    final toggle = model.total > 0 ? const KitViewToggle() : null;
+    final canBackfill = model.total > 0;
+
+    void openLetterSettings() {
+      if (!KitPageTools.instance.openSettings()) go('/letters/settings');
+    }
+
+    void newShelf() => showShelfSheet(
+      context,
+      canBackfill: canBackfill,
+      land: (id) => go('/shelves/$id'),
+      shelves: tags.tags,
+    );
+
+    return KitDPage(
+      folio: folio,
+      title: '${kitGreeting(now)}, *reader*',
+      stand: stand,
+      action: KitPageAction(
+        label: 'Add a source',
+        short: 'Add',
+        icon: Icons.add,
+        onPressed: () => go('/sources/add'),
+      ),
+      settings: KitPageSettings(
+        label: 'Letter settings',
+        has: const ['letter'],
+        body: (context, close) => _LetterQuickHost(close: close),
+      ),
+      sections: _sec,
+      sheet: KitDSheet(
+        label: 'On this page',
+        foldOnPick: true,
+        peek: KitSecPeek(items: secs, sections: _sec),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const KitDLabel('Contents', first: true),
+            KitContents(items: secs, sections: _sec),
+            KitDeskLedger(rows: ledger, quiet: quiet),
+          ],
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const ChapterOpening(
-            title: 'Your library is *empty — for now.*',
-            standfirst: "Bring in everything you've read. NoteLetter parses "
-                'the text, makes it searchable, and starts writing you a '
-                'daily letter from your own notes.',
-          ),
-          // The first-run checklist, as the full card (web LibraryEmpty).
-          _SetupChecklist(documents: documents, compact: false),
-          // This said "PDF, EPUB, Markdown, plain text, or images" and tagged
-          // EPUB (C2b). No extractor has ever supported EPUB and
-          // `application/epub+zip` is a hard 400 since 4.10.0, so the FIRST
-          // screen a new reader sees promised a format the front door refuses
-          // — while omitting Word, PowerPoint, audio and video, which are
-          // real. component-kit §3 rule 3: a `pending` kind may be RENDERED
-          // and must not be ADVERTISED.
-          //
-          // The reference fixed this exact string and made it read from the
-          // constant beside the accepted list so the two cannot drift again.
-          // This client already HAD that constant — `uploadAcceptHelp`, used
-          // by `file_uploader` — and this screen was the second place the copy
-          // was written by hand, which is how it stayed a release behind.
-          KitDropZone(
-            icon: KitUploadGlyph.icon,
-            title: 'Drop files to begin',
-            help: '$uploadAcceptHelp — or open Sources to browse',
-            formats: const [
-              KitTag('PDF'),
-              KitTag('Word'),
-              KitTag('Markdown'),
-              KitTag('TXT'),
-              KitTag('PNG / JPG'),
-              KitTag('Audio'),
-            ],
-            onTap: () => context.go('/sources'),
-          ),
-          const SizedBox(height: 32),
-          Center(
-            child: KitButton.ghost(
-              'Go to Sources to add or connect →',
-              onPressed: () => context.go('/sources'),
+          _SetupChecklist(documents: documents, aiOn: aiOn, go: go),
+          if (empty)
+            KeyedSubtree(
+              key: _sec.keyOf('first'),
+              child: KitFirstSources(
+                // One upload path: Add a source, already picking.
+                onAddFiles: () => go('/sources/add', extra: 'pick'),
+                onPasteLink: () => go('/sources/add'),
+                onConnect: () => go('/sources'),
+              ),
+            ),
+          KeyedSubtree(
+            key: _sec.keyOf('letter'),
+            child: KitEditionLetter(
+              read: read,
+              parts: parts,
+              sched: sched,
+              libState: libState,
+              now: now,
+              onLetters: () => go('/letters'),
+              onSettings: openLetterSettings,
             ),
           ),
+          if (!empty)
+            KitHomeLower(
+              recent: KeyedSubtree(
+                key: _sec.keyOf('recent'),
+                child: KitRecentlyAdded(
+                  model: model,
+                  incoming: incoming,
+                  loaded: loaded,
+                  libError: libError,
+                  grid: view == 'grid' && model.total > 0,
+                  toggle: toggle,
+                  onWholeLibrary: () => go('/sources'),
+                ),
+              ),
+              earlier: past.isEmpty
+                  ? null
+                  : KeyedSubtree(
+                      key: _sec.keyOf('earlier'),
+                      child: KitEarlierLetters(
+                        rows: [
+                          for (final l in past)
+                            KitEarlierLetter(
+                              id: l.id,
+                              no: kitLetterHead(l).no,
+                              title: kitLetterHead(l).title,
+                              date: l.generatedAt == null
+                                  ? ''
+                                  : kitShortDay(l.generatedAt!),
+                            ),
+                        ],
+                        onOpen: () => go('/letters'),
+                        onAll: () => go('/letters'),
+                      ),
+                    ),
+            ),
+          if (!empty)
+            KeyedSubtree(
+              key: _sec.keyOf('shelves'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  KitSectionHead(
+                    'The shelves',
+                    meta: measured
+                        ? kitCounted(model.roots.length, 'shelf', 'shelves')
+                        : null,
+                    actions: [
+                      KitHxLink(
+                        'Suggest shelves',
+                        icon: KitSparkle.icon,
+                        onTap: () => showSuggestShelvesSheet(
+                          context,
+                          canBackfill: canBackfill,
+                        ),
+                      ),
+                      KitHxLink('New shelf', icon: Icons.add, onTap: newShelf),
+                      KitHxLink('All shelves →', onTap: () => go('/shelves')),
+                      ?toggle,
+                    ],
+                  ),
+                  KitShelfListing(
+                    model: model,
+                    view: view,
+                    letterOn: letterOn,
+                    loaded: loaded,
+                    libError: libError,
+                    onNewShelf: newShelf,
+                    actions: KitShelfActions(
+                      onOpenShelf: (n) =>
+                          go(n.unshelved ? '/sources' : '/shelves/${n.id}'),
+                      // Absent while generative AI is off (5.29.0, ADR-186).
+                      onAsk: aiOn ? (n) => go('/ask/shelf/${n.id}') : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-// ── Formatting ───────────────────────────────────────────────────────────────
+/// The setup checklist strip (web `shared/OnboardingChecklist.jsx`, compact):
+/// the account (always done), a first source, a volume on a shelf, the letter
+/// set up (`enabled` or a `deliveryTime` on the settings document), a first
+/// question asked — the one client-local flag. While generative AI is off the
+/// Ask step is ABSENT (5.29.0, ADR-186), so the strip can still complete;
+/// steps are read by id, never by position. Hidden, dismissed or complete, it
+/// is absent and its slot takes no room. Nothing here reaches Firestore.
+class _SetupChecklist extends StatelessWidget {
+  final List<Document> documents;
+  final bool aiOn;
+  final void Function(String to, {Object? extra}) go;
 
-const _weekdays = [
-  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
-];
-const _months = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
+  const _SetupChecklist({
+    required this.documents,
+    required this.aiOn,
+    required this.go,
+  });
 
-String _today() => _longDay(DateTime.now());
-
-/// The folio's format — "Tuesday, September 22" — in which the standfirst
-/// names an older letter's day (library.md §The letter).
-String _longDay(DateTime d) =>
-    '${_weekdays[d.weekday - 1]}, ${_months[d.month - 1]} ${d.day}';
-
-/// A letter is today's when it was built on the device's calendar day — the
-/// clock the folio is printed from (4.99.0, ADR-132).
-bool _builtToday(int? ms) {
-  if (ms == null) return false;
-  final d = DateTime.fromMillisecondsSinceEpoch(ms);
-  final now = DateTime.now();
-  return d.year == now.year && d.month == now.month && d.day == now.day;
-}
-
-/// Matches the web reference's boundaries (12 / 18). This client's old
-/// dashboard turned to evening at 17 and greeted a reader differently from
-/// every other client for an hour a day.
-String _greeting() {
-  final hour = DateTime.now().hour;
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-}
-
-/// The standfirst's count: `chunk_ids`, which names exactly the passages the
-/// body holds (4.39.0) — the reference's `letter.chunk_ids.length`, and what
-/// the Letters card counts. It read `passages_sent` and fell back to a bare
-/// `passages` when that was absent, so the standfirst said "Today's letter is
-/// ready — passages from your library." (2026-09-25 frame).
-String _passages(Newsletter letter) =>
-    _plural(letter.chunkIds.length, 'passage');
-
-/// English plurals, in one place. Written out because "1 passages" shipped to a
-/// real screen the first time each of these was inlined.
-String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
-
-/// The row date: minutes-ago, then a clock time within the day, then a calendar
-/// date — the web's `formatDate`.
-String _rowDate(int? ms) {
-  if (ms == null) return '';
-  final then = DateTime.fromMillisecondsSinceEpoch(ms);
-  final diff = DateTime.now().difference(then);
-  if (diff.inMinutes < 1) return 'Just now';
-  if (diff.inHours < 24) {
-    final h = then.hour % 12 == 0 ? 12 : then.hour % 12;
-    final m = then.minute.toString().padLeft(2, '0');
-    return '$h:$m ${then.hour < 12 ? 'AM' : 'PM'}';
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsNotifier>().newsletter;
+    final steps = <String, KitSetupStep>{
+      'account': const KitSetupStep('Create your account', done: true),
+      'source': KitSetupStep(
+        'Add your first source',
+        done: documents.isNotEmpty,
+        onTap: () => go('/sources/add'),
+      ),
+      'shelf': KitSetupStep(
+        'File a volume onto a shelf',
+        done: documents.any((d) => d.tagIds.isNotEmpty),
+        onTap: () => go('/shelves'),
+      ),
+      'letter': KitSetupStep(
+        'Set up your daily letter',
+        done:
+            settings != null &&
+            (settings.enabled || settings.deliveryTime.isNotEmpty),
+        onTap: () => go('/letters/settings'),
+      ),
+      if (aiOn)
+        'ask': KitSetupStep(
+          'Ask your library a question',
+          done: LocalFlags.onboardAsked.value,
+          onTap: () => go('/ask'),
+        ),
+    };
+    if (LocalFlags.onboardDismissed.value ||
+        steps.values.every((s) => s.done)) {
+      return const SizedBox.shrink();
+    }
+    return KitHomeCheckSlot(
+      child: KitSetupChecklist(
+        steps: steps.values.toList(),
+        compact: true,
+        // Closed by default; once toggled, the choice is remembered.
+        expanded: LocalFlags.onboardExpanded.value ?? false,
+        onExpanded: LocalFlags.setOnboardExpanded,
+        onHide: LocalFlags.setOnboardDismissed,
+      ),
+    );
   }
-  return '${_months[then.month - 1].substring(0, 3)} ${then.day}';
 }
 
-String? _letterDate(int? ms) {
-  if (ms == null) return null;
-  final d = DateTime.fromMillisecondsSinceEpoch(ms);
-  return '${_months[d.month - 1].substring(0, 3)} ${d.day}';
-}
+/// §28's body on Home: LetterQuick over the settings document the app already
+/// reads ([SettingsNotifier]). Each write is one `fn_newsletter_settings` PUT
+/// built in `services/api.dart`, then a re-read, so the schedule Home draws
+/// (and the letter chips) follow it.
+class _LetterQuickHost extends StatelessWidget {
+  final VoidCallback close;
+  const _LetterQuickHost({required this.close});
 
-String _shelfLabel(Document doc, List<Tag> shelves) {
-  for (final s in shelves) {
-    if (doc.tagIds.contains(s.id)) return s.title;
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsNotifier>();
+    final router = GoRouter.maybeOf(context);
+    return KitLetterQuick(
+      settings: settings.newsletter,
+      readError: settings.newsletter == null ? settings.error : null,
+      write: (patch) => writeLetterSettings(settings, patch),
+      onEverySetting: () {
+        close();
+        router?.go('/letters/settings');
+      },
+    );
   }
-  return 'Unshelved';
+}
+
+/// One LetterQuick write: the PUT, then the settings document re-read. The
+/// server's sentence on a refusal.
+@visibleForTesting
+Future<KitLetterWrite> writeLetterSettings(
+  SettingsNotifier settings,
+  Map<String, dynamic> patch,
+) async {
+  try {
+    final res = await Api.instance.updateNewsletterSettings(patch);
+    unawaited(settings.loadAll());
+    return KitLetterWrite(response: res);
+  } on ApiException catch (e) {
+    return KitLetterWrite(error: e.message);
+  } catch (_) {
+    return const KitLetterWrite(error: 'The change was not saved.');
+  }
 }

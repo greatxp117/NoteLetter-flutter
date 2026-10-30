@@ -1,52 +1,90 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
+import '../models/document.dart';
 import '../models/import_job.dart';
+import '../services/camera_sweep_bridge.dart';
 import '../shared/cloud_providers.dart';
 import '../shared/cloud_return.dart';
 import '../shared/cooldown.dart';
+import '../shared/local_flags.dart';
+import '../shared/shelf_tree.dart';
+import '../state/camera_sweep_host.dart';
 import '../state/cloud_notifier.dart';
 import '../state/documents_notifier.dart';
 import '../state/org_notifier.dart';
 import '../state/tags_notifier.dart';
+import '../state/upload_notifier.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/file_uploader.dart';
 import '../widgets/kit/kit.dart';
+import '../widgets/sidebar.dart' show shellAiOn;
+import 'reader/reader_prefs.dart';
+import 'settings/sources_section.dart';
+import 'settings/summaries_section.dart';
 import 'sources/browse_section.dart';
 import 'sources/cloud_picker.dart';
 import 'sources/cloud_sync_copy.dart';
 import 'sources/import_review_queue.dart';
+import 'sources/source_facets.dart';
 import 'sources/suggestion_queue.dart';
 import 'sources/organization_settings_panel.dart';
-import 'sources/sources_info_sheet.dart';
 import 'sources/sweep_tray.dart';
 import 'sources/sync_settings_panel.dart';
 import 'reader/supersession_confirm.dart';
 
 const _providers = cloudProviders;
 
-/// **Sources** — the rail's *Library* (`screens/sources.md`). Browse-and-manage
-/// over ingestion sources, plus the add flows.
+/// The standfirst (web `libSentence`): what is indexed, what is unread, what
+/// is still arriving — counts up to twelve in words, figures above.
+String librarySentence({
+  required int volumes,
+  required int passages,
+  required int unread,
+  required int incoming,
+}) {
+  if (volumes == 0) {
+    return incoming > 0
+        ? '${kitCap(kitSay(incoming))} '
+            '${incoming == 1 ? 'volume is' : 'volumes are'} being read now. '
+            'Each joins the catalogue as soon as its passages are indexed.'
+        : 'Nothing here yet. Add a file, paste a link, or connect a service, '
+            'and each source is read and indexed as it arrives.';
+  }
+  final first = '${kitCounted(passages, 'passage')} from ${kitSay(volumes)} '
+      '${volumes == 1 ? 'volume' : 'volumes'}, indexed and searchable.';
+  final bits = [
+    if (unread > 0) '${kitSay(unread)} ${unread == 1 ? 'is' : 'are'} still unread',
+    if (incoming > 0)
+      '${kitSay(incoming)} more ${incoming == 1 ? 'is' : 'are'} being read now',
+  ];
+  return bits.isEmpty ? first : '$first ${kitCap(bits.join(', and '))}.';
+}
+
+/// The Library's state, read once from the documents read (§Composition's
+/// table): a refused read is never empty (INV-24).
+enum LibraryState { loading, failed, empty, reading, ready }
+
+/// **The Library** — the rail's *Library*, route `/sources`
+/// (`screens/sources.md` §Composition (direction D), web `SourcesBrowse.jsx`):
+/// the D frame — folio, *The Library*, the library sentence, the cloud
+/// notices — then the sheet (*Filters*, or *What you can add* before anything
+/// is in it) beside one column: **Correspondence** (this client's camera roll
+/// first, the services, then the cloud panels), **Being catalogued**, what
+/// adding answered, and **the catalogue** (List under month or initial heads,
+/// or Grid's wall of covers).
 ///
-/// Composition (§Composition, ADR-041), every part from the kit:
-///
-/// * **Frame** Index (980) inside a scroll container — §1.4/§1.5.
-/// * **Header** chapter opening: folio `{n} volumes`, the title with its italic
-///   accent clause, a standfirst naming the passage count.
-/// * **Body** three sections, each opened by a Section header (§3), in the
-///   order the reference mounts them (contract 4.5.3): *Add to your library*
-///   (drop zone → link row → processing rows), *Connect a service* (connect
-///   cards §5.1, then the picker, the import progress and the history), and
-///   *In your library* (control bar §6.6 over source rows §4.1).
-///
-/// The drop zone **opens** the screen. A source you just dropped lands where
-/// you are already looking, and the reader with an empty library is exactly the
-/// reader who must not have to scroll past it.
+/// *Add a source* is its own page here (`/sources/add`): this client has no
+/// quick-add overlay, and that page holds the uploader. The empty catalogue
+/// holds the uploader too, through the same [FileUploader].
 class SourcesPage extends StatefulWidget {
   /// OAuth return params (ADR-012, ADR-158), passed from the /sources route
   /// on a web build: `claim` (with [cloudConnectClaim]) or `error` (with
@@ -70,30 +108,64 @@ class SourcesPage extends StatefulWidget {
 }
 
 class _SourcesPageState extends State<SourcesPage> {
+  // ── The OAuth return, said by the notices strip (§States) ─────────────────
+
+  /// A `cloud_connect=error` reason, in §States' copy.
   String? _errorBanner;
-  // The provider whose returned claim is being spent (5.0.0, ADR-158): the
-  // exchange with the provider happens inside that request, so it takes a
-  // moment, and the return says so rather than look like nothing happened.
+
+  /// The provider whose returned claim is being spent (5.0.0, ADR-158): the
+  /// exchange with the provider happens inside that request, so it takes a
+  /// moment, and the return says so rather than look like nothing happened.
   String? _claiming;
-  // A claim the server REFUSED (403 another account started it, 404 expired
-  // or already finished) — its own sentence, verbatim (§14.2).
+
+  /// A claim the server REFUSED (403 another account started it, 404 expired
+  /// or already finished) — its own sentence, verbatim (§14.2).
   String? _claimRefusal;
+
+  /// `org: "enabled"` — the write-scope upgrade, confirmed.
+  String? _orgEnabled;
+
+  /// `connection: "reconnected"` (2.21.0, ADR-026): nothing was added.
+  String? _alreadyConnected;
+
+  /// A new connection: the first-import nudge over the panels, and that
+  /// provider's picker open (web `justConnected`).
+  String? _justConnected;
+
   CloudNotifier? _cloud;
-  final _uploader = GlobalKey<FileUploaderState>();
+  DocumentsNotifier? _docs;
+
+  // ── The sheet ─────────────────────────────────────────────────────────────
+  String _kind = 'all';
+  String? _shelf;
+  String _sort = 'recent';
+
+  /// The camera roll's tray, revealed by its row's *Review*.
+  bool _trayOpen = false;
+
+  // ── Just catalogued (§Document processing: held briefly as Done) ──────────
+  final Map<String, Timer> _justDone = {};
+  Map<String, DocumentStatus> _prev = {};
 
   @override
   void initState() {
     super.initState();
+    LocalFlags.ensureLoaded();
+    ReaderPrefs.ensureLoaded();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _cloud = context.read<CloudNotifier>();
       _cloud!.start();
       _cloud!.completionMessage.addListener(_onSessionComplete);
       context.read<OrgNotifier>().start();
-      // The documents subscription this screen shares with Library (INV-02) —
-      // it drives the folio, the processing rows and the volume list.
-      context.read<DocumentsNotifier>().start();
+      // The documents subscription this screen shares with Home (INV-02) —
+      // the folio, the standfirst, Being catalogued and the catalogue.
+      _docs = context.read<DocumentsNotifier>()..start();
+      _docs!.addListener(_onDocs);
+      _onDocs();
       context.read<TagsNotifier>().start();
+      // A page arriving starts with nothing answered (web: a new intake).
+      context.read<UploadNotifier>().clearAnswered();
       CloudReturn.pending.addListener(_onReturn);
       _handleOAuthReturn();
     });
@@ -102,8 +174,38 @@ class _SourcesPageState extends State<SourcesPage> {
   @override
   void dispose() {
     _cloud?.completionMessage.removeListener(_onSessionComplete);
+    _docs?.removeListener(_onDocs);
     CloudReturn.pending.removeListener(_onReturn);
+    for (final t in _justDone.values) {
+      t.cancel();
+    }
     super.dispose();
+  }
+
+  /// A source that completes while the Library is open stays in Being
+  /// catalogued as *Done* for five seconds, then joins the catalogue — it
+  /// resolves visibly rather than vanishing (§Document processing).
+  void _onDocs() {
+    final docs = _docs;
+    if (docs == null || !mounted) return;
+    final next = <String, DocumentStatus>{};
+    var changed = false;
+    for (final d in docs.documents) {
+      next[d.id] = d.status;
+      final was = _prev[d.id];
+      if (d.status == DocumentStatus.complete &&
+          was != null &&
+          was != DocumentStatus.complete &&
+          !_justDone.containsKey(d.id)) {
+        changed = true;
+        _justDone[d.id] = Timer(const Duration(seconds: 5), () {
+          if (!mounted) return;
+          setState(() => _justDone.remove(d.id));
+        });
+      }
+    }
+    _prev = next;
+    if (changed) setState(() {});
   }
 
   // An app's auth session came back while this screen was open.
@@ -181,30 +283,25 @@ class _SourcesPageState extends State<SourcesPage> {
     }
   }
 
-  // Success → confirm + auto-open the provider's picker (the first-import
-  // prompt fires on return, not on a later focus event).
+  // Success → say it in the notices strip, and auto-open the provider's picker
+  // (the first-import prompt fires on return, not on a later focus event).
   Future<void> _confirmConnected(String? provider,
       {required bool org, required bool reconnected}) async {
     final cloud = context.read<CloudNotifier>();
-    final name = provider != null
-        ? (_providers[provider]?.name ?? provider)
-        : 'Your account';
-    // 2.21.0 — a re-authorisation is not a new connection. Saying "connected"
-    // for a routine token refresh is wrong, and auto-opening the import
-    // picker on every rotation nags: that prompt is for a library GAINING a
-    // source. Open vocabulary, so anything unrecognised takes the new-connect
-    // path rather than falling into silence.
-    AppToast.show(
-      context,
-      reconnected
-          ? '$name was already connected — sign-in refreshed, nothing else changed.'
-          : org
-              ? '$name connected — auto-organization enabled.'
-              : '$name connected.',
-      type: ToastType.success,
-    );
-    // org_upgrade confirms the write-scope grant; the reader was not
-    // importing, so no first-import prompt either.
+    // 2.21.0 — a re-authorisation is not a new connection: it says what
+    // happened and stops, with no import nudge. org_upgrade confirms the
+    // write-scope grant; the reader was not importing, so no first-import
+    // prompt either. Open vocabulary, so anything unrecognised takes the
+    // new-connect path rather than falling into silence.
+    setState(() {
+      if (org) {
+        _orgEnabled = provider ?? '';
+      } else if (reconnected) {
+        _alreadyConnected = provider ?? '';
+      } else {
+        _justConnected = provider;
+      }
+    });
     if (provider != null && !reconnected && !org) {
       await cloud.openPicker(provider);
     }
@@ -235,225 +332,564 @@ class _SourcesPageState extends State<SourcesPage> {
     }
   }
 
+  /// The strip's sentences, in web's order.
+  List<Widget> _notices() => [
+        if (_claiming != null)
+          KitLibNotice(
+            'Finishing the ${_providers[_claiming]?.name ?? 'cloud'} '
+            'connection…',
+            status: true,
+          ),
+        if (_claimRefusal != null) KitFailureInline(_claimRefusal!),
+        if (_errorBanner != null)
+          KitLibNotice(_errorBanner!,
+              warn: true,
+              onDismiss: () => setState(() => _errorBanner = null)),
+        if (_orgEnabled != null)
+          KitLibNotice(
+            'Auto-organization is now enabled for '
+            '${_providers[_orgEnabled]?.name ?? 'your service'}.',
+            onDismiss: () => setState(() => _orgEnabled = null),
+          ),
+        // ADR-026: a re-authorisation, not a new source.
+        if (_alreadyConnected != null)
+          KitLibNotice(
+            '${_providers[_alreadyConnected]?.name ?? 'That service'} was '
+            'already connected — your sign-in was refreshed and nothing else '
+            'changed.',
+            onDismiss: () => setState(() => _alreadyConnected = null),
+          ),
+      ];
+
+  void _reset() => setState(() {
+        _kind = 'all';
+        _shelf = null;
+      });
+
   @override
   Widget build(BuildContext context) {
-    return Consumer2<CloudNotifier, DocumentsNotifier>(
-      builder: (context, cloud, docs, _) {
-        final volumes = docs.complete;
-        final passages =
-            volumes.fold<int>(0, (n, d) => n + (d.chunkCount ?? 0));
+    final cloud = context.watch<CloudNotifier>();
+    final docs = context.watch<DocumentsNotifier>();
+    final tags = context.watch<TagsNotifier>();
+    final upload = context.watch<UploadNotifier>();
+    final aiOn = shellAiOn(context);
+    final dark = Tokens.of(context).isDark;
 
-        return KitPage(
-          child: Column(
+    final model = kitShelfModel(tags.tags, docs.documents);
+    final all = model.complete.where((d) => !_justDone.containsKey(d.id)).toList();
+    final processing = docs.documents
+        .where((d) =>
+            d.status != DocumentStatus.complete || _justDone.containsKey(d.id))
+        .toList();
+    final incoming = docs.documents
+        .where((d) =>
+            d.status == DocumentStatus.processing ||
+            d.status == DocumentStatus.queued)
+        .length;
+
+    // INV-24 (ADR-071): a refused subscription hands this screen the same
+    // list an empty library does, so the state is read from the READ.
+    final state = docs.error != null
+        ? LibraryState.failed
+        : docs.loading
+            ? LibraryState.loading
+            : all.isNotEmpty
+                ? LibraryState.ready
+                : processing.isNotEmpty
+                    ? LibraryState.reading
+                    : LibraryState.empty;
+    final none =
+        state == LibraryState.empty || state == LibraryState.reading;
+    final measured = state == LibraryState.ready || none;
+
+    final counts = <String, int>{'all': all.length, 'unread': 0};
+    var passages = 0;
+    for (final d in all) {
+      final k = sourceFacetOf(d.type);
+      counts[k] = (counts[k] ?? 0) + 1;
+      if (d.viewCount == 0) counts['unread'] = counts['unread']! + 1;
+      passages += d.chunkCount ?? 0;
+    }
+
+    final subtree = _shelf == null ? null : ShelfTree(tags.tags).subtreeIds(_shelf!);
+    final items = kitSortSources(
+      all
+          .where((v) =>
+              (_kind == 'all' ||
+                  (_kind == 'unread'
+                      ? v.viewCount == 0
+                      : sourceFacetOf(v.type) == _kind)) &&
+              (subtree == null || inSubtree(v.tagIds, subtree)))
+          .toList(),
+      _sort,
+    );
+    final flat = model.flat;
+    KitShelfNode? shelfNode;
+    for (final n in flat) {
+      if (n.id == _shelf) shelfNode = n;
+    }
+
+    final folio = 'The library · '
+        '${measured ? kitCounted(all.length, 'volume') : '— volumes'} · '
+        '${measured ? kitCounted(model.roots.length, 'shelf', 'shelves') : '— shelves'}';
+    final stand = measured
+        ? librarySentence(
+            volumes: all.length,
+            passages: passages,
+            unread: counts['unread']!,
+            incoming: incoming)
+        : null;
+
+    final failedLine = 'Your sources could not be read — '
+        '${docs.error ?? 'the subscription failed.'}';
+
+    final Widget sheetBody;
+    switch (state) {
+      case LibraryState.failed:
+        sheetBody = KitFailureInline(failedLine);
+      case LibraryState.loading:
+        sheetBody = const KitSkeletonLines(
+          top: 0,
+          lines: [
+            KitSkelLine(0.6),
+            KitSkelLine(),
+            KitSkelLine(0.7),
+            KitSkelLine(0.5),
+          ],
+        );
+      case LibraryState.empty:
+      case LibraryState.reading:
+        sheetBody = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const KitDLabel('What you can add', first: true),
+            KitFigures(rows: kAddable),
+          ],
+        );
+      case LibraryState.ready:
+        sheetBody = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KitFacet(
+              label: 'Kind',
+              value: _kind,
+              onChanged: (v) => setState(() => _kind = v),
+              items: [
+                for (final k in kSourceFacets)
+                  if (k.types == null || (counts[k.id] ?? 0) > 0)
+                    KitFacetItem(
+                      k.id,
+                      k.label,
+                      count: '${counts[k.id] ?? 0}',
+                      disabled: k.id != 'all' && (counts[k.id] ?? 0) == 0,
+                    ),
+              ],
+            ),
+            KitShelfFacet(
+              total: all.length,
+              value: _shelf,
+              onChanged: (v) => setState(() => _shelf = v),
+              items: [
+                for (final n in flat)
+                  KitShelfFacetItem(
+                    n.id,
+                    n.title,
+                    color: AppColors.shelfColor(n.color, dark: dark),
+                    depth: n.depth,
+                    count: n.vols.length,
+                  ),
+              ],
+            ),
+            KitLibOrder(
+              options: kSorts,
+              value: _sort,
+              onChanged: (v) => setState(() => _sort = v),
+            ),
+            // Library reading summary (4.1.0) — opt-in, the reader's own
+            // preference, computed from the subscription already loaded (no
+            // extra read). Opened and Finished are two facts, never stages;
+            // at the subscription's cap the figures describe the window and
+            // say so.
+            ValueListenableBuilder<ReaderPrefs>(
+              valueListenable: ReaderPrefs.current,
+              builder: (context, p, _) => !p.stats
+                  ? const SizedBox.shrink()
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        KitFigures(label: 'Reading', rows: [
+                          ('Sources', kitThousands(all.length)),
+                          (
+                            'Opened',
+                            kitThousands(all.where((s) => s.viewCount > 0).length)
+                          ),
+                          (
+                            'Finished',
+                            kitThousands(
+                                all.where((s) => s.finishedAt != null).length)
+                          ),
+                        ]),
+                        if (all.length >= 200)
+                          KitLibNote('Of your most recent ${all.length}.',
+                              status: false),
+                      ],
+                    ),
+            ),
+          ],
+        );
+    }
+
+    final kindLabel = _kind == 'all'
+        ? null
+        : kSourceFacets
+            .firstWhere((k) => k.id == _kind,
+                orElse: () => SourceFacet(_kind, _kind))
+            .label;
+    final sortLabel =
+        kSorts.firstWhere((s) => s.$1 == _sort, orElse: () => ('', '')).$2;
+    final peek = none
+        ? const KitLibPeek(icon: Icons.add, title: 'What you can add')
+        : KitLibPeek(
+            icon: Icons.tune,
+            title: kindLabel ?? shelfNode?.title ?? 'All volumes',
+            meta: [
+              if (kindLabel != null && shelfNode != null) shelfNode.title,
+              sortLabel,
+            ].join(' · '),
+            count: measured ? '${items.length}' : '—',
+            tail: kindLabel != null || shelfNode != null
+                ? ' of ${all.length}'
+                : null,
+          );
+
+    final connected = [
+      for (final p in _providers.keys)
+        if (cloud.integrationFor(p) != null) p,
+    ];
+    final meta = !measured
+        ? null
+        : items.length == all.length
+            ? kitCounted(all.length, 'volume')
+            : '${items.length} of ${kitCounted(all.length, 'volume')}';
+
+    return KitDPage(
+      folio: folio,
+      title: 'The Library',
+      stand: stand,
+      action: KitPageAction(
+        label: 'Add a source',
+        short: 'Add',
+        icon: Icons.add,
+        onPressed: () => context.go('/sources/add'),
+      ),
+      settings: KitPageSettings(
+        label: 'Library settings',
+        // Summaries only while generative AI is on (5.29.0, ADR-186): with it
+        // off no summary is written, and Settings hides the section the same
+        // way.
+        has: aiOn ? const ['summaries', 'sources'] : const ['sources'],
+        // Settings' own sections, each under its own mono caps head (§3's
+        // eyebrow: *Summaries*, *Sources*) — the label web's panel draws over
+        // a section whose own head it hides; drawing both here would name
+        // each section twice.
+        body: (context, close) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (aiOn) const SummariesSection(),
+            const SourcesSection(),
+          ],
+        ),
+      ),
+      under: KitLibNotices(children: _notices()),
+      sheet: KitDSheet(
+        label: none ? 'What you can add' : 'Filters',
+        peek: peek,
+        body: sheetBody,
+      ),
+      child: KitSourceView(
+        builder: (context, view) {
+          final grid = view == 'grid';
+          final showIncoming = measured && processing.isNotEmpty;
+          final Widget catalogue;
+          switch (state) {
+            case LibraryState.failed:
+              catalogue = KitFailureInline(failedLine);
+            case LibraryState.loading:
+              catalogue = const KitSkeletonLines(lines: [
+                KitSkelLine(),
+                KitSkelLine(0.7),
+                KitSkelLine(),
+                KitSkelLine(0.6),
+              ]);
+            case LibraryState.reading:
+              catalogue = const KitDNone(
+                  'Nothing has finished reading yet. Each volume joins the '
+                  'catalogue as soon as its passages are indexed.',
+                  top: 24,
+                  bottom: 24);
+            case LibraryState.empty:
+              // The catalogue before anything is in it: the drop zone and the
+              // link field — this client's one upload path.
+              catalogue = const FileUploader(look: FileUploaderLook.first);
+            case LibraryState.ready:
+              catalogue = items.isEmpty
+                  ? KitDNone('No volumes match.',
+                      top: 24,
+                      bottom: 24,
+                      link: KitHxLink('Show every volume', onTap: _reset))
+                  : grid
+                      ? KitLibWall(items: items, homeOf: model.homeOf)
+                      : KitLibRegister(
+                          items: items, sort: _sort, homeOf: model.homeOf);
+          }
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ChapterOpening(
-                // UNREAD IS NOT ZERO (§8, ADR-109). Both figures are derived
-                // from a subscription that may have failed, and `0 volumes ·
-                // Nothing indexed yet` is the most consequential wrong
-                // sentence this screen can say to someone who has added
-                // things. A figure whose signal has not been read is not
-                // drawn; the §14 block below says why.
-                folio: docs.error != null
-                    ? null
-                    : _plural(volumes.length, 'volume'),
-                // `Library`, as the reference titles it (§Composition
-                // Header). The rail calls this screen Library; a title that
-                // says something else is a second name for one place.
-                title: 'Library',
-                // Both figures come from the subscription already loaded, so
-                // the standfirst costs no extra read — and it states what is
-                // measured, not what would be impressive.
-                // One sentence at every count, as the reference's
-                // (`counted(totalPassages, 'passage')`): the empty library's
-                // own line said "within a minute", which nothing measured
-                // (F-96, web e924677); §7 below speaks for the empty state.
-                standfirst: docs.error != null
-                    ? null
-                    : '${_count(passages)} '
-                        '${passages == 1 ? 'passage' : 'passages'}, indexed '
-                        'and searchable — add a volume, or connect a service.',
-              ),
-
-              // §14.1 for the subscription every figure on this screen is
-              // derived from (C2, INV-24).
-              if (docs.error != null)
-                KitFailureBlock(
-                  sentence: 'Your sources could not be loaded.',
-                  detail: docs.error!,
-                  onRetry: () => context.read<DocumentsNotifier>().refresh(),
-                ),
-
-              if (_claiming != null)
-                KitProcNote(
-                    'Finishing the '
-                    '${_providers[_claiming]?.name ?? 'cloud'} connection…',
-                    padding: const EdgeInsets.only(bottom: 12)),
-              if (_claimRefusal != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: KitFailureInline(_claimRefusal!),
-                ),
-
-              if (_errorBanner != null)
-                _Banner(
-                  icon: Icons.error_outline,
-                  text: _errorBanner!,
-                  onDismiss: () => setState(() => _errorBanner = null),
-                ),
-
-              // ── Add to your library ────────────────────────────────────
-              SectionHeader(
-                'Add to your library',
-                first: true,
-                actionIcon: Icons.help_outline,
-                actionLabel: 'What can I add?',
-                onAction: () => SourcesInfoSheet.show(context),
-              ),
-              FileUploader(
-                key: _uploader,
-                onUploadComplete: () => AppToast.show(
-                    context, 'Queued for processing.',
-                    type: ToastType.success),
-                onUploadError: (msg) =>
-                    AppToast.show(context, msg, type: ToastType.error),
-              ),
-              // §Document processing, directly under the zone and the link
-              // row — where a dropped source lands.
-              const ProcessingSection(),
-              // From your camera roll (F-125 S3; screens/sources.md
-              // §Camera-roll sweep): photos the sweep found, waiting on the
-              // reader — the end of "Add to your library", so a photo approved
-              // here lands in the processing rows just above it. The drop zone
-              // still opens the screen.
-              const SweepTraySection(),
-
-              // ── Connect a service ──────────────────────────────────────
-              const SectionHeader('Connect a service'),
-
-              // A card's whole meaning is whether that service is connected,
-              // and an unread list answers "no" for all of them (C4). The
-              // cards are withheld rather than drawn wrong: inviting someone
-              // to connect a service they are already connected to is not a
-              // missing notice, it is an instruction to re-run OAuth.
-              if (cloud.integrationsError != null &&
-                  !cloud.integrationsLoaded)
-                KitFailureBlock(
-                  sentence: 'Your connected services could not be read.',
-                  detail: cloud.integrationsError!,
-                  onRetry: () =>
-                      context.read<CloudNotifier>().loadIntegrations(),
-                )
-              else ...[
-                // A read that failed AFTER one succeeded keeps its cards —
-                // they were true a moment ago — with the notice above them.
-                if (cloud.integrationsError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: KitFailureInline(cloud.integrationsError!),
-                  ),
-                KitCardGrid(
-                  children: [
-                    for (final e in _providers.entries)
-                      _ProviderCard(
-                        providerId: e.key,
-                        spec: e.value,
-                        integration: cloud.integrationFor(e.key),
-                      ),
-                  ],
+              _correspondence(cloud, connected),
+              if (showIncoming) ...[
+                // Correspondence 64 above Being catalogued (§Reference metrics).
+                const SizedBox(height: 64),
+                ProcessingList(
+                  title: 'Being catalogued',
+                  items: processing,
+                  grid: grid,
+                  justDone: _justDone.keys.toSet(),
+                  uploadPcts: upload.uploadFractions,
                 ),
               ],
+              // What adding answered, beside the rows it made. The empty
+              // catalogue carries its own, under its drop zone.
+              if (state != LibraryState.empty) const AddAnswered(),
+              if (showIncoming) const SizedBox(height: 64),
+              KitSectionHead(
+                'The catalogue',
+                meta: meta,
+                flushTop: showIncoming,
+                actions: [
+                  if (state == LibraryState.ready) const KitViewToggle(),
+                ],
+              ),
+              catalogue,
+            ],
+          );
+        },
+      ),
+    );
+  }
 
-              // What the last disconnect did at the provider — a standing
-              // note, not a toast (4.89.0, ADR-123 §5).
-              if (cloud.lastDisconnect != null)
-                KitProcNote(disconnectOutcome(
-                  cloud.lastDisconnect!.$1,
-                  _providers[cloud.lastDisconnect!.$1]?.name ??
-                      cloud.lastDisconnect!.$1,
-                  cloud.lastDisconnect!.$2,
-                )),
-
-              // One block per connected provider, under its own §3 header
-              // ("Import from {provider}", web `CloudImportPanel`): Sync now,
-              // Sync settings and Browse files…, the sync sentence, the
-              // reconnect banner and the picker. They hung inside the connect
-              // card until the 2026-10-08 ruling made the card fixed — a form
-              // inside a quarter-width card is a form nobody can use.
+  /// **Correspondence**: this client's camera roll first (sources.md §Camera
+  /// roll — web has none), the services — with one connected, a compact grid
+  /// ABOVE the cloud panels, so Disconnect and a second service stay
+  /// reachable — then the panels, which keep every behaviour they had.
+  Widget _correspondence(CloudNotifier cloud, List<String> connected) {
+    final unread = cloud.integrationsError != null && !cloud.integrationsLoaded;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KitSectionHead(
+          'Correspondence',
+          meta: connected.isEmpty
+              ? 'Services that send you volumes'
+              : 'Imports · filing · folders',
+          flushTop: true,
+        ),
+        _CameraRollRow(
+          open: _trayOpen,
+          onReview: () => setState(() => _trayOpen = !_trayOpen),
+        ),
+        if (_trayOpen) const SweepTraySection(),
+        // A row's whole meaning is whether that service is connected, and an
+        // unread list answers "no" for all of them (C4). The rows are
+        // withheld rather than drawn wrong: inviting someone to connect a
+        // service they are already connected to is an instruction to re-run
+        // OAuth.
+        if (unread)
+          KitFailureBlock(
+            sentence: 'Your connected services could not be read.',
+            detail: cloud.integrationsError!,
+            onRetry: () => context.read<CloudNotifier>().loadIntegrations(),
+          )
+        else ...[
+          // A read that failed AFTER one succeeded keeps its rows — they were
+          // true a moment ago — with the notice above them.
+          if (cloud.integrationsError != null)
+            KitFailureInline(cloud.integrationsError!),
+          KitServiceList(
+            compact: connected.isNotEmpty,
+            rows: [
               for (final e in _providers.entries)
-                if (cloud.integrationFor(e.key) != null)
-                  _ImportFromProvider(
-                    providerId: e.key,
-                    spec: e.value,
-                    integration: cloud.integrationFor(e.key)!,
-                  ),
-
-              // What the last triage batch did that the rows cannot say.
-              // HERE and not inside the queue: dismissing the last held file
-              // unmounts that section, and a line about what just happened
-              // would vanish with the thing it is about.
-              if (cloud.reviewOutcome != null)
-                ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
-              ImportReviewQueue(
-                held: cloud.heldJobs,
-                rulesFor: (p) =>
-                    cloud.integrationFor(p)?.reviewRules ?? const {},
-              ),
-              _ImportActivity(
-                jobs: cloud.progressJobs,
-                all: cloud.jobs,
-                error: cloud.jobsError,
-                summary: _progressSummary(cloud),
-                discoveringFiles: cloud.awaitingFirstJob,
-              ),
-              _ImportHistory(
-                  jobs: cloud.historyJobs, windowFull: cloud.jobs.length >= 50),
-              // The reference's OrganizationPanel: the suggestions FIRST, then
-              // each provider's organized folders (F-90 (6)).
-              const _OrganizationSection(),
-              const OrganizedFoldersSection(),
-
-              // ── In your library ────────────────────────────────────────
-              BrowseSection(
-                onAddFile: () => _uploader.currentState?.pickFiles(),
-                onAddLink: () => _uploader.currentState?.revealLinkField(),
-              ),
+                _ServiceRow(
+                  providerId: e.key,
+                  spec: e.value,
+                  integration: cloud.integrationFor(e.key),
+                ),
             ],
           ),
+        ],
+        // What the last disconnect did at the provider — a standing note,
+        // not a toast (4.89.0, ADR-123 §5).
+        if (cloud.lastDisconnect != null)
+          KitLibNote(disconnectOutcome(
+            cloud.lastDisconnect!.$1,
+            _providers[cloud.lastDisconnect!.$1]?.name ??
+                cloud.lastDisconnect!.$1,
+            cloud.lastDisconnect!.$2,
+          )),
+        // The first-import nudge (web CloudImportPanel's `.import-nudge`),
+        // for the provider a claim just connected.
+        if (_justConnected != null && connected.contains(_justConnected))
+          KitLibNotice(
+            'Connected to ${_providers[_justConnected]?.name ?? _justConnected} '
+            '— import your first files below.',
+            onDismiss: () => setState(() => _justConnected = null),
+          ),
+        // One block per connected provider, under its own header ("Import
+        // from {provider}", web `CloudImportPanel`): Sync now, Sync settings,
+        // Browse files… and Organization settings, the sync sentence, the
+        // reconnect banner and the picker.
+        for (final p in connected)
+          _ImportFromProvider(
+            providerId: p,
+            spec: _providers[p]!,
+            integration: cloud.integrationFor(p)!,
+          ),
+        // What the last triage batch did that the rows cannot say. HERE and
+        // not inside the queue: dismissing the last held file unmounts that
+        // section, and a line about what just happened would vanish with it.
+        if (cloud.reviewOutcome != null)
+          ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
+        ImportReviewQueue(
+          held: cloud.heldJobs,
+          rulesFor: (p) => cloud.integrationFor(p)?.reviewRules ?? const {},
+        ),
+        _ImportActivity(
+          jobs: cloud.progressJobs,
+          all: cloud.jobs,
+          error: cloud.jobsError,
+          summary: _progressSummary(cloud),
+          discoveringFiles: cloud.awaitingFirstJob,
+        ),
+        _ImportHistory(
+            jobs: cloud.historyJobs, windowFull: cloud.jobs.length >= 50),
+        // The reference's OrganizationPanel: the suggestions FIRST, then each
+        // provider's organized folders (F-90 (6)).
+        const _OrganizationSection(),
+        const OrganizedFoldersSection(),
+      ],
+    );
+  }
+}
+
+// ── Correspondence: the camera roll ─────────────────────────────────────────
+
+/// The camera roll's row (screens/sources.md §Camera roll, *The row*, 5.43.0,
+/// ADR-198): the camera glyph, *Camera roll*, a line and one action, the
+/// first state that holds deciding it — for the states this client can
+/// measure today. *Settings* and *Connect* open its settings; *Review*
+/// reveals the tray under the row. Drawn only where there is a photo library
+/// this client can sweep. (The look-back walk's position is not measured
+/// yet: its *Looking back · n of N* line is F-146's, with the D flow.)
+class _CameraRollRow extends StatelessWidget {
+  final bool open;
+  final VoidCallback onReview;
+
+  const _CameraRollRow({required this.open, required this.onReview});
+
+  @override
+  Widget build(BuildContext context) {
+    final host = context.watch<CameraSweepHost?>();
+    if (!CameraSweepBridge.isAvailable || host == null || !host.available) {
+      return const SizedBox.shrink();
+    }
+    if (host.loadError != null) {
+      return const KitServiceRow(
+        glyph: Icons.photo_camera_outlined,
+        name: 'Camera roll',
+        failure: KitFailureInline(
+            'This phone’s camera roll settings could not be read.',
+            dense: true),
+      );
+    }
+    final ledger = host.ledger, service = host.service;
+    if (ledger == null || service == null) return const SizedBox.shrink();
+    void settings() => context.go('/settings/camera-roll');
+    return ListenableBuilder(
+      listenable: Listenable.merge([ledger, service]),
+      builder: (context, _) {
+        final waiting = service.candidates.length;
+        final (String line, bool critical, Widget action) = service
+                    .errorMessage !=
+                null
+            ? (
+                service.errorStoppedSweep
+                    ? 'The camera roll stopped'
+                    : 'A photo couldn’t be added',
+                true,
+                KitLibAct('Settings', onTap: settings),
+              )
+            : ledger.enabled &&
+                    host.access != null &&
+                    host.access != SweepAccess.granted
+                ? (
+                    'NoteLetter can’t see your photos',
+                    false,
+                    KitLibAct('Settings', onTap: settings),
+                  )
+                : waiting > 0
+                    ? (
+                        '$waiting waiting for your review',
+                        false,
+                        KitLibAct('Review', strong: true, onTap: onReview),
+                      )
+                    : ledger.enabled
+                        ? (
+                            'On · ${kitThousands(ledger.ingestedCount)} taken in',
+                            false,
+                            KitLibAct('Settings', onTap: settings),
+                          )
+                        : (
+                            'Pages, screenshots and notes from your photos',
+                            false,
+                            KitLibAct('Connect', strong: true, onTap: settings),
+                          );
+        return KitServiceRow(
+          glyph: Icons.photo_camera_outlined,
+          name: 'Camera roll',
+          line: line,
+          critical: critical,
+          action: action,
         );
       },
     );
   }
 }
 
-// ── Connect card ─────────────────────────────────────────────────────────────
+// ── Correspondence: a service ───────────────────────────────────────────────
 
-/// One cell of the connect grid: the fixed §5.1 card (web `ConnectCard`) and,
-/// under it, a connect that failed (§14.2, web `.connect-fail`).
-///
-/// The card is the affordance: connect when not connected, and the §18
-/// disconnect confirm when connected. Everything a connected provider can DO
-/// lives under its "Import from" header ([_ImportFromProvider]).
-class _ProviderCard extends StatefulWidget {
+/// One service row (web `Services`): *Connect* (*Connecting…* while it runs)
+/// or *Disconnect* behind the §18 confirm; a refused connect is §14.2 at
+/// that row. Everything a connected provider can DO lives under its "Import
+/// from" header ([_ImportFromProvider]).
+class _ServiceRow extends StatefulWidget {
   final String providerId;
   final ({String name, String sub, IconData icon}) spec;
   final CloudIntegration? integration;
 
-  const _ProviderCard({
+  const _ServiceRow({
     required this.providerId,
     required this.spec,
     required this.integration,
   });
 
   @override
-  State<_ProviderCard> createState() => _ProviderCardState();
+  State<_ServiceRow> createState() => _ServiceRowState();
 }
 
-class _ProviderCardState extends State<_ProviderCard> {
+class _ServiceRowState extends State<_ServiceRow> {
   bool _connecting = false;
 
-  /// The connect's refusal, said under the card that was pressed — not a
-  /// toast that is gone before it is read.
+  /// The connect's refusal, said at the row that was pressed — not a toast
+  /// that is gone before it is read.
   String? _connectFail;
 
   Future<void> _connect() async {
@@ -479,7 +915,7 @@ class _ProviderCardState extends State<_ProviderCard> {
     // finishes. 4.89.0 (ADR-123 §5): the grant is ASKED to be revoked where
     // the provider lets an app do that, and where it does not the confirm says
     // where the reader removes it. What the provider answered is said AFTER,
-    // under the grid (`lastDisconnect`), never as a toast.
+    // under the rows (`lastDisconnect`), never as a toast.
     await KitConfirm.show(
       context,
       title: 'Disconnect ${spec.name}?',
@@ -497,37 +933,18 @@ class _ProviderCardState extends State<_ProviderCard> {
 
   @override
   Widget build(BuildContext context) {
-    final spec = widget.spec;
-    final integration = widget.integration;
-    final connected = integration != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        KitConnectCard(
-          icon: spec.icon,
-          title: spec.name,
-          // §5.1: the account when connected, the invitation when not.
-          subtitle: !connected
-              ? spec.sub
-              : (integration.providerEmail ?? integration.lastSyncLabel),
-          // The reference's three words. A connection whose sign-in expired
-          // is still connected — its reconnect banner is under its "Import
-          // from" header, where Reconnect is.
-          status: _connecting
-              ? 'Connecting…'
-              : connected
-                  ? 'Connected'
-                  : 'Connect',
-          connected: connected,
-          onTap: _connecting ? null : (connected ? _disconnect : _connect),
-        ),
-        if (_connectFail != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: KitFailureInline(_connectFail!, dense: true),
-          ),
-      ],
+    final connected = widget.integration != null;
+    return KitServiceRow(
+      provider: widget.providerId,
+      name: widget.spec.name,
+      line: widget.spec.sub,
+      connected: connected,
+      action: connected
+          ? KitLibAct('Disconnect', onTap: _disconnect)
+          : KitLibAct(_connecting ? 'Connecting…' : 'Connect',
+              strong: true, onTap: _connecting ? null : _connect),
+      failure:
+          _connectFail == null ? null : KitFailureInline(_connectFail!, dense: true),
     );
   }
 }
@@ -675,10 +1092,17 @@ class _ImportFromProviderState extends State<_ImportFromProvider> {
                   // organizing is turned on and tuned. Drawn for every
                   // connected provider, organized or not — Settings is also
                   // where it is turned ON (web CloudImportPanel).
+                  // A cloud panel's Organization settings opens the page's
+                  // own Library settings in place (sources.md §Tools); with
+                  // no such panel it goes to Settings → Sources.
                   KitSettingLink(
                     'Organization settings',
                     icon: null,
-                    onTap: () => context.go('/settings/sources'),
+                    onTap: () {
+                      if (!KitPageTools.instance.openSettings('sources')) {
+                        context.go('/settings/sources');
+                      }
+                    },
                   ),
                 ],
               ),
@@ -1387,21 +1811,19 @@ class _OrganizationSection extends StatelessWidget {
 
 // ── Shared banner ────────────────────────────────────────────────────────────
 
-/// The warning banner — an OAuth return that failed, or a connection that needs
-/// reauthorising. Always `--critical` at a token alpha: this is the one shape
+/// The warning banner — a connection that needs reauthorising (an OAuth
+/// return is the notices strip's since direction D). Always `--critical` at a token alpha: this is the one shape
 /// on the screen that exists to interrupt, and a second, quieter tone would
 /// make the reader classify it before reading it.
 class _Banner extends StatelessWidget {
   final IconData icon;
   final String text;
   final Widget? action;
-  final VoidCallback? onDismiss;
 
   const _Banner({
     required this.icon,
     required this.text,
     this.action,
-    this.onDismiss,
   });
 
   @override
@@ -1424,26 +1846,9 @@ class _Banner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(child: Text(text, style: KitText.meta(context))),
           if (action != null) action!,
-          if (onDismiss != null)
-            KitIconButton(Icons.close, tooltip: 'Dismiss', onPressed: onDismiss),
         ],
       ),
     );
   }
-}
-
-// ── Formatting ───────────────────────────────────────────────────────────────
-
-String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
-
-/// Thousands separators, so a five-figure passage count is readable.
-String _count(int n) {
-  final s = n.toString();
-  final out = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) out.write(',');
-    out.write(s[i]);
-  }
-  return out.toString();
 }
 

@@ -449,8 +449,10 @@ void main() {
     // routed screen's file has a PRIMARY scroll container, and every other
     // scroller a page builds is declared secondary, with its reason — web's
     // `data-scroll-secondary`. The device run closes it on real screens.
-    final primary = RegExp(
-        r'KitPage\(|KitScrollView\(|KitLoadingPage\(|KitShellFooterSliver\(');
+    // `KitDPage` (direction D) is the frame whose own primary scroller ends
+    // with the footer (kit_d_frame.dart: `KitScrollView(controller: …)`).
+    final primary = RegExp(r'KitPage\(|KitDPage\(|KitScrollView\(|'
+        r'KitLoadingPage\(|KitShellFooterSliver\(');
 
     test('every routed screen\'s file has a primary scroll container', () {
       final router = File('lib/router.dart').readAsStringSync();

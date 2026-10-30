@@ -23,6 +23,7 @@ import 'pages/reader_page.dart';
 import 'pages/letter_settings_page.dart';
 import 'pages/letters_page.dart';
 import 'pages/sources_page.dart';
+import 'pages/add_source_page.dart';
 import 'pages/tags_page.dart';
 import 'pages/tags/shelf_map_page.dart';
 import 'pages/tags/shelf_page.dart';
@@ -245,6 +246,15 @@ List<RouteBase> appRoutes() {
               path: '/settings/sources',
               builder: (context, state) =>
                   const SettingsPage(focusSources: true),
+            ),
+            // Add a source (direction D, screens/sources.md §Composition) —
+            // ahead of any `/sources/:x` form. Home's *Add files* sends
+            // `extra: 'pick'`, which opens the file picker once on arrival:
+            // navigation state, never the address.
+            GoRoute(
+              path: '/sources/add',
+              builder: (context, state) =>
+                  AddSourcePage(pick: state.extra == 'pick'),
             ),
             GoRoute(
               // The OAuth callback lands here, on a web build, with an explicit

@@ -4,376 +4,156 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
-import '../../models/tag.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../shared/cooldown.dart';
-import '../../shared/local_flags.dart';
 import '../../state/activity_notifier.dart';
-import '../../state/documents_notifier.dart';
-import '../../state/tags_notifier.dart';
-import '../../theme/tokens.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import '../reader/supersession_confirm.dart';
-import 'shelf_books.dart';
 import 'source_sheet.dart';
-import '../../shared/passage_figure.dart';
 import '../../shared/stalled.dart';
 
-/// **Browse** — the volume list on Sources (`screens/sources.md` §Composition
-/// body 2), rebuilt against the kit (ADR-041, contract 4.5.2).
+/// **The processing rules** a source in the pipeline carries — its stage, its
+/// one primary, Remove, Cancel and the source itself (`screens/sources.md`
+/// §Document processing) — in ONE place, drawn three ways: For your review's
+/// card ([ProcessingLook.card], `review.md` §Composition), and in direction D
+/// the Library's *Being catalogued* row and its Grid arrival
+/// ([ProcessingLook.row], [ProcessingLook.arrival]; web `proc.jsx`'s
+/// `ProcRow`, `DProcRow`, `ArrivalCover`). The two cannot disagree about what
+/// a document in the pipeline is, or what can be done to it.
 ///
-/// What this replaces is worth naming, because it was the largest inline block
-/// left in this client: a **column-headed table** — Name / Added / Words /
-/// Status — with its own hover fill, its own status pills in raw Material
-/// colours, and `theme.textTheme` for every line. It arrived here by a move
-/// (the old library body), and a table is not a pattern this app has: there is
-/// no table in `component-kit.md`, and the §4.1 row already carries badge,
-/// title, subtitle, count and date. 4.5.2 states that outright so the next
-/// reader does not re-derive it.
-///
-/// Composition: Control bar (§6.6) of Filter chips (§6.7) with a trailing sort
-/// Segmented control (§6.8), then Source row lists (§4.1) under Section
-/// headers (§3) per group.
-///
-/// **Reads the documents subscription** (INV-02, `screens/sources.md` §Data —
-/// the one Library shares), not the merged activity feed the table read. That
-/// is what puts `view_count` and `processing_stage` in reach, and both are
-/// required parts here: the unread dot is `view_count == 0` and nothing else,
-/// and a processing row carries its stage in the subtitle slot.
-class BrowseSection extends StatefulWidget {
-  /// The empty state's offers act on the add panel at the foot of the screen,
-  /// which owns the file picker and the link field. It is the screen's job to
-  /// wire them: an empty state whose suggestion rows do nothing is the apology
-  /// again, wearing the pattern.
-  final VoidCallback? onAddFile;
-  final VoidCallback? onAddLink;
+/// The pre-D browse that lived here — the filter chips (`_kinds`), the sort
+/// bar, the list · cards · shelf toggle and the §7 empty state — is retired
+/// with direction D (sources.md §Composition, *Rewritten for direction D*):
+/// the Library's kinds are `source_facets.dart`'s facet table, its catalogue
+/// the kit's `KitLibRegister` / `KitLibWall`.
 
-  const BrowseSection({super.key, this.onAddFile, this.onAddLink});
+/// How a [ProcessingRow] is drawn; its rules are the same in every one.
+enum ProcessingLook { card, row, arrival }
 
-  @override
-  State<BrowseSection> createState() => _BrowseSectionState();
+/// The stage clock (4.74.0, ADR-108; `queued` 5.3.0, ADR-161): a run crosses
+/// its stall moment with NO write behind it, so something must tick. One
+/// clock per list, every 15 seconds and only while something is `queued` or
+/// `processing`, so every row flips on the same tick.
+bool _watching(Iterable<Document> items) => items.any((d) =>
+    d.status == DocumentStatus.processing || d.status == DocumentStatus.queued);
+
+bool _needsYou(Document d, DateTime now) =>
+    d.status == DocumentStatus.error ||
+    d.status == DocumentStatus.skipped ||
+    d.isStalled(now);
+
+/// "4 indexing · 1 needs you" — *Being catalogued*'s meta (web `procSummary`).
+/// A stalled row needs a person as much as a failed one (ADR-108).
+String procSummary(List<Document> items, DateTime now) {
+  if (items.isEmpty) return 'Nothing arriving';
+  final att = items.where((d) => _needsYou(d, now)).length;
+  return att > 0
+      ? '${items.length - att} indexing · $att ${att == 1 ? 'needs' : 'need'} you'
+      : '${items.length} indexing';
 }
 
-/// The filter vocabulary, matching the web reference's `SRC_KINDS`. It is a
-/// **closed set rendered whole**: a kind with no volumes renders disabled, not
-/// hidden (§6.7), so the bar keeps its shape from one library to the next.
-const _kinds = <String, String>{
-  'all': 'All',
-  'pdf': 'PDFs',
-  'epub': 'Books',
-  'web': 'Web',
-  'youtube': 'YouTube',
-  'instagram': 'Instagram',
-  'tiktok': 'TikTok',
-  'note': 'Notes',
-  // §6.4.1 rule 2: every live kind has a chip. Audio and Video were missing
-  // here, so a recording could be sorted to but never filtered to (4.84.1).
-  'podcast': 'Audio',
-  'video': 'Video',
-  'unread': 'Unread',
-};
+/// **Being catalogued** in direction D (web `Incoming` / `ProcList`): every
+/// source still in the pipeline (or just finished, [justDone]), the ones that
+/// need the reader first and the rest in the order they arrived — as D rows,
+/// or in Grid ([grid]) face-out arrivals. With [title], its small SectionHead
+/// and `{n} indexing · {k} need(s) you`. One clock for the whole list.
+class ProcessingList extends StatefulWidget {
+  final List<Document> items;
+  final bool grid;
+  final Set<String> justDone;
 
-const _sorts = <String, String>{
-  'recent': 'Recent',
-  'type': 'Type',
-  'title': 'Title',
-  'passages': 'Passages',
-};
+  /// docId → the upload's committed fraction (UploadNotifier).
+  final Map<String, double> uploadPcts;
+  final String? title;
 
-/// Group headings and their order, for the `type` sort.
-const _kindName = <String, String>{
-  'pdf': 'PDFs',
-  'epub': 'Books',
-  'web': 'Web clips',
-  'youtube': 'YouTube',
-  'instagram': 'Instagram',
-  'tiktok': 'TikTok',
-  'note': 'Notes',
-  'podcast': 'Audio',
-  'video': 'Video',
-};
-const _kindOrder = [
-  'pdf', 'epub', 'web', 'youtube', 'instagram', 'tiktok', 'note', //
-  'podcast', 'video',
-];
+  const ProcessingList({
+    super.key,
+    required this.items,
+    this.grid = false,
+    this.justDone = const {},
+    this.uploadPcts = const {},
+    this.title,
+  });
 
-/// The view toggle's three positions, in the reference's order.
-const _views = <({String id, String label, IconData icon})>[
-  (id: 'list', label: 'List view', icon: Icons.view_agenda_outlined),
-  (id: 'cards', label: 'Card view', icon: Icons.grid_view),
-  (id: 'shelf', label: 'Shelf view', icon: Icons.shelves),
-];
+  @override
+  State<ProcessingList> createState() => _ProcessingListState();
+}
 
-class _BrowseSectionState extends State<BrowseSection> {
-  String _filter = 'all';
-  String _sort = 'recent';
+class _ProcessingListState extends State<ProcessingList> {
+  Timer? _tick;
+  DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    LocalFlags.ensureLoaded();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProcessingList old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  void _sync() {
+    final watching = _watching(widget.items);
+    if (watching && _tick == null) {
+      _tick = Timer.periodic(const Duration(seconds: 15), (_) {
+        if (mounted) setState(() => _now = DateTime.now());
+      });
+    } else if (!watching) {
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<String>(
-      valueListenable: LocalFlags.sourcesView,
-      builder: (context, view, _) => _build(context, view),
-    );
-  }
-
-  Widget _build(BuildContext context, String view) {
-    return Consumer2<DocumentsNotifier, TagsNotifier>(
-      builder: (context, docs, tags, _) {
-        if (docs.loading) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 48),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final all = docs.complete;
-
-        final counts = <String, int>{'all': all.length, 'unread': 0};
-        for (final d in all) {
-          final k = kitDocKind(d.type);
-          counts[k] = (counts[k] ?? 0) + 1;
-          if (d.viewCount == 0) counts['unread'] = counts['unread']! + 1;
-        }
-
-        final filtered = switch (_filter) {
-          'all' => all,
-          'unread' => all.where((d) => d.viewCount == 0).toList(),
-          _ => all.where((d) => kitDocKind(d.type) == _filter).toList(),
-        };
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // The SECOND unread figure on this screen, and the one the
-            // header fix above would have left behind (C2). `all.length` is
-            // derived from the same subscription, so on a failure this said
-            // "In your library · 0 volumes" beside a §14 block saying the
-            // library could not be read. Unread is not zero (§8, ADR-109):
-            // the label stays, the figure goes.
-            SectionHeader(docs.error != null
-                ? 'In your library'
-                : 'In your library · ${_plural(all.length, 'volume')}'),
-
-            KitControlBar(
-              filters: [
-                for (final e in _kinds.entries)
-                  KitFilterChip(
-                    e.value,
-                    count: counts[e.key] ?? 0,
-                    selected: _filter == e.key,
-                    // Disabled, not hidden: an empty kind keeps its slot.
-                    onPressed: e.key == 'all' || (counts[e.key] ?? 0) > 0
-                        ? () => setState(() => _filter = e.key)
-                        : null,
-                  ),
-              ],
-              trailing: [
-                const KitControlLabel('Order by'),
-                KitSegmented(
-                  groupLabel: 'Order by',
-                  segments: [
-                    for (final label in _sorts.values) KitSegment(label),
-                  ],
-                  selected: _sorts.keys.toList().indexOf(_sort),
-                  onChanged: (i) =>
-                      setState(() => _sort = _sorts.keys.elementAt(i)),
-                ),
-                // `.view-toggle` — list, cards or shelf, kept per viewer
-                // (`nl-sources-view`); the shelf is the reference's default.
-                KitSegmented(
-                  groupLabel: 'View',
-                  segments: [
-                    for (final v in _views) KitSegment.icon(v.icon, v.label),
-                  ],
-                  selected: _views.indexWhere((v) => v.id == view),
-                  onChanged: (i) =>
-                      LocalFlags.setView(LocalFlags.sourcesView, _views[i].id),
-                ),
-              ],
-            ),
-
-            // §7 may only speak when nothing failed (C2). `all.isEmpty` is
-            // true of a failed subscription exactly as it is of a library with
-            // nothing in it, so _NothingYet — an OFFER — stood in for the
-            // hole, and `DocumentsNotifier` has carried the error since F-08.
-            //
-            // The notice itself belongs to `sources_page`, which mounts this
-            // section and draws §14.1 above it: one failure gets one notice,
-            // and a block here would be the second drawing of the same
-            // sentence on one screen. Suppressing the offer is this section's
-            // whole half of the rule.
-            if (all.isEmpty && docs.error == null)
-              _NothingYet(
-                onAddFile: widget.onAddFile,
-                onAddLink: widget.onAddLink,
-              )
-            else if (all.isEmpty)
-              const SizedBox.shrink()
-            // The shelf orders and groups its own ledges (`type` groups them
-            // by kind under the shelf's own labels), as the reference's does.
-            else if (view == 'shelf')
-              KitShelfView(
-                items: [for (final d in filtered) bookOf(d, tags.tags, dark: Tokens.of(context).isDark)],
-                sort: _sort,
-              )
-            else if (_sort == 'type')
-              ..._grouped(filtered, tags.tags, view)
-            else ...[
-              _set(_sorted(filtered), tags.tags, view),
-              if (filtered.isEmpty)
-                const _NoneOfThatKind(),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  /// One run of volumes as the chosen view draws it: §4.1 rows, or cards.
-  Widget _set(List<Document> list, List<Tag> shelves, String view) {
-    if (view == 'cards') {
-      if (list.isEmpty) return const SizedBox.shrink();
-      return KitSourceCardGrid(cards: [
-        for (final d in list)
-          KitSourceCard(
-            book: bookOf(d, shelves, dark: Tokens.of(context).isDark),
-            kindLabel: _kindName[kitDocKind(d.type)] ?? kitDocKind(d.type),
-            date: _rowDate(d.createdAt),
-          ),
-      ]);
-    }
-    return KitRowList(
-      rows: [for (final d in list) _VolumeRow(doc: d, shelves: shelves)],
-    );
-  }
-
-  /// The `type` sort groups the list, each group under its own Section header.
-  List<Widget> _grouped(List<Document> list, List<Tag> shelves, String view) {
-    final byKind = <String, List<Document>>{};
-    for (final d in list) {
-      byKind.putIfAbsent(kitDocKind(d.type), () => []).add(d);
-    }
-    final keys = _kindOrder.where(byKind.containsKey).toList()
-      ..addAll(byKind.keys.where((k) => !_kindOrder.contains(k)));
-    return [
-      for (final k in keys) ...[
-        SectionHeader('${_kindName[k] ?? k} · ${byKind[k]!.length}'),
-        _set(byKind[k]!, shelves, view),
-      ],
+    if (widget.items.isEmpty) return const SizedBox.shrink();
+    final now = _now.isBefore(DateTime.now().subtract(const Duration(seconds: 16)))
+        ? DateTime.now()
+        : _now;
+    // The rows that need the reader lead; the rest keep their order.
+    final indexed = [
+      for (var i = 0; i < widget.items.length; i++) (i, widget.items[i]),
+    ]..sort((x, y) {
+        final a = _needsYou(x.$2, now) ? 0 : 1;
+        final b = _needsYou(y.$2, now) ? 0 : 1;
+        return a != b ? a - b : x.$1 - y.$1;
+      });
+    final rows = [
+      for (final e in indexed)
+        ProcessingRow(
+          key: ValueKey('proc-${e.$2.id}'),
+          doc: e.$2,
+          look: widget.grid ? ProcessingLook.arrival : ProcessingLook.row,
+          justDone: widget.justDone.contains(e.$2.id),
+          uploadPct: widget.uploadPcts[e.$2.id],
+          now: now,
+        ),
     ];
-  }
-
-  List<Document> _sorted(List<Document> list) {
-    final arr = [...list];
-    switch (_sort) {
-      case 'title':
-        arr.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-      case 'passages':
-        arr.sort((a, b) => (b.chunkCount ?? 0).compareTo(a.chunkCount ?? 0));
-      // `recent` is the subscription's own order (created_at desc) — re-sorting
-      // it would only be a chance to disagree with it.
-    }
-    return arr;
-  }
-}
-
-/// §Document processing — **Being processed**, directly under the drop zone and
-/// the link row (`screens/sources.md` §Composition body 1: "the processing rows
-/// sit directly under it"). A source you just dropped lands where you are
-/// already looking. It was the head of the *In your library* section — at the
-/// foot of the screen, under the connect grid, the import panels and the
-/// organization card — so on a phone the thing a drop produces was never in
-/// the same view as the drop.
-///
-/// Everything the pipeline has not finished with, plus the terminal failures
-/// still waiting to be acted on.
-class ProcessingSection extends StatelessWidget {
-  const ProcessingSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final docs = context.watch<DocumentsNotifier>();
-    final inFlight = docs.documents
-        .where((d) => d.status != DocumentStatus.complete)
-        .toList();
-    if (docs.loading || inFlight.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(_processingLabel(inFlight),
-            note: _processingNote(inFlight)),
-        // `.proc-list`: one card per document, 10 apart (4.98.0, ADR-131).
-        const SizedBox(height: 12),
-        for (var i = 0; i < inFlight.length; i++) ...[
-          if (i > 0) const SizedBox(height: 10),
-          ProcessingRow(doc: inFlight[i]),
-        ],
+        if (widget.title != null)
+          KitSectionHead(
+            widget.title!,
+            small: true,
+            meta: procSummary(widget.items, now),
+          ),
+        if (widget.grid)
+          KitLibGrid(top: 10, children: rows)
+        else
+          ...rows,
       ],
-    );
-  }
-}
-
-/// §Document processing — the header counts the section, and **splits the count
-/// when anything has failed**: "{active} indexing now — {failed} needs
-/// attention". One number for two states would bury the half that needs a
-/// person.
-String _processingLabel(List<Document> inFlight) =>
-    'Being processed · ${inFlight.length}';
-
-/// The split, beside the total. A STALLED row needs a person as much as a
-/// failed one (ADR-108), so it counts on the attention side, as the
-/// reference's does; with nothing needing one, the note says what to expect.
-String _processingNote(List<Document> inFlight) {
-  final attention = inFlight
-      .where((d) =>
-          d.status == DocumentStatus.error ||
-          d.status == DocumentStatus.skipped ||
-          d.isStalled())
-      .length;
-  if (attention == 0) return 'passages appear as each finishes';
-  final active = inFlight.length - attention;
-  final needs = attention == 1 ? 'needs' : 'need';
-  return '$active indexing now — $attention $needs attention';
-}
-
-/// A volume. The §4.1 row, and **the link that opens it — nothing else**
-/// (`screens/sources.md` §Per-source affordances, rewritten 2026-10-12; ruled
-/// 2026-10-13). A finished source's priority, shelves and Delete live in the
-/// reader, the one screen about a single source (ADR-138 §Rationale). The
-/// overflow this row carried (Open · Priority & tags… · Remove) was the drift
-/// the spec named: a second place to set what the reader sets, through a
-/// slider that wrote any number and could not send Default (F-99).
-class _VolumeRow extends StatelessWidget {
-  final Document doc;
-  final List<Tag> shelves;
-
-  const _VolumeRow({required this.doc, required this.shelves});
-
-  @override
-  Widget build(BuildContext context) {
-    return KitSourceLink(
-      docId: doc.id,
-      builder: (context, open) => KitSourceRow(
-        leading: KitFileBadge(kitDocKind(doc.type)),
-        title: doc.title.isEmpty ? 'Untitled' : doc.title,
-        subtitle: _shelfLabel(doc, shelves),
-        // §States: a count never taken draws no figure (the cell stays).
-        count: passagesLabel(doc.chunkCount) ?? '',
-        date: _rowDate(doc.createdAt),
-        // Unread is view_count == 0 — "you have not opened this in the reader".
-        // Expanding this source out of a search result does not clear it
-        // (INV-03a); that writes chunk_viewed and touches no document counter.
-        unread: doc.viewCount == 0,
-        onTap: open,
-      ),
     );
   }
 }
@@ -389,6 +169,21 @@ class _VolumeRow extends StatelessWidget {
 /// detail sentence, **the row's one primary**, Remove and the affordance.
 class ProcessingRow extends StatefulWidget {
   final Document doc;
+
+  /// The card (For your review), or a D row or arrival (the Library, Add a
+  /// source). The rules do not change with it.
+  final ProcessingLook look;
+
+  /// Completed during this session: held briefly as *Done* so the row
+  /// resolves visibly rather than vanishing (§Document processing).
+  final bool justDone;
+
+  /// The upload's committed fraction while its bytes leave this device — the
+  /// one determinate phase (ADR-024). Null otherwise.
+  final double? uploadPct;
+
+  /// The list's clock, so every row flips together; null runs the row's own.
+  final DateTime? now;
 
   /// Test seams for the supersession confirm's two reads; null is the live read.
   final Future<bool?> Function(String docId)? studyCheck;
@@ -407,6 +202,10 @@ class ProcessingRow extends StatefulWidget {
   const ProcessingRow(
       {super.key,
       required this.doc,
+      this.look = ProcessingLook.card,
+      this.justDone = false,
+      this.uploadPct,
+      this.now,
       this.studyCheck,
       this.editCheck,
       this.dismissible = false,
@@ -472,8 +271,9 @@ class _ProcessingRowState extends State<ProcessingRow> {
   void _syncTick() {
     // `queued` too since 5.3.0 (ADR-161): a run that never started crosses
     // its 24 h deadline with no write behind it either.
-    final watching = widget.doc.status == DocumentStatus.processing ||
-        widget.doc.status == DocumentStatus.queued;
+    final watching = widget.now == null &&
+        (widget.doc.status == DocumentStatus.processing ||
+            widget.doc.status == DocumentStatus.queued);
     if (watching && _tick == null) {
       _tick = Timer.periodic(const Duration(seconds: 15), (_) {
         if (mounted) setState(() {});
@@ -506,13 +306,13 @@ class _ProcessingRowState extends State<ProcessingRow> {
   /// **Retry is never rendered on a `skipped` row**: `fn_retry_document`
   /// refuses that status by name, so the control could not succeed and never
   /// could. The two branches are disjoint by construction.
-  (String, bool)? _primary(Document doc) {
+  (String, bool)? _primary(Document doc, DateTime now) {
     if (doc.status == DocumentStatus.error) return ('Retry', false);
     // A stalled `processing` row gets the same primary (4.74.0, ADR-108), and
     // a stalled `queued` one (5.3.0, ADR-161). `fn_retry_document` accepts
     // both — the widened status is reachable from here, which is the whole
     // reason the backend half was not shipped alone.
-    if (doc.isStalled()) return ('Retry', false);
+    if (doc.isStalled(now)) return ('Retry', false);
     if (doc.status == DocumentStatus.skipped &&
         (doc.skipReason == 'unresolved_article' || !doc.forceProcess)) {
       return ('Index it anyway', true);
@@ -570,9 +370,10 @@ class _ProcessingRowState extends State<ProcessingRow> {
 
   Widget _row(BuildContext context, CooldownWait wait) {
     final doc = widget.doc;
+    final now = widget.now ?? DateTime.now();
     final failed = doc.status == DocumentStatus.error ||
         doc.status == DocumentStatus.skipped;
-    final stalled = doc.isStalled();
+    final stalled = doc.isStalled(now);
     final refusal = kitRefusalSlot(wait, _error, dense: true);
     // A stalled run takes the attention branch — Retry, Remove and the source
     // live there — but not the failed EDGE: it is not an error.
@@ -590,8 +391,18 @@ class _ProcessingRowState extends State<ProcessingRow> {
     // web DEFAULT_PROC_ERROR, for a failed row the backend left unexplained.
     const defaultMsg =
         'No readable text was found. Retry, or remove this source.';
-    final primary = _primary(doc);
+    final primary = _primary(doc, now);
     final title = doc.title.isEmpty ? 'Untitled' : doc.title;
+    if (widget.look != ProcessingLook.card) {
+      return _dRow(context, wait,
+          now: now,
+          failed: failed,
+          attention: attention,
+          message: stalled ? stalledMsg : (doc.errorMessage ?? defaultMsg),
+          primary: primary,
+          title: title,
+          refusal: refusal);
+    }
     // "the passages when there are any" — none drawn for 0 or never counted.
     final passages = doc.chunkCount ?? 0;
     // Offered on EVERY row — failed, queued, uploading or mid-extraction — and
@@ -610,7 +421,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
           ? '${doc.type} · ${_plural(passages, 'passage')}'
           : doc.type,
       failed: failed,
-      pill: KitProcPill(_stageLabel(doc), tone: _stageTone(doc)),
+      pill: KitProcPill(_stageLabel(doc, now), tone: _stageTone(doc, now)),
       foot: attention
           ? KitProcAttention(
               detail: stalled ? stalledMsg : (doc.errorMessage ?? defaultMsg),
@@ -646,9 +457,105 @@ class _ProcessingRowState extends State<ProcessingRow> {
   }
 }
 
+extension on _ProcessingRowState {
+  /// Direction D's row and arrival (web `DProcRow`, `ArrivalCover`): the
+  /// cover's word for the type, the title, the stage in mono caps, a short
+  /// bar — or, when the row needs the reader, the detail sentence, the slot
+  /// and the SAME actions as the card as quiet text. Done rows carry none.
+  Widget _dRow(
+    BuildContext context,
+    CooldownWait wait, {
+    required DateTime now,
+    required bool failed,
+    required bool attention,
+    required String message,
+    required (String, bool)? primary,
+    required String title,
+    required Widget? refusal,
+  }) {
+    final doc = widget.doc;
+    final done = widget.justDone;
+    final label = done ? 'Done' : _stageLabel(doc, now);
+    final tone = done ? KitProcTone.done : _stageTone(doc, now);
+    final pct = doc.status == DocumentStatus.pendingUpload && !done
+        ? widget.uploadPct
+        : null;
+    final stage = KitLibStage(
+        pct == null ? label : '$label · ${(pct * 100).round()}%',
+        tone: tone);
+    final bar = attention
+        ? null
+        : KitLibBar(
+            live: !done && pct == null && doc.status != DocumentStatus.queued,
+            value: pct,
+            done: done);
+    final source = KitLibAct(SourceSheet.labelFor(doc),
+        icon: SourceSheet.iconFor(doc),
+        onTap: () => SourceSheet.open(context, doc));
+    final arrival = widget.look == ProcessingLook.arrival;
+    Widget? actions;
+    if (done) {
+      actions = null;
+    } else if (!attention) {
+      actions = KitLibActs(tight: arrival, children: [
+        source,
+        KitLibAct('Cancel', onTap: () => confirmCancel(context, doc)),
+      ]);
+    } else {
+      actions = KitLibActs(tight: arrival, children: [
+        // One primary, never two (ADR-085): the row's strong slot holds the
+        // one control that can change this document's outcome.
+        if (primary != null)
+          KitLibAct(primary.$1,
+              strong: true,
+              icon: primary.$2 ? Icons.notes : Icons.refresh,
+              wait: _busy ? 0 : wait.left,
+              onTap: _busy ? null : () => _runPrimary(primary.$2)),
+        KitLibAct('Remove',
+            onTap: _busy || _dismissing ? null : () => confirmRemove(context, doc)),
+        if (widget.dismissible)
+          KitLibAct(_dismissing ? 'Dismissing…' : 'Dismiss',
+              onTap: _busy || _dismissing ? null : _dismiss),
+        source,
+      ]);
+    }
+    final word = kitTypeLabel(doc.type);
+    if (arrival) {
+      return Semantics(
+        container: true,
+        label: title,
+        child: KitArrivalSlip(
+          word: word,
+          title: title,
+          author: doc.author,
+          stage: stage,
+          bar: bar,
+          // A stalled run is not a failure — nothing reported one (ADR-108) —
+          // so its stamp says Stalled, the stage's own word.
+          stamp: attention ? (failed ? 'Couldn’t be read' : label) : null,
+          message: attention ? message : null,
+          refusal: refusal,
+          actions: actions,
+          attention: attention,
+        ),
+      );
+    }
+    return KitLibProcRow(
+      word: word,
+      title: title,
+      stage: stage,
+      bar: bar,
+      message: attention ? message : null,
+      refusal: refusal,
+      actions: actions,
+      attention: attention,
+    );
+  }
+}
+
 /// The pill's tone (web `procPill`): a failure or a stall is `fail` (no
 /// spinner on a run that ended, ADR-108), queued waits, the rest work.
-KitProcTone _stageTone(Document doc) {
+KitProcTone _stageTone(Document doc, DateTime now) {
   switch (doc.status) {
     case DocumentStatus.error:
     case DocumentStatus.skipped:
@@ -657,11 +564,11 @@ KitProcTone _stageTone(Document doc) {
       return KitProcTone.done;
     case DocumentStatus.queued:
       // A run that never started is a stall, not a wait (5.3.0, ADR-161).
-      return doc.isStalled() ? KitProcTone.fail : KitProcTone.wait;
+      return doc.isStalled(now) ? KitProcTone.fail : KitProcTone.wait;
     case DocumentStatus.pendingUpload:
       return KitProcTone.work;
     case DocumentStatus.processing:
-      return doc.isStalled() ? KitProcTone.fail : KitProcTone.work;
+      return doc.isStalled(now) ? KitProcTone.fail : KitProcTone.work;
   }
 }
 
@@ -669,20 +576,20 @@ KitProcTone _stageTone(Document doc) {
 /// **never the raw status string**. `processing_stage` is an open vocabulary
 /// (ADR-024): an unrecognised value falls back to the generic "Processing",
 /// never to an error.
-String _stageLabel(Document doc) {
+String _stageLabel(Document doc, DateTime now) {
   switch (doc.status) {
     case DocumentStatus.pendingUpload:
       return 'Uploading';
     case DocumentStatus.queued:
       // Checked BEFORE the Queued label: "Queued" on a run that will never
       // start is the defect ADR-161 exists to end.
-      if (doc.isStalled()) return 'Stalled';
+      if (doc.isStalled(now)) return 'Stalled';
       return 'Queued';
     case DocumentStatus.processing:
       // Checked BEFORE the stage: a stage label on a run that ended is the
       // defect ADR-108 exists to end. "Stalled", not "Error" — nothing
       // reported a failure and saying one would be inventing it.
-      if (doc.isStalled()) return 'Stalled';
+      if (doc.isStalled(now)) return 'Stalled';
       switch (doc.processingStage) {
         case 'extraction':
           return 'Extracting text';
@@ -740,91 +647,7 @@ Future<void> confirmRemove(BuildContext context, Document doc) async {
   AppToast.show(context, 'Removed.', type: ToastType.info);
 }
 
-/// The library with nothing in it. **An offer, not an apology** (§7) — the
-/// suggestion rows are the required part, and the drop zone that closes the
-/// screen is directly below.
-class _NothingYet extends StatelessWidget {
-  final VoidCallback? onAddFile;
-  final VoidCallback? onAddLink;
-
-  const _NothingYet({this.onAddFile, this.onAddLink});
-
-  @override
-  Widget build(BuildContext context) {
-    return KitEmptyState(
-      icon: Icons.auto_stories_outlined,
-      title: 'Nothing here yet.',
-      // web e924677 (sources.md, 2026-10-12): "within a minute" was a
-      // promise nothing measured — a long video or a recording is
-      // transcribed before it has any passages (F-96).
-      standfirst: 'Add a file or connect a service, and the passages arrive '
-          'as each source is read — a long video or recording takes longest.',
-      suggestions: [
-        KitSuggestion(
-          // "leading upload glyph" (sources.md): the reference's IcoUpload.
-          icon: KitUploadGlyph.icon,
-          label: 'Add your first file',
-          onTap: onAddFile,
-        ),
-        KitSuggestion(
-          icon: Icons.link,
-          label: 'Paste a link — article, video, or podcast',
-          onTap: onAddLink,
-        ),
-      ],
-    );
-  }
-}
-
-/// A filter that matched nothing. Serif italic, centred — the reference's
-/// `.browse-none`, which is a note inside a list, not an empty state. Its words
-/// are the reference's and `sources.md` §States quotes them: "type", where this
-/// client said "kind" until 2026-10-08 (web `b70f5ea`).
-class _NoneOfThatKind extends StatelessWidget {
-  const _NoneOfThatKind();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
-      child: Center(
-        child: Text('No sources of that type yet.',
-            style: KitText.lede(context, fontSize: 15, height: 22)),
-      ),
-    );
-  }
-}
-
-// ── Formatting ───────────────────────────────────────────────────────────────
-
 String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
-
-const _months = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
-/// The row date — the web's `formatDate`: minutes-ago, then a clock time within
-/// the day, then a calendar date.
-String _rowDate(int? ms) {
-  if (ms == null) return '';
-  final then = DateTime.fromMillisecondsSinceEpoch(ms);
-  final diff = DateTime.now().difference(then);
-  if (diff.inMinutes < 1) return 'Just now';
-  if (diff.inHours < 24) {
-    final h = then.hour % 12 == 0 ? 12 : then.hour % 12;
-    final m = then.minute.toString().padLeft(2, '0');
-    return '$h:$m ${then.hour < 12 ? 'AM' : 'PM'}';
-  }
-  return '${_months[then.month - 1]} ${then.day}';
-}
-
-String _shelfLabel(Document doc, List<Tag> shelves) {
-  for (final s in shelves) {
-    if (doc.tagIds.contains(s.id)) return s.title;
-  }
-  return 'Unshelved';
-}
 
 /// The confirm's lead sentences, verbatim from the reference (web 71987f6).
 const sourceRetryLead =

@@ -148,18 +148,21 @@ void main() {
     });
   });
 
-  test('Sources says "type" where a filter matches nothing, as the reference does',
+  // Direction D (F-141): the browse's "No sources of that type yet." is
+  // retired with its chips; the catalogue narrowed to nothing says the
+  // reference's line and offers its way back, verbatim.
+  test('the Library says what the reference says where a filter matches nothing',
       () {
     final web = File('../NoteLetter-web/src/pages/SourcesBrowse.jsx');
     expect(web.existsSync(), isTrue, reason: 'SourcesBrowse.jsx moved');
-    final line = RegExp(r'className="browse-none">([^<]+)</div>')
-        .firstMatch(web.readAsStringSync())
-        ?.group(1);
-    expect(line, isNotNull, reason: 'the reference line was not found');
-    expect(line, 'No sources of that type yet.');
-    final mine =
-        File('lib/pages/sources/browse_section.dart').readAsStringSync();
-    expect(mine, contains("'$line'"));
-    expect(mine, isNot(contains('of that kind yet')));
+    final m = RegExp(r'className="hx-none lx-none">([^<]+?)\s*<button[^>]*>([^<]+)</button>')
+        .firstMatch(web.readAsStringSync());
+    expect(m, isNotNull, reason: 'the reference line was not found');
+    expect(m!.group(1), 'No volumes match.');
+    expect(m.group(2), 'Show every volume');
+    final mine = File('lib/pages/sources_page.dart').readAsStringSync();
+    expect(mine, contains("'${m.group(1)}'"));
+    expect(mine, contains("'${m.group(2)}'"));
+    expect(mine, isNot(contains('of that type yet')));
   });
 }

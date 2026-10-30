@@ -100,6 +100,8 @@ const Map<String, String> screenNames = <String, String>{
   // 4.100.0 (ADR-135) — the reference's `review` token.
   '/review': 'review',
   '/sources': 'sources',
+  // Add a source (direction D) — the reference's `add` route token.
+  '/sources/add': 'add',
   '/settings': 'settings',
   '/settings/notifications': 'notification-settings',
   // The camera-roll sweep's settings (F-125 S3). The reference has no sweep,

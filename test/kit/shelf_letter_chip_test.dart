@@ -1,8 +1,9 @@
 /// The letter chip (Xavier's ruling 2026-10-14; screens/library.md §The
 /// letter chip; kit §21's optional part). A shelf whose `letter_mode` CHANGES
-/// the letter says so — *Lead* on §6.3's positive tone, *Muted* on idle — on
-/// Home's named Shelf units and the Shelves index cards, never on Home's
-/// shelf cards, and nowhere while the daily letter is off.
+/// the letter says so — *Lead* on §6.3's positive tone, *Muted* on idle — in
+/// the foot of each Shelves index card and, in direction D, on BOTH of Home's
+/// §42 forms (the catalogue's mark line, the covers' head), and nowhere while
+/// the daily letter is off or its setting unread.
 library;
 
 import 'package:flutter/material.dart';
@@ -138,10 +139,11 @@ Finder _chip(String caps) => find.byWidgetPredicate(
 
 void main() {
   setUp(() {
+    KitPageTools.instance.reset();
     SharedPreferences.setMockInitialValues({'nl-onboard-dismissed': true});
     LocalFlags.resetForTest();
     LocalFlags.onboardDismissed.value = true;
-    LocalFlags.recentView.value = 'shelf';
+    LocalFlags.sourceView.value = 'list';
   });
   tearDown(FirestoreService.resetInstance);
 
@@ -180,25 +182,25 @@ void main() {
     });
   });
 
-  group('Home', () {
-    testWidgets('a named Shelf unit carries it at the head\'s trailing edge',
-        (tester) async {
-      LocalFlags.shelvesView.value = 'shelf';
+  group('Home (§42, direction D)', () {
+    testWidgets('the catalogue carries it on its mark line, at the trailing '
+        'edge', (tester) async {
       await _pump(tester, const LibraryPage(), settings: _on);
-      expect(_chip('LEAD'), findsOneWidget);
-      expect(_chip('MUTED'), findsOneWidget);
+      expect(find.byType(KitShelfCatalogue), findsOneWidget);
       expect(
           find.descendant(
-              of: find.byType(KitShelfUnit), matching: _chip('LEAD')),
+              of: find.byType(KitShelfCatalogue), matching: _chip('LEAD')),
           findsOneWidget);
-      // At the trailing edge: right of the shelf's count.
-      final unit = find.ancestor(
-          of: find.text('Leading'), matching: find.byType(KitShelfUnit));
-      final count = find.descendant(
-          of: unit, matching: find.textContaining('passage'));
-      final chip = find.descendant(of: unit, matching: _chip('LEAD'));
+      expect(
+          find.descendant(
+              of: find.byType(KitShelfCatalogue), matching: _chip('MUTED')),
+          findsOneWidget);
+      // At the mark line's trailing edge: right of the shelf's numeral.
+      final col = find.byKey(const ValueKey('cat-lead'));
+      final chip = find.descendant(of: col, matching: _chip('LEAD'));
+      final numeral = find.descendant(of: col, matching: find.text('§ I'));
       expect(tester.getTopLeft(chip).dx,
-          greaterThan(tester.getTopRight(count.first).dx));
+          greaterThan(tester.getTopRight(numeral).dx));
       // `mixed` draws nothing: three shelves, two chips.
       expect(find.byType(KitStatusPill).evaluate().where((e) {
         final w = e.widget as KitStatusPill;
@@ -206,26 +208,29 @@ void main() {
       }).length, 2);
     });
 
-    testWidgets('no chip on Home\'s shelf cards', (tester) async {
-      // The page loads its views from the store, so the card view is stored.
+    testWidgets('the covers carry it in the head', (tester) async {
       SharedPreferences.setMockInitialValues(
-          {'nl-onboard-dismissed': true, LocalFlags.shelvesViewKey: 'card'});
+          {'nl-onboard-dismissed': true, LocalFlags.sourceViewKey: 'grid'});
       await _pump(tester, const LibraryPage(), settings: _on);
-      expect(find.byType(KitShelfCard), findsNWidgets(3));
-      expect(_chip('LEAD'), findsNothing);
-      expect(_chip('MUTED'), findsNothing);
-      // A dot, a name and a count: Home's cards list no volumes, so none of
-      // them says "Empty shelf" — every one of these shelves holds a volume
-      // (the library-letter-cards frame found all three saying it).
-      expect(find.text('Empty shelf'), findsNothing);
+      expect(find.byType(KitShelfCovers), findsOneWidget);
       expect(
           find.descendant(
-              of: find.byType(KitShelfCard), matching: find.text('On Leading')),
+              of: find.byKey(const ValueKey('cvs-lead')),
+              matching: _chip('LEAD')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('cvs-muted')),
+              matching: _chip('MUTED')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('cvs-mixed')),
+              matching: find.byType(KitStatusPill)),
           findsNothing);
     });
 
     testWidgets('no chip while the letter is off', (tester) async {
-      LocalFlags.shelvesView.value = 'shelf';
       await _pump(tester, const LibraryPage(), settings: _off);
       expect(_chip('LEAD'), findsNothing);
       expect(_chip('MUTED'), findsNothing);
@@ -233,38 +238,44 @@ void main() {
 
     testWidgets('no chip before the settings read has answered',
         (tester) async {
-      LocalFlags.shelvesView.value = 'shelf';
       await _pump(tester, const LibraryPage());
       expect(_chip('LEAD'), findsNothing);
+      expect(_chip('MUTED'), findsNothing);
     });
   });
 
   group('Home · a passage figure needs a count (ruled 2026-10-14)', () {
-    testWidgets('a source never counted keeps its count cell, empty, and its '
-        'subtitle drops the figure; a measured count draws', (tester) async {
-      SharedPreferences.setMockInitialValues({
-        'nl-onboard-dismissed': true,
-        LocalFlags.recentViewKey: 'list',
-      });
+    testWidgets('a source never counted keeps its count cell, empty; a '
+        'measured count draws', (tester) async {
       await _pump(tester, const LibraryPage(), settings: _on);
-      // _Reads' documents carry chunkCount 3; one is replaced below by the
-      // uncounted reads harness.
-      expect(find.byType(KitSourceRow), findsWidgets);
-      final rows = tester.widgetList<KitSourceRow>(find.byType(KitSourceRow));
-      for (final r in rows) {
-        expect(r.count, '3');
-        expect(r.subtitle, contains('3 passages'));
-      }
+      // Recently added's register rows and the catalogue's rows both count.
+      expect(
+          find.descendant(
+              of: find.byType(KitRegisterRow), matching: find.text('3')),
+          findsNWidgets(3));
+      expect(
+          find.descendant(
+              of: find.byType(KitShelfCatalogue), matching: find.text('3')),
+          findsNWidgets(3));
       FirestoreService.instance = _Uncounted();
       await tester.pumpWidget(const SizedBox());
       await _pumpWith(tester, const LibraryPage(), _Uncounted(), _on);
-      final uncounted =
-          tester.widgetList<KitSourceRow>(find.byType(KitSourceRow));
-      expect(uncounted, isNotEmpty);
-      for (final r in uncounted) {
-        expect(r.count, '', reason: 'the cell stays, empty — never "0"');
-        expect(r.subtitle, isNot(contains('passage')));
+      expect(find.byType(KitRegisterRow), findsOneWidget);
+      for (final where in [
+        find.byType(KitRegisterRow),
+        find.byType(KitShelfCatalogue),
+      ]) {
+        expect(find.descendant(of: where, matching: find.text('0')),
+            findsNothing,
+            reason: 'the cell stays, empty — never "0"');
       }
+      // The register row draws no figure nobody measured. (The catalogue's
+      // shelf meta is a TOTAL over its sources, which the rule leaves alone.)
+      expect(
+          find.descendant(
+              of: find.byType(KitRegisterRow),
+              matching: find.textContaining('passage')),
+          findsNothing);
     });
   });
 

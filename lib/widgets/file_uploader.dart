@@ -29,11 +29,35 @@ class FileUploader extends StatefulWidget {
   final VoidCallback? onUploadComplete;
   final void Function(String message)? onUploadError;
 
-  const FileUploader({super.key, this.onUploadComplete, this.onUploadError});
+  /// Which page the uploader stands on. [FileUploaderLook.panel] (onboarding)
+  /// keeps its in-flight rows; the D pages draw the documents themselves, so
+  /// under them the uploader says only what adding answered ([AddAnswered]).
+  final FileUploaderLook look;
+
+  const FileUploader({
+    super.key,
+    this.onUploadComplete,
+    this.onUploadError,
+    this.look = FileUploaderLook.panel,
+  });
 
   @override
   State<FileUploader> createState() => FileUploaderState();
 }
+
+/// Where a [FileUploader] stands (screens/sources.md §Composition, direction
+/// D). One upload and link-add path whatever it looks like:
+///
+/// * [panel] — the drop zone, the link row and the rows in flight (onboarding).
+/// * [add] — Add a source: the drop zone (*Drop files, or tap to add a few*),
+///   the link row, then what adding answered; the documents it made are the
+///   page's *Just added*, read from the documents subscription.
+/// * [first] — the Library's empty catalogue: the drop zone card (*Drop files
+///   to begin*) and the link field, then what adding answered.
+///
+/// This client's device row — *Add an image set (up to 20)* and its sentence
+/// (Flutter CLAUDE.md, device capabilities web lacks) — stays in all three.
+enum FileUploaderLook { panel, add, first }
 
 /// Public so the screen can drive it from elsewhere — the browse section's
 /// empty state offers "Add your first file", and an offer that does nothing is
@@ -84,6 +108,7 @@ class FileUploaderState extends State<FileUploader> {
     );
     if (result == null) return;
     _reject(null);
+    notifier.beginIntake();
 
     for (final file in result.files) {
       final bytes = file.bytes;
@@ -100,6 +125,7 @@ class FileUploaderState extends State<FileUploader> {
       );
       if (refused != null) {
         _reject(refused);
+        notifier.refuse(file.name, refused);
         continue;
       }
       // By ROW ID, never by name: two drops of the same filename are two rows,
@@ -132,6 +158,7 @@ class FileUploaderState extends State<FileUploader> {
       type: FileType.image,
     );
     if (result == null || result.files.isEmpty) return;
+    notifier.beginIntake();
 
     final images =
         <({String name, int size, Uint8List bytes, String mimeType})>[];
@@ -168,6 +195,7 @@ class FileUploaderState extends State<FileUploader> {
       _urlSubmitting = true;
       _rejection = null;
     });
+    notifier.beginIntake();
     try {
       final refused = await notifier.addUrl(url);
       if (!mounted) return;
@@ -192,6 +220,9 @@ class FileUploaderState extends State<FileUploader> {
         final uploading = notifier.files.any(
           (f) => f.status == UploadStatus.uploading,
         );
+        if (widget.look != FileUploaderLook.panel) {
+          return _dLook(notifier, uploading);
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -261,6 +292,91 @@ class FileUploaderState extends State<FileUploader> {
           ],
         );
       },
+    );
+  }
+}
+
+extension on FileUploaderState {
+  /// The D pages' uploader: Add a source's drop zone and link row, or the
+  /// empty Library's drop zone card and link field — then the device's image
+  /// set row, and what adding answered. The same calls as [panel]'s.
+  Widget _dLook(UploadNotifier notifier, bool uploading) {
+    final first = widget.look == FileUploaderLook.first;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (first) ...[
+          KitDropCard(
+            icon: KitUploadGlyph.icon,
+            title: uploading ? 'Uploading…' : 'Drop files to begin',
+            // Touch copy (Flutter CLAUDE.md): web's "or click to browse".
+            sub: 'or tap to browse — PDF, EPUB, Word, slides, Markdown, '
+                'images, audio, video',
+            onTap: () => _pickFiles(notifier),
+          ),
+          KitLibLinkField(
+            controller: _urlCtrl,
+            focusNode: _urlFocus,
+            submitting: _urlSubmitting,
+            onSubmit: () => _submitUrl(notifier),
+          ),
+        ] else ...[
+          KitDropZone(
+            icon: KitUploadGlyph.icon,
+            title: uploading ? 'Uploading…' : 'Drop files, or tap to add a few',
+            help: '$uploadAcceptHelp — up to 100 MB each, 2 GB for video',
+            onTap: () => _pickFiles(notifier),
+          ),
+          const SizedBox(height: 12),
+          _LinkRow(
+            controller: _urlCtrl,
+            focusNode: _urlFocus,
+            submitting: _urlSubmitting,
+            onSubmit: () => _submitUrl(notifier),
+          ),
+        ],
+        // The device capability web lacks: one source of up to 20 images.
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: KitButton.ghost(
+            'Add an image set (up to 20)',
+            icon: Icons.photo_library_outlined,
+            onPressed: () => _pickImageSet(notifier),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, top: 2),
+          child: Text(kScrollHint, style: KitText.note(context)),
+        ),
+        const AddAnswered(),
+      ],
+    );
+  }
+}
+
+/// **What adding answered** (screens/sources.md §Composition, column 3): each
+/// file or link the library would not take, by name (§12, `.dz-rejection`),
+/// and a playlist's measured count. Read from [UploadNotifier], which outlives
+/// the drop zone — the Library draws it beside the rows a drop made, after
+/// its empty catalogue's zone has gone. Nothing when there is nothing to say.
+class AddAnswered extends StatelessWidget {
+  const AddAnswered({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = context.watch<UploadNotifier>();
+    final refused = n.refused;
+    final note = n.linkNote;
+    if (refused.isEmpty && note == null) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KitRefusedNotices(children: [
+          for (final r in refused) KitRefusedNotice(name: r.name, reason: r.reason),
+        ]),
+        if (note != null) KitLibNote(note),
+      ],
     );
   }
 }

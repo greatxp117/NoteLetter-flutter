@@ -74,6 +74,17 @@ class _StubTags extends TagsNotifier {
   List<Tag> get tags => const [];
 }
 
+/// Home reads the shelves beside the documents (direction D): an ANSWERED,
+/// empty shelves read, so only the documents subscription decides.
+class _AnsweredTags extends TagsNotifier {
+  @override
+  void start() {}
+  @override
+  bool get loading => false;
+  @override
+  List<Tag> get tags => const [];
+}
+
 class _StubLetters extends NewsletterNotifier {
   @override
   Future<void> load({int limit = 30}) async {}
@@ -104,7 +115,7 @@ Future<DocumentsNotifier> _pumpLibrary(
   await tester.pumpWidget(MultiProvider(
     providers: [
       ChangeNotifierProvider<DocumentsNotifier>.value(value: docs),
-      ChangeNotifierProvider<TagsNotifier>(create: (_) => _StubTags()),
+      ChangeNotifierProvider<TagsNotifier>(create: (_) => _AnsweredTags()),
       ChangeNotifierProvider<NewsletterNotifier>(create: (_) => _StubLetters()),
       ChangeNotifierProvider<SettingsNotifier>(create: (_) => _QuietSettings()),
     ],
@@ -137,8 +148,8 @@ class _StubActivity extends ActivityNotifier {
   List<ActivityItem> get items => const [];
 }
 
-/// Sources mounts `BrowseSection`, so the two are pumped together — which is
-/// also what proves there is ONE notice for one failure and not two.
+/// The Library in direction D (`/sources`): its folio, its sheet and its
+/// catalogue are read from one subscription, so they are pumped together.
 Future<DocumentsNotifier> _pumpSources(
     WidgetTester tester, Stream<List<Document>> source) async {
   _stub = _StubService(source);
@@ -176,11 +187,16 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byType(KitFailureBlock), findsOneWidget);
-    expect(find.byType(KitDropZone), findsNothing,
-        reason: '§7 here is the drop zone — an offer to add a first source — on an account that '
-            'may be full of them');
-    expect(find.textContaining('Sign out and back in'), findsOneWidget,
+    // Direction D (library.md §Composition): a refused read is none of the
+    // library's states — §14.2 where Recently added and the shelf listing
+    // stood, the folio's figures the dash, and never the empty state.
+    expect(find.textContaining('Your library could not be read — '),
+        findsNWidgets(2));
+    expect(find.byType(KitFirstSources), findsNothing,
+        reason: 'the empty state is an offer to add a first source — on an '
+            'account that may be full of them');
+    expect(find.textContaining('— SOURCES · — PASSAGES'), findsOneWidget);
+    expect(find.textContaining('Sign out and back in'), findsNWidgets(2),
         reason: 'C7 — the SDK\'s bracketed code is not a sentence, and the '
             'mapped one still proves the rejection reached the slot');
   });
@@ -194,12 +210,14 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byType(KitDropZone), findsOneWidget,
+    expect(find.byType(KitFirstSources), findsOneWidget,
         reason: 'an empty library is a real measurement and keeps its offer');
-    expect(find.byType(KitFailureBlock), findsNothing);
+    expect(find.byType(KitFailureInline), findsNothing);
+    expect(find.textContaining('0 SOURCES · 0 PASSAGES'), findsOneWidget,
+        reason: 'a measured 0 is drawn');
   });
 
-  testWidgets('Library — what loaded before the failure is KEPT, below it',
+  testWidgets('Library — a failure after a good read is said, never §7',
       (tester) async {
     final source = StreamController<List<Document>>.broadcast();
     await _pumpLibrary(tester, source.stream);
@@ -207,16 +225,21 @@ void main() {
     source.add([_doc('d1')]);
     await tester.pump();
     await tester.pump();
-    expect(find.byType(KitFailureBlock), findsNothing);
+    expect(find.byType(KitFailureInline), findsNothing);
+    expect(find.byType(KitRegisterRow), findsOneWidget);
 
     source.addError(StateError('unavailable'));
     await tester.pump();
     await tester.pump();
 
-    expect(find.byType(KitFailureBlock), findsOneWidget,
-        reason: 'a library that loaded once and then failed is no longer the '
-            'whole library, which is what the block says');
-    expect(find.byType(KitDropZone), findsNothing);
+    // What arrived is no longer evidence of the whole library: both lists
+    // say the read failed in their place (web's libError branch), and the
+    // folio stops counting.
+    expect(find.textContaining('Your library could not be read — '),
+        findsNWidgets(2));
+    expect(find.byType(KitRegisterRow), findsNothing);
+    expect(find.byType(KitFirstSources), findsNothing);
+    expect(find.textContaining('— SOURCES · — PASSAGES'), findsOneWidget);
   });
 
   testWidgets('Retry re-subscribes — `start` is idempotent on `_sub`',
@@ -230,7 +253,9 @@ void main() {
     await tester.pump();
     expect(docs.error, isNotNull);
 
-    await tester.tap(find.text('Try again'));
+    // Home in D draws §14.2, which carries no retry (web LibraryHome); the
+    // notifier's refresh is what any retry calls.
+    await docs.refresh();
     await tester.pump();
 
     expect(_stub.subscribed, 2,
@@ -252,25 +277,26 @@ void main() {
 
     // Unread is not zero (§8, ADR-109). This is the sentence that matters:
     // it is not a missing notice but the opposite one, told to a reader whose
-    // library may be full.
-    // BOTH figure sites, not one: the folio and `BrowseSection`'s section
-    // header are derived from the same subscription, and fixing the header
-    // alone would have left "In your library · 0 volumes" beside a block
-    // saying the library could not be read (ADR-084's lesson — a figure
-    // booked as one copy was five).
+    // library may be full. EVERY figure site, not one: the folio and the
+    // catalogue's meta are derived from the same subscription (ADR-084's
+    // lesson — a figure booked as one copy was five). The folio draws the
+    // dash (direction D, sources.md §Composition).
     expect(
         find.byWidgetPredicate((w) =>
             w is Text && (w.data ?? '').toLowerCase().contains('0 volumes')),
         findsNothing);
+    expect(find.textContaining('— VOLUMES · — SHELVES'), findsOneWidget);
     expect(find.textContaining('Nothing indexed yet'), findsNothing);
 
-    // One failure, one notice — `BrowseSection` is mounted inside this page
-    // and suppresses its own §7 rather than drawing a second block.
-    expect(find.byType(KitFailureBlock), findsOneWidget);
-    // §7 on this screen is `_NothingYet`, not the drop zone: the drop zone is
-    // the permanent ADD control and is right to stay. The offer that must not
-    // speak is the one that asserts the library is empty.
+    // A refused read is never empty (INV-24): no standfirst, no drop zone,
+    // and the failed state's one line — §14.2, where the sheet and the
+    // catalogue each stood (the table's *failed* row), never a second shape.
+    expect(find.textContaining('Your sources could not be read — '),
+        findsNWidgets(2));
+    expect(find.byType(KitFailureInline), findsNWidgets(2));
     expect(find.textContaining('Nothing here yet'), findsNothing);
+    expect(find.byType(KitDropCard), findsNothing);
+    expect(find.text('Drop files to begin'), findsNothing);
   });
 
   testWidgets('Sources — 0 volumes stays drawable when it is MEASURED',
@@ -287,16 +313,18 @@ void main() {
             w is Text && (w.data ?? '').toLowerCase().contains('0 volumes')),
         findsNWidgets(2),
         reason: 'an empty library is a real measurement — ADR-109 keeps 0 '
-            'drawable at BOTH sites, it only refuses an UNREAD figure');
-    expect(find.byType(KitFailureBlock), findsNothing);
-    // F-96 (web e924677, sources.md): the §7 standfirst promises nothing it
-    // does not measure — "within a minute" is gone.
+            'drawable at BOTH sites (the folio and the catalogue\'s meta), '
+            'it only refuses an UNREAD figure');
+    expect(find.byType(KitFailureInline), findsNothing);
+    // The empty Library's sentence promises nothing it does not measure
+    // (F-96, web e924677) — and its catalogue is the drop zone (D's empty
+    // state, which supersedes §7's "Nothing here yet." with two rows).
     expect(
-        find.text('Add a file or connect a service, and the passages arrive '
-            'as each source is read — a long video or recording takes '
-            'longest.'),
+        find.text('Nothing here yet. Add a file, paste a link, or connect a '
+            'service, and each source is read and indexed as it arrives.'),
         findsOneWidget);
     expect(find.textContaining('within a minute'), findsNothing);
+    expect(find.text('Drop files to begin'), findsOneWidget);
   });
 }
 
