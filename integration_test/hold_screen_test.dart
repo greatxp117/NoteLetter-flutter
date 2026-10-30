@@ -616,18 +616,26 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
         final chat = Provider.of<ChatNotifier>(
             tester.element(find.byType(ChatPage)),
             listen: false);
+        // The thread is the ROUTED page's: a PATCH upserts, so a wrong path
+        // answers 200 and changes nothing on screen.
+        final threadId =
+            (find.byType(ChatPage).evaluate().single.widget as ChatPage)
+                .threadId;
         final reply = chat.messages.lastWhere((m) => m.role == AskRole.library);
+        debugPrint('HOLD ask-answer-note: thread=$threadId '
+            'active=${chat.activeId} reply=${reply.id} '
+            'msgs=${chat.messages.map((m) => '${m.role.name}:${m.id}').join(',')}');
         final rest = Dio(BaseOptions(
           baseUrl: 'http://${ApiService.emulatorHost}:${ApiService.firestorePort}'
               '/v1/projects/${DefaultFirebaseOptions.currentPlatform.projectId}'
               '/databases/(default)/documents',
           headers: {'Authorization': 'Bearer owner'},
         ));
-        await rest.patch(
-          '/ask_threads/${chat.activeId}/messages/${reply.id}',
-          queryParameters: {
-            'updateMask.fieldPaths': ['answer', 'answer_note'],
-          },
+        // The mask spelled out: Dio's list formats write `fieldPaths[]=`,
+        // which Firestore does not read (the first batch, 2026-10-30).
+        final patched = await rest.patch(
+          '/ask_threads/$threadId/messages/${reply.id}'
+          '?updateMask.fieldPaths=answer&updateMask.fieldPaths=answer_note',
           data: {
             'fields': {
               'answer_note': {
@@ -636,16 +644,22 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
               },
             },
           },
-          options: Options(listFormat: ListFormat.multiCompatible),
         );
+        debugPrint('HOLD ask-answer-note: PATCH ${patched.statusCode} '
+            '${patched.realUri}');
         final note = find.byKey(const ValueKey('ask-answer-note'));
         for (var i = 0; i < 50 && note.evaluate().isEmpty; i++) {
           await tester.pump(const Duration(milliseconds: 200));
         }
         await settle();
+        debugPrint('HOLD ask-answer-note: after, '
+            'note=${chat.messages.lastWhere((m) => m.role == AskRole.library).answerNote} '
+            'answer=${chat.messages.lastWhere((m) => m.role == AskRole.library).answer?.length}');
         expect(note, findsOneWidget,
             reason: 'the note did not draw — this frame would be the answer');
-        expect(find.byType(KitAskAnswer), findsNothing);
+        // KitAskAnswer draws the note in the answer's place: the answer's
+        // own paragraphs are what must be gone.
+        expect(find.byKey(const ValueKey('ask-answer')), findsNothing);
       }
       if (holdState == 'ask-rail') {
         // The conversations are the running head on a phone (ask.md

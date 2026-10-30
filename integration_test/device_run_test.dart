@@ -1498,6 +1498,45 @@ void main() {
     expect(find.byType(KitAskCitation), findsWidgets,
         reason: 'the citations, as a ruled register');
 
+    // F-134 (5.30.0, kit §25): the written answer above its citations, and a
+    // marker that scrolls to its citation and marks it for a moment. The
+    // shim's fake (NL_DEV_FAKES=1) writes a paragraph citing [1] over a
+    // quotation, as web's frames show.
+    final refs = find.byType(KitAskRef);
+    debugPrint('DEVICE-RUN F-134 answer=${find.byType(KitAskAnswer).evaluate().length} '
+        'refs=${refs.evaluate().length} '
+        'quotes=${find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('ask-quote-')).evaluate().length} '
+        'note=${find.byKey(const ValueKey('ask-answer-note')).evaluate().length}');
+    expect(find.byType(KitAskAnswer), findsOneWidget,
+        reason: 'the turn carries a written answer (5.30.0)');
+    expect(refs, findsWidgets, reason: 'each [n] is a reference marker');
+    expect(find.textContaining('[1]'), findsNothing,
+        reason: 'never the bracketed text');
+    final answerTop = tester.getTopLeft(find.byType(KitAskAnswer)).dy;
+    final firstCite = find.byType(KitAskCitation).first;
+    expect(answerTop, lessThan(tester.getTopLeft(firstCite).dy),
+        reason: 'the answer sits above its citations');
+    await tester.tap(refs.first);
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final marked = tester
+        .widgetList<KitAskCitation>(find.byType(KitAskCitation))
+        .where((c) => c.marked)
+        .map((c) => c.index)
+        .toList();
+    debugPrint('DEVICE-RUN F-134 marked after the chip: $marked, citation 1 '
+        'at y=${tester.getTopLeft(firstCite).dy.toStringAsFixed(0)}');
+    expect(marked, [tester.widget<KitAskRef>(refs.first).n],
+        reason: 'the marker marks ITS citation');
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(
+        tester
+            .widgetList<KitAskCitation>(find.byType(KitAskCitation))
+            .where((c) => c.marked),
+        isEmpty,
+        reason: 'the mark lasts a moment (1.6s), not for good');
+
     // The thread is now in the running head, with the title and the preview
     // the BACKEND wrote; *New* is the tab bar's centre while it is open.
     expect(
