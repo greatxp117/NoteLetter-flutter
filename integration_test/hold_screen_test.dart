@@ -1618,6 +1618,20 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           alignment: 0.9);
       await settle();
       return;
+    // letters.md §Your librarian (5.48.0, F-149) — the mission's field,
+    // Composition's last, above Save settings; web's
+    // `letter-settings-librarian` frame scrolls to the same group.
+    case 'letter-settings-librarian':
+      await settle();
+      final mission = find.byKey(const ValueKey('lset-purpose'));
+      for (var i = 0; i < 40; i++) {
+        if (mission.evaluate().isNotEmpty) break;
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await Scrollable.ensureVisible(tester.element(mission.first),
+          alignment: 0.15);
+      await settle();
+      return;
     // sources.md §Composition — the catalogue, below the fold at rest
     // (direction D, F-141; it was "In your library" with the list / cards /
     // shelf toggle). Shot for looking only: web's `sources` frame is the top
