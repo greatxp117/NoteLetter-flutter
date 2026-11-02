@@ -75,12 +75,19 @@ class SettingsNotifier extends ChangeNotifier {
   /// on every unrelated edit, and 2.30.0's activation send is keyed on the
   /// TRANSITION, so a client that includes the key in an unrelated partial save
   /// is one deploy away from mailing its user for a typo fix.
+  ///
+  /// [purposeText] is sent only when given, and the screen gives it only when
+  /// the mission changed (screens/letters.md §Your librarian, 5.48.0): the
+  /// endpoint re-embeds whenever the key is present, and an embedding failure
+  /// refuses the whole PUT, so an unchanged mission riding along would let an
+  /// embedder outage refuse a new delivery hour. `''` is a change (removing
+  /// the mission) and is sent.
   Future<String?> saveLetterSettings({
     required String emailAddress,
     required String frequency,
     required String deliveryTime,
     required String timezone,
-    required String purposeText,
+    String? purposeText,
     required int itemsPerNewsletter,
     required int excludeRecentDays,
     List<String>? topicFilters,
@@ -92,7 +99,7 @@ class SettingsNotifier extends ChangeNotifier {
         // 2.29.0 — sent in the SAME call as `deliveryTime`, always. An hour
         // with no zone is UTC, which is nobody's morning by choice.
         'timezone': timezone,
-        'purposeText': purposeText,
+        'purposeText': ?purposeText,
         'itemsPerNewsletter': itemsPerNewsletter,
         'excludeRecentDays': excludeRecentDays,
         if (topicFilters != null) 'topicFilters': topicFilters,

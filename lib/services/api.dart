@@ -1,6 +1,14 @@
 import '../shared/cooldown.dart';
 import 'api_service.dart';
 
+/// `purposeText`'s bound (api/newsletter.md, 5.48.0; web `MISSION_MAX`):
+/// `fn_newsletter_settings` keeps the first 1000 characters and drops the rest
+/// without a word — the one key it cuts rather than refuses — so every field
+/// that writes the mission (Letter settings' *Your librarian*, onboarding's
+/// mission box) stops there as the reader types (§6.9: no counter). Not
+/// Suggest shelves' `purposeMax`, which is `fn_suggest_tags`' own 2000.
+const missionMax = 1000;
+
 /// Canonical request-builder layer — the Flutter mirror of the web reference
 /// `src/api.js` and iOS `Networking/`. One thin method per contracted endpoint
 /// that builds the exact `{endpoint, method, body}` the contract fixtures pin

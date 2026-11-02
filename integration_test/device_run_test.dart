@@ -4439,6 +4439,51 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  // F-149 (5.48.0, screens/letters.md §Your librarian): the mission, edited
+  // in Letter settings, goes through the real fn_newsletter_settings (the
+  // shim), is stored trimmed, and a fresh visit reads it back into the field.
+  testWidgets(
+      'Your librarian: a mission typed in Letter settings is stored trimmed '
+      'and read back on the next visit (F-149)', (tester) async {
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final mission = 'Read toward the Confessions, device run '
+        '${DateTime.now().millisecondsSinceEpoch}.';
+    final field = find.byKey(const ValueKey('lset-purpose'));
+    final save = find.byKey(const ValueKey('lset-save'));
+
+    final router = await pumpApp(tester);
+    router.go('/letters/settings');
+    await pumpFor(tester, total: const Duration(seconds: 5));
+    await tester.ensureVisible(field);
+    await tester.enterText(
+        find.descendant(of: field, matching: find.byType(TextField)),
+        '  $mission  ');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await pumpFor(tester, total: const Duration(seconds: 6));
+    expect(find.text('Saved'), findsOneWidget,
+        reason: 'the Save carrying the mission was not accepted');
+    final doc = await rest.get('/users/$uid/settings/newsletter');
+    expect(doc.data['fields']['purposeText']['stringValue'], mission,
+        reason: 'the mission was not stored trimmed');
+
+    router.go('/letters');
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    router.go('/letters/settings');
+    await pumpFor(tester, total: const Duration(seconds: 5));
+    await tester.ensureVisible(field);
+    expect(tester.widget<KitTextField>(field).controller.text, mission,
+        reason: 'a fresh visit did not read the stored mission back');
+  });
 }
 
 /// An adapter that holds every request to [path] until [release], then sends

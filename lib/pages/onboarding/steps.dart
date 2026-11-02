@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 
 import '../../models/document.dart';
+import '../../services/api.dart' show missionMax;
 import '../../shared/local_flags.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/file_uploader.dart';
@@ -254,6 +255,9 @@ class LibrarianStep extends StatelessWidget {
         controller: prompt,
         minLines: 5,
         maxLines: 10,
+        // The letter's `purposeText`, bounded as the endpoint bounds it
+        // (screens/onboarding.md §Rules, 5.48.0).
+        maxLength: missionMax,
         placeholder: 'Describe what you’re reading toward…',
       ),
       const KitProcNote(

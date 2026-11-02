@@ -17,6 +17,7 @@ import 'package:flutter_app/models/support.dart';
 import 'package:flutter_app/models/tag.dart';
 import 'package:flutter_app/pages/letter_settings_page.dart';
 import 'package:flutter_app/pages/letters/letter_host.dart';
+import 'package:flutter_app/pages/onboarding/steps.dart' show LibrarianStep;
 import 'package:flutter_app/pages/support_page.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/firestore_service.dart';
@@ -111,6 +112,31 @@ class _Api implements HttpClientAdapter {
     return ResponseBody.fromString(
       jsonEncode(body),
       status,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// Holds every request until [gate] completes, then accepts it.
+class _HeldApi implements HttpClientAdapter {
+  _HeldApi(this.gate);
+  final Future<void> gate;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    await gate;
+    return ResponseBody.fromString(
+      jsonEncode({'saved': true, 'settings': options.data}),
+      200,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
       },
@@ -760,6 +786,176 @@ void main() {
       );
       expect(find.text('1 shelf'), findsOneWidget);
       await _unmount(tester);
+    });
+  });
+
+  // screens/letters.md §Your librarian (5.48.0, F-149): the mission, edited
+  // here on every client. Strings verbatim, §6.9's sans face, the endpoint's
+  // 1000 bound, held while Save is out, and `purposeText` sent only when it
+  // differs from the last value read or accepted.
+  group('Letter settings: Your librarian', () {
+    const stored = 'Help me read Augustine slowly.';
+    const refusal = 'An unexpected error occurred. Contact support with your '
+        'request ID.';
+    final field = find.byKey(const ValueKey('lset-purpose'));
+    Finder input() =>
+        find.descendant(of: field, matching: find.byType(TextField));
+    final save = find.byKey(const ValueKey('lset-save'));
+
+    Future<void> tapSave(WidgetTester tester) async {
+      await tester.ensureVisible(save);
+      await tester.pump();
+      await tester.tap(save);
+      await _settle(tester);
+    }
+
+    List<Map> puts(_Api api) => [
+      for (final o in api.sent)
+        if (o.path.endsWith('/fn_newsletter_settings')) o.data as Map,
+    ];
+
+    // Answers as the endpoint does: the applied updates back in `settings`.
+    (int, Object) accepted(RequestOptions o) =>
+        (200, {'saved': true, 'settings': o.data});
+
+    testWidgets('the spec\'s strings, the sans face and the endpoint\'s bound, '
+        'after Draw from', (tester) async {
+      await _letterSettings(
+        tester,
+        _Fs(settings: const {'purposeText': stored}),
+        shelves: [
+          Tag.fromJson('s1', {
+            'user_id': 'u1',
+            'title': 'Pasta',
+            'color': 'sage-500',
+          }),
+        ],
+      );
+      // KitFieldGroup draws the label in caps, as web's `.cfg-label .l`.
+      expect(find.text('YOUR LIBRARIAN'), findsOneWidget);
+      expect(
+        find.text('What you want to learn or achieve. Your letter weights '
+            'passages by it.'),
+        findsOneWidget,
+      );
+      final kit = tester.widget<KitTextField>(field);
+      expect(kit.placeholder,
+          'e.g. Help me connect ideas across philosophy readings…');
+      expect(kit.face, KitFieldFace.sans, reason: '§6.9: a sentence is sans');
+      expect(kit.maxLength, 1000);
+      expect(kit.controller.text, stored);
+      // Composition's last field: below Draw from, above Save settings.
+      final y = tester.getTopLeft(field).dy;
+      expect(y, greaterThan(tester.getTopLeft(find.text('Pasta')).dy));
+      expect(y, lessThan(tester.getTopLeft(save).dy));
+      await _unmount(tester);
+    });
+
+    testWidgets('an unchanged mission is not sent', (tester) async {
+      final api = _Api(accepted);
+      ApiService.instance.httpClientAdapter = api;
+      await _letterSettings(tester, _Fs(settings: const {'purposeText': stored}));
+      await tapSave(tester);
+      expect(puts(api).single.containsKey('purposeText'), isFalse);
+      await _unmount(tester);
+    });
+
+    testWidgets('a changed mission is sent trimmed; the accepted value is the '
+        'next baseline', (tester) async {
+      final api = _Api(accepted);
+      ApiService.instance.httpClientAdapter = api;
+      await _letterSettings(tester, _Fs(settings: const {'purposeText': stored}));
+      await tester.ensureVisible(field);
+      await tester.enterText(input(), '  Read toward the Confessions.  ');
+      await tapSave(tester);
+      expect(puts(api).single['purposeText'], 'Read toward the Confessions.');
+      expect(find.text('Saved'), findsOneWidget);
+      expect(tester.widget<KitTextField>(field).controller.text,
+          'Read toward the Confessions.');
+      await tapSave(tester);
+      expect(puts(api).last.containsKey('purposeText'), isFalse);
+      await _unmount(tester);
+    });
+
+    testWidgets('an emptied mission is sent: removing it is a change', (
+      tester,
+    ) async {
+      final api = _Api(accepted);
+      ApiService.instance.httpClientAdapter = api;
+      await _letterSettings(tester, _Fs(settings: const {'purposeText': stored}));
+      await tester.ensureVisible(field);
+      await tester.enterText(input(), '   ');
+      await tapSave(tester);
+      expect(puts(api).single['purposeText'], '');
+      await _unmount(tester);
+    });
+
+    testWidgets('a refusal keeps the draft, says why beside Save, and the next '
+        'Save sends it again', (tester) async {
+      var refuse = true;
+      final api = _Api((o) => refuse
+          ? (500, {'error': refusal, 'error_code': 'INTERNAL', 'request_id': 'r1'})
+          : accepted(o));
+      ApiService.instance.httpClientAdapter = api;
+      await _letterSettings(tester, _Fs(settings: const {'purposeText': stored}));
+      await tester.ensureVisible(field);
+      await tester.enterText(input(), 'A draft the server refused.');
+      await tapSave(tester);
+      expect(find.text(refusal), findsOneWidget);
+      expect(find.text('Saved'), findsNothing);
+      expect(tester.widget<KitTextField>(field).controller.text,
+          'A draft the server refused.');
+      refuse = false;
+      await tapSave(tester);
+      expect(puts(api).last['purposeText'], 'A draft the server refused.');
+      await _unmount(tester);
+    });
+
+    testWidgets('held while Save is out (§6.9)', (tester) async {
+      final gate = Completer<void>();
+      ApiService.instance.httpClientAdapter = _HeldApi(gate.future);
+      await _letterSettings(tester, _Fs(settings: const {'purposeText': stored}));
+      await tester.ensureVisible(field);
+      await tester.enterText(input(), 'Held while written.');
+      await tester.ensureVisible(save);
+      await tester.pump();
+      await tester.tap(save);
+      await tester.pump();
+      expect(tester.widget<KitTextField>(field).enabled, isFalse);
+      gate.complete();
+      await _settle(tester);
+      expect(tester.widget<KitTextField>(field).enabled, isTrue);
+      await _unmount(tester);
+    });
+
+    testWidgets('onboarding\'s mission box takes the same bound, and its note '
+        'names Letter settings', (tester) async {
+      final prompt = TextEditingController();
+      addTearDown(prompt.dispose);
+      tester.view.physicalSize = _wide;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: LibrarianStep(
+              preset: '',
+              prompt: prompt,
+              onPreset: (_) {},
+              onUseAI: (_) {},
+            ),
+          ),
+        ),
+      ));
+      final box = tester.widget<KitTextField>(find.byWidgetPredicate(
+          (w) => w is KitTextField && w.controller == prompt));
+      expect(box.maxLength, 1000);
+      expect(
+        find.text('This is saved as your letter’s purpose and can be '
+            'rewritten any time in Letter settings.'),
+        findsOneWidget,
+      );
     });
   });
 

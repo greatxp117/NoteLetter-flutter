@@ -21,6 +21,7 @@ import 'letters/readings_letter.dart' show calendarLabel, calendarNote;
 import '../services/error_text.dart';
 import '../services/firestore_service.dart';
 import '../services/analytics.dart';
+import '../services/api.dart' show missionMax;
 import '../services/auth_service.dart';
 
 /// The signed-in account's address: where an unset *Send to* delivers
@@ -82,6 +83,11 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
   final _deliveryTimeCtrl = TextEditingController(text: _blank.deliveryTime);
   final _emailCtrl = TextEditingController();
   final _purposeCtrl = TextEditingController();
+
+  /// The mission as last READ (screens/letters.md §Your librarian, 5.48.0).
+  /// Save sends `purposeText` only when the field differs from this; a
+  /// refused Save leaves it alone, so the draft still on screen is sent again.
+  String _purposeRead = '';
   int _itemsPerLetter = _blank.itemsPerNewsletter;
   int _excludeRecentDays = _blank.excludeRecentDays;
 
@@ -228,6 +234,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     _deliveryTimeCtrl.text = s.deliveryTime;
     _emailCtrl.text = s.emailAddress;
     _purposeCtrl.text = s.purposeText;
+    _purposeRead = s.purposeText;
   }
 
   void _populateReadings(ScriptureNewsletterSettings s) {
@@ -267,14 +274,18 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     });
     // `enabled` is deliberately NOT sent here — the switch above owns it.
     final shelves = context.read<TagsNotifier>().tags;
-    final error = await context.read<SettingsNotifier>().saveLetterSettings(
+    final settings = context.read<SettingsNotifier>();
+    final purpose = _purposeCtrl.text.trim();
+    final purposeChanged = purpose != _purposeRead;
+    final error = await settings.saveLetterSettings(
       // Titles, not ids: they bias scoring by topic rather than scoping.
       topicFilters: topicFiltersFor(shelves, _drawFrom),
       emailAddress: email,
       frequency: _frequency,
       deliveryTime: _deliveryTimeCtrl.text.trim(),
       timezone: _timezone,
-      purposeText: _purposeCtrl.text.trim(),
+      // Only a changed mission (§Your librarian); emptied counts as changed.
+      purposeText: purposeChanged ? purpose : null,
       itemsPerNewsletter: _itemsPerLetter,
       excludeRecentDays: _excludeRecentDays,
     );
@@ -282,6 +293,16 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     // On the accepted path only: a rejected save changed nothing, and it is
     // already counted once as a `request_failed`.
     if (error == null) Analytics.track('letter_settings_saved');
+    if (error == null && purposeChanged) {
+      // The response's `settings` is the read-back — what was stored, which
+      // the bound keeps equal to what was sent (web reads the same field).
+      final applied = settings.lastActivation?['settings'];
+      final stored = applied is Map && applied['purposeText'] is String
+          ? applied['purposeText'] as String
+          : purpose;
+      _purposeRead = stored;
+      _purposeCtrl.text = stored;
+    }
     setState(() {
       _saving = false;
       _saveError = error;
@@ -666,18 +687,25 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
         onChanged: (title, v) =>
             _edit(() => v ? _drawFrom.add(title) : _drawFrom.remove(title)),
       ),
-    // The mission the letter weights passages by. Web edits the same key from
-    // Settings (`Your librarian`); this client's Settings does not, so it
-    // stays here, inside the daily letter's Save.
+    // The mission onboarding wrote, which the letter weights passages by
+    // (screens/letters.md §Your librarian, 5.48.0): Composition's last field
+    // on every client, a draft until Save. Settings' *Your librarian* row is
+    // the way into Ask, not this editor — on web as here.
     KitFieldGroup(
       label: 'Your librarian',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           KitTextField(
+            key: const ValueKey('lset-purpose'),
             controller: _purposeCtrl,
+            // §6.9: a sentence is the sans face, never the mono data face.
+            face: KitFieldFace.sans,
             minLines: 2,
             maxLines: 4,
+            maxLength: missionMax,
+            // Held while Save's write is out (§6.9, write before you move).
+            enabled: !_saving,
             placeholder:
                 'e.g. Help me connect ideas across philosophy readings…',
             onChanged: (_) => _edit(() {}),
