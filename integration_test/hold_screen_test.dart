@@ -1621,6 +1621,46 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // letters.md §Your librarian (5.48.0, F-149) — the mission's field,
     // Composition's last, above Save settings; web's
     // `letter-settings-librarian` frame scrolls to the same group.
+    // Home's study band (5.49.0, F-153): the newest session, under the
+    // letter — written by tool/seed_study_band.py (web theme-shots'
+    // `home-study-band` / `-started` session, word for word), scrolled to the
+    // middle of the frame as web's frame is.
+    case 'study-band':
+      await settle();
+      final band = find.byKey(const ValueKey('hm-due'));
+      for (var i = 0; i < 40; i++) {
+        if (band.evaluate().isNotEmpty) break;
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(band, findsOneWidget,
+          reason: 'no study band — is tool/seed_study_band.py written?');
+      await Scrollable.ensureVisible(tester.element(band), alignment: 0.5);
+      await settle();
+      return;
+    // The source page's Also with *Study this* (5.49.0, F-154): the running
+    // head opened on a phone, the row brought on — never tapped.
+    case 'reader-study-this':
+      await settle();
+      final peek = find.byKey(const ValueKey('d-peek'));
+      if (peek.evaluate().isNotEmpty) {
+        await tester.tap(peek);
+        await settle();
+      }
+      final row = find.descendant(
+          of: find.byType(KitAlsoButton), matching: find.text('Study this'));
+      expect(row, findsOneWidget, reason: 'no Study this in the Also');
+      await Scrollable.ensureVisible(tester.element(row), alignment: 0.5);
+      await settle();
+      return;
+    // ...and the new-program editor it opens, pre-filled. Nothing is written:
+    // the hold never presses Create program.
+    case 'study-this':
+      await settle();
+      await _tapAlso(tester, 'Study this');
+      await settle();
+      expect(find.text('A New Program'), findsOneWidget,
+          reason: 'Study this did not open the editor');
+      return;
     case 'letter-settings-librarian':
       await settle();
       final mission = find.byKey(const ValueKey('lset-purpose'));

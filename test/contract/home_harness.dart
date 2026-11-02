@@ -40,6 +40,7 @@ class HomeReads extends FirestoreService {
     this.failLetters = false,
     this.hangLetters = false,
     this.failTags = false,
+    this.failSessions = false,
   }) : super.stub();
 
   final List<Document> docs;
@@ -50,6 +51,9 @@ class HomeReads extends FirestoreService {
   final bool failLetters;
   final bool hangLetters;
   final bool failTags;
+
+  /// A study read the rules refused (5.49.0: the band draws nothing).
+  final bool failSessions;
 
   /// How many times the documents notifier SUBSCRIBED.
   int subscribed = 0;
@@ -79,7 +83,9 @@ class HomeReads extends FirestoreService {
   Stream<List<StudySession>> subscribeStudySessions({
     String? programId,
     int limit = 30,
-  }) => sessions == null
+  }) => failSessions
+      ? Stream.error(StateError('permission-denied'))
+      : sessions == null
       ? const Stream.empty()
       : Stream.value(sessions!.take(limit).toList());
 }

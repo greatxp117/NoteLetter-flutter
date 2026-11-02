@@ -26,7 +26,8 @@ import 'kit_d_library.dart' show KitDropCard;
 import 'kit_d_parts.dart';
 import 'kit_d_shelves.dart';
 import 'kit_failure.dart' show KitFailureInline;
-import 'kit_shell.dart' show KitGlyph, KitQuill, KitUploadGlyph;
+import 'kit_shell.dart' show KitCardsGlyph, KitGlyph, KitQuill, KitUploadGlyph;
+import 'kit_text.dart' show KitText;
 import 'kit_source_link.dart';
 
 // ── Small D type every listing uses ─────────────────────────────────────────
@@ -156,6 +157,135 @@ class KitHomeCheckSlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       Padding(padding: const EdgeInsets.only(bottom: 36), child: child);
+}
+
+/// Home's study band (5.49.0, `screens/library.md` §Composition item 4; web
+/// `StudyBand`, `.hm-due`): the newest session, offered to be played — a card
+/// 28 under the letter, `16 20` on `--surface` with a 1px `--border` at
+/// `--r-md`: the mark (the cards glyph 17 in `--seal` on a 38 `--accent-soft`
+/// disc), the eyebrow *Deep study · sent {when}*, the program's title (serif
+/// 600 18/24), the counts (sans 13/19 `--fg-muted`, the lead figure 600 `--fg`
+/// tabular) and the brick button with the play glyph — *Start the session*,
+/// or *Resume session* once started — which opens THAT session. At 720 and
+/// under (web's breakpoint) the button runs the full width under the text.
+/// The page draws it only on the ledger's rule ([kitStudyDue]); loading and a
+/// refused read draw nothing.
+class KitStudyBand extends StatelessWidget {
+  final KitStudyDue due;
+  final VoidCallback onOpen;
+  final DateTime? now;
+  const KitStudyBand({
+    super.key,
+    required this.due,
+    required this.onOpen,
+    this.now,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final narrow = MediaQuery.sizeOf(context).width <= 720;
+    final sent = kitSentPhrase(due.at, now);
+    final (lead, rest) = kitStudyBandLine(due);
+    final label = due.started ? 'Resume session' : 'Start the session';
+    final mark = ExcludeSemantics(
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: t.accentSoft, shape: BoxShape.circle),
+        child: KitCardsGlyph(size: 17, color: t.seal),
+      ),
+    );
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          (sent == null ? 'Deep study' : 'Deep study · $sent').toUpperCase(),
+          style: KitText.eyebrow(context),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          due.programTitle,
+          style: TextStyle(
+            fontFamily: AppTheme.fontSerif,
+            fontSize: 18,
+            height: 24 / 18,
+            fontWeight: FontWeight.w600,
+            color: t.fg,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: lead,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: t.fg,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              TextSpan(text: rest),
+            ],
+          ),
+          style: TextStyle(
+            fontFamily: AppTheme.fontSans,
+            fontSize: 13,
+            height: 19 / 13,
+            color: t.fgMuted,
+          ),
+        ),
+      ],
+    );
+    final button = KitButton(
+      label,
+      icon: Icons.play_arrow_outlined,
+      center: narrow,
+      onPressed: onOpen,
+    );
+    return Semantics(
+      container: true,
+      label: 'Deep study',
+      child: Container(
+        key: const ValueKey('hm-due'),
+        margin: const EdgeInsets.only(top: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: t.surface,
+          border: Border.all(color: t.border),
+          borderRadius: AppRadius.mdR,
+        ),
+        child: narrow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      mark,
+                      const SizedBox(width: 16),
+                      Expanded(child: text),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  button,
+                ],
+              )
+            : Row(
+                children: [
+                  mark,
+                  const SizedBox(width: 16),
+                  Expanded(child: text),
+                  const SizedBox(width: 16),
+                  button,
+                ],
+              ),
+      ),
+    );
+  }
 }
 
 /// `ed-lower` — Recently added beside Earlier letters, 72 below the letter:

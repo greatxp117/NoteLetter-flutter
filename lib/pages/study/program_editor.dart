@@ -42,11 +42,42 @@ const _maxDocs = 10;
 String _counted(int n, String noun, [String? many]) =>
     '$n ${n == 1 ? noun : (many ?? '${noun}s')}';
 
+/// What a source page's *Study this* hands the new-program editor (5.49.0,
+/// `screens/reader.md` §Study this): the source, to be chosen and named after.
+/// It rides go_router's `extra`, never the address — a document id there
+/// would reach analytics (INV-25b) — so a reload of /study/new on a web build
+/// opens a plain new program, and nothing was written to lose.
+class StudySeed {
+  final Document doc;
+  const StudySeed(this.doc);
+}
+
+/// Whether a source page offers *Study this*: a source a program may hold —
+/// `complete`, with a counted passage (`fn_study_programs`' own rule on
+/// `documentIds`) — whether generative AI is on or off.
+bool studyThisOffered(Document d) =>
+    d.status == DocumentStatus.complete && (d.chunkCount ?? 0) > 0;
+
+/// The name *Study this* fills in: the source's title, trimmed, cut to the
+/// endpoint's 120-character bound on `title` (web `seedTitle`).
+String studySeedTitle(Document d) {
+  final t = d.title.trim();
+  return (t.length > 120 ? t.substring(0, 120) : t).trim();
+}
+
+/// The editor's standfirst when *Study this* opened it (the August design's).
+const studyStartedFrom =
+    'Started from this document. Add to it, reorder it, or leave it as it is.';
+
 class ProgramEditorPage extends StatefulWidget {
-  const ProgramEditorPage({super.key, this.programId});
+  const ProgramEditorPage({super.key, this.programId, this.seed});
 
   /// Null = create.
   final String? programId;
+
+  /// *Study this*: a NEW program with this source chosen and named after it.
+  /// Ignored for an existing program. Nothing is written until Create.
+  final StudySeed? seed;
 
   @override
   State<ProgramEditorPage> createState() => _ProgramEditorPageState();
@@ -80,9 +111,17 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
 
   bool get _isNew => widget.programId == null;
 
+  /// The source *Study this* started from (null otherwise).
+  Document? get _from => _isNew ? widget.seed?.doc : null;
+
   @override
   void initState() {
     super.initState();
+    final from = _from;
+    if (from != null) {
+      _ids.add(from.id);
+      _title.text = studySeedTitle(from);
+    }
     _load();
   }
 
@@ -100,8 +139,16 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
     if (!mounted) return;
     // Only finished sources can be a curriculum — an unindexed one has no
     // passages to introduce.
-    setState(() => _docs =
-        docs.where((d) => d.status == DocumentStatus.complete).toList());
+    // Only finished sources with a counted passage — `fn_study_programs`'
+    // own rule (web `completeDocs`). The source *Study this* started from is
+    // drawn from the source page's record, so one outside the listing's
+    // window is still drawn and sent.
+    final from = _from;
+    setState(() => _docs = [
+          if (from != null && !docs.any((d) => d.id == from.id)) from,
+          ...docs.where((d) =>
+              d.status == DocumentStatus.complete && (d.chunkCount ?? 0) > 0),
+        ]);
     if (_isNew) return;
     // Live, as web's editor is handed its program from the list's
     // subscription: a kind, a position or a started unit shows as soon as it
@@ -133,6 +180,19 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
   }
 
   void _close() => context.go('/study');
+
+  /// The way back. Opened by *Study this* it returns to the source page it was
+  /// pushed over (its own way back intact), or, with no stack behind it, goes
+  /// there; otherwise to the programs.
+  void _back() {
+    final from = _from;
+    if (from == null) return _close();
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/reader/${from.id}');
+    }
+  }
 
   Future<void> _save() async {
     setState(() {
@@ -227,7 +287,14 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
     final name = _title.text.trim();
     final title = name.isEmpty ? 'Untitled program' : name;
     return KitDPage(
-      back: KitDBackControl('Study programs', onTap: _close),
+      // Opened by *Study this*, the crumb names the source it returns to (one
+      // line, cut with an ellipsis — kit §39).
+      back: _from != null
+          ? KitDBackControl(
+              _from!.title.trim().isEmpty ? 'Untitled' : _from!.title.trim(),
+              onTap: _back,
+            )
+          : KitDBackControl('Study programs', onTap: _close),
       // On a phone the crumb takes its own line, the folio under it.
       crumbStacks: true,
       folio: existing
@@ -237,6 +304,8 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
       stand: existing
           ? 'What arrives, and when. The documents underneath it are '
                 'settled.'
+          : _from != null
+          ? studyStartedFrom
           : 'Choose what you want to keep, and when you want to be '
                 'asked about it.',
       sheet: KitDSheet(
@@ -248,7 +317,7 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
           icon: KitCardsGlyph.icon,
           title: title,
           count: '$docsN',
-          tail: ' documents',
+          tail: docsN == 1 ? ' document' : ' documents',
         ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -337,7 +406,7 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
                     : (existing ? 'Save changes' : 'Create program'),
                 onPressed: canSave ? _save : null,
               ),
-              KitButton.ghost('Cancel', onPressed: _close),
+              KitButton.ghost('Cancel', onPressed: _back),
             ],
           ),
         ],

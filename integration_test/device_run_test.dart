@@ -13,6 +13,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:flutter_app/pages/study/program_editor.dart' show studyStartedFrom;
 import 'package:flutter_app/app.dart';
 import 'package:flutter_app/app_providers.dart';
 import 'package:flutter_app/firebase_options.dart';
@@ -2885,6 +2886,136 @@ void main() {
       expect(find.text('Before the pasta goes in.'), findsOneWidget);
       expect(find.text('Keys 1–4 grade, space reveals.'), findsNothing);
       expect(find.text('Again'), findsOneWidget);
+    } finally {
+      await rest.delete('/study_sessions/$sessionId');
+    }
+  });
+
+  // F-153 / F-154 (5.49.0, spec/features/study-entry-points.md): Home's study
+  // band opens THAT session, and the source page's *Study this* pushes the
+  // new-program editor pre-filled — its crumb names the source and pops back
+  // to it — with nothing written (the program count is read before and after).
+  // Writes one session through the emulator REST and deletes it again.
+  testWidgets('Home\'s study band opens its session, and Study this opens the '
+      'pre-filled editor that writes nothing (F-153, F-154)', (tester) async {
+    Future<void> waitFor(Finder f, String what, {int seconds = 20}) async {
+      for (var i = 0; i < seconds * 4 && f.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(f, findsWidgets, reason: 'never drew $what');
+    }
+
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    Map<String, dynamic> str(String v) => {'stringValue': v};
+    Map<String, dynamic> q(String id, String question, String answer) => {
+          'mapValue': {
+            'fields': {'qid': str(id), 'question': str(question), 'answer': str(answer)},
+          },
+        };
+    Map<String, dynamic> item(String id, String kind, List<Map<String, dynamic>> qs) => {
+          'mapValue': {
+            'fields': {
+              'item_id': str(id),
+              'chunk_id': str(''),
+              'document_id': str('seed-doc-article-complete'),
+              'kind': str(kind),
+              'title': str('Pasta Fundamentals'),
+              'excerpt_html': str(''),
+              'questions': {'arrayValue': {'values': qs}},
+            },
+          },
+        };
+    Future<int> programs() async {
+      final r = await rest.get('/study_programs', queryParameters: {'pageSize': 300});
+      return ((r.data as Map)['documents'] as List?)?.length ?? 0;
+    }
+
+    KitPageTools.instance.reset();
+    final router = await pumpApp(tester);
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final sessionId = 'f153-${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      final wrote = await rest.patch('/study_sessions/$sessionId', data: {
+        'fields': {
+          'user_id': str(uid),
+          'program_id': str('f153-program'),
+          'program_title': str('F-153 — knife skills'),
+          'status': str('sent'),
+          'trigger': str('scheduled'),
+          'generated_at': {'timestampValue': DateTime.now().toUtc().toIso8601String()},
+          'new_count': {'integerValue': '1'},
+          'review_count': {'integerValue': '1'},
+          'responses': {'mapValue': {'fields': <String, dynamic>{}}},
+          'items': {
+            'arrayValue': {
+              'values': [
+                item('f153-i1', 'new', [
+                  q('f153-q1', 'How is a chef\'s knife held?', 'By the blade, in a pinch grip.'),
+                  q('f153-q2', 'Which hand guides?', 'The other, in a claw.'),
+                ]),
+                item('f153-i2', 'review', [q('f153-q3', 'When is it honed?', 'Before each use.')]),
+              ],
+            },
+          },
+        },
+      });
+      expect(wrote.statusCode, 200, reason: 'the session write: ${wrote.data}');
+
+      // F-153: the band under the letter, its words, and its button.
+      router.go('/');
+      final band = find.byKey(const ValueKey('hm-due'));
+      await waitFor(band, 'the study band');
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      expect(find.descendant(of: band, matching: find.text('F-153 — knife skills')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: band,
+          matching: find.text('3 questions waiting — 2 new, 1 due for review', findRichText: true),
+        ),
+        findsOneWidget,
+      );
+      final start = find.descendant(of: band, matching: find.text('Start the session'));
+      await tester.ensureVisible(start);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(start);
+      await waitFor(find.text('How is a chef\'s knife held?'), 'the session itself');
+
+      // F-154: Study this on the source page, pushed, pre-filled, writing nothing.
+      final before = await programs();
+      router.go('/reader/seed-doc-pdf-complete');
+      await waitFor(find.byKey(const ValueKey('rx-page')), 'the source page');
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      final peek = find.byKey(const ValueKey('d-peek'));
+      if (peek.evaluate().isNotEmpty) {
+        await tester.tap(peek);
+        await pumpFor(tester, total: const Duration(milliseconds: 600));
+      }
+      final row = find.descendant(
+          of: find.byType(KitAlsoButton), matching: find.text('Study this'));
+      await waitFor(row, 'Study this in the Also');
+      await tester.ensureVisible(row);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(row);
+      await waitFor(find.text('A New Program'), 'the editor');
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      expect(find.text(studyStartedFrom), findsOneWidget);
+      expect(find.text('1 of 10 chosen'), findsOneWidget);
+      final name = tester.widget<EditableText>(find.byType(EditableText).first);
+      expect(name.controller.text, isNotEmpty, reason: 'named after the source');
+      final crumb = find.byType(KitDBackControl);
+      expect(crumb, findsOneWidget);
+      expect(find.descendant(of: crumb, matching: find.text(name.controller.text.toUpperCase())),
+          findsOneWidget, reason: 'the crumb names the source');
+      await tester.tap(crumb);
+      await waitFor(find.byKey(const ValueKey('rx-page')), 'the source page, popped back to');
+      expect(await programs(), before, reason: 'nothing was written');
     } finally {
       await rest.delete('/study_sessions/$sessionId');
     }

@@ -2328,6 +2328,20 @@ a new obligation on a finished screen is a new item.
 - extra_gates: flutter test test/contract
 - notes: HomeHybrid and LibHybrid. Needs F-140. Ports from web's phone frames (isMobile). design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
+## F-153 · Home's study band: the newest session, under the letter (5.49.0)
+- status: open
+- screen: library
+- route: /
+- spec: spec/screens/library.md §Data; spec/screens/library.md §Composition (item 4); spec/features/study-entry-points.md (new)
+- web: src/pages/LibraryHome.jsx; src/kit/d/letter.js; src/kit/d/index.js; src/styles/app-home.css; src/App.jsx; tests/contract/study-entry.test.js (new)
+- flutter: lib/widgets/kit/kit_d_home.dart; lib/widgets/kit/kit_d_letter.dart; lib/pages/library_page.dart; test/kit/study_entry_test.dart (new); test/contract/home_harness.dart; integration_test/device_run_test.dart; integration_test/hold_screen_test.dart; tool/seed_study_band.py (new)
+- folds: 5.49.0
+- device_test: tool/device_test.sh "Home's study band opens its session, and Study this opens the pre-filled editor that writes nothing (F-153, F-154)"
+- shots: home-study-band; home-study-band-started
+- extra_gates: flutter test test/contract; flutter test test/kit/study_entry_test.dart
+- notes: Xavier 2026-11-02 (ruling 9): 'keep both, do whatever you need to implement it'. The design's HomeStudyBand (.hm-due), built on every client: a card 28 under the letter, above Recently added — the cards mark on accent-soft, the eyebrow 'Deep study · sent {when}' (time today, 'yesterday', else 'Mon, Nov 2'), the program title, one line of counts (QUESTIONS, never items; new/review by item kind; 'started' = a response) and the brick Start the session / Resume session, which opens THAT session (/study/session/{id}). Drawn only on the ledger's rule (kitStudyDue: sent or email_failed, a question left); nothing while the read is out or refused. The standfirst's desk sentence and the ledger's row stay. kitStudyDue now carries the session's whole reading. At 720 and under (web's breakpoint, not this client's 768) the button runs the full width under the text. Pairs: python3 tool/seed_study_band.py [--started], hold state study-band on /, then --remove. Web lane studyentry, branch c/studyentry (9e353b0); brief and report in ../.claude/calls-2026-11-01/.
+- placed: after F-141
+
 ## F-142 · Direction D: the source page (5.42.0, ADR-197)
 - status: done 2026-10-30
 - screen: reader
@@ -2340,6 +2354,20 @@ a new obligation on a finished screen is a new item.
 - shots: reader; reader-manuscript
 - extra_gates: flutter test test/contract
 - notes: ReaderHybrid + SecD. Folds F-130 (Re-process, Mark as read, dwell) and F-132 (Listen speed, boundary drag): Xavier ruled D in tandem 2026-10-30, which lifts F-132's approval hold. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-154 · Study this on the source page: the new-program editor, pre-filled, writing nothing (5.49.0)
+- status: open
+- screen: reader, study-new
+- route: /reader/{docId}, /study/new
+- spec: spec/screens/reader.md §Study this (new); spec/screens/reader.md §Composition; spec/screens/study.md §Create / edit a program; spec/screens/study.md §Composition (the program editor); spec/component-kit.md §39; spec/features/study-entry-points.md (new)
+- web: src/pages/ReaderView.jsx; src/pages/StudyView.jsx; src/pages/study/ProgramEditor.jsx; src/shell/useRoute.js; src/App.jsx; src/kit/d/BackControl.jsx; src/styles/app-redesign-d.css; src/styles/app-study.css
+- flutter: lib/pages/reader_page.dart; lib/pages/study/program_editor.dart; lib/router.dart; test/kit/study_entry_test.dart; integration_test/device_run_test.dart; integration_test/hold_screen_test.dart
+- folds: 5.49.0
+- device_test: tool/device_test.sh "Home's study band opens its session, and Study this opens the pre-filled editor that writes nothing (F-153, F-154)"
+- shots: reader-study-this; study-new-from-source
+- extra_gates: flutter test test/contract; flutter test test/kit/study_entry_test.dart
+- notes: Xavier 2026-11-02 (ruling 9). The August design's Study this: an Also row between Ask about this and Reorganize, the stack glyph (web IcoLayers = IcoStack), only for a source complete with chunk_count > 0 (studyThisOffered), AI on or off. The tap writes nothing: it PUSHES /study/new with a StudySeed as go_router extra (never the address, INV-25b), so the crumb (the source's title, one line with an ellipsis), Cancel and the platform back all pop to the very source page, its own way back intact; with no stack behind it the crumb goes to /reader/{id}. The editor: the source chosen (drawn from the source page's record when outside the listing), the name its title cut to 120, the standfirst 'Started from this document. Add to it, reorder it, or leave it as it is.'; Create program closes to /study as any create. Also here: the running head says '1 document' (was '1 documents'), and the picker lists only complete sources with a counted passage (was complete only; the endpoint refuses the rest), as web's completeDocs. Web lane studyentry (9e353b0).
+- placed: after F-142
 
 ## F-143 · Direction D: Shelves, a shelf, the shelf map, Search and Ask (5.42.0, ADR-197)
 - status: done 2026-10-30

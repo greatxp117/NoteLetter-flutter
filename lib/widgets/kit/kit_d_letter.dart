@@ -272,11 +272,34 @@ String? kitLetterSentence(
             '${kitLongDay(parts.at ?? 0)}$what.';
 }
 
-/// Questions waiting in Deep study (web `studyDue`).
+/// Questions waiting in Deep study (web `studyDue`): the newest session's ONE
+/// reading (`screens/library.md` §Data, 5.49.0) — Home's desk sentence, its
+/// ledger row and its study band, and Study's *Today*, all read this, so none
+/// of them can disagree. Every count is QUESTIONS, never items: [fresh] /
+/// [review] are the questions of `kind: new` / `kind: review` items (an
+/// exam-ramp review is a review); an item of any other kind counts toward
+/// [total] only. [started] is at least one response.
 class KitStudyDue {
   final int left;
   final String programTitle;
-  const KitStudyDue(this.left, this.programTitle);
+  final String? id;
+  final int total;
+  final int answered;
+  final int fresh;
+  final int review;
+  final int? at;
+  const KitStudyDue(
+    this.left,
+    this.programTitle, {
+    this.id,
+    int? total,
+    this.answered = 0,
+    this.fresh = 0,
+    this.review = 0,
+    this.at,
+  }) : total = total ?? left;
+
+  bool get started => answered > 0;
 }
 
 /// The newest session that was DELIVERED (`sent`, or `email_failed` — in-app
@@ -287,13 +310,65 @@ KitStudyDue? kitStudyDue(StudySession? session) {
       (session.status != 'sent' && session.status != 'email_failed')) {
     return null;
   }
-  final total = session.items.fold<int>(0, (n, it) => n + it.questions.length);
-  final left = math.max(0, total - session.responses.length);
+  var total = 0, fresh = 0, review = 0;
+  for (final it in session.items) {
+    final n = it.questions.length;
+    total += n;
+    if (it.kind == 'new') {
+      fresh += n;
+    } else if (it.kind == 'review') {
+      review += n;
+    }
+  }
+  final answered = session.responses.length;
+  final left = math.max(0, total - answered);
   if (left <= 0) return null;
   return KitStudyDue(
     left,
     session.programTitle.isEmpty ? 'Deep study' : session.programTitle,
+    id: session.id,
+    total: total,
+    answered: answered,
+    fresh: fresh,
+    review: review,
+    at: session.generatedAt,
   );
+}
+
+/// The study band's eyebrow (web `sentPhrase`, `screens/library.md`
+/// §Composition item 4): when the session was sent, on this device's clock —
+/// its time today (*sent 7:00 AM*), *sent yesterday*, else its short date
+/// (*sent Mon, Nov 2*). Null without a `generated_at`: the eyebrow is then
+/// *Deep study* alone.
+String? kitSentPhrase(int? ms, [DateTime? now]) {
+  if (ms == null) return null;
+  final n = now ?? DateTime.now();
+  final d = DateTime.fromMillisecondsSinceEpoch(ms);
+  if (kitIsToday(ms, n)) {
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return 'sent ${kitClock('$hh:$mm')}';
+  }
+  if (kitIsToday(ms, DateTime(n.year, n.month, n.day - 1))) {
+    return 'sent yesterday';
+  }
+  return 'sent ${kitShortDay(ms)}';
+}
+
+/// The band's line of counts (web `studyBandLine`), as (lead, rest): the lead
+/// figure is drawn bold. Figures, never words; the noun agrees with the
+/// total; a measured 0 is drawn.
+(String, String) kitStudyBandLine(KitStudyDue due) {
+  final q = due.total == 1 ? 'question' : 'questions';
+  return due.started
+      ? (
+          '${due.left}',
+          ' of ${due.total} $q left — ${due.answered} answered already',
+        )
+      : (
+          '${due.total}',
+          ' $q waiting — ${due.fresh} new, ${due.review} due for review',
+        );
 }
 
 /// The standfirst's second sentence: what is waiting (web `deskSentence`).

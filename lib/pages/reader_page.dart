@@ -33,6 +33,7 @@ import '../services/api.dart';
 import '../services/api_service.dart';
 import '../widgets/app_layout.dart';
 import '../widgets/app_toast.dart';
+import 'study/program_editor.dart' show StudySeed, studyThisOffered;
 import '../widgets/kit/kit.dart';
 import '../widgets/sidebar.dart' show shellAiOn, shellAiUnread;
 import '../services/analytics.dart';
@@ -573,6 +574,13 @@ class _ReaderPageState extends State<ReaderPage> {
     // own §18 confirm where it re-derives or deletes. Only what this source
     // can do is listed, so the label never stands over nothing.
     final canReorganize = complete && total >= 2;
+    // *Study this* (5.49.0, F-154; reader.md §Study this): only for a source a
+    // program may hold — complete, with a counted passage — and whether
+    // generative AI is on or off (study runs without a model, ADR-186). The
+    // tap writes NOTHING: the new-program editor is PUSHED over this page with
+    // the source as its seed, so its back control, Cancel and the platform
+    // back all pop to this very page, its own way back intact.
+    final canStudy = studyThisOffered(doc);
     final also = <Widget>[
       if (aiOn)
         // web `IcoChat` — the speech bubble Support draws.
@@ -580,6 +588,13 @@ class _ReaderPageState extends State<ReaderPage> {
           'Ask about this',
           icon: Icons.chat_bubble_outline,
           onTap: () => context.go('/ask'),
+        ),
+      // web `IcoLayers` (= `IcoStack`): the kit's stack glyph.
+      if (canStudy)
+        KitAlsoButton(
+          'Study this',
+          icon: KitStackGlyph.icon,
+          onTap: () => context.push('/study/new', extra: StudySeed(doc)),
         ),
       // 4.103.0 (ADR-136): the analysis runs in the background and its plan
       // waits in For your review, where the sheet opens over it.

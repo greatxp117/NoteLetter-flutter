@@ -375,6 +375,15 @@ class _LibraryPageState extends State<LibraryPage> {
               onSettings: openLetterSettings,
             ),
           ),
+          // The study band (5.49.0, F-153): the newest session, under the
+          // letter — on the ledger's own rule, nothing while the read is out
+          // or refused; its button opens THAT session in the player.
+          if (due != null && due.id != null)
+            KitStudyBand(
+              due: due,
+              now: now,
+              onOpen: () => go('/study/session/${due.id}'),
+            ),
           if (!empty)
             KitHomeLower(
               recent: KeyedSubtree(

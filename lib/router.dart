@@ -215,9 +215,15 @@ List<RouteBase> appRoutes() {
               path: '/study',
               builder: (context, state) => const StudyPage(),
             ),
+            // *Study this* (5.49.0) pushes here with a [StudySeed] as `extra`
+            // — never in the address; without one it is a plain new program.
             GoRoute(
               path: '/study/new',
-              builder: (context, state) => const ProgramEditorPage(),
+              builder: (context, state) => ProgramEditorPage(
+                seed: state.extra is StudySeed
+                    ? state.extra as StudySeed
+                    : null,
+              ),
             ),
             // How Deep Study Works (5.45.0). Declared before `/study/:programId`
             // (go_router matches in order), though a program id — a Firestore
