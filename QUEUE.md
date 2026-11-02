@@ -2407,7 +2407,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier's ruling 2 of 2026-11-01 (W2's XAVIER 1). Two reads: read_events (one-shot, limit 50) and a doc-scoped onSnapshot of activity_events (user_id == + metadata.doc_id ==, created_at desc, limit 50) over the composite index created in prod 2026-11-01. Never a title match, never the account's latest-200 window. No count; a half at its limit is labelled; a failed half is KitFailureBlock above the rows that loaded. Lane `history`, briefs and reports in ../.claude/calls-2026-11-01/.
 
 ## F-148 · How Deep Study Works, inside Study; a session's key hints hidden below 1024 (5.45.0)
-- status: blocked: device test + pairs owed: disk 1.5 GB (swap 18 GB) on 2026-11-01, under every floor; lands on main after web c/study merges (SCREEN-TOKEN study-how)
+- status: blocked: device test + pairs owed: from the main tree on 432E0C97 after oauth's F-151/F-147 runs (sim floor 12 GB free before boot)
 - screen: study, study-how
 - route: /study, /study/how-it-works, /study/session/{id}
 - spec: spec/screens/study.md
