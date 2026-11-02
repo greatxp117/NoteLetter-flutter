@@ -10,7 +10,15 @@ organizer filing the file, and an evening's reading.
 
     FIRESTORE_EMULATOR_HOST=localhost:8580 python3 tool/seed_history.py              # write the rows
     FIRESTORE_EMULATOR_HOST=localhost:8580 python3 tool/seed_history.py --deny-reads # + refuse read_events
+    FIRESTORE_EMULATOR_HOST=localhost:8580 python3 tool/seed_history.py --deny-creates # NO rows; opens log nothing
     FIRESTORE_EMULATOR_HOST=localhost:8580 python3 tool/seed_history.py --remove     # rows gone, rules back
+
+Every open of the source logs a `doc_opened`, so the document's read events are
+cleared first (and on `--remove`): the frame holds these rows and the one open
+its own navigation logs. `--deny-creates` is the empty pair's: it clears the
+reads, writes nothing, and refuses `/read_events` creates so opening the source
+logs nothing (`logReadEvent` is fire-and-forget) — the only way its History is
+empty, as on web (`reader-history-empty`).
 
 `--deny-reads` swaps the emulator's ruleset for the backend's
 `firestore.rules` with `/read_events`' `allow read` turned off — derived from
@@ -98,14 +106,27 @@ def put(path, fields):
     call(f"{BASE}/{path}", "PATCH", {"fields": {k: value(v, k) for k, v in fields.items()}})
 
 
-def rules_denying_read(src, collection):
+def rules_denying(src, collection, verb):
     at = src.index(f"match /{collection}/")
-    start = src.index("allow read:", at)
+    start = src.index(f"allow {verb}:", at)
     nxt = src.find("match /", at + 1)
     end = src.index(";", start)
     if nxt != -1 and start > nxt:
-        raise SystemExit(f"no 'allow read:' inside /{collection}'s block")
-    return src[:start] + "allow read: if false" + src[end:]
+        raise SystemExit(f"no 'allow {verb}:' inside /{collection}'s block")
+    return src[:start] + f"allow {verb}: if false" + src[end:]
+
+
+def clear_reads():
+    rows = call(f"{BASE}:runQuery", "POST", {"structuredQuery": {
+        "from": [{"collectionId": "read_events"}],
+        "where": {"fieldFilter": {"field": {"fieldPath": "document_id"}, "op": "EQUAL",
+                                  "value": {"stringValue": DOC}}}}})
+    n = 0
+    for row in rows if isinstance(rows, list) else []:
+        if "document" in row:
+            call(f"{BASE}/read_events/{row['document']['name'].split('/')[-1]}", "DELETE")
+            n += 1
+    return n
 
 
 def set_rules(content):
@@ -118,10 +139,14 @@ def main():
     if "--remove" in args:
         for eid, _ in EVENTS:
             call(f"{BASE}/activity_events/{eid}", "DELETE")
-        for rid, *_ in READS:
-            call(f"{BASE}/read_events/{rid}", "DELETE")
+        n = clear_reads()
         set_rules(RULES_FILE.read_text())
-        print(f"removed {len(EVENTS)} events and {len(READS)} reads; rules restored from {RULES_FILE.name}")
+        print(f"removed {len(EVENTS)} events and {n} reads; rules restored from {RULES_FILE.name}")
+        return
+    n = clear_reads()
+    if "--deny-creates" in args:
+        set_rules(rules_denying(RULES_FILE.read_text(), "read_events", "create"))
+        print(f"cleared {n} reads; rules: /read_events allow create turned off (run --remove after)")
         return
     for eid, e in EVENTS:
         put(f"activity_events/{eid}", {"user_id": UID, **e})
@@ -130,7 +155,7 @@ def main():
                                    "chunk_id": chunk, "created_at": at})
     print(f"wrote {len(EVENTS)} events and {len(READS)} reads for {DOC}")
     if "--deny-reads" in args:
-        set_rules(rules_denying_read(RULES_FILE.read_text(), "read_events"))
+        set_rules(rules_denying(RULES_FILE.read_text(), "read_events", "read"))
         print("rules: /read_events allow read turned off (run --remove after the shot)")
 
 

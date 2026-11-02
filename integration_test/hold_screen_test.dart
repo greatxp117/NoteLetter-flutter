@@ -923,7 +923,8 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // tool/seed_history.py's (web theme-shots writes the same ones):
     // `history-activity` after a plain run, `history-refused` after
     // `--deny-reads` (a real permission-denied from the read_events query,
-    // the Activity half still answering), `history-empty` after `--remove`.
+    // the Activity half still answering), `history-empty` after
+    // `--deny-creates` (no rows, and opening the source logs no read).
     case 'history-activity':
     case 'history-refused':
     case 'history-empty':
