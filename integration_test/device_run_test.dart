@@ -46,6 +46,13 @@ import 'package:flutter_app/site/landing_page.dart';
 import 'package:flutter_app/site/auth_modal.dart';
 import 'package:flutter_app/services/firestore_service.dart';
 import 'package:flutter_app/models/newsletter_settings.dart';
+import 'package:flutter_app/widgets/quick_add.dart';
+import 'package:flutter_app/state/upload_notifier.dart';
+import 'package:flutter_app/shared/upload_types.dart' show kScrollHint;
+import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'fake_picker.dart';
 
 /// The device run (../TODO.md). Drives the real app on a real renderer against
 /// the emulator suite, because a whole class of this client's work is invisible
@@ -3510,10 +3517,15 @@ void main() {
         findsWidgets, reason: 'the line says the page is at The shelves');
     expect(find.text('Suggest shelves'), findsOneWidget);
     expect(find.text('All shelves →'), findsOneWidget);
-    // Home's action is Add a source, at the tab bar's centre.
+    // Home's action is Add a source, at the tab bar's centre: quick add over
+    // Home (F-152), whose More options → is the Add a source page.
     final centre = find.byKey(const ValueKey('d-tab-action'));
     expect(find.descendant(of: centre, matching: find.text('Add')), findsOneWidget);
     await tester.tap(centre);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(find.byType(QuickAdd), findsOneWidget);
+    expect(router.state.matchedLocation, '/');
+    await tester.tap(find.text('More options →'));
     await pumpFor(tester, total: const Duration(seconds: 2));
     expect(router.state.matchedLocation, '/sources/add');
     await oneHead();
@@ -4252,6 +4264,180 @@ void main() {
     } finally {
       CloudReturn.session = null;
     }
+  });
+
+  // F-152: quick add, from every button web opens it with — Home's action
+  // (the tab bar's centre on a phone), Home's checklist *Add your first
+  // source*, an empty Home's *Paste a link* and drop zone (which picks first
+  // and opens it already filing), the Library's action, and the tab bar's
+  // default *Add* — then, in it: choosing files (the one-source question for
+  // three screenshots; a refusal at the door as a row), adding a link (a real
+  // fn_ingest_url through the shim, into a throwaway account), and *More
+  // options →* to Add a source. The system picker is stood in for.
+  testWidgets(
+      'quick add opens from every entry point, files a link, asks the '
+      'one-source question, and More options → is Add a source (F-152)',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final hadDismissed = prefs.getBool(LocalFlags.onboardDismissedKey);
+    final hadExpanded = prefs.getBool(LocalFlags.onboardExpandedKey);
+    final realPicker = FilePicker.platform;
+    final email = 'f152-${DateTime.now().microsecondsSinceEpoch}@noteletter.test';
+    await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(email: email, password: 'f152-run-1');
+    final centre = find.byKey(const ValueKey('d-tab-action'));
+    final sheet = find.byType(QuickAdd);
+    Future<void> waitFor(Finder f, String what, {int seconds = 20}) async {
+      for (var i = 0; i < seconds * 4 && f.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(f, findsWidgets, reason: 'never drew $what');
+    }
+
+    Future<void> opened(String from) async {
+      await waitFor(sheet, 'quick add from $from');
+      expect(find.text(QuickAdd.title), findsOneWidget, reason: from);
+      expect(find.byType(BottomSheet), findsOneWidget,
+          reason: '$from: on a phone it rises from the foot');
+      debugPrint('DEVICE-RUN F-152 opened from $from');
+    }
+
+    Future<void> close() async {
+      await tester.tap(find.byTooltip('Close').last);
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      expect(sheet, findsNothing, reason: '× closes quick add');
+    }
+
+    try {
+      // Past the first-run wizard, as F-141's fresh account is.
+      await LocalFlags.setOnboarded(true);
+      LocalFlags.onboardDismissed.value = false;
+      await LocalFlags.setOnboardExpanded(true);
+      KitPageTools.instance.reset();
+      await FirebaseAuth.instance.currentUser!.getIdToken(true);
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      final router = await pumpApp(tester);
+
+      // ── an empty Home ──
+      router.go('/');
+      await waitFor(find.text('Your first sources'), 'Your first sources');
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      // (1) Home's action, at the tab bar's centre.
+      expect(find.descendant(of: centre, matching: find.text('Add')),
+          findsOneWidget);
+      await tester.tap(centre);
+      await opened("Home's action (the tab bar's centre)");
+      await close();
+      // (2) the checklist's Add your first source.
+      final step = find.text('Add your first source');
+      await waitFor(step, 'the checklist step');
+      await tester.ensureVisible(step.first);
+      await pumpFor(tester, total: const Duration(milliseconds: 500));
+      await tester.tap(step.first);
+      await opened("the checklist's Add your first source");
+      await close();
+      // (3) Paste a link.
+      final paste = find.text('Paste a link');
+      await tester.ensureVisible(paste.first);
+      await pumpFor(tester, total: const Duration(milliseconds: 500));
+      await tester.tap(paste.first);
+      await opened('Paste a link');
+      await close();
+      // (4) the drop zone: the picker first, then quick add already filing —
+      // three screenshots, so the question is open. Closing abandons them.
+      FakePicker.install(FakePicker.screenshots(3));
+      final zone = find.text('Drop files to begin');
+      await tester.ensureVisible(zone.first);
+      await pumpFor(tester, total: const Duration(milliseconds: 500));
+      await tester.tap(zone.first);
+      await opened('the empty drop zone');
+      await waitFor(find.text('Add these 3 images as one source?'),
+          'the one-source question for a seeded pick');
+      expect(find.text('GOING TO YOUR LIBRARY'), findsNothing,
+          reason: 'nothing is sent before the answer');
+      await close();
+
+      // ── the Library ──
+      router.go('/sources');
+      await waitFor(find.text('The Library'), 'the Library');
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      // (5) the Library's action.
+      await tester.tap(centre);
+      await opened("the Library's action (the tab bar's centre)");
+      // Choose files: three screenshots → the question; then a file the
+      // allowlist refuses → a row with its reason and no request.
+      FakePicker.install(FakePicker.screenshots(3));
+      await tester.tap(find.text('Drop files, or tap to add one'));
+      await waitFor(find.text('Add these 3 images as one source?'),
+          'the one-source question');
+      expect(find.text(kScrollHint), findsWidgets);
+      expect(find.text('One source'), findsOneWidget);
+      expect(find.text('Separate sources'), findsOneWidget);
+      FakePicker.install([
+        PlatformFile(name: 'notes.py', size: 4, bytes: Uint8List(4)),
+      ]);
+      await tester.tap(find.text('Drop files, or tap to add one'));
+      await waitFor(find.text('Source code files aren’t supported (.py).'),
+          'the refused file’s reason');
+      expect(find.text('GOING TO YOUR LIBRARY'), findsOneWidget);
+      // Add a link: one real fn_ingest_url, into this throwaway account.
+      final link = 'https://example.com/f152-${DateTime.now().millisecondsSinceEpoch}';
+      final linkRow = find.byType(KitQaLinkRow);
+      await tester.enterText(
+          find.descendant(of: linkRow, matching: find.byType(TextField)), link);
+      await pumpFor(tester, total: const Duration(milliseconds: 500));
+      await tester.tap(find.descendant(of: linkRow, matching: find.text('Add')));
+      // The row names the link less its scheme (web: cut at 44; this is 30).
+      await waitFor(find.text(link.substring('https://'.length)), 'the link row');
+      final upload = Provider.of<UploadNotifier>(
+          tester.element(sheet), listen: false);
+      for (var i = 0; i < 120; i++) {
+        final row = upload.files.where((f) => f.linkType != null).lastOrNull;
+        if (row != null && row.status.name != 'uploading' &&
+            row.status.name != 'pending') {
+          break;
+        }
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      final row = upload.files.where((f) => f.linkType != null).last;
+      debugPrint('DEVICE-RUN F-152 link row: ${row.status.name} '
+          'doc=${row.docId} error=${row.errorMessage}');
+      expect(row.status.name, 'completed',
+          reason: 'fn_ingest_url answered: ${row.errorMessage}');
+      await waitFor(find.text('FILED'), 'the filed link row');
+      expect(find.text('1 of 2 filed'), findsOneWidget);
+      // (6) More options → Add a source.
+      await tester.tap(find.text('More options →'));
+      await pumpFor(tester, total: const Duration(seconds: 2));
+      expect(router.state.matchedLocation, '/sources/add');
+      expect(sheet, findsNothing);
+      await waitFor(find.text('Add to Your Library'), 'Add a source');
+
+      // (7) the tab bar's default Add, on a page that names no action.
+      router.go('/activity');
+      await pumpFor(tester, total: const Duration(seconds: 3));
+      expect(find.descendant(of: centre, matching: find.text('Add')),
+          findsOneWidget, reason: "Activity names no action: the bar's own Add");
+      await tester.tap(centre);
+      await opened("the tab bar's default Add");
+      await close();
+    } finally {
+      FilePicker.platform = realPicker;
+      if (hadDismissed == null) {
+        await prefs.remove(LocalFlags.onboardDismissedKey);
+      }
+      LocalFlags.onboardDismissed.value = hadDismissed ?? false;
+      if (hadExpanded == null) {
+        await prefs.remove(LocalFlags.onboardExpandedKey);
+      } else {
+        await prefs.setBool(LocalFlags.onboardExpandedKey, hadExpanded);
+      }
+      LocalFlags.onboardExpanded.value = hadExpanded;
+      await FirebaseAuth.instance.currentUser?.delete();
+      await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: seedEmail, password: seedPassword);
+    }
+    expect(tester.takeException(), isNull);
   });
 }
 

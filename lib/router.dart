@@ -264,13 +264,10 @@ List<RouteBase> appRoutes() {
                   const SettingsPage(focusSources: true),
             ),
             // Add a source (direction D, screens/sources.md §Composition) —
-            // ahead of any `/sources/:x` form. Home's *Add files* sends
-            // `extra: 'pick'`, which opens the file picker once on arrival:
-            // navigation state, never the address.
+            // ahead of any `/sources/:x` form. Quick add's *More options →*.
             GoRoute(
               path: '/sources/add',
-              builder: (context, state) =>
-                  AddSourcePage(pick: state.extra == 'pick'),
+              builder: (context, state) => const AddSourcePage(),
             ),
             GoRoute(
               // The OAuth callback lands here, on a web build, with an explicit

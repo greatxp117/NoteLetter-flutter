@@ -196,3 +196,65 @@ String? uploadRejection({
 /// is the only place a reader learns that can happen before it does. Change
 /// it in the spec first — web's `SCROLL_HINT` and iOS carry the same words.
 const kScrollHint = 'Screenshots of one long scroll are joined into one picture.';
+
+// ── Several images as one source (5.10.0, ADR-170) ──────────────────────────
+// screens/sources.md §Endpoints used: when 2+ images arrive together, the
+// surface asks "Add these N images as one source?". Mirrors web
+// `uploadTypes.js` (`IMAGE_SET_MAX`, `imageMimeOf`, `orderFrames`): which files
+// that question is about, and in what order a set's pages go. Asked here by
+// quick add (F-152); this client's other set-making surface is *Add an image
+// set*, which never asks.
+
+/// The most pages `fn_create_multi_image_session` takes (api/uploads.md).
+const int kImageSetMax = 20;
+
+const Map<String, String> _imageMimeByExt = {
+  'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+  'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic',
+  'heif': 'image/heif', 'bmp': 'image/bmp', 'tif': 'image/tiff',
+  'tiff': 'image/tiff', 'avif': 'image/avif',
+};
+
+/// The image MIME a set declares for a file, or null when it is not an image:
+/// [mimeType] when it names one; otherwise the extension's — a picker hands a
+/// `.heic` over untyped, and the set session refuses anything not `image/*`.
+String? imageMimeOf(String name, [String mimeType = '']) {
+  final mime = mimeType.split(';').first.trim().toLowerCase();
+  if (mime.startsWith('image/')) return mime;
+  if (mime.isNotEmpty && mime != 'application/octet-stream') return null;
+  return _imageMimeByExt[_extOf(name)];
+}
+
+/// Whether a file is one the one-source question is about: an image the
+/// allowlist would send. A refused one is refused on its own, as it always was.
+bool isSetImage({required String name, required int size, String mimeType = ''}) =>
+    imageMimeOf(name, mimeType) != null &&
+    uploadRejection(name: name, size: size, mimeType: mimeType) == null;
+
+/// Natural filename order, case-insensitive: "IMG_9" before "IMG_10" (web's
+/// `Intl.Collator(undefined, {numeric: true, sensitivity: 'base'})`).
+int naturalCompare(String a, String b) {
+  final re = RegExp(r'(\d+)|(\D+)');
+  final pa = re.allMatches(a.toLowerCase()).map((m) => m[0]!).toList();
+  final pb = re.allMatches(b.toLowerCase()).map((m) => m[0]!).toList();
+  for (var i = 0; i < pa.length && i < pb.length; i++) {
+    final x = pa[i], y = pb[i];
+    final nx = int.tryParse(x), ny = int.tryParse(y);
+    final c = (nx != null && ny != null) ? nx.compareTo(ny) : x.compareTo(y);
+    if (c != 0) return c;
+  }
+  return pa.length.compareTo(pb.length);
+}
+
+/// A set's pages in the order a scroll's screenshots are taken: oldest first
+/// by [lastModified] (milliseconds; 0 when unknown), then by natural filename.
+/// A pick has no reliable selection order.
+List<T> orderFrames<T>(List<T> files,
+    {required String Function(T) name, required int Function(T) lastModified}) {
+  final out = [...files];
+  out.sort((a, b) {
+    final byTime = lastModified(a).compareTo(lastModified(b));
+    return byTime != 0 ? byTime : naturalCompare(name(a), name(b));
+  });
+  return out;
+}

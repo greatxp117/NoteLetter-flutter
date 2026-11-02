@@ -6,6 +6,7 @@ import '../state/review_inbox.dart';
 import '../theme/tokens.dart';
 import 'kit/kit.dart';
 import 'nav_drawer.dart';
+import 'quick_add.dart';
 import 'sidebar.dart';
 
 /// The app shell (`component-kit.md` §1.1, direction D §30).
@@ -31,12 +32,12 @@ class AppLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     // The shell's verbs for every D page's kit parts (web `DShellProvider`):
-    // this client has no quick-search or quick-add overlay, so Search goes
-    // where the overlay would lead — /search — and Add a source is its own
-    // page, /sources/add (F-141).
+    // this client has no quick-search overlay, so Search goes where the
+    // overlay would lead — /search; Add opens quick add over the page (F-152),
+    // whose *More options →* is Add a source, /sources/add.
     final shelled = KitDShell(
       openSearch: () => context.go('/search'),
-      openAdd: () => context.go('/sources/add'),
+      openAdd: () => QuickAdd.show(context),
       child: child,
     );
     final wide = MediaQuery.sizeOf(context).width > KitD.chromeMax;
@@ -56,7 +57,7 @@ class AppLayout extends StatelessWidget {
         route: route,
         aiOn: shellAiOn(context),
         onGo: (path) => context.go(path),
-        onAdd: () => context.go('/sources/add'),
+        onAdd: () => QuickAdd.show(context),
       ),
     );
   }

@@ -19,6 +19,7 @@ import '../state/review_inbox.dart';
 import '../state/settings_notifier.dart';
 import '../state/tags_notifier.dart';
 import '../widgets/kit/kit.dart';
+import '../widgets/quick_add.dart';
 import '../widgets/sidebar.dart' show shellAiOn;
 import 'tags/shelf_sheet.dart' show showShelfSheet;
 import 'tags/suggest_shelves.dart';
@@ -321,11 +322,12 @@ class _LibraryPageState extends State<LibraryPage> {
       folio: folio,
       title: '${kitGreeting(now)}, *reader*',
       stand: stand,
+      // Quick add over Home (F-152), as web's `openAdd`.
       action: KitPageAction(
         label: 'Add a source',
         short: 'Add',
         icon: Icons.add,
-        onPressed: () => go('/sources/add'),
+        onPressed: () => QuickAdd.show(context),
       ),
       settings: KitPageSettings(
         label: 'Letter settings',
@@ -354,9 +356,10 @@ class _LibraryPageState extends State<LibraryPage> {
             KeyedSubtree(
               key: _sec.keyOf('first'),
               child: KitFirstSources(
-                // One upload path: Add a source, already picking.
-                onAddFiles: () => go('/sources/add', extra: 'pick'),
-                onPasteLink: () => go('/sources/add'),
+                // One upload path: the picker, then quick add already filing
+                // what was picked; a link is quick add's (web `FirstSources`).
+                onAddFiles: () => QuickAdd.pickThenShow(context),
+                onPasteLink: () => QuickAdd.show(context),
                 onConnect: () => go('/sources'),
               ),
             ),
@@ -481,7 +484,7 @@ class _SetupChecklist extends StatelessWidget {
       'source': KitSetupStep(
         'Add your first source',
         done: documents.isNotEmpty,
-        onTap: () => go('/sources/add'),
+        onTap: () => QuickAdd.show(context),
       ),
       'shelf': KitSetupStep(
         'File a volume onto a shelf',

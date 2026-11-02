@@ -96,12 +96,17 @@ class UploadNotifier extends ChangeNotifier {
   ///
   /// [bytes] when the bytes are already in hand (a web pick, a test), or
   /// [source] to read them from disk a slice at a time — one is required.
+  ///
+  /// [onRow] is told the row id the moment the row exists, before any request
+  /// — quick add (F-152) draws its own rows from the ones it made, and the
+  /// returned id arrives only once the upload has ended.
   Future<String> addFile(
     String name,
     int size,
     Uint8List? bytes,
     String mimeType, {
     ChunkSource? source,
+    void Function(String rowId)? onRow,
   }) async {
     final from = source ?? (bytes == null ? null : ChunkSource.bytes(bytes));
     if (from == null) {
@@ -115,6 +120,7 @@ class UploadNotifier extends ChangeNotifier {
     );
     _files.add(file);
     _pending[file.id] = from;
+    onRow?.call(file.id);
     notifyListeners();
     await _uploadFile(file);
     return file.id;
@@ -128,6 +134,7 @@ class UploadNotifier extends ChangeNotifier {
   Future<String?> addImageSet(
     List<({String name, int size, Uint8List bytes, String mimeType})> images, {
     String? title,
+    void Function(String rowId)? onRow,
   }) async {
     if (images.isEmpty) return null;
     final set = images.take(20).toList(); // hard cap ≤20 (uploads.md)
@@ -140,6 +147,7 @@ class UploadNotifier extends ChangeNotifier {
       mimeType: 'image/*',
     );
     _files.add(file);
+    onRow?.call(file.id);
     notifyListeners();
 
     // An image set is one capture from the upload surface, not twenty.
@@ -194,13 +202,18 @@ class UploadNotifier extends ChangeNotifier {
   /// `console.error`, the field cleared, no row appeared, and the paste
   /// vanished. Here the local INV-07 refusal did the same thing one step
   /// earlier, by returning silently.
-  Future<String?> addUrl(String rawUrl) async =>
-      (await shareUrl(rawUrl)).rejection;
+  ///
+  /// [onRow] as for [addFile]: told the row id once the link has a row — never
+  /// for a link refused at the door, which makes none.
+  Future<String?> addUrl(String rawUrl,
+          {void Function(String rowId)? onRow}) async =>
+      (await shareUrl(rawUrl, onRow: onRow)).rejection;
 
   /// [addUrl] for the share screen (F-123), which also says what was added:
   /// [note] is the playlist's sentence when the answer was a playlist
   /// (4.114.0, ADR-151), null for a single link.
-  Future<({String? rejection, String? note})> shareUrl(String rawUrl) async {
+  Future<({String? rejection, String? note})> shareUrl(String rawUrl,
+      {void Function(String rowId)? onRow}) async {
     if (rawUrl.trim().isEmpty) return (rejection: null, note: null);
 
     // Normalize, then detect (4.86.0, ADR-120): the normalized string is what
@@ -226,6 +239,7 @@ class UploadNotifier extends ChangeNotifier {
       linkType: type,
     );
     _files.add(file);
+    onRow?.call(file.id);
     notifyListeners();
     await _ingestUrl(file, url, type);
     // The row carries the reason; hand it back too, so the field the reader is

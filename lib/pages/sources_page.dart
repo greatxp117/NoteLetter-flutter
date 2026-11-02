@@ -42,6 +42,7 @@ import 'sources/camera_roll.dart';
 import 'sources/oauth_return.dart';
 import 'sources/sync_settings_panel.dart';
 import 'reader/supersession_confirm.dart';
+import '../widgets/quick_add.dart';
 
 const _providers = cloudProviders;
 
@@ -84,9 +85,9 @@ enum LibraryState { loading, failed, empty, reading, ready }
 /// adding answered, and **the catalogue** (List under month or initial heads,
 /// or Grid's wall of covers).
 ///
-/// *Add a source* is its own page here (`/sources/add`): this client has no
-/// quick-add overlay, and that page holds the uploader. The empty catalogue
-/// holds the uploader too, through the same [FileUploader].
+/// *Add a source* opens quick add over the page (F-152, `widgets/quick_add.dart`),
+/// whose *More options →* is the Add a source page (`/sources/add`). The empty
+/// catalogue holds the uploader, through the same [FileUploader].
 class SourcesPage extends StatefulWidget {
   /// OAuth return params (ADR-012, ADR-158), passed from the /sources route
   /// on a web build: `claim` (with [cloudConnectClaim]) or `error` (with
@@ -584,11 +585,13 @@ class _SourcesPageState extends State<SourcesPage> {
       folio: folio,
       title: 'The Library',
       stand: stand,
+      // Quick add, the same verb as Home's and the tab bar's (sources.md
+      // §Tools; F-152).
       action: KitPageAction(
         label: 'Add a source',
         short: 'Add',
         icon: Icons.add,
-        onPressed: () => context.go('/sources/add'),
+        onPressed: () => QuickAdd.show(context),
       ),
       panel: _cameraPanel
           ? KitPageSettings(

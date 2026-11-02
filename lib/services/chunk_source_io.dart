@@ -24,3 +24,14 @@ class _FileSource implements ChunkSource {
     }
   }
 }
+
+/// When the file at [path] was last modified, in milliseconds since the epoch
+/// — 0 when it cannot be read. A set's pages go oldest first (F-152, web
+/// `orderFrames`'s `lastModified`); a picker hands over no time of its own.
+int fileModifiedMs(String path) {
+  try {
+    return File(path).lastModifiedSync().millisecondsSinceEpoch;
+  } catch (_) {
+    return 0;
+  }
+}

@@ -25,6 +25,11 @@ abstract class ChunkSource {
       platform.fileChunkSource(path, length);
 }
 
+/// When the file at [path] was last modified (ms since the epoch; 0 when
+/// unknown, and always on the web, which has no paths).
+int fileModifiedMs(String? path) =>
+    path == null ? 0 : platform.fileModifiedMs(path);
+
 class _BytesSource implements ChunkSource {
   _BytesSource(this._bytes);
   final Uint8List _bytes;

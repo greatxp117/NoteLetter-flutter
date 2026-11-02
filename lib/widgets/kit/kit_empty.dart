@@ -1,9 +1,12 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import '../../shared/upload_types.dart' show kImageSetMax, kScrollHint;
+import 'kit_controls.dart' show KitButton;
 import 'kit_d_parts.dart' show KitDScope, KitRowHover;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
@@ -447,6 +450,11 @@ class _KitSuggestionState extends State<KitSuggestion> {
 /// Flutter has no dashed border primitive, so the dashes are painted
 /// ([_DashedBorderPainter]) — a solid border here would read as a card and stop
 /// looking like a target.
+///
+/// [compact] is quick add's zone (`.qa-drop`, F-152): one row — the glyph (26,
+/// `--fg-subtle`) leading a serif 16/600 title over a sans 12.5 `--fg-muted`
+/// help line — on `--bg` behind the same 1.5px dash at `--r-md`, padded
+/// `16px 18px`; the dash turns `--accent-chip-border` on hover. No formats.
 class KitDropZone extends StatefulWidget {
   final IconData icon;
   final String title;
@@ -455,6 +463,7 @@ class KitDropZone extends StatefulWidget {
   /// Format pills, rendered as source tags.
   final List<Widget> formats;
   final VoidCallback? onTap;
+  final bool compact;
 
   const KitDropZone({
     super.key,
@@ -463,6 +472,7 @@ class KitDropZone extends StatefulWidget {
     required this.help,
     this.formats = const [],
     this.onTap,
+    this.compact = false,
   });
 
   @override
@@ -472,9 +482,66 @@ class KitDropZone extends StatefulWidget {
 class _KitDropZoneState extends State<KitDropZone> {
   bool _hover = false;
 
+  Widget _compact(BuildContext context) {
+    final t = Tokens.of(context);
+    return CustomPaint(
+      painter: _DashedBorderPainter(
+        color: _hover ? t.accentChipBorder : t.borderStrong,
+        radius: AppRadius.md,
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+        decoration: BoxDecoration(color: t.bg, borderRadius: AppRadius.mdR),
+        child: Row(
+          children: [
+            KitGlyph(widget.icon, size: 26, color: t.fgSubtle),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(widget.title,
+                      style: AppTheme.serif(
+                        fontSize: 16,
+                        height: 1.3,
+                        fontWeight: FontWeight.w600,
+                        color: t.fg,
+                      )),
+                  const SizedBox(height: 1),
+                  Text(widget.help,
+                      style: TextStyle(
+                        fontFamily: AppTheme.fontSans,
+                        fontSize: 12.5,
+                        height: 1.6,
+                        color: t.fgMuted,
+                      )),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    if (widget.compact) {
+      return Semantics(
+        button: widget.onTap != null,
+        child: MouseRegion(
+          cursor: widget.onTap == null
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(onTap: widget.onTap, child: _compact(context)),
+        ),
+      );
+    }
     return MouseRegion(
       cursor: widget.onTap == null
           ? SystemMouseCursors.basic
@@ -553,6 +620,117 @@ class _KitDropZoneState extends State<KitDropZone> {
       ),
     );
   }
+}
+
+/// **The one-source question** (5.10.0, ADR-170; `screens/sources.md`
+/// §Endpoints used) — web `shared/ImageSetChoice.jsx`, `.set-choice`. Asked
+/// when 2 or more images arrive in one pick: §18's recorded **arming** shape,
+/// in the flow — a box (1px `--border-strong`, `--r-md`, `--surface-raised`,
+/// padded 14, 12 above it), the line *Add these {count} images as one source?*
+/// (sans 14/20 600), the hint sentence verbatim (sans 13/19 `--fg-muted`), and
+/// a §6.1 pair: **One source** (primary) and **Separate sources** (secondary).
+/// Not a §12 notice (two actions, nothing the backend measured) and not a §18
+/// panel (nothing is lost: looking away abandons it). Over [kImageSetMax]
+/// images *One source* is held and says why.
+class KitImageSetChoice extends StatelessWidget {
+  final int count;
+  final VoidCallback onOne;
+  final VoidCallback onSeparate;
+
+  const KitImageSetChoice({
+    super.key,
+    required this.count,
+    required this.onOne,
+    required this.onSeparate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final tooMany = count > kImageSetMax;
+    TextStyle hint() => TextStyle(
+          fontFamily: AppTheme.fontSans,
+          fontSize: 13,
+          height: 19 / 13,
+          color: t.fgMuted,
+        );
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Semantics(
+        container: true,
+        label: 'Add these images as one source or separately',
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: t.surfaceRaised,
+            borderRadius: AppRadius.mdR,
+            border: Border.all(color: t.borderStrong),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Add these $count images as one source?',
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 14,
+                    height: 20 / 14,
+                    fontWeight: FontWeight.w600,
+                    color: t.fg,
+                  )),
+              const SizedBox(height: 4),
+              Text(kScrollHint, style: hint()),
+              if (tooMany) ...[
+                const SizedBox(height: 4),
+                Text('One source holds up to $kImageSetMax images.',
+                    style: hint()),
+              ],
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: AppSpacing.s2,
+                runSpacing: AppSpacing.s2,
+                children: [
+                  KitButton.primary('One source',
+                      onPressed: tooMany ? null : onOne),
+                  KitButton.secondary('Separate sources',
+                      onPressed: onSeparate),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// **Add an image set (up to 20)** — this client's device capability web
+/// lacks (Flutter CLAUDE.md, §Composition deviations): a quiet ghost offer
+/// that makes ONE source of up to 20 images, never asking, and under it the
+/// set-making sentence verbatim (5.10.0, ADR-170). One spelling for every
+/// surface that offers it — Add a source, the empty Library, quick add.
+class KitImageSetRow extends StatelessWidget {
+  final VoidCallback? onPressed;
+
+  const KitImageSetRow({super.key, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: KitButton.ghost(
+              'Add an image set (up to 20)',
+              icon: Icons.photo_library_outlined,
+              onPressed: onPressed,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 4, top: 2),
+            child: Text(kScrollHint, style: KitText.note(context)),
+          ),
+        ],
+      );
 }
 
 class _DashedBorderPainter extends CustomPainter {

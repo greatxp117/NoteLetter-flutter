@@ -158,7 +158,7 @@ class KitTab {
 /// §30 — the tab bar, fixed at the foot: **Home, Library, the page's action,
 /// Letters, Ask.** The centre is the action the page registered (its glyph in
 /// an accent pill, its short label) or, where the page names none, *Add* —
-/// named *Add a source* — which opens Add a source; held while the action is
+/// named *Add a source* — which opens quick add (F-152); held while the action is
 /// disabled. **While generative AI is off, or not yet read, Ask is absent and
 /// Shelves takes its slot** (5.29.0, ADR-186, INV-34). The active tab is
 /// `--accent-text`; Letters is active on Letter settings, Shelves on the map

@@ -193,7 +193,7 @@ class KitPageTools extends ChangeNotifier {
 
 /// The shell's verbs for kit parts that sit on every page (web `DShellProvider`):
 /// Search opens quick search — on this client, the Search screen — and the tab
-/// bar's default action opens Add a source.
+/// bar's default action opens quick add (F-152).
 class KitDShell extends InheritedWidget {
   final VoidCallback openSearch;
   final VoidCallback openAdd;

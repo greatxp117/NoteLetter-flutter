@@ -8,6 +8,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
+import 'kit_d_parts.dart' show KitD;
 import 'kit_pdf_stage.dart';
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
@@ -78,6 +79,15 @@ class KitOverlaySheet extends StatelessWidget {
   /// set; the sheet is not closed and reopened, so nothing behind it moves.
   final ValueListenable<KitSheetHeading>? heading;
 
+  /// §15's optional **foot**, on `--surface-raised` behind a 1px `--rule`,
+  /// outside the scrolling body (quick add's *What can I add?* and *More
+  /// options →*, `.qa-foot`).
+  final Widget? foot;
+
+  /// Drawn as a sheet docked at the foot of a phone screen rather than a
+  /// floating panel — see [show]'s `phoneSheet`.
+  final bool docked;
+
   const KitOverlaySheet({
     super.key,
     required this.icon,
@@ -89,8 +99,16 @@ class KitOverlaySheet extends StatelessWidget {
     this.holding,
     this.heading,
     this.lead,
+    this.foot,
+    this.docked = false,
   });
 
+  /// [phoneSheet]: on a phone (`KitD.phone`, at most 680 wide) the panel rises
+  /// from the foot as a modal sheet over the current page — the same head,
+  /// body and foot, its top corners `--r-xl`, a grab handle above the head —
+  /// and is dismissed by a swipe down, the scrim, or its close control
+  /// (F-152, quick add: a recorded Flutter deviation from §15's one floating
+  /// shape, which web keeps at every width). Wider, it is §15's panel.
   static Future<void> show(
     BuildContext context, {
     required IconData icon,
@@ -102,8 +120,34 @@ class KitOverlaySheet extends StatelessWidget {
     ValueListenable<bool>? holding,
     ValueListenable<KitSheetHeading>? heading,
     Widget? lead,
-  }) =>
-      showDialog<void>(
+    Widget? foot,
+    bool phoneSheet = false,
+  }) {
+    if (phoneSheet && KitD.phone(context)) {
+      return showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        enableDrag: holding == null,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        barrierColor: Tokens.of(context).scrim,
+        builder: (ctx) => KitOverlaySheet(
+          icon: icon,
+          title: title,
+          subtitle: subtitle,
+          width: width,
+          heightFactor: heightFactor,
+          holding: holding,
+          heading: heading,
+          lead: lead,
+          foot: foot,
+          docked: true,
+          child: Builder(builder: builder),
+        ),
+      );
+    }
+    return showDialog<void>(
         context: context,
         barrierColor: Tokens.of(context).scrim,
         // §15's scrim is tinted AND blurred 3px; the barrier alone is the tint,
@@ -119,10 +163,12 @@ class KitOverlaySheet extends StatelessWidget {
             holding: holding,
             heading: heading,
             lead: lead,
+            foot: foot,
             child: Builder(builder: builder),
           ),
         ),
       );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,21 +194,18 @@ class KitOverlaySheet extends StatelessWidget {
       BuildContext context, bool held, String title, String? subtitle) {
     final t = Tokens.of(context);
     final size = MediaQuery.sizeOf(context);
+    const top = BorderRadius.vertical(top: Radius.circular(AppRadius.xl));
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: width,
-          maxHeight: size.height * heightFactor,
-        ),
-        child: Container(
+    final panel = Container(
           decoration: BoxDecoration(
             color: t.surface,
-            borderRadius: AppRadius.xlR,
-            border: Border.all(color: t.border),
+            borderRadius: docked ? top : AppRadius.xlR,
+            border: docked
+                ? Border(
+                    top: BorderSide(color: t.border),
+                    left: BorderSide(color: t.border),
+                    right: BorderSide(color: t.border))
+                : Border.all(color: t.border),
             boxShadow: AppShadows.s3,
           ),
           clipBehavior: Clip.antiAlias,
@@ -170,6 +213,19 @@ class KitOverlaySheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (docked)
+                // The grab handle: what says a swipe down closes it.
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: t.borderStrong,
+                      borderRadius: AppRadius.pillR(4),
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
                 // `.qa-head` is `align-items: flex-start`: a subtitle that
@@ -228,9 +284,41 @@ class KitOverlaySheet extends StatelessWidget {
               Container(height: 1, color: t.rule),
               // **The body scrolls, the page does not.**
               Flexible(child: SingleChildScrollView(child: child)),
+              if (foot != null) ...[
+                Container(height: 1, color: t.rule),
+                Container(
+                  color: t.surfaceRaised,
+                  // Docked, the foot sits on the home indicator's inset.
+                  padding: EdgeInsets.only(
+                      bottom: docked ? MediaQuery.paddingOf(context).bottom : 0),
+                  child: foot,
+                ),
+              ],
             ],
           ),
+        );
+
+    if (docked) {
+      // The keyboard lifts the sheet, so the link field stays in view.
+      return Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: size.height * heightFactor),
+          child: panel,
         ),
+      );
+    }
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: width,
+          maxHeight: size.height * heightFactor,
+        ),
+        child: panel,
       ),
     );
   }

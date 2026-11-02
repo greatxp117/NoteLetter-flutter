@@ -255,23 +255,10 @@ class FileUploaderState extends State<FileUploader> {
               onSubmit: () => _submitUrl(notifier),
             ),
             // Multi-image capture (1.1.0) is a device capability the web has
-            // no surface for; it stays, as a quiet offer under the row.
+            // no surface for; it stays, as a quiet offer under the row, with
+            // the set-making sentence (ADR-170) under it.
             const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: KitButton.ghost(
-                'Add an image set (up to 20)',
-                icon: Icons.photo_library_outlined,
-                onPressed: () => _pickImageSet(notifier),
-              ),
-            ),
-            // Verbatim on every set-making surface (sources.md §Endpoints
-            // used, 5.10.0, ADR-170): the server joins a scroll from the
-            // pixels, and this line is the only place a reader learns it can.
-            Padding(
-              padding: const EdgeInsets.only(left: 4, top: 2),
-              child: Text(kScrollHint, style: KitText.note(context)),
-            ),
+            KitImageSetRow(onPressed: () => _pickImageSet(notifier)),
 
             // §14.2 — the rejection this client made itself, in the place the
             // reader is looking. Dense: it sits under a control group.
@@ -337,18 +324,7 @@ extension on FileUploaderState {
         ],
         // The device capability web lacks: one source of up to 20 images.
         const SizedBox(height: 4),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: KitButton.ghost(
-            'Add an image set (up to 20)',
-            icon: Icons.photo_library_outlined,
-            onPressed: () => _pickImageSet(notifier),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 4, top: 2),
-          child: Text(kScrollHint, style: KitText.note(context)),
-        ),
+        KitImageSetRow(onPressed: () => _pickImageSet(notifier)),
         const AddAnswered(),
       ],
     );

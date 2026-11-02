@@ -21,13 +21,12 @@ import 'sources/sources_info_sheet.dart';
 /// prototype's rows are simulated). A document the subscription has not
 /// delivered yet is not drawn: its own arrival is the statement.
 ///
-/// The Library's *Add a source*, the tab bar's *Add* and Home's *Add files*
-/// come here — this client has no quick-add overlay. Home's *Add files* sends
-/// [pick], which opens the file picker once on arrival.
+/// Quick add's *More options →* comes here (F-152), as on web, and so does the
+/// return page's *Add files instead*. (Until F-152 Home's *Add files* came here
+/// with a `pick` flag that opened the picker on arrival; it now picks and
+/// opens quick add, as web's does, and the flag is gone.)
 class AddSourcePage extends StatefulWidget {
-  final bool pick;
-
-  const AddSourcePage({super.key, this.pick = false});
+  const AddSourcePage({super.key});
 
   /// The standfirst, verbatim from the reference.
   static const stand = 'Upload anything you’ve read, paste a link, or connect '
@@ -55,7 +54,6 @@ class _AddSourcePageState extends State<AddSourcePage> {
       context.read<TagsNotifier>().start();
       // A page arriving starts with nothing answered (web: a new intake).
       context.read<UploadNotifier>().clearAnswered();
-      if (widget.pick) _uploader.currentState?.pickFiles();
     });
   }
 

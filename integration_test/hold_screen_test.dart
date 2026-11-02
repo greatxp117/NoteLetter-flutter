@@ -24,6 +24,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_test/flutter_test.dart';
@@ -59,6 +60,9 @@ import 'package:flutter_app/services/camera_sweep_bridge.dart';
 import 'package:flutter_app/services/sweep_ledger.dart';
 import 'package:flutter_app/pages/sources/camera_roll.dart';
 import 'package:flutter_app/pages/sources_page.dart';
+import 'package:flutter_app/widgets/quick_add.dart';
+
+import 'fake_picker.dart';
 
 const seedEmail = 'seed@noteletter.test';
 const seedPassword = 'seed-password-1';
@@ -1138,6 +1142,32 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // the reader's Original section until F-82 — another surface under the
     // same name, so the pairs compared nothing. Run
     // tool/seed_overlay_sources.py first, and with `--remove` after.
+    // F-152 — web theme-shots `quickadd-image-set`: three screenshots picked
+    // on quick add together, the one-source question open. Opened from the
+    // tab bar's centre on Home (web: the tab bar's on a phone). Nothing is
+    // sent until it is answered, so the frame writes nothing.
+    case 'quickadd-image-set':
+      await settle();
+      await tester.tap(find.byKey(const ValueKey('d-tab-action')));
+      for (var i = 0; i < 30 && find.byType(QuickAdd).evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(find.byType(QuickAdd), findsOneWidget,
+          reason: "the tab bar's Add did not open quick add");
+      await settle();
+      final real = FakePicker.install(FakePicker.screenshots(3));
+      try {
+        await tester.tap(find.text('Drop files, or tap to add one'));
+        final ask = find.text('Add these 3 images as one source?');
+        for (var i = 0; i < 30 && ask.evaluate().isEmpty; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+        expect(ask, findsOneWidget, reason: 'the one-source question is not open');
+      } finally {
+        FilePicker.platform = real;
+      }
+      await settle();
+      return;
     case 'source-file':
     case 'source-set':
       await settle();
