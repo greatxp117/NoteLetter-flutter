@@ -39,6 +39,8 @@ import 'package:flutter_app/pages/sources/sync_folder_picker.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
+import 'package:flutter_app/shared/cloud_return.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_app/models/ask_thread.dart' show AskRole;
 import 'package:flutter_app/pages/chat_page.dart';
 import 'package:flutter_app/pages/tags/shelf_sheet.dart';
@@ -917,6 +919,86 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       }[holdState]!;
       expect(find.byType(panel), findsOneWidget,
           reason: 'the $label section did not mount');
+      return;
+    // The OAuth return (5.46.0, ADR-201; F-151), the reference's theme-shots
+    // `oauth-*` states, reached as a reader reaches them: an error return is
+    // held as the app's session would hand it back; a claim is PARKED in the
+    // emulator in the callback's own shape and its return held, so the claim,
+    // the shim's faked exchange and the listing all run for real. Drive is in
+    // the seed (its claim answers `reconnected`); Notion is not (its fake
+    // workspace lists nothing). Route: /sources.
+    case 'oauth-denied':
+    case 'oauth-expired':
+    case 'oauth-failed':
+      CloudReturn.hold(CloudReturn('error',
+          provider: const {'oauth-denied': 'google_drive', 'oauth-expired': 'onedrive',
+              'oauth-failed': 'dropbox'}[holdState],
+          reason: const {'oauth-denied': 'access_denied', 'oauth-expired': 'invalid_state',
+              'oauth-failed': 'server_error'}[holdState]));
+      await settle();
+      expect(find.text(const {'oauth-denied': 'Nothing Was Shared',
+          'oauth-expired': 'The Link Expired', 'oauth-failed': 'Not Connected'}[holdState]!),
+          findsOneWidget, reason: 'the $holdState notice did not draw');
+      return;
+    case 'oauth-already':
+    case 'oauth-granted':
+    case 'oauth-granted-picked':
+    case 'oauth-empty':
+      final notion = holdState == 'oauth-empty';
+      final provider = notion ? 'notion' : 'google_drive';
+      final token = 'hold-$holdState-${DateTime.now().microsecondsSinceEpoch}';
+      final rest = Dio(BaseOptions(
+        baseUrl: 'http://${ApiService.emulatorHost}:${ApiService.firestorePort}'
+            '/v1/projects/${DefaultFirebaseOptions.currentPlatform.projectId}'
+            '/databases/(default)/documents',
+        headers: {'Authorization': 'Bearer owner'},
+        validateStatus: (_) => true,
+      ));
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      if (notion) await rest.delete('/users/$uid/integrations/notion');
+      final now = DateTime.now().toUtc();
+      await rest.post('/oauth_claims',
+          queryParameters: {'documentId': sha256.convert(utf8.encode(token)).toString()},
+          data: {
+            'fields': {
+              'uid': {'stringValue': uid},
+              'provider': {'stringValue': provider},
+              'purpose': {'stringValue': 'connect'},
+              'write': {'booleanValue': false},
+              'code': {'stringValue': 'hold-code'},
+              'created_at': {'timestampValue': now.toIso8601String()},
+              'expires_at': {
+                'timestampValue': now.add(const Duration(minutes: 10)).toIso8601String()
+              },
+            },
+          });
+      CloudReturn.hold(CloudReturn('claim', claim: token, provider: provider));
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      if (notion) {
+        expect(find.text('Nothing to Bring In'), findsOneWidget,
+            reason: 'the empty listing did not draw');
+        return;
+      }
+      expect(find.text('Already Connected'), findsOneWidget,
+          reason: 'the Drive claim did not answer reconnected');
+      if (holdState == 'oauth-already') return;
+      await tester.tap(find.text('Choose what comes across'));
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(find.text('Google Drive, Connected'), findsOneWidget,
+          reason: 'the manifest did not open');
+      if (holdState == 'oauth-granted-picked') {
+        await tester.tap(find.bySemanticsLabel('Bring in Docs').first);
+        await settle();
+        await tester.ensureVisible(find.text('NoteLetter chooses').first);
+        await tester.tap(find.text('NoteLetter chooses').first);
+        await settle();
+        await tester.tap(find.text('Finance').last);
+        await settle();
+      }
       return;
     // A source's History (5.44.0, ADR-199; F-147), the reference's
     // `reader-history-activity` / `-refused` / `-empty`. The rows are
