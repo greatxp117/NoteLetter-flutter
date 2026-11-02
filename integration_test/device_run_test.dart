@@ -4240,9 +4240,21 @@ void main() {
       await tester.ensureVisible(docs.first);
       await tester.tap(docs.first);
       await pumpFor(tester, total: const Duration(seconds: 1));
+      // On a phone the manifest is the running head's sheet (KitDSheet), as
+      // on web's phone frame: drop it to reach File under. Folded, it sits
+      // under an IgnorePointer, so a tap on the select reached the page's
+      // scroll instead (the first device run, 2026-11-02).
+      final head = find.byKey(const ValueKey('d-peek'));
+      if (head.evaluate().isNotEmpty) {
+        await tester.tap(head);
+        await pumpFor(tester, total: const Duration(milliseconds: 1200));
+      }
       // File under: the seed's Finance shelf, from the select.
       await tester.ensureVisible(find.text('NoteLetter chooses').first);
-      await tester.tap(find.text('NoteLetter chooses').first);
+      final chooses = find.text('NoteLetter chooses').hitTestable();
+      expect(chooses, findsOneWidget,
+          reason: 'File under cannot be reached on a phone');
+      await tester.tap(chooses);
       await pumpFor(tester, total: const Duration(seconds: 1));
       await tester.tap(find.text('Finance').last);
       await pumpFor(tester, total: const Duration(seconds: 1));

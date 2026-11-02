@@ -997,11 +997,27 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       if (holdState == 'oauth-granted-picked') {
         await tester.tap(find.bySemanticsLabel('Bring in Docs').first);
         await settle();
+        // On a phone the manifest is the running head's sheet: drop it to
+        // reach File under (folded, an IgnorePointer takes the tap), file
+        // under Finance, and fold it again — web's phone frame holds the
+        // closed peek with the shelf as its meta.
+        final peek = find.byKey(const ValueKey('d-peek'));
+        if (peek.evaluate().isNotEmpty) {
+          await tester.tap(peek);
+          await settle();
+        }
         await tester.ensureVisible(find.text('NoteLetter chooses').first);
-        await tester.tap(find.text('NoteLetter chooses').first);
+        final chooses = find.text('NoteLetter chooses').hitTestable();
+        expect(chooses, findsOneWidget,
+            reason: 'File under cannot be reached on a phone');
+        await tester.tap(chooses);
         await settle();
         await tester.tap(find.text('Finance').last);
         await settle();
+        if (peek.evaluate().isNotEmpty) {
+          await tester.tap(peek);
+          await settle();
+        }
       }
       return;
     // A source's History (5.44.0, ADR-199; F-147), the reference's

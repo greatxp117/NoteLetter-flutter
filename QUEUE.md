@@ -2394,7 +2394,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier 2026-10-30: D's look on today's signals. Offer only what the pre-filter measures (screenshot, or 80+ chars of on-device text; Automatic vs Review). The six kind switches, 'people, faces and IDs always passed over' and Cautious/Balanced/Trusting are declined on the record in ADR-198 and booked as a follow-up; 'cards or IDs never uploaded' would be false today. Web has no camera roll, so there is no web frame to pair: the reference is the prototype (Camera Roll Setup.html direction A, app-camera.jsx). Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-147 · A source's History folds in its Activity, matched by metadata.doc_id (5.44.0, ADR-199)
-- status: blocked: device test + pairs owed: the iOS build died 2026-11-01 (Swift compiles killed, no output) with disk at 4.2 GB and load ~600 from another workspace; code, 18 contract cases, analyze and the 15 lane gates green; web frames shot (c/history 33d3318); run tool/seed_history.py [--deny-reads|--deny-creates] before each hold batch
+- status: done 2026-11-02
 - screen: reader-history
 - route: /reader/{id}
 - spec: spec/screens/reader.md §History; spec/screens/reader.md §Composition; spec/decisions/ADR-199-a-sources-history-folds-in-its-activity.md; spec/data-model.md
@@ -2407,7 +2407,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier's ruling 2 of 2026-11-01 (W2's XAVIER 1). Two reads: read_events (one-shot, limit 50) and a doc-scoped onSnapshot of activity_events (user_id == + metadata.doc_id ==, created_at desc, limit 50) over the composite index created in prod 2026-11-01. Never a title match, never the account's latest-200 window. No count; a half at its limit is labelled; a failed half is KitFailureBlock above the rows that loaded. Lane `history`, briefs and reports in ../.claude/calls-2026-11-01/.
 
 ## F-148 · How Deep Study Works, inside Study; a session's key hints hidden below 1024 (5.45.0)
-- status: blocked: device test + pairs owed: from the main tree on 432E0C97 after oauth's F-151/F-147 runs (sim floor 12 GB free before boot)
+- status: done 2026-11-02
 - screen: study, study-how
 - route: /study, /study/how-it-works, /study/session/{id}
 - spec: spec/screens/study.md
@@ -2433,7 +2433,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier 2026-11-02 (ruling 2d, superseding ruling 6's 'to Settings'): web's Letter settings gets the field, where this client has it and where onboarding says it is; nothing moves to Settings, whose Your librarian row stays the way into Ask on both clients. 5.48.0 (contracts 70c101a) specifies it: Composition's last field, strings verbatim from F-05 (label Your librarian; placeholder 'e.g. Help me connect ideas across philosophy readings…'; sub 'What you want to learn or achieve. Your letter weights passages by it.'). Re-scoped here to match the spec: the face mono → sans (§6.9), maxLength missionMax (1000, the endpoint's silent cut; onboarding's mission box too), held while Save is out, purposeText sent only when it differs from the last value read or accepted (it rode every Save, re-embedding each time, so an embedder failure could refuse a delivery-hour change); a refused Save keeps the draft with the server's sentence beside Save. The comment saying web edits the key in Settings is corrected. Web lane librarian, branch c/librarian (c5974ab). Briefs and reports in ../.claude/calls-2026-11-01/.
 
 ## F-151 · The OAuth return page and File under (5.46.0, ADR-201)
-- status: blocked: device run + pairs owed: disk under the floor 2026-11-01 (code, analyze 0 and test/contract green on c/oauth)
+- status: done 2026-11-02
 - screen: sources
 - route: /sources
 - spec: spec/decisions/ADR-201-the-oauth-return-page-and-file-under-a-shelf.md (new); spec/screens/sources.md §The OAuth return; spec/api/cloud-storage.md; spec/features/cloud-oauth-return.md
@@ -2441,7 +2441,7 @@ a new obligation on a finished screen is a new item.
 - flutter: lib/pages/sources/oauth_return.dart (new); lib/pages/sources/file_under.dart (new); lib/pages/sources_page.dart; lib/pages/sources/cloud_sync_copy.dart; lib/state/cloud_notifier.dart; lib/state/org_notifier.dart; lib/shared/cloud_return.dart; lib/services/api.dart; lib/widgets/kit/kit_d_library.dart; test/contract/oauth_return_test.dart (new); test/contract/cloud_return_test.dart; test/contract/api_requests_test.dart
 - folds: 5.46.0
 - device_test: tool/device_test.sh — feed noteletter://cloud-connect?… to the app on iOS 26.5 against the emulator (run by the lane)
-- shots: none
+- shots: oauth-granted; oauth-granted-picked; oauth-already; oauth-empty; oauth-denied; oauth-expired; oauth-failed
 - extra_gates: flutter test test/contract
 - notes: Xavier 2026-11-01 (ruling 8): the connect flow fully implemented before he tests it. The return page renders in place of the Library on /sources while a return is open (no route); claiming, {Provider}, Connected (root listing + Manifest: two measured tallies, File under, Keep in sync, Bring in / Not now), Nothing to Bring In, and the notices Nothing Was Shared / The Link Expired (ten minutes) / Already Connected / Not Connected. org: enabled and insufficient_scope stay Library notices; the Library nudge and the auto-opened picker are retired. One connect entry point (CloudNotifier.connect), which quick add (F-152) calls; it remembers the provider it sent to consent (the session fills an error return's; a web build also keeps nl-cloud-connecting in prefs for the state's ten minutes). File under also on the import picker; Api.importFromCloud(tagIds:) sends tag_ids only when non-empty. The connect card's line is provider_email once connected. Web stacks the cards and notice actions at 860; here at the one breakpoint, 768. Android owed (no KVM).
 
