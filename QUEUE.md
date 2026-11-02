@@ -2419,18 +2419,18 @@ a new obligation on a finished screen is a new item.
 - extra_gates: flutter test test/contract
 - notes: Xavier 2026-11-01 (rulings 3 and 4): the page is built inside Study, reached from the programs masthead's standfirst link and the empty state (never onboarding); its copy is the spec's, corrected claim by claim against area_study.py (ten documents, not fifty). The references open in the system browser. Key hints (space, 1-4, the keys note, the sheet's Keys) hide below 1024; the keys stay bound. CLAUDE.md's touch-copy deviation line said 'no keys bound', false since F-145.
 
-## F-149 · Your librarian (purposeText) to Settings, as web (5.45.0) — HELD for Xavier
-- status: blocked: Xavier: the ruling's premise is false (web edits purposeText nowhere after onboarding); delete to match web, build in Settings on both, or leave
-- screen: settings, letter-settings
-- route: /settings, /letters/settings
-- spec: spec/screens/settings.md; spec/screens/letters.md
-- web: src/pages/SettingsView.jsx; src/pages/LetterSettings.jsx
-- flutter: lib/pages/settings_page.dart; lib/pages/letter_settings_page.dart
-- folds: 5.45.0
-- device_test: none until ruled
-- shots: settings; letter-settings
+## F-149 · Your librarian in Letter settings, as the spec writes it (5.48.0)
+- status: blocked: device run + pairs owed: code, 7 widget tests, analyze 0 and test/contract+kit green on c/librarian; run from the MAIN tree after oauth and quickadd on the sim (12 GB floor), and re-shoot the letter-settings pair after web c/librarian is merged
+- screen: letter-settings
+- route: /letters/settings
+- spec: spec/screens/letters.md §Your librarian; spec/screens/letters.md §Composition; spec/screens/onboarding.md; spec/api/newsletter.md
+- web: src/pages/LetterSettings.jsx; src/pages/onboarding/steps.jsx; src/api.js; src/styles/app-letters.css
+- flutter: lib/pages/letter_settings_page.dart; lib/pages/onboarding/steps.dart; lib/state/settings_notifier.dart; lib/services/api.dart; test/kit/d_letter_settings_support_test.dart; integration_test/device_run_test.dart
+- folds: 5.48.0
+- device_test: tool/device_test.sh "Your librarian: a mission typed in Letter settings is stored trimmed and read back on the next visit (F-149)"
+- shots: letter-settings
 - extra_gates: flutter test test/contract
-- notes: Xavier 2026-11-01 (ruling 6): move Your librarian (purposeText) to Settings, where web edits it. Web edits purposeText nowhere after onboarding: its Settings row 'Your librarian' is a link to Ask, which this client's Settings already draws identically, and web's Letter settings has never had the field (its onboarding says it can be rewritten there). Matching web exactly would delete this client's only post-onboarding mission editor (F-05). Held until Xavier chooses: delete it to match web, build an editor in Settings on both clients, or leave it.
+- notes: Xavier 2026-11-02 (ruling 2d, superseding ruling 6's 'to Settings'): web's Letter settings gets the field, where this client has it and where onboarding says it is; nothing moves to Settings, whose Your librarian row stays the way into Ask on both clients. 5.48.0 (contracts 70c101a) specifies it: Composition's last field, strings verbatim from F-05 (label Your librarian; placeholder 'e.g. Help me connect ideas across philosophy readings…'; sub 'What you want to learn or achieve. Your letter weights passages by it.'). Re-scoped here to match the spec: the face mono → sans (§6.9), maxLength missionMax (1000, the endpoint's silent cut; onboarding's mission box too), held while Save is out, purposeText sent only when it differs from the last value read or accepted (it rode every Save, re-embedding each time, so an embedder failure could refuse a delivery-hour change); a refused Save keeps the draft with the server's sentence beside Save. The comment saying web edits the key in Settings is corrected. Web lane librarian, branch c/librarian (c5974ab). Briefs and reports in ../.claude/calls-2026-11-01/.
 
 ## F-151 · The OAuth return page and File under (5.46.0, ADR-201)
 - status: blocked: device run + pairs owed: disk under the floor 2026-11-01 (code, analyze 0 and test/contract green on c/oauth)
