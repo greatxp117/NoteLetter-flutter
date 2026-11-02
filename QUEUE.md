@@ -2405,3 +2405,16 @@ a new obligation on a finished screen is a new item.
 - shots: reader-history; reader-history-activity; reader-history-refused; reader-history-empty
 - extra_gates: flutter test test/contract
 - notes: Xavier's ruling 2 of 2026-11-01 (W2's XAVIER 1). Two reads: read_events (one-shot, limit 50) and a doc-scoped onSnapshot of activity_events (user_id == + metadata.doc_id ==, created_at desc, limit 50) over the composite index created in prod 2026-11-01. Never a title match, never the account's latest-200 window. No count; a half at its limit is labelled; a failed half is KitFailureBlock above the rows that loaded. Lane `history`, briefs and reports in ../.claude/calls-2026-11-01/.
+
+## F-151 · The OAuth return page and File under (5.46.0, ADR-201)
+- status: blocked: device run + pairs owed: disk under the floor 2026-11-01 (code, analyze 0 and test/contract green on c/oauth)
+- screen: sources
+- route: /sources
+- spec: spec/decisions/ADR-201-the-oauth-return-page-and-file-under-a-shelf.md (new); spec/screens/sources.md §The OAuth return; spec/api/cloud-storage.md; spec/features/cloud-oauth-return.md
+- web: src/pages/sources/OAuthReturn.jsx (new); src/pages/sources/FileUnder.jsx (new); src/styles/app-oauth-return.css (new); src/pages/SourcesBrowse.jsx; src/pages/sources/CloudImportPanel.jsx; src/pages/sources/CloudFilePicker.jsx; src/pages/sources/intake.jsx; src/shared/cloudClaim.js; src/api.js; tests/contract/oauth-return.test.js (new)
+- flutter: lib/pages/sources/oauth_return.dart (new); lib/pages/sources/file_under.dart (new); lib/pages/sources_page.dart; lib/pages/sources/cloud_sync_copy.dart; lib/state/cloud_notifier.dart; lib/state/org_notifier.dart; lib/shared/cloud_return.dart; lib/services/api.dart; lib/widgets/kit/kit_d_library.dart; test/contract/oauth_return_test.dart (new); test/contract/cloud_return_test.dart; test/contract/api_requests_test.dart
+- folds: 5.46.0
+- device_test: tool/device_test.sh — feed noteletter://cloud-connect?… to the app on iOS 26.5 against the emulator (run by the lane)
+- shots: none
+- extra_gates: flutter test test/contract
+- notes: Xavier 2026-11-01 (ruling 8): the connect flow fully implemented before he tests it. The return page renders in place of the Library on /sources while a return is open (no route); claiming, {Provider}, Connected (root listing + Manifest: two measured tallies, File under, Keep in sync, Bring in / Not now), Nothing to Bring In, and the notices Nothing Was Shared / The Link Expired (ten minutes) / Already Connected / Not Connected. org: enabled and insufficient_scope stay Library notices; the Library nudge and the auto-opened picker are retired. One connect entry point (CloudNotifier.connect), which quick add (F-152) calls; it remembers the provider it sent to consent (the session fills an error return's; a web build also keeps nl-cloud-connecting in prefs for the state's ten minutes). File under also on the import picker; Api.importFromCloud(tagIds:) sends tag_ids only when non-empty. The connect card's line is provider_email once connected. Web stacks the cards and notice actions at 860; here at the one breakpoint, 768. Android owed (no KVM).

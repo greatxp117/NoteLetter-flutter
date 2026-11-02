@@ -262,9 +262,11 @@ class KitLibActs extends StatelessWidget {
 // ── Correspondence: the services (`.lx-svc`) ────────────────────────────────
 
 /// One service that sends the library volumes: its mark on a white plate (32,
-/// `--r-c-32`), its name (serif 16/21), *Connected* with a `--positive` dot in
-/// `--positive-text` or its [line] (sans 12/17 `--fg-muted`), and one quiet
-/// [action]. A refused connect ([failure], §14.2) runs under the name.
+/// `--r-c-32`), its name (serif 16/21), the [account] — or *Connected* while
+/// none is stored — with a `--positive` dot in `--positive-text`, or its
+/// [line] (sans 12/17 `--fg-muted`), and one quiet [action] (kit §5.1, "the
+/// account or the invitation", 5.46.0, ADR-201). A refused connect
+/// ([failure], §14.2) runs under the name.
 ///
 /// The camera roll's row (sources.md §Camera roll, the first in
 /// Correspondence on a client with a photo library) is the same row with a
@@ -279,6 +281,9 @@ class KitServiceRow extends StatelessWidget {
   final IconData? glyph;
   final String name;
   final String? line;
+
+  /// The connected account (`provider_email`), drawn in place of *Connected*.
+  final String? account;
   final bool connected;
   final bool on;
   final bool critical;
@@ -291,6 +296,7 @@ class KitServiceRow extends StatelessWidget {
     this.glyph,
     required this.name,
     this.line,
+    this.account,
     this.connected = false,
     this.on = false,
     this.critical = false,
@@ -340,7 +346,9 @@ class KitServiceRow extends StatelessWidget {
               color: t.fg,
             ),
           );
-    final shown = connected ? 'Connected' : line;
+    final shown = connected
+        ? (account != null && account!.isNotEmpty ? account! : 'Connected')
+        : line;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 11),
       decoration: BoxDecoration(

@@ -1,4 +1,5 @@
 import '../../models/cloud_file.dart';
+import '../../shared/cloud_providers.dart';
 import '../../shared/upload_types.dart';
 
 /// The sentences the cloud surfaces owe since contracts 4.89.0–4.92.0 (the
@@ -159,3 +160,30 @@ String operationOutcome(Map op, List sections) {
 String destinationLabel(Map d) => d['kind'] == 'folder'
     ? (d['path'] as String? ?? 'folder')
     : (d['title'] as String? ?? 'document');
+
+/// A connect's `reason`, said (ADR-012; web `connectErrorCopy`). Open
+/// vocabulary — an unknown reason falls through to generic copy.
+/// `insufficient_scope` is the one "error" where the base connection did
+/// succeed: only the auto-organization write-scope upgrade was declined, so it
+/// stays a Library notice; every other reason is the OAuth return page's
+/// (5.46.0, ADR-201), where this is *Not Connected*'s standfirst.
+String connectReasonCopy(String? provider, String? reason) {
+  final name = cloudProviders[provider]?.name ?? 'the service';
+  final cap = cloudProviders[provider]?.name ?? 'The service';
+  switch (reason) {
+    case 'invalid_state':
+      return 'That sign-in link expired before it could finish. Connect '
+          '$name again.';
+    case 'missing_params':
+      return 'The connection didn’t complete. Connect $name again.';
+    case 'insufficient_scope':
+      return '$cap is connected, but didn’t grant the permissions '
+          'needed for auto-organization. Reconnect and allow all requested '
+          'access to enable it.';
+    case 'access_denied':
+      return 'Access to $name was declined. Connect again and approve to '
+          'import your files.';
+    default:
+      return 'Couldn’t finish connecting $name. Please try again.';
+  }
+}

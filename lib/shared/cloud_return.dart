@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// The cloud-connect return (5.0.0, ADR-158, INV-32; 5.1.0, ADR-159 —
 /// `api/cloud-storage.md` §Return target). Mirrors web `shared/cloudClaim.js`.
@@ -81,17 +85,94 @@ class CloudReturn {
   /// it returns. Null when it returned (or was cancelled — a cancelled session
   /// parked nothing and says nothing; Connect stays actionable), or the
   /// sentence for a session that could not run at all.
-  static Future<String?> runSession(String authUrl) async {
+  ///
+  /// [provider] is the one this session sent to consent (5.46.0, ADR-201): an
+  /// error return carries no `provider` (`api/cloud-storage.md` §Result
+  /// params), so the return page could only say *the service* when a reader
+  /// declines at Google. The session that ran knows, and fills it in; a
+  /// provider the return DID carry is never overwritten.
+  static Future<String?> runSession(String authUrl, {String? provider}) async {
     try {
       final back = await (session ??
           (url) => FlutterWebAuth2.authenticate(
               url: url, callbackUrlScheme: appReturnScheme))(authUrl);
       final r = CloudReturn.fromParams(Uri.parse(back).queryParameters);
-      if (r != null) hold(r);
+      if (r != null) {
+        hold(r.provider == null && provider != null
+            ? CloudReturn(r.result,
+                claim: r.claim, provider: provider, reason: r.reason)
+            : r);
+      }
       return null;
     } on PlatformException catch (e) {
       if (e.code == 'CANCELED') return null;
       return e.message ?? 'The sign-in window could not be opened.';
     }
+  }
+
+  // ── The remembered provider (5.46.0, ADR-201) ──────────────────────────────
+  // Which provider this client last sent to a consent screen, for the
+  // state's ten minutes. Written by the one connect entry point
+  // (`CloudNotifier.connect`) before the handoff, and read when an error
+  // return names none. An app's session fills the return itself
+  // ([runSession]); a WEB build leaves the page for the provider and comes
+  // back as a fresh load, so there it is also kept in the platform store
+  // (web: `sessionStorage` `nl-cloud-connecting`, `shared/cloudClaim.js`).
+  // Read, never cleared: a reader may decline and try the same one again.
+
+  static const connectingKey = 'nl-cloud-connecting';
+  static String? _connecting;
+  static DateTime? _connectingAt;
+
+  static void noteConnecting(String provider) {
+    final at = DateTime.now();
+    _connecting = provider;
+    _connectingAt = at;
+    if (kIsWeb) unawaited(_keepConnecting(provider, at));
+  }
+
+  static Future<void> _keepConnecting(String provider, DateTime at) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(connectingKey, jsonEncode(
+          {'provider': provider, 'at': at.millisecondsSinceEpoch}));
+    } catch (_) {
+      // No store: an error return then names no provider, and says *the
+      // service* — true, and no worse than before 5.46.0.
+    }
+  }
+
+  /// The provider sent to consent within the ten minutes, from this run's
+  /// memory; null when none (or it is older).
+  static String? get connectingProvider {
+    final at = _connectingAt;
+    if (_connecting == null || at == null) return null;
+    return DateTime.now().difference(at) > _ttl ? null : _connecting;
+  }
+
+  /// [connectingProvider], or — on a web build that came back as a fresh
+  /// load — the one the page that left for consent stored.
+  static Future<String?> recallConnecting() async {
+    final mem = connectingProvider;
+    if (mem != null || !kIsWeb) return mem;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(connectingKey);
+      if (raw == null) return null;
+      final v = jsonDecode(raw);
+      if (v is! Map || v['provider'] is! String) return null;
+      final at = DateTime.fromMillisecondsSinceEpoch(
+          (v['at'] as num?)?.toInt() ?? 0);
+      if (DateTime.now().difference(at) > _ttl) return null;
+      return v['provider'] as String;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @visibleForTesting
+  static void forgetConnecting() {
+    _connecting = null;
+    _connectingAt = null;
   }
 }

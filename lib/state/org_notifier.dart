@@ -184,7 +184,7 @@ class OrgNotifier extends ChangeNotifier {
           .enableOrganization(provider, returnTo: app ? 'app' : null);
       final authUrl = data['authUrl'] as String?;
       if (authUrl == null) return 'No authorization URL returned.';
-      if (app) return await CloudReturn.runSession(authUrl);
+      if (app) return await CloudReturn.runSession(authUrl, provider: provider);
       final ok = await launchUrl(Uri.parse(authUrl),
           mode: LaunchMode.externalApplication);
       return ok ? null : 'Could not open the browser for authorization.';

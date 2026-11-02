@@ -376,6 +376,12 @@ class CloudNotifier extends ChangeNotifier {
   /// or null. The callback returns the `cloud_connect` params — to this app's
   /// auth session (`return: "app"`, 5.1.0, ADR-159), or to /sources on a web
   /// build — and Sources spends the claim ([claim], [CloudReturn]).
+  ///
+  /// **The one way this client starts a connection** (5.46.0, ADR-201; web
+  /// `shared/cloudClaim.js` `startCloudConnect`): every Connect, Reconnect,
+  /// the return page's *Try again* and quick add come through here, so every
+  /// one of them remembers which provider it sent to consent — an error
+  /// return names none, and the return page names it.
   Future<String?> connect(String provider) async {
     try {
       final app = CloudReturn.appReturn;
@@ -383,7 +389,8 @@ class CloudNotifier extends ChangeNotifier {
           .connectCloudStorage(provider, returnTo: app ? 'app' : null);
       final authUrl = data['authUrl'] as String?;
       if (authUrl == null) return 'No authorization URL returned.';
-      if (app) return await CloudReturn.runSession(authUrl);
+      CloudReturn.noteConnecting(provider);
+      if (app) return await CloudReturn.runSession(authUrl, provider: provider);
       final ok = await launchUrl(Uri.parse(authUrl),
           mode: LaunchMode.externalApplication);
       return ok ? null : 'Could not open the browser for authorization.';
@@ -401,20 +408,25 @@ class CloudNotifier extends ChangeNotifier {
   /// claim, once, signed in. Answers the claim's response
   /// (`{cloud_connect, provider, org?, connection?, reason?}`), or the
   /// refusal's own sentence (403 another account started it, 404 expired or
-  /// already finished — §14.2 shows it verbatim). The integrations are re-read
-  /// either way: the integration exists only now.
-  Future<({Map<String, dynamic>? answer, String? refusal})> claim(
-      String claim) async {
+  /// already finished — §14 shows it verbatim, with its `requestId`). The
+  /// integrations are re-read either way: the integration exists only now.
+  Future<({Map<String, dynamic>? answer, String? refusal, String? requestId})>
+      claim(String claim) async {
     try {
       return (
         answer: await Api.instance.claimCloudConnection(claim),
-        refusal: null
+        refusal: null,
+        requestId: null,
       );
     } on UnauthorizedException {
       await AuthService.instance.signOut();
-      return (answer: null, refusal: null);
+      return (answer: null, refusal: null, requestId: null);
     } catch (e) {
-      return (answer: null, refusal: describeSdkError(e));
+      return (
+        answer: null,
+        refusal: describeSdkError(e),
+        requestId: e is ApiException ? e.requestId : null,
+      );
     } finally {
       await loadIntegrations();
     }
@@ -592,7 +604,10 @@ class CloudNotifier extends ChangeNotifier {
   }
 
   /// Kick off the import of the current selection. Returns (message, isError).
-  Future<(String, bool)> importSelection() async {
+  /// [shelfId] is *File under* (5.46.0, ADR-201): the shelf every document
+  /// this import creates joins, sent as `tag_ids: [id]`; null sends none and
+  /// the import is shelved as every document is (INV-12).
+  Future<(String, bool)> importSelection({String? shelfId}) async {
     final provider = _browseProvider;
     if (provider == null || !hasSelection) {
       return ('Nothing selected.', true);
@@ -613,6 +628,7 @@ class CloudNotifier extends ChangeNotifier {
           for (final id in _selectedFolders)
             if (_selectedFolderNames[id] case final n?) id: n,
         },
+        tagIds: shelfId == null ? null : [shelfId],
       );
       Analytics.track('capture_completed', {'surface': 'cloud'});
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
@@ -632,6 +648,86 @@ class CloudNotifier extends ChangeNotifier {
       _notify();
       return (_importError!, true);
     }
+  }
+
+  // ── The OAuth return's offer (5.46.0, ADR-201) ────────────────────────────
+  // The return page IS that provider's picker, opened on return
+  // (`screens/sources.md` §The OAuth return). Its reads and its import are
+  // its own: a picker open below on the Library keeps its crumbs, listing and
+  // ticks untouched.
+
+  /// One page of what [provider] offers at its root (`fn_list_cloud_files`,
+  /// no `folderId`), [pageToken] for the next. The listing, or the refusal's
+  /// own sentence (§14.2) — never an empty listing standing in for a failure.
+  Future<({CloudFileListing? listing, String? error})> listOffer(
+      String provider,
+      {String? pageToken}) async {
+    try {
+      final data = await Api.instance.listCloudFiles({
+        'provider': provider,
+        if (pageToken != null) 'pageToken': pageToken,
+      });
+      return (listing: CloudFileListing.fromJson(data), error: null);
+    } on UnauthorizedException {
+      await AuthService.instance.signOut();
+      return (listing: null, error: 'Session expired.');
+    } on ApiException catch (e) {
+      return (listing: null, error: e.message);
+    } catch (_) {
+      return (listing: null, error: 'Could not list files.');
+    }
+  }
+
+  /// *Bring in*: writes before it moves. `fn_import_from_cloud` with what was
+  /// ticked and — chosen — `tag_ids`; then, only when [keepInSync] (the
+  /// caller decides: the switch on, a folder ticked, auto-sync off),
+  /// `fn_sync_settings {auto_sync_enabled: true}` — ADR-201 adds no sync
+  /// model. Answers what the 202 COUNTED (ADR-103 §5), and a refused sync
+  /// write's sentence, which is said, never swallowed: the import has already
+  /// happened. A refused import answers [error] and nothing else.
+  Future<({int folders, int files, String? syncRefusal, String? error})>
+      bringIn(
+    String provider, {
+    required List<String> folderIds,
+    required List<String> fileIds,
+    Map<String, String>? folderNames,
+    List<String>? tagIds,
+    bool keepInSync = false,
+  }) async {
+    Analytics.track('capture_started', {'surface': 'cloud'});
+    final int f;
+    final int n;
+    try {
+      final data = await Api.instance.importFromCloud(
+        provider,
+        folderIds: folderIds,
+        fileIds: fileIds,
+        folderNames: folderNames,
+        tagIds: tagIds,
+      );
+      f = (data['queued_folders'] as num?)?.toInt() ?? 0;
+      n = (data['queued_files'] as num?)?.toInt() ?? 0;
+    } on UnauthorizedException {
+      await AuthService.instance.signOut();
+      return (folders: 0, files: 0, syncRefusal: null, error: 'Session expired.');
+    } on ApiException catch (e) {
+      return (folders: 0, files: 0, syncRefusal: null, error: e.message);
+    } catch (_) {
+      return (
+        folders: 0,
+        files: 0,
+        syncRefusal: null,
+        error: 'Import failed. Please try again.'
+      );
+    }
+    Analytics.track('capture_completed', {'surface': 'cloud'});
+    // A kickoff made here: the progress section and the completion notice
+    // follow it as they follow the picker's.
+    _beginSession(f);
+    _notify();
+    final refused =
+        keepInSync ? await syncSettings(provider, autoSyncEnabled: true) : null;
+    return (folders: f, files: n, syncRefusal: refused, error: null);
   }
 
   Future<String?> retryJob(String jobId) async {

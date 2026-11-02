@@ -247,7 +247,9 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       fileIds: _strs(b['file_ids']),
       includeTypes: _strs(b['include_types']),
       excludePatterns: _strs(b['exclude_patterns']),
-      folderNames: (b['folder_names'] as Map?)?.cast<String, String>()),
+      folderNames: (b['folder_names'] as Map?)?.cast<String, String>(),
+      // 5.46.0 (ADR-201): File under.
+      tagIds: _strs(b['tag_ids'])),
   'fn_retry_import_job': (b) => Api.instance.retryImportJob(b['job_id']),
   'fn_request_cloud_sync': (b) => Api.instance.requestCloudSync(b['provider']),
   'fn_sync_settings': (b) => Api.instance.syncSettings(b['provider'],

@@ -11,6 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flutter_app/models/cloud_file.dart';
 import 'package:flutter_app/models/cloud_integration.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/shared/cloud_return.dart';
@@ -83,19 +84,35 @@ class _ClaimCloud extends CloudNotifier {
       : null;
 
   @override
-  Future<({Map<String, dynamic>? answer, String? refusal})> claim(
-      String claim) async {
+  Future<({Map<String, dynamic>? answer, String? refusal, String? requestId})>
+      claim(String claim) async {
     claimed.add(claim);
     if (gate != null) await gate;
     final a = answer;
     if (a != null && a['cloud_connect'] == 'success' && a['provider'] is String) {
       live.add(a['provider'] as String);
     }
-    return (answer: a, refusal: refusal);
+    return (answer: a, refusal: refusal, requestId: null);
   }
 
   @override
   Future<void> openPicker(String provider) async => opened.add(provider);
+
+  /// The return page's root listing (5.46.0, ADR-201), without a network.
+  @override
+  Future<({CloudFileListing? listing, String? error})> listOffer(
+          String provider,
+          {String? pageToken}) async =>
+      (
+        listing: CloudFileListing(
+          items: const [
+            CloudFile(id: 'f1', name: 'Reading', type: 'folder'),
+          ],
+          folderId: 'root',
+          provider: provider,
+        ),
+        error: null,
+      );
 }
 
 void main() {
@@ -104,6 +121,7 @@ void main() {
     ApiService.instance.resetTestSeams();
     CloudReturn.session = null;
     CloudReturn.take();
+    CloudReturn.forgetConnecting();
   });
 
   group('the app asks for its own return, and holds what comes back', () {
@@ -125,6 +143,9 @@ void main() {
       expect(held.claim, 'cap-claim-app');
       expect(held.provider, 'google_drive');
       expect(CloudReturn.take(), isNull, reason: 'taken once, then nothing');
+      // The one connect entry point remembers where it sent the reader
+      // (5.46.0, ADR-201).
+      expect(CloudReturn.connectingProvider, 'google_drive');
     });
 
     test('the organization grant asks for the same return', () async {
@@ -158,6 +179,18 @@ void main() {
       expect(held.result, 'error');
       expect(held.reason, 'access_denied');
       expect(held.claim, isNull);
+      // An error redirect names no provider; the session that ran does
+      // (5.46.0, ADR-201), so the return page can say *Google Drive*.
+      expect(held.provider, 'google_drive');
+    });
+
+    test('a provider the return carried is never overwritten', () async {
+      ApiService.instance.httpClientAdapter =
+          _Server({'authUrl': 'https://accounts.example/auth'});
+      CloudReturn.session = (_) async =>
+          'noteletter://cloud-connect?cloud_connect=claim&claim=c&provider=notion';
+      await CloudNotifier().connect('dropbox');
+      expect(CloudReturn.take()!.provider, 'notion');
     });
 
     test('a 4.x success link is not a return anyone acts on', () {
@@ -168,8 +201,8 @@ void main() {
     });
   });
 
-  group('Sources spends the claim once and answers it', () {
-    testWidgets('a held claim is spent on arrival, then the picker opens',
+  group('Sources spends the claim once and answers it on the return page', () {
+    testWidgets('a held claim is spent on arrival, then {Provider}, Connected',
         (tester) async {
       final gate = Completer<void>();
       final cloud = _ClaimCloud(
@@ -179,22 +212,24 @@ void main() {
               .cast<String, String>())!);
       await pumpSources(tester, SourcesStubService(), cloud: cloud);
       expect(cloud.claimed, ['cap-claim-own']);
+      // 5.46.0 (ADR-201): the claim in flight is the return page's, in place
+      // of the Library.
+      expect(find.text('Connecting Google Drive'), findsOneWidget);
       expect(find.text('Finishing the Google Drive connection…'), findsOneWidget,
           reason: 'the exchange takes a moment, and the return says so');
+      expect(find.text('The Library'), findsNothing);
 
       gate.complete();
       await tester.pump();
       await tester.pump();
       expect(find.text('Finishing the Google Drive connection…'), findsNothing);
-      // Direction D: the return is said in the Library's notices strip and
-      // the first-import nudge over the panels — no toast.
-      expect(
-          find.text('Connected to Google Drive — import your first files '
-              'below.'),
-          findsOneWidget);
-      expect(find.text('Google Drive connected.'), findsNothing);
-      expect(cloud.opened, ['google_drive'],
-          reason: 'the first-import prompt fires on return');
+      expect(find.text('Google Drive, Connected'), findsOneWidget);
+      expect(find.text('Reading'), findsOneWidget,
+          reason: 'what the provider offers, from the root listing');
+      // One prompt, not two: the Library nudge and its picker are retired.
+      expect(find.textContaining('import your first files'), findsNothing);
+      expect(cloud.opened, isEmpty,
+          reason: 'the return page IS the picker; none opens behind it');
       await tester.pump();
       expect(cloud.claimed, hasLength(1), reason: 'a claim is spent once');
       await tester.pump(const Duration(seconds: 10));
@@ -213,18 +248,18 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(cloud.claimed, ['cap-claim-app']);
+      expect(find.text('Already Connected'), findsOneWidget);
       expect(
-          find.text('Google Drive was already connected — your sign-in was '
-              'refreshed and nothing else changed.'),
+          find.text('This Google Drive account was connected already. Your '
+              'sign-in was refreshed, and nothing else changed.'),
           findsOneWidget);
-      expect(find.textContaining('import your first files'), findsNothing,
-          reason: 'no import nudge: nothing was added to import');
+      expect(find.text('no sync folders · auto-sync off'), findsOneWidget);
       expect(cloud.opened, isEmpty,
           reason: 'a re-authorisation adds nothing to import');
       await tester.pump(const Duration(seconds: 10));
     });
 
-    testWidgets('a refused claim is §14.2 with the server\'s own sentence',
+    testWidgets('a refused claim is §14\'s block with the server\'s sentence',
         (tester) async {
       final refused = _body('cloud-storage', 'cloud:claim-wrong-account');
       final cloud = _ClaimCloud(refusal: refused['error'] as String);
@@ -232,12 +267,16 @@ void main() {
           claim: 'cap-claim-handed', provider: 'google_drive'));
       await pumpSources(tester, SourcesStubService(), cloud: cloud);
       await tester.pump();
-      expect(find.byType(KitFailureInline), findsOneWidget);
+      expect(find.text('Not Connected'), findsOneWidget);
+      expect(find.byType(KitFailureBlock), findsOneWidget);
+      expect(find.text('The connection was not finished.'), findsOneWidget);
       expect(find.text(refused['error'] as String), findsOneWidget);
+      expect(find.text('Connect Google Drive again'), findsOneWidget);
+      expect(find.text('Google Drive, Connected'), findsNothing);
       expect(cloud.opened, isEmpty);
     });
 
-    testWidgets('an org grant confirms the upgrade, and opens no picker',
+    testWidgets('an org grant confirms the upgrade on the Library',
         (tester) async {
       final cloud = _ClaimCloud(answer: {
         ..._body('cloud-storage', 'cloud:claim'),
@@ -249,11 +288,13 @@ void main() {
       await tester.pump();
       expect(find.text('Auto-organization is now enabled for Google Drive.'),
           findsOneWidget);
+      expect(find.text('The Library'), findsOneWidget,
+          reason: 'about organization, not a connection: no return page');
       expect(cloud.opened, isEmpty);
       await tester.pump(const Duration(seconds: 10));
     });
 
-    testWidgets('an error return is the reason banner, and spends nothing',
+    testWidgets('an error return is Nothing Was Shared, and spends nothing',
         (tester) async {
       final cloud = _ClaimCloud();
       final p = _body('cloud-storage', 'cloud:callback-error-return-app')['params']
@@ -261,18 +302,16 @@ void main() {
       CloudReturn.hold(CloudReturn.fromParams(
           {...p.cast<String, String>(), 'provider': 'google_drive'})!);
       await pumpSources(tester, SourcesStubService(), cloud: cloud);
-      expect(
-          find.text('Access to Google Drive was declined. Connect again and '
-              'approve to import your files.'),
-          findsOneWidget);
-      expect(cloud.claimed, isEmpty);
-      // Direction D: a reason banner is a notice on the accent rule, and it
-      // can be dismissed.
-      expect(find.byType(KitLibNotice), findsOneWidget);
-      await tester.tap(find.widgetWithText(KitHxLink, 'Dismiss'));
       await tester.pump();
-      expect(find.textContaining('Access to Google Drive was declined'),
-          findsNothing);
+      expect(find.text('Nothing Was Shared'), findsOneWidget);
+      expect(
+          find.text('You declined access in the Google Drive window, so '
+              'nothing came across. Your library is exactly as you left it.'),
+          findsOneWidget);
+      expect(find.text('error: access_denied'), findsOneWidget);
+      expect(find.text('Try Google Drive again'), findsOneWidget);
+      expect(find.text('Add files instead'), findsOneWidget);
+      expect(cloud.claimed, isEmpty);
     });
 
     testWidgets('a claim answered with an error names its reason',
@@ -286,9 +325,16 @@ void main() {
           const CloudReturn('claim', claim: 'c', provider: 'dropbox'));
       await pumpSources(tester, SourcesStubService(), cloud: cloud);
       await tester.pump();
+      expect(find.text('Not Connected'), findsOneWidget);
       expect(find.text('Couldn’t finish connecting Dropbox. Please try '
           'again.'), findsOneWidget,
           reason: 'open vocabulary: an unknown reason is the generic copy');
+      expect(find.text('error: something_new'), findsOneWidget);
+      // Back to library leaves the page, nothing queued.
+      await tester.ensureVisible(find.text('Back to library'));
+      await tester.tap(find.text('Back to library'));
+      await tester.pump();
+      expect(find.text('The Library'), findsOneWidget);
     });
   });
 }

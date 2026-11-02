@@ -8,6 +8,7 @@ import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/document.dart';
 import '../models/import_job.dart';
+import '../models/tag.dart';
 import '../shared/cloud_providers.dart';
 import '../shared/cloud_return.dart';
 import '../shared/cooldown.dart';
@@ -32,11 +33,13 @@ import 'settings/summaries_section.dart';
 import 'sources/browse_section.dart';
 import 'sources/cloud_picker.dart';
 import 'sources/cloud_sync_copy.dart';
+import 'sources/file_under.dart';
 import 'sources/import_review_queue.dart';
 import 'sources/source_facets.dart';
 import 'sources/suggestion_queue.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/camera_roll.dart';
+import 'sources/oauth_return.dart';
 import 'sources/sync_settings_panel.dart';
 import 'reader/supersession_confirm.dart';
 
@@ -113,29 +116,24 @@ class SourcesPage extends StatefulWidget {
 }
 
 class _SourcesPageState extends State<SourcesPage> {
-  // ── The OAuth return, said by the notices strip (§States) ─────────────────
+  // ── The OAuth return (§States, §The OAuth return) ─────────────────────────
 
-  /// A `cloud_connect=error` reason, in §States' copy.
+  /// The open return (5.46.0, ADR-201): while there is one, the return page
+  /// stands in place of the Library — the claim in flight, *{Provider},
+  /// Connected* or a notice. Leaving it (*Not now*, *Back to library*,
+  /// *Bring in*) comes back here, with what Bring in queued in [_returnNote].
+  OAuthReturn? _ret;
+
+  /// What the return page's *Bring in* queued — a status in the notices.
+  String? _returnNote;
+
+  /// An `insufficient_scope` reason, in §States' copy — one of the two
+  /// answers about organization rather than a connection, which stay on the
+  /// Library's notices.
   String? _errorBanner;
 
-  /// The provider whose returned claim is being spent (5.0.0, ADR-158): the
-  /// exchange with the provider happens inside that request, so it takes a
-  /// moment, and the return says so rather than look like nothing happened.
-  String? _claiming;
-
-  /// A claim the server REFUSED (403 another account started it, 404 expired
-  /// or already finished) — its own sentence, verbatim (§14.2).
-  String? _claimRefusal;
-
-  /// `org: "enabled"` — the write-scope upgrade, confirmed.
+  /// `org: "enabled"` — the write-scope upgrade, confirmed (the other).
   String? _orgEnabled;
-
-  /// `connection: "reconnected"` (2.21.0, ADR-026): nothing was added.
-  String? _alreadyConnected;
-
-  /// A new connection: the first-import nudge over the panels, and that
-  /// provider's picker open (web `justConnected`).
-  String? _justConnected;
 
   CloudNotifier? _cloud;
   DocumentsNotifier? _docs;
@@ -269,7 +267,19 @@ class _SourcesPageState extends State<SourcesPage> {
 
   Future<void> _actOnReturn(CloudReturn r) async {
     if (r.result == 'error') {
-      setState(() => _errorBanner = _reasonCopy(r.provider, r.reason));
+      // An error return names no provider (api/cloud-storage.md §Result
+      // params): the one this client sent to consent is remembered.
+      final provider = r.provider ?? await CloudReturn.recallConnecting();
+      if (!mounted) return;
+      final reason = r.reason ?? '';
+      setState(() {
+        if (reason == 'insufficient_scope') {
+          _errorBanner = connectReasonCopy(provider, reason);
+        } else {
+          _ret = OAuthReturn(ReturnPhase.error,
+              provider: provider, reason: reason);
+        }
+      });
       return;
     }
     // `error` and `claim` are the only results a return carries (5.0.0);
@@ -278,87 +288,59 @@ class _SourcesPageState extends State<SourcesPage> {
     if (r.result != 'claim' || claim == null || claim.isEmpty) return;
     final cloud = context.read<CloudNotifier>();
     setState(() {
-      _claiming = r.provider ?? '';
-      _claimRefusal = null;
+      _ret = OAuthReturn(ReturnPhase.claiming, provider: r.provider);
       _errorBanner = null;
     });
-    final (:answer, :refusal) = await cloud.claim(claim);
+    final (:answer, :refusal, :requestId) = await cloud.claim(claim);
     if (!mounted) return;
-    setState(() {
-      _claiming = null;
-      _claimRefusal = refusal;
-    });
     final res = answer;
-    if (res == null) return;
-    final provider = (res['provider'] as String?) ?? r.provider;
-    if (res['cloud_connect'] == 'success') {
-      await _confirmConnected(provider,
-          org: res['org'] == 'enabled',
-          reconnected: res['connection'] == 'reconnected');
-    } else {
-      setState(() =>
-          _errorBanner = _reasonCopy(provider, res['reason'] as String?));
-    }
-  }
-
-  // Success → say it in the notices strip, and auto-open the provider's picker
-  // (the first-import prompt fires on return, not on a later focus event).
-  Future<void> _confirmConnected(String? provider,
-      {required bool org, required bool reconnected}) async {
-    final cloud = context.read<CloudNotifier>();
-    // 2.21.0 — a re-authorisation is not a new connection: it says what
-    // happened and stops, with no import nudge. org_upgrade confirms the
-    // write-scope grant; the reader was not importing, so no first-import
-    // prompt either. Open vocabulary, so anything unrecognised takes the
-    // new-connect path rather than falling into silence.
     setState(() {
-      if (org) {
+      if (res == null) {
+        // A refusal (403 another account started it, 404 expired or already
+        // finished) — its own sentence, verbatim (§14), on the return page.
+        // None at all: the session ended, and sign-in has the screen.
+        _ret = refusal == null
+            ? null
+            : OAuthReturn(ReturnPhase.refused,
+                provider: r.provider,
+                refusal: refusal,
+                refusalRequestId: requestId);
+        return;
+      }
+      final provider = (res['provider'] as String?) ?? r.provider;
+      if (res['cloud_connect'] == 'success' && res['org'] == 'enabled') {
+        // org_upgrade: confirm the write-scope grant; the reader was not
+        // importing, so no return page.
+        _ret = null;
         _orgEnabled = provider ?? '';
-      } else if (reconnected) {
-        _alreadyConnected = provider ?? '';
+      } else if (res['cloud_connect'] != 'success' &&
+          res['reason'] == 'insufficient_scope') {
+        _ret = null;
+        _errorBanner = connectReasonCopy(provider, 'insufficient_scope');
       } else {
-        _justConnected = provider;
+        _ret = OAuthReturn(ReturnPhase.claimed, provider: provider, answer: res);
       }
     });
-    if (provider != null && !reconnected && !org) {
-      await cloud.openPicker(provider);
-    }
   }
 
-  // The reference's connectErrorCopy (ADR-012). Open vocabulary — unknown
-  // reasons fall through to generic copy. insufficient_scope is the one
-  // "error" where the base connection did succeed: only the
-  // auto-organization write-scope upgrade was declined.
-  String _reasonCopy(String? provider, String? reason) {
-    final name = _providers[provider]?.name ?? 'the service';
-    final cap = _providers[provider]?.name ?? 'The service';
-    switch (reason) {
-      case 'invalid_state':
-        return 'That sign-in link expired before it could finish. Connect '
-            '$name again.';
-      case 'missing_params':
-        return 'The connection didn’t complete. Connect $name again.';
-      case 'insufficient_scope':
-        return '$cap is connected, but didn’t grant the permissions '
-            'needed for auto-organization. Reconnect and allow all requested '
-            'access to enable it.';
-      case 'access_denied':
-        return 'Access to $name was declined. Connect again and approve to '
-            'import your files.';
-      default:
-        return 'Couldn’t finish connecting $name. Please try again.';
-    }
+  /// Leaving the return page: the Library again, on the same address, with
+  /// what Bring in queued said in the notices.
+  void _leaveReturn(String? note) {
+    setState(() {
+      _ret = null;
+      if (note != null) _returnNote = note;
+    });
+    context.read<CloudNotifier>().loadIntegrations();
   }
 
   /// The strip's sentences, in web's order.
   List<Widget> _notices() => [
-        if (_claiming != null)
+        if (_returnNote != null)
           KitLibNotice(
-            'Finishing the ${_providers[_claiming]?.name ?? 'cloud'} '
-            'connection…',
+            _returnNote!,
             status: true,
+            onDismiss: () => setState(() => _returnNote = null),
           ),
-        if (_claimRefusal != null) KitFailureInline(_claimRefusal!),
         if (_errorBanner != null)
           KitLibNotice(_errorBanner!,
               warn: true,
@@ -368,14 +350,6 @@ class _SourcesPageState extends State<SourcesPage> {
             'Auto-organization is now enabled for '
             '${_providers[_orgEnabled]?.name ?? 'your service'}.',
             onDismiss: () => setState(() => _orgEnabled = null),
-          ),
-        // ADR-026: a re-authorisation, not a new source.
-        if (_alreadyConnected != null)
-          KitLibNotice(
-            '${_providers[_alreadyConnected]?.name ?? 'That service'} was '
-            'already connected — your sign-in was refreshed and nothing else '
-            'changed.',
-            onDismiss: () => setState(() => _alreadyConnected = null),
           ),
       ];
 
@@ -392,6 +366,22 @@ class _SourcesPageState extends State<SourcesPage> {
     final upload = context.watch<UploadNotifier>();
     final aiOn = shellAiOn(context);
     final dark = Tokens.of(context).isDark;
+
+    // The return page stands in for the Library while a return is open
+    // (5.46.0, ADR-201). Every listener and subscription above runs either
+    // way; only what is drawn changes.
+    final ret = _ret;
+    if (ret != null) {
+      return OAuthReturnPage(
+        ret: ret,
+        shelves: tags.tags,
+        onLeave: _leaveReturn,
+        onAddFiles: () {
+          setState(() => _ret = null);
+          context.go('/sources/add');
+        },
+      );
+    }
 
     final model = kitShelfModel(tags.tags, docs.documents);
     final all = model.complete.where((d) => !_justDone.containsKey(d.id)).toList();
@@ -762,14 +752,9 @@ class _SourcesPageState extends State<SourcesPage> {
                 cloud.lastDisconnect!.$1,
             cloud.lastDisconnect!.$2,
           )),
-        // The first-import nudge (web CloudImportPanel's `.import-nudge`),
-        // for the provider a claim just connected.
-        if (_justConnected != null && connected.contains(_justConnected))
-          KitLibNotice(
-            'Connected to ${_providers[_justConnected]?.name ?? _justConnected} '
-            '— import your first files below.',
-            onDismiss: () => setState(() => _justConnected = null),
-          ),
+        // The post-connect prompt is the OAuth return page now (5.46.0,
+        // ADR-201): it IS that provider's picker, opened on return, so no
+        // nudge here and no picker re-opened behind it.
         // One block per connected provider, under its own header ("Import
         // from {provider}", web `CloudImportPanel`): Sync now, Sync settings,
         // Browse files… and Organization settings, the sync sentence, the
@@ -881,6 +866,9 @@ class _ServiceRowState extends State<_ServiceRow> {
       provider: widget.providerId,
       name: widget.spec.name,
       line: widget.spec.sub,
+      // The account once connected, the invitation before (kit §5.1, 5.46.0,
+      // ADR-201) — *Connected* while no address is stored.
+      account: widget.integration?.providerEmail,
       connected: connected,
       action: connected
           ? KitLibAct('Disconnect', onTap: _disconnect)
@@ -1119,6 +1107,11 @@ class _PickerPanel extends StatefulWidget {
 class _PickerPanelState extends State<_PickerPanel> {
   bool _saving = false;
 
+  /// *File under* (5.46.0, ADR-201): the shelf this import files under —
+  /// null, *NoteLetter chooses*. The import picker only: a folder chooser
+  /// imports nothing, so there is nothing to file.
+  String? _shelf;
+
   /// A cap that blocks a toggle says so IN the panel, as the reference's
   /// `capNote` does — a control that silently does nothing reads as broken.
   String? _capNote;
@@ -1128,9 +1121,12 @@ class _PickerPanelState extends State<_PickerPanel> {
     setState(() => _capNote = note);
   }
 
-  Future<void> _confirm(CloudNotifier cloud) async {
+  Future<void> _confirm(CloudNotifier cloud, List<Tag> shelves) async {
     setState(() => _saving = true);
-    final (msg, isErr) = await cloud.importSelection();
+    // Sent only while the library still holds it — the select draws exactly
+    // what the request files.
+    final shelf = shelfPathLabel(shelves, _shelf) == null ? null : _shelf;
+    final (msg, isErr) = await cloud.importSelection(shelfId: shelf);
     if (!mounted) return;
     setState(() => _saving = false);
     // A refusal is drawn in the picker (importError); only the 202's count is
@@ -1142,6 +1138,7 @@ class _PickerPanelState extends State<_PickerPanel> {
   @override
   Widget build(BuildContext context) {
     final cloud = context.watch<CloudNotifier>();
+    final shelves = context.watch<TagsNotifier>().tags;
     final listing = cloud.listing;
     final provider = cloud.browseProvider ?? '';
     final crumbs = cloud.crumbs;
@@ -1192,11 +1189,22 @@ class _PickerPanelState extends State<_PickerPanel> {
         if (listing?.nextPageToken != null)
           CloudPickerLoadMore(
               loading: cloud.loadingMore, onTap: cloud.loadMore),
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: FileUnder(
+            shelves: shelves,
+            value: shelfPathLabel(shelves, _shelf) == null ? null : _shelf,
+            onChanged: (v) => setState(() => _shelf = v),
+            disabled: _saving,
+            note: 'Applies to what you import now.',
+            top: 10,
+          ),
+        ),
         CloudPickerFoot(
           confirmLabel: _saving
               ? 'Queuing…'
               : 'Import $total item${total == 1 ? '' : 's'}',
-          onConfirm: total == 0 ? null : () => _confirm(cloud),
+          onConfirm: total == 0 ? null : () => _confirm(cloud, shelves),
           onCancel: cloud.closePicker,
           busy: _saving,
         ),
