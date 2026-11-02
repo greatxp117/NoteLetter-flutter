@@ -3484,7 +3484,9 @@ void main() {
     await waitFor(find.textContaining(kitGreeting(), findRichText: true),
         'the greeting');
     await oneHead();
-    final folio = find.textContaining('SOURCES ·', findRichText: true);
+    // The masthead sets each ` · ` with a no-break space before the dot
+    // (kitFolioText, since F-143): a plain-space finder matched nothing.
+    final folio = find.textContaining('SOURCES\u00a0·', findRichText: true);
     await waitFor(folio, "the folio's figures");
     final folioText = tester.widget<KitMasthead>(find.byType(KitMasthead)).folio;
     debugPrint('DEVICE-RUN F-141 home folio "$folioText"');
@@ -3534,7 +3536,7 @@ void main() {
     // ── the Library: a facet, an order, List ↔ Grid ──
     router.go('/sources');
     await waitFor(find.text('The Library'), 'the Library');
-    await waitFor(find.textContaining('VOLUMES ·', findRichText: true),
+    await waitFor(find.textContaining('VOLUMES\u00a0·', findRichText: true),
         "the Library's folio");
     await waitFor(find.text('The catalogue'), 'the catalogue');
     await oneHead();
