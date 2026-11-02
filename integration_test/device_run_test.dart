@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
@@ -18,6 +20,7 @@ import 'package:flutter_app/router.dart';
 import 'package:flutter_app/pages/sources/browse_section.dart';
 import 'package:flutter_app/pages/sources/folder_contents.dart';
 import 'package:flutter_app/services/api.dart';
+import 'package:flutter_app/shared/cloud_return.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
@@ -4014,6 +4017,123 @@ void main() {
     expect(tabAsk, findsOneWidget, reason: 'Ask did not come back');
     debugPrint('DEVICE-RUN F-144 ai back on: tab=Ask');
     expect(tester.takeException(), isNull);
+  });
+
+  // F-151 (5.46.0, ADR-201): the OAuth return on a phone. The consent at the
+  // provider is the one external edge, so the in-app auth session is stood in
+  // for (`CloudReturn.session`) and hands back exactly what the callback sends
+  // an app — `noteletter://cloud-connect?cloud_connect=claim&…` — for a claim
+  // parked in the emulator in the callback's own shape. Everything after it is
+  // real: Connect through the shim, the claim (the shim fakes only the
+  // provider's code exchange), the return page, the listing (the shim's Drive
+  // fake), and the import with File under.
+  testWidgets(
+      'the OAuth return: an app session comes back, is claimed, and the page '
+      'files the import under a shelf (F-151)', (tester) async {
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    Future<void> park(String token, String provider) async {
+      final id = sha256.convert(utf8.encode(token)).toString();
+      final now = DateTime.now().toUtc();
+      final r = await rest.post('/oauth_claims',
+          queryParameters: {'documentId': id},
+          data: {
+            'fields': {
+              'uid': {'stringValue': uid},
+              'provider': {'stringValue': provider},
+              'purpose': {'stringValue': 'connect'},
+              'write': {'booleanValue': false},
+              'code': {'stringValue': 'device-code-$provider'},
+              'created_at': {'timestampValue': now.toIso8601String()},
+              'expires_at': {
+                'timestampValue':
+                    now.add(const Duration(minutes: 10)).toIso8601String()
+              },
+            },
+          });
+      expect(r.statusCode, 200, reason: 'park $provider: ${r.data}');
+    }
+
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    final notionToken = 'device-notion-$stamp';
+    // A re-run starts from a Notion the seed does not have.
+    await rest.delete('/users/$uid/integrations/notion');
+    await park(notionToken, 'notion');
+    String? sessionUrl;
+    CloudReturn.session = (url) async {
+      sessionUrl = url;
+      return 'noteletter://cloud-connect?cloud_connect=claim'
+          '&claim=$notionToken&provider=notion';
+    };
+    try {
+      final router = await pumpApp(tester);
+      router.go('/sources');
+      await pumpFor(tester, total: const Duration(seconds: 5));
+
+      // (1) Notion: Connect → the session → a NEW connection whose (fake,
+      // empty) workspace lists nothing.
+      final notionRow = find.ancestor(
+          of: find.text('Notion'), matching: find.byType(KitServiceRow));
+      final connect =
+          find.descendant(of: notionRow, matching: find.text('Connect'));
+      await tester.ensureVisible(connect.first);
+      await tester.tap(connect.first);
+      await pumpFor(tester, total: const Duration(seconds: 8));
+      expect(sessionUrl, isNotNull, reason: 'Connect opened no auth session');
+      expect(Uri.parse(sessionUrl!).host, 'api.notion.com');
+      expect(find.text('Nothing to Bring In'), findsOneWidget);
+      await tester.tap(find.text('Back to library').first);
+      await pumpFor(tester, total: const Duration(seconds: 4));
+      // The connect card carries the account the claim stored (kit §5.1).
+      expect(find.text('scn-notion@provider.example'), findsOneWidget);
+
+      // (2) Google Drive is in the seed: a returned claim answers
+      // `reconnected` → Already Connected → the manifest over the Drive fake.
+      final driveToken = 'device-drive-$stamp';
+      await park(driveToken, 'google_drive');
+      CloudReturn.hold(
+          CloudReturn('claim', claim: driveToken, provider: 'google_drive'));
+      await pumpFor(tester, total: const Duration(seconds: 6));
+      expect(find.text('Already Connected'), findsOneWidget);
+      await tester.tap(find.text('Choose what comes across'));
+      await pumpFor(tester, total: const Duration(seconds: 6));
+      expect(find.text('Google Drive, Connected'), findsOneWidget);
+      // The shim's Drive fake: one folder, Docs, at the root.
+      final docs = find.bySemanticsLabel('Bring in Docs');
+      await tester.ensureVisible(docs.first);
+      await tester.tap(docs.first);
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      // File under: the seed's Finance shelf, from the select.
+      await tester.ensureVisible(find.text('NoteLetter chooses').first);
+      await tester.tap(find.text('NoteLetter chooses').first);
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      await tester.tap(find.text('Finance').last);
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      final bring = find.text('Bring in 1 item');
+      await tester.ensureVisible(bring);
+      await tester.tap(bring);
+      await pumpFor(tester, total: const Duration(seconds: 6));
+      expect(
+          find.textContaining(
+              'Queued 1 folder and 0 files from Google Drive, filed under Finance'),
+          findsOneWidget);
+      final integ = await rest.get('/users/$uid/integrations/google_drive');
+      final cfg = integ.data['fields']['sync_config']['mapValue']['fields'];
+      final folders =
+          (cfg['folder_ids']['arrayValue']['values'] as List?) ?? const [];
+      expect(folders.length, 1, reason: 'the sync folder was not stored');
+      expect(integ.data['fields']['auto_sync_enabled']['booleanValue'], true,
+          reason: 'Keep in sync did not turn auto-sync on');
+    } finally {
+      CloudReturn.session = null;
+    }
   });
 }
 
