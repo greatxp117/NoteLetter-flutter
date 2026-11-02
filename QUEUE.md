@@ -2420,7 +2420,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier 2026-11-01 (rulings 3 and 4): the page is built inside Study, reached from the programs masthead's standfirst link and the empty state (never onboarding); its copy is the spec's, corrected claim by claim against area_study.py (ten documents, not fifty). The references open in the system browser. Key hints (space, 1-4, the keys note, the sheet's Keys) hide below 1024; the keys stay bound. CLAUDE.md's touch-copy deviation line said 'no keys bound', false since F-145.
 
 ## F-149 · Your librarian in Letter settings, as the spec writes it (5.48.0)
-- status: blocked: pairs owed: the device test PASSED on 432E0C97 from the main tree (2026-11-02); letter-settings and letter-settings-librarian pairs after web c/librarian is merged (its frames carry the field)
+- status: done 2026-11-02
 - screen: letter-settings
 - route: /letters/settings
 - spec: spec/screens/letters.md §Your librarian; spec/screens/letters.md §Composition; spec/screens/onboarding.md; spec/api/newsletter.md
