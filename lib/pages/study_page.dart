@@ -32,6 +32,10 @@ import '../shared/cooldown.dart';
 import '../state/study_schedule.dart';
 import '../widgets/kit/kit.dart';
 
+/// The way into How Deep Study Works (5.45.0): the masthead's standfirst link
+/// and the empty state's ghost button, one spelling.
+const studyHowLabel = 'How deep study works';
+
 class StudyPage extends StatefulWidget {
   const StudyPage({super.key});
 
@@ -178,6 +182,7 @@ class _StudyPageState extends State<StudyPage> {
   }
 
   void _newProgram() => context.go('/study/new');
+  void _openHow() => context.go('/study/how-it-works');
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +232,8 @@ class _StudyPageState extends State<StudyPage> {
           'A program turns your own documents into questions that come back '
           'on their own schedule. How you grade an answer decides when you '
           'see it next.',
+      // How Deep Study Works (5.45.0) — in the standfirst, so a phone has it.
+      standLink: KitStandLink(studyHowLabel, onTap: _openHow),
       action: KitPageAction(
         label: 'New program',
         short: 'New program',
@@ -399,6 +406,7 @@ class _StudyPageState extends State<StudyPage> {
     ],
     actions: [
       KitButton('New program', icon: Icons.add, onPressed: _newProgram),
+      KitButton.ghost(studyHowLabel, onPressed: _openHow),
     ],
   );
 

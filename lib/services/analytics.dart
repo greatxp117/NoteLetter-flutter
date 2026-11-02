@@ -125,6 +125,7 @@ const Map<String, String> screenNames = <String, String>{
   '/reader/:docId': 'reader',
   '/study': 'study',
   '/study/new': 'study',
+  '/study/how-it-works': 'study-how',
   '/study/:programId': 'study',
   '/study/session/:sessionId': 'study-session',
   '/support': 'support',

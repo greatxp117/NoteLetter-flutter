@@ -225,12 +225,26 @@ String kitFolioText(String folio) => folio.replaceAll(' · ', '\u00a0· ');
 /// optional italic **standfirst**, and the **double rule**. At 1024 and under
 /// the tools leave the rail (the chrome carries them) and on a phone the folio
 /// wraps instead of truncating.
+/// A link that ends a standfirst (web: an `a.link` inside `.ed-stand`): the
+/// standfirst's own type in `--link`, underlined in `--link-decor`. Study's
+/// *How deep study works* (5.45.0) — the masthead, not the toolbar, because
+/// the toolbar leaves the rail at 1024 and under, and the link must reach a
+/// phone.
+class KitStandLink {
+  final String label;
+  final VoidCallback onTap;
+  const KitStandLink(this.label, {required this.onTap});
+}
+
 class KitMasthead extends StatelessWidget {
   final String folio;
   final Widget? back;
   final Widget? tools;
   final String title;
   final String? stand;
+
+  /// A link set after the standfirst, in its line ([KitStandLink]).
+  final KitStandLink? standLink;
 
   /// A title still being read (the source page's cold open): drawn in the
   /// title's place, e.g. a skeleton line.
@@ -257,6 +271,7 @@ class KitMasthead extends StatelessWidget {
     this.back,
     this.tools,
     this.stand,
+    this.standLink,
     this.titleWidget,
     this.byline,
     this.crumbStacks = false,
@@ -451,7 +466,19 @@ class KitMasthead extends StatelessWidget {
                     constraints: BoxConstraints(
                       maxWidth: 72 * KitText.ch(context, standStyle),
                     ),
-                    child: Text(stand!, style: standStyle),
+                    child: standLink == null
+                        ? Text(stand!, style: standStyle)
+                        : Text.rich(TextSpan(
+                            style: standStyle,
+                            children: [
+                              TextSpan(text: '${stand!} '),
+                              WidgetSpan(
+                                alignment: PlaceholderAlignment.baseline,
+                                baseline: TextBaseline.alphabetic,
+                                child: _StandLink(standLink!, standStyle),
+                              ),
+                            ],
+                          )),
                   ),
                 ),
               ),
@@ -473,6 +500,37 @@ class KitMasthead extends StatelessWidget {
   }
 }
 
+
+class _StandLink extends StatelessWidget {
+  final KitStandLink link;
+  final TextStyle style;
+  const _StandLink(this.link, this.style);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      link: true,
+      button: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: link.onTap,
+          child: Text(
+            link.label,
+            style: style.copyWith(
+              color: t.link,
+              decoration: TextDecoration.underline,
+              decorationColor: t.linkDecor,
+              decorationThickness: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 // ── §27 The one toolbar ─────────────────────────────────────────────────────
 
 /// §27 — the rail's tools in their one order: Search (or the page's own field,
@@ -1998,6 +2056,8 @@ class KitDPage extends StatefulWidget {
   final KitDBackControl? back;
   final String title;
   final String? stand;
+  /// A link after the standfirst ([KitStandLink], Study's *How deep study works*).
+  final KitStandLink? standLink;
 
   /// Search in the toolbar (default) — false hides it.
   final bool search;
@@ -2054,6 +2114,7 @@ class KitDPage extends StatefulWidget {
     this.crumbStacks = false,
     this.gridTop = 36,
     this.stand,
+    this.standLink,
     this.search = true,
     this.field,
     this.actions = const [],
@@ -2295,6 +2356,7 @@ class _KitDPageState extends State<KitDPage> {
             tools: tools,
             title: widget.title,
             stand: widget.stand,
+            standLink: widget.standLink,
             titleWidget: widget.titleWidget,
             byline: widget.byline,
             crumbStacks: widget.crumbStacks,

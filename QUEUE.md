@@ -2406,6 +2406,32 @@ a new obligation on a finished screen is a new item.
 - extra_gates: flutter test test/contract
 - notes: Xavier's ruling 2 of 2026-11-01 (W2's XAVIER 1). Two reads: read_events (one-shot, limit 50) and a doc-scoped onSnapshot of activity_events (user_id == + metadata.doc_id ==, created_at desc, limit 50) over the composite index created in prod 2026-11-01. Never a title match, never the account's latest-200 window. No count; a half at its limit is labelled; a failed half is KitFailureBlock above the rows that loaded. Lane `history`, briefs and reports in ../.claude/calls-2026-11-01/.
 
+## F-148 · How Deep Study Works, inside Study; a session's key hints hidden below 1024 (5.45.0)
+- status: in-progress
+- screen: study, study-how, study-session
+- route: /study, /study/how-it-works, /study/session/{id}
+- spec: spec/screens/study.md
+- web: src/pages/study/StudyHow.jsx (new); src/pages/StudyView.jsx; src/pages/study/SessionPlayer.jsx; src/styles/app-study.css; src/styles/app-d-pages.css
+- flutter: lib/pages/study/study_how.dart (new); lib/pages/study_page.dart; lib/pages/study/session_player.dart; lib/widgets/kit/kit_d_study.dart; lib/widgets/kit/kit_d_frame.dart; lib/router.dart; lib/services/analytics.dart; test/kit/d_study_review_activity_test.dart; integration_test/device_run_test.dart; CLAUDE.md
+- folds: 5.45.0
+- device_test: integration_test: Study's masthead link and the empty state's button open How Deep Study Works; its New program opens the editor; a session at phone width draws no key hint
+- shots: study; study-how; study-session
+- extra_gates: flutter test test/contract
+- notes: Xavier 2026-11-01 (rulings 3 and 4): the page is built inside Study, reached from the programs masthead's standfirst link and the empty state (never onboarding); its copy is the spec's, corrected claim by claim against area_study.py (ten documents, not fifty). The references open in the system browser. Key hints (space, 1-4, the keys note, the sheet's Keys) hide below 1024; the keys stay bound. CLAUDE.md's touch-copy deviation line said 'no keys bound', false since F-145.
+
+## F-149 · Your librarian (purposeText) to Settings, as web (5.45.0) — HELD for Xavier
+- status: blocked: Xavier: the ruling's premise is false (web edits purposeText nowhere after onboarding); delete to match web, build in Settings on both, or leave
+- screen: settings, letter-settings
+- route: /settings, /letters/settings
+- spec: spec/screens/settings.md; spec/screens/letters.md
+- web: src/pages/SettingsView.jsx; src/pages/LetterSettings.jsx
+- flutter: lib/pages/settings_page.dart; lib/pages/letter_settings_page.dart
+- folds: 5.45.0
+- device_test: none until ruled
+- shots: settings; letter-settings
+- extra_gates: flutter test test/contract
+- notes: Xavier 2026-11-01 (ruling 6): move Your librarian (purposeText) to Settings, where web edits it. Web edits purposeText nowhere after onboarding: its Settings row 'Your librarian' is a link to Ask, which this client's Settings already draws identically, and web's Letter settings has never had the field (its onboarding says it can be rewritten there). Matching web exactly would delete this client's only post-onboarding mission editor (F-05). Held until Xavier chooses: delete it to match web, build an editor in Settings on both clients, or leave it.
+
 ## F-151 · The OAuth return page and File under (5.46.0, ADR-201)
 - status: blocked: device run + pairs owed: disk under the floor 2026-11-01 (code, analyze 0 and test/contract green on c/oauth)
 - screen: sources

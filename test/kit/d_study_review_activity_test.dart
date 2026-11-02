@@ -5,10 +5,10 @@
 // running heads' lines, and the new kit parts in both themes.
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
@@ -19,6 +19,7 @@ import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/study.dart';
 import 'package:flutter_app/pages/activity_page.dart';
 import 'package:flutter_app/pages/study/session_player.dart';
+import 'package:flutter_app/pages/study/study_how.dart';
 import 'package:flutter_app/pages/study_page.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/firestore_service.dart';
@@ -405,7 +406,9 @@ void main() {
         expect(qs.marked, 1, reason: 'the question to answer next');
         expect([for (final q in qs.items) q.grade], ['Good', null, null]);
         expect(find.text('SPACE'), findsNothing);
-        expect(find.text('Space'), findsOneWidget, reason: 'the keys figure');
+        // Key hints hide below 1024 (5.45.0): on a phone the sheet has no
+        // Keys figure (the wide case is F-148's test below).
+        expect(find.text('Space'), findsNothing, reason: 'no keys figure below 1024');
         expect(find.text('1 OF 3 ANSWERED'), findsOneWidget);
         await _unmount(tester);
       }
@@ -716,6 +719,96 @@ void main() {
       );
     });
   });
+
+  // ── F-148 — How Deep Study Works, and the key hints (5.45.0) ────────────
+
+  group('How Deep Study Works and the key hints (study.md, 5.45.0)', () {
+    testWidgets('Study\'s masthead links to it in the standfirst, and the '
+        'empty state offers it beside New program', (tester) async {
+      FirestoreService.instance = _Study();
+      await _pumpPage(tester, const StudyPage(), size: _phone);
+      final mast = tester.widget<KitMasthead>(find.byType(KitMasthead));
+      expect(mast.standLink?.label, 'How deep study works');
+      expect(find.text('How deep study works'), findsNWidgets(2),
+          reason: 'the standfirst link and the empty state\'s ghost button');
+      expect(find.widgetWithText(KitButton, 'How deep study works'),
+          findsOneWidget);
+      await _unmount(tester);
+    });
+
+    testWidgets('the page: crumb, folio, title, one column, the corrected '
+        'claims and none of the false ones, in both themes', (tester) async {
+      for (final b in Brightness.values) {
+        KitPageTools.instance.reset();
+        await _pumpPage(tester, const StudyHowPage(), brightness: b);
+        expect(find.text('How Deep Study Works'), findsOneWidget);
+        expect(find.text('DEEP STUDY · HOW IT WORKS'), findsOneWidget);
+        expect(find.byType(KitDBackControl), findsOneWidget);
+        expect(find.byType(KitDSheet), findsNothing, reason: 'no sheet');
+        expect(studyHowSteps.first.$2, startsWith('Up to ten finished documents'));
+        final all = [
+          for (final s in studyHowSteps) '${s.$1} ${s.$2}',
+          for (final w in tester.widgetList<Text>(find.byType(Text)))
+            w.data ?? w.textSpan?.toPlainText() ?? '',
+        ].join(' ');
+        for (final f in ['fifty', 'study letter', 'made each day',
+            'how long a session should run', 'the queue waits',
+            'its own letter', 'already read']) {
+          expect(all.toLowerCase(), isNot(contains(f)), reason: f);
+        }
+        expect(find.widgetWithText(KitButton, 'New program'), findsOneWidget);
+        expect(find.widgetWithText(KitButton, 'Back to programs'), findsOneWidget);
+        await _unmount(tester);
+      }
+    });
+
+    testWidgets('every citation leaves the app', (tester) async {
+      final opened = <String>[];
+      await _pumpPage(tester, StudyHowPage(openLink: opened.add),
+          size: const Size(1280, 3200));
+      for (final r in studyHowRefs) {
+        await tester.tap(find.text(r.title));
+      }
+      await tester.tap(find.text('spaced repetition'));
+      await tester.tap(find.text('the testing effect'));
+      expect(opened, [
+        for (final r in studyHowRefs) r.href,
+        for (final o in studyHowOverviews) o.$2,
+      ]);
+      await _unmount(tester);
+    });
+
+    testWidgets('a session draws its key hints at 1024 and wider', (tester) async {
+      FirestoreService.instance = _Study(session: _Read.answers(_session()));
+      await _pumpPage(tester, const SessionPlayerPage(sessionId: 's1'),
+          size: const Size(1024, 1800));
+      expect(find.text('space'), findsWidgets);
+      expect(find.text('Space'), findsOneWidget, reason: 'the sheet\'s Keys');
+      await tester.tap(find.text('Show answer').first);
+      await _settle(tester, 4);
+      expect(find.text('Keys 1–4 grade, space reveals.'), findsOneWidget);
+      for (final k in ['1', '2', '3', '4']) {
+        expect(find.text(k), findsWidgets, reason: 'grade key $k');
+      }
+      await _unmount(tester);
+    });
+
+    testWidgets('below 1024 the hints go and the keys stay bound', (tester) async {
+      FirestoreService.instance = _Study(session: _Read.answers(_session()));
+      await _pumpPage(tester, const SessionPlayerPage(sessionId: 's1'),
+          size: const Size(1023, 1800));
+      expect(find.text('space'), findsNothing);
+      expect(find.text('Space'), findsNothing);
+      expect(find.text('Before.'), findsNothing);
+      // Bound: Space reveals the question to answer next.
+      await tester.tap(find.text('When is the water salted?'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await _settle(tester, 4);
+      expect(find.text('Before.'), findsOneWidget, reason: 'Space still reveals');
+      expect(find.text('Keys 1–4 grade, space reveals.'), findsNothing);
+      await _unmount(tester);
+    });
+  });
 }
 
 class _NullSession extends FirestoreService {
@@ -757,4 +850,5 @@ class _Docs extends DocumentsNotifier {
   void start() {}
   @override
   List<Document> get documents => const [];
+
 }

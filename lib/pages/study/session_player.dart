@@ -343,14 +343,17 @@ class _SessionPlayerPageState extends State<SessionPlayerPage> {
             marked: ci >= 0 ? ci : null,
             onJump: (i) => _qs.jump(flat[i].qid),
           ),
-          const KitDLabel('Keys'),
-          KitFigures(
-            top: 0,
-            rows: [
-              ('Show the answer', 'Space'),
-              for (final g in _grades) (g.$2, g.$3),
-            ],
-          ),
+          // Key hints, the sheet's too, draw only at 1024 and wider (5.45.0).
+          if (kitStudyKeyHints(context)) ...[
+            const KitDLabel('Keys'),
+            KitFigures(
+              top: 0,
+              rows: [
+                ('Show the answer', 'Space'),
+                for (final g in _grades) (g.$2, g.$3),
+              ],
+            ),
+          ],
         ],
       ],
     );

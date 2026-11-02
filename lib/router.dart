@@ -30,6 +30,7 @@ import 'pages/tags/shelf_page.dart';
 import 'pages/study_page.dart';
 import 'pages/study/session_player.dart';
 import 'pages/study/program_editor.dart';
+import 'pages/study/study_how.dart';
 import 'pages/support_page.dart';
 import 'pages/onboarding/wizard.dart';
 import 'pages/share_page.dart';
@@ -217,6 +218,13 @@ List<RouteBase> appRoutes() {
             GoRoute(
               path: '/study/new',
               builder: (context, state) => const ProgramEditorPage(),
+            ),
+            // How Deep Study Works (5.45.0). Declared before `/study/:programId`
+            // (go_router matches in order), though a program id — a Firestore
+            // auto-id — is never this name.
+            GoRoute(
+              path: '/study/how-it-works',
+              builder: (context, state) => const StudyHowPage(),
             ),
             GoRoute(
               path: '/study/session/:sessionId',

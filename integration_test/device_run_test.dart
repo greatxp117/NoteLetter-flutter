@@ -2765,6 +2765,124 @@ void main() {
     expect(find.byType(KitEmptyState), findsOneWidget);
   });
 
+  // F-148 (5.45.0): How Deep Study Works is reached from Study — the masthead's
+  // standfirst link and the empty state's button — and its New program opens
+  // the editor; a session on a phone (narrower than 1024) draws no key hint.
+  // Writes one session through the emulator REST and deletes it again.
+  testWidgets('How Deep Study Works opens from Study, its New program opens '
+      'the editor, and a phone session draws no key hint', (tester) async {
+    Future<void> waitFor(Finder f, String what, {int seconds = 20}) async {
+      for (var i = 0; i < seconds * 4 && f.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(f, findsWidgets, reason: 'never drew $what');
+    }
+
+    KitPageTools.instance.reset();
+    final router = await pumpApp(tester);
+    router.go('/study');
+    await waitFor(find.byType(KitEmptyState), 'the study empty state');
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.text('How deep study works'), findsNWidgets(2),
+        reason: 'the standfirst link and the empty state\'s button');
+
+    // The empty state's button.
+    final button = find.widgetWithText(KitButton, 'How deep study works');
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await waitFor(find.text('How Deep Study Works'), 'the page');
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    expect(find.textContaining('Up to ten finished documents'), findsOneWidget);
+    expect(find.textContaining('fifty'), findsNothing);
+    expect(find.textContaining('DEEP STUDY · HOW IT WORKS'), findsOneWidget);
+
+    // Its New program opens the editor on a new program.
+    final make = find.widgetWithText(KitButton, 'New program');
+    await tester.ensureVisible(make.last);
+    await tester.tap(make.last);
+    await waitFor(find.text('A New Program'), 'the program editor');
+
+    // The masthead's link, then the crumb back.
+    router.go('/study');
+    await waitFor(find.byType(KitEmptyState), 'the study empty state again');
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    await tester.tap(find.text('How deep study works').first);
+    await waitFor(find.text('How Deep Study Works'), 'the page, from the link');
+    await tester.tap(find.byType(KitDBackControl));
+    await waitFor(find.byType(KitEmptyState), 'Study, from the crumb');
+
+    // A phone session: no key hint, anywhere.
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    Map<String, dynamic> str(String v) => {'stringValue': v};
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final sessionId = 'f148-${DateTime.now().millisecondsSinceEpoch}';
+    Map<String, dynamic> q(String id, String question, String answer) => {
+          'mapValue': {
+            'fields': {'qid': str(id), 'question': str(question), 'answer': str(answer)},
+          },
+        };
+    try {
+      final wrote = await rest.patch('/study_sessions/$sessionId', data: {
+        'fields': {
+          'user_id': str(uid),
+          'program_id': str('f148-program'),
+          'program_title': str('F-148 — braising'),
+          'status': str('sent'),
+          'trigger': str('manual'),
+          'generated_at': {'timestampValue': DateTime.now().toUtc().toIso8601String()},
+          'new_count': {'integerValue': '1'},
+          'review_count': {'integerValue': '0'},
+          'responses': {'mapValue': {'fields': <String, dynamic>{}}},
+          'items': {
+            'arrayValue': {
+              'values': [
+                {
+                  'mapValue': {
+                    'fields': {
+                      'item_id': str('f148-i1'),
+                      'chunk_id': str(''),
+                      'document_id': str('seed-doc-article-complete'),
+                      'kind': str('new'),
+                      'title': str('Pasta Fundamentals'),
+                      'excerpt_html': str(''),
+                      'questions': {
+                        'arrayValue': {
+                          'values': [q('f148-q1', 'When is the water salted?', 'Before the pasta goes in.')],
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+      expect(wrote.statusCode, 200, reason: 'the session write: ${wrote.data}');
+      router.go('/study/session/$sessionId');
+      await waitFor(find.text('When is the water salted?'), 'the question');
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      expect(MediaQuery.sizeOf(tester.element(find.byType(KitDPage))).width,
+          lessThan(1024));
+      expect(find.text('space'), findsNothing, reason: 'Show answer carries no key');
+      expect(find.text('Space'), findsNothing, reason: 'the sheet has no Keys');
+      await tester.tap(find.text('Show answer').first);
+      await pumpFor(tester, total: const Duration(seconds: 1));
+      expect(find.text('Before the pasta goes in.'), findsOneWidget);
+      expect(find.text('Keys 1–4 grade, space reveals.'), findsNothing);
+      expect(find.text('Again'), findsOneWidget);
+    } finally {
+      await rest.delete('/study_sessions/$sessionId');
+    }
+  });
+
   // ── First-run onboarding (2.27.0; `screens/onboarding.md`) ─────────────────
   //
   // LAST in the file, and it signs a DIFFERENT user in — a throwaway account

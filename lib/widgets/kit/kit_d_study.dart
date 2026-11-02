@@ -645,6 +645,10 @@ class KitStudyQuestionCard extends StatelessWidget {
       color: t.fg,
     );
     final kbd = AppTheme.mono(fontSize: 10, color: t.fgSubtle);
+    // Key hints draw only at 1024 and wider (5.45.0, ruled 2026-11-01;
+    // `screens/study.md` §A session): the keys stay bound at every width, so a
+    // narrow window with a keyboard still grades; the hints alone go.
+    final hints = kitStudyKeyHints(context);
 
     final (markBg, markFg, markBorder) = switch (kind) {
       'new' => (t.accentChipBg, t.accentChipFg, t.accentChipBorder),
@@ -802,8 +806,10 @@ class KitStudyQuestionCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text('Show answer', style: sans),
-                  const SizedBox(width: 10),
-                  Text('space', style: kbd.copyWith(letterSpacing: 0.4)),
+                  if (hints) ...[
+                    const SizedBox(width: 10),
+                    Text('space', style: kbd.copyWith(letterSpacing: 0.4)),
+                  ],
                 ],
               ),
             ),
@@ -813,7 +819,10 @@ class KitStudyQuestionCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 22),
             child: LayoutBuilder(
               builder: (context, c) {
-                final cols = narrow ? 2 : 4;
+                // Two up where the window is narrow (web's 900) OR the column
+                // is: beside the sheet at a ~1024 window the column is ~350
+                // wide, and four up overflowed each pill by 18–51px (F-148).
+                final cols = narrow || c.maxWidth < 480 ? 2 : 4;
                 final w = (c.maxWidth - 8 * (cols - 1)) / cols;
                 return Wrap(
                   spacing: 8,
@@ -836,8 +845,10 @@ class KitStudyQuestionCard extends StatelessWidget {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(g.label, style: sans),
-                                    const SizedBox(width: 8),
-                                    Text(g.key, style: kbd),
+                                    if (hints) ...[
+                                      const SizedBox(width: 8),
+                                      Text(g.key, style: kbd),
+                                    ],
                                   ],
                                 ),
                         ),
@@ -847,7 +858,8 @@ class KitStudyQuestionCard extends StatelessWidget {
               },
             ),
           ),
-          if (current)
+          // The busy note is not a hint: it draws at every width.
+          if (current && (saving || hints))
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Text(
@@ -1079,4 +1091,268 @@ String kitClockTime(int ms) {
   final d = DateTime.fromMillisecondsSinceEpoch(ms);
   final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
   return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'AM' : 'PM'}';
+}
+
+/// Whether a session draws its key hints: at 1024 and wider only (5.45.0,
+/// ruled 2026-11-01) — the *space* on Show answer, the 1–4 on the grades, the
+/// keys note and the sheet's Keys. The keys themselves stay bound.
+bool kitStudyKeyHints(BuildContext context) =>
+    MediaQuery.sizeOf(context).width >= 1024;
+
+// ── How Deep Study Works (5.45.0, `screens/study.md` §How Deep Study Works) ──
+//
+// Web `pages/study/StudyHow.jsx`; its rules `app-study.css` (`.st-prose`,
+// `.st-move-ico`, `.st-refs`) and `app-d-pages.css` (`.dp-how`). The page's
+// sections are [KitFormSection]s, its numbered rows a [KitRowList] of
+// [KitFormRow]s and its foot a [KitFormFoot]; what only this page draws is here.
+
+/// `.st-prose` — the page's opening paragraphs: serif 18/30 in `--fg`, at most
+/// 62ch, 14 under each; a `*clause*` is `.st-prose em`, the italic in
+/// `--accent`.
+class KitStudyProse extends StatelessWidget {
+  final List<String> paragraphs;
+  const KitStudyProse(this.paragraphs, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final base = AppTheme.serif(fontSize: 18, height: 30 / 18, color: t.fg, opsz: 18);
+    final em = base.copyWith(fontStyle: FontStyle.italic, color: t.accent);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 62 * KitText.ch(context, base)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final p in paragraphs)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Text.rich(TextSpan(style: base, children: [
+                    for (final (i, part) in p.split('*').indexed)
+                      if (part.isNotEmpty) TextSpan(text: part, style: i.isOdd ? em : null),
+                  ])),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One of the page's two techniques: its numeral, title, line and glyph.
+class KitStudyMove {
+  final String number;
+  final String title;
+  final String description;
+  final IconData icon;
+  const KitStudyMove(this.number, this.title, this.description, {required this.icon});
+}
+
+/// The two techniques as D's ruled list (`.dp-study .st-moves`): a 1px `--fg`
+/// rule on top, a `--rule` under each 16px row, no card; each row led by
+/// `.st-move-ico`, a 34px `--accent-soft` tile (`--r-c-34`) with the glyph 18
+/// in `--seal`, 14 before the text; the text `.st-move`'s (numeral mono 10 /
+/// 0.14em, title serif 17/23 600, line sans 13/20 `--fg-muted`). 12 above, 26
+/// below (the prototype's inline 12, `.st-moves`' 26).
+class KitStudyMoves extends StatelessWidget {
+  final List<KitStudyMove> moves;
+  const KitStudyMoves(this.moves, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 12, bottom: 26),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: t.fg))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final m in moves)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.rule))),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: t.accentSoft,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: KitGlyph(m.icon, size: 18, color: t.seal),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(m.number,
+                            style: AppTheme.mono(
+                              fontSize: 10,
+                              height: 24 / 10,
+                              letterSpacing: 0.14 * 10,
+                              color: t.fgSubtle,
+                            )),
+                        const SizedBox(height: 2),
+                        Text(m.title,
+                            style: AppTheme.serif(
+                              fontSize: 17,
+                              height: 23 / 17,
+                              fontWeight: FontWeight.w600,
+                              color: t.fg,
+                              opsz: 18,
+                            )),
+                        const SizedBox(height: 4),
+                        Text(m.description,
+                            style: TextStyle(
+                              fontFamily: AppTheme.fontSans,
+                              fontSize: 13,
+                              height: 20 / 13,
+                              color: t.fgMuted,
+                            )),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One work of the further reading.
+class KitStudyRef {
+  final String authors;
+  final String year;
+  final String title;
+  final String where;
+  final String href;
+  final String note;
+  const KitStudyRef({
+    required this.authors,
+    required this.year,
+    required this.title,
+    required this.where,
+    required this.href,
+    required this.note,
+  });
+}
+
+/// An inline link of the page's citations: the run's own type in `--link`,
+/// underlined in `--link-decor`. [onOpen] takes it out of the app.
+class _StudyLink extends StatelessWidget {
+  final String label;
+  final String href;
+  final TextStyle style;
+  final void Function(String href) onOpen;
+  const _StudyLink(this.label, this.href, this.style, this.onOpen);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Semantics(
+      link: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onOpen(href),
+          child: Text(label,
+              style: style.copyWith(
+                color: t.link,
+                decoration: TextDecoration.underline,
+                decorationColor: t.linkDecor,
+              )),
+        ),
+      ),
+    );
+  }
+}
+
+/// `.st-refs` — the further reading: one card (1px `--border`, `--r-md`,
+/// `--surface`), each work 16/18 inside with a `--rule` between: its title as a
+/// link (serif 17/24 600), then authors · year · venue (mono 11 / 0.04em
+/// `--fg-subtle`, the venue upright in `--fg-muted`), then its note (sans
+/// 13/20 `--fg-muted`, 64ch). Under the card, the fine line naming the two
+/// overviews, each a link. Every link leaves the app ([onOpen]): these are
+/// someone else's pages.
+class KitStudyRefs extends StatelessWidget {
+  final List<KitStudyRef> refs;
+  final List<(String, String)> overviews;
+  final void Function(String href) onOpen;
+  const KitStudyRefs({super.key, required this.refs, required this.overviews, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final titleStyle = AppTheme.serif(fontSize: 17, height: 24 / 17, fontWeight: FontWeight.w600, color: t.fg, opsz: 18);
+    final meta = AppTheme.mono(fontSize: 11, height: 16 / 11, letterSpacing: 0.04 * 11, color: t.fgSubtle);
+    final note = TextStyle(fontFamily: AppTheme.fontSans, fontSize: 13, height: 20 / 13, color: t.fgMuted);
+    final fine = TextStyle(fontFamily: AppTheme.fontSans, fontSize: 12, height: 18 / 12, color: t.fgSubtle);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 12),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: AppRadius.mdR,
+            border: Border.all(color: t.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final (i, r) in refs.indexed)
+                Container(
+                  margin: EdgeInsets.only(top: i == 0 ? 0 : 2),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+                  decoration: i == 0 ? null : BoxDecoration(border: Border(top: BorderSide(color: t.rule))),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _StudyLink(r.title, r.href, titleStyle, onOpen),
+                      const SizedBox(height: 6),
+                      Text.rich(TextSpan(style: meta, children: [
+                        TextSpan(text: '${r.authors} · ${r.year} · '),
+                        TextSpan(text: r.where, style: meta.copyWith(color: t.fgMuted)),
+                      ])),
+                      const SizedBox(height: 6),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: 64 * KitText.ch(context, note)),
+                        child: Text(r.note, style: note),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: Text.rich(TextSpan(style: fine, children: [
+            const TextSpan(text: 'Overviews of both ideas: '),
+            for (final (i, o) in overviews.indexed) ...[
+              if (i > 0) TextSpan(text: i == overviews.length - 1 ? ' and ' : ', '),
+              WidgetSpan(
+                alignment: PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                child: _StudyLink(o.$1, o.$2, fine, onOpen),
+              ),
+            ],
+            const TextSpan(text: '.'),
+          ])),
+        ),
+      ],
+    );
+  }
 }
