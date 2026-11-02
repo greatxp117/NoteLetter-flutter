@@ -2394,7 +2394,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier 2026-10-30: D's look on today's signals. Offer only what the pre-filter measures (screenshot, or 80+ chars of on-device text; Automatic vs Review). The six kind switches, 'people, faces and IDs always passed over' and Cautious/Balanced/Trusting are declined on the record in ADR-198 and booked as a follow-up; 'cards or IDs never uploaded' would be false today. Web has no camera roll, so there is no web frame to pair: the reference is the prototype (Camera Roll Setup.html direction A, app-camera.jsx). Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-147 · A source's History folds in its Activity, matched by metadata.doc_id (5.44.0, ADR-199)
-- status: in-progress
+- status: blocked: device test + pairs owed: the iOS build died 2026-11-01 (Swift compiles killed, no output) with disk at 4.2 GB and load ~600 from another workspace; code, 18 contract cases, analyze and the 15 lane gates green; web frames shot (c/history 33d3318); run tool/seed_history.py [--deny-reads|--deny-creates] before each hold batch
 - screen: reader-history
 - route: /reader/{id}
 - spec: spec/screens/reader.md §History; spec/screens/reader.md §Composition; spec/decisions/ADR-199-a-sources-history-folds-in-its-activity.md; spec/data-model.md
