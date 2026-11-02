@@ -289,6 +289,36 @@ void main() {
       expect(find.byType(QuickAdd), findsNothing);
     });
 
+    testWidgets(
+        'on a phone it covers the whole screen: the ROOT navigator, never the '
+        "shell's, whose sheet sat between the header and a live tab bar",
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      const shell = ValueKey('shell-navigator');
+      await tester.pumpWidget(providers(Navigator(
+        key: shell,
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: KitButton('Add a source',
+                  onPressed: () => QuickAdd.show(context)),
+            ),
+          ),
+        ),
+      )));
+      await tester.tap(find.text('Add a source'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(
+          find.ancestor(
+              of: find.byType(BottomSheet), matching: find.byKey(shell)),
+          findsNothing);
+      // The link row is web's 42 (+ its 1px border), not the theme's field.
+      expect(tester.getSize(find.byType(KitQaLinkRow)).height, closeTo(44, 0.5));
+    });
+
     testWidgets("wider it is web's dialog, 540 wide", (tester) async {
       await openFrom(tester, const Size(1280, 900));
       expect(find.byType(Dialog), findsOneWidget);

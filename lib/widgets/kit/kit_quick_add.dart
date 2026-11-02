@@ -26,17 +26,17 @@ class KitQaBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < children.length; i++) ...[
-              if (i > 0) const SizedBox(height: 14),
-              children[i],
-            ],
-          ],
-        ),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(height: 14),
+          children[i],
+        ],
+      ],
+    ),
+  );
 }
 
 /// Under a part of [KitQaBody] — the connect refusal under the chips
@@ -55,7 +55,11 @@ class KitQaHang extends StatelessWidget {
     if (b == null) return child;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [child, SizedBox(height: gap), b],
+      children: [
+        child,
+        SizedBox(height: gap),
+        b,
+      ],
     );
   }
 }
@@ -84,7 +88,11 @@ class KitQaLinkRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final style = TextStyle(
-        fontFamily: AppTheme.fontSans, fontSize: 14, height: 20 / 14, color: t.fg);
+      fontFamily: AppTheme.fontSans,
+      fontSize: 14,
+      height: 20 / 14,
+      color: t.fg,
+    );
     return ListenableBuilder(
       listenable: Listenable.merge([focusNode, controller]),
       builder: (context, _) {
@@ -102,31 +110,35 @@ class KitQaLinkRow extends StatelessWidget {
               KitGlyph(Icons.link, size: 16, color: t.fgSubtle),
               const SizedBox(width: 9),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  child: Semantics(
-                    label: 'Paste a link',
-                    child: TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      autofocus: autofocus,
-                      keyboardType: TextInputType.url,
-                      textInputAction: TextInputAction.go,
-                      autocorrect: false,
-                      style: style,
-                      cursorColor: t.accent,
-                      onSubmitted: (_) => onSubmit(),
-                      decoration: InputDecoration(
-                        isCollapsed: true,
-                        // The row above IS the field; the theme's outline
-                        // would draw a second one inside it.
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        filled: false,
-                        hintText: placeholder,
-                        hintMaxLines: 1,
-                        hintStyle: style.copyWith(color: t.fgSubtle),
+                // 42 tall, as web's `11px 0` around a 20px line: the theme's
+                // field grew the row to 67 on a device (as KitLibLinkField's).
+                child: SizedBox(
+                  height: 42,
+                  child: Center(
+                    child: Semantics(
+                      label: 'Paste a link',
+                      child: TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        autofocus: autofocus,
+                        keyboardType: TextInputType.url,
+                        textInputAction: TextInputAction.go,
+                        autocorrect: false,
+                        style: style,
+                        cursorColor: t.accent,
+                        onSubmitted: (_) => onSubmit(),
+                        decoration: InputDecoration(
+                          isCollapsed: true,
+                          // The row above IS the field; the theme's outline
+                          // would draw a second one inside it.
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          filled: false,
+                          hintText: placeholder,
+                          hintMaxLines: 1,
+                          hintStyle: style.copyWith(color: t.fgSubtle),
+                        ),
                       ),
                     ),
                   ),
@@ -148,17 +160,20 @@ class KitQaLinkRow extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: hover ? t.secondaryHover : t.secondary,
                       borderRadius: AppRadius.controlR(30),
-                      border:
-                          focus ? Border.all(color: t.accent, width: 2) : null,
+                      border: focus
+                          ? Border.all(color: t.accent, width: 2)
+                          : null,
                     ),
-                    child: Text('Add',
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontFamily: AppTheme.fontSans,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: t.secondaryFg,
-                        )),
+                    child: Text(
+                      'Add',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontFamily: AppTheme.fontSans,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: t.secondaryFg,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -190,13 +205,20 @@ class KitQaAdded extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: [
             Expanded(
-              child: Text('GOING TO YOUR LIBRARY',
-                  style: AppTheme.mono(
-                      fontSize: 10, letterSpacing: 1.3, color: t.fgSubtle)),
+              child: Text(
+                'GOING TO YOUR LIBRARY',
+                style: AppTheme.mono(
+                  fontSize: 10,
+                  letterSpacing: 1.3,
+                  color: t.fgSubtle,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
-            Text('$ready of ${rows.length} filed',
-                style: AppTheme.mono(fontSize: 10.5, color: t.fgMuted)),
+            Text(
+              '$ready of ${rows.length} filed',
+              style: AppTheme.mono(fontSize: 10.5, color: t.fgMuted),
+            ),
           ],
         ),
         for (final r in rows) ...[const SizedBox(height: 7), r],
@@ -256,21 +278,31 @@ class KitQaRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(width: 28, child: KitFileBadge(kind, size: KitBadgeSize.form)),
+          SizedBox(
+            width: 28,
+            child: KitFileBadge(kind, size: KitBadgeSize.form),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.serif(
-                        fontSize: 14, fontWeight: FontWeight.w500, color: t.fg)),
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.serif(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: t.fg,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(line,
-                    style: AppTheme.mono(fontSize: 10.5, color: t.fgSubtle)),
+                Text(
+                  line,
+                  style: AppTheme.mono(fontSize: 10.5, color: t.fgSubtle),
+                ),
                 if (uploading) ...[
                   const SizedBox(height: 6),
                   ClipRRect(
@@ -290,7 +322,9 @@ class KitQaRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.fromLTRB(9, 5, 9, 4),
             decoration: BoxDecoration(
-                color: bg, borderRadius: BorderRadius.circular(999)),
+              color: bg,
+              borderRadius: BorderRadius.circular(999),
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -298,14 +332,22 @@ class KitQaRow extends StatelessWidget {
                   Container(
                     width: 4,
                     height: 4,
-                    decoration:
-                        BoxDecoration(color: t.positive, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: t.positive,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 5),
                 ],
-                Text(label,
-                    style: AppTheme.mono(
-                        fontSize: 10, height: 1, letterSpacing: 0.8, color: fg)),
+                Text(
+                  label,
+                  style: AppTheme.mono(
+                    fontSize: 10,
+                    height: 1,
+                    letterSpacing: 0.8,
+                    color: fg,
+                  ),
+                ),
               ],
             ),
           ),
@@ -330,9 +372,14 @@ class KitQaOr extends StatelessWidget {
       children: [
         hr(),
         const SizedBox(width: 12),
-        Text(label.toUpperCase(),
-            style:
-                AppTheme.mono(fontSize: 10, letterSpacing: 1.3, color: t.fgSubtle)),
+        Text(
+          label.toUpperCase(),
+          style: AppTheme.mono(
+            fontSize: 10,
+            letterSpacing: 1.3,
+            color: t.fgSubtle,
+          ),
+        ),
         const SizedBox(width: 12),
         hr(),
       ],
@@ -374,11 +421,12 @@ class KitQaChip extends StatelessWidget {
             color: t.surface,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
-                color: focus
-                    ? t.accent
-                    : hover
-                        ? t.accentChipBorder
-                        : t.border),
+              color: focus
+                  ? t.accent
+                  : hover
+                  ? t.accentChipBorder
+                  : t.border,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -397,14 +445,16 @@ class KitQaChip extends StatelessWidget {
                 child: KitProviderLogo(provider: provider, size: 15),
               ),
               const SizedBox(width: 9),
-              Text(busy ? 'Connecting $name…' : name,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: t.fg,
-                  )),
+              Text(
+                busy ? 'Connecting $name…' : name,
+                maxLines: 1,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: t.fg,
+                ),
+              ),
             ],
           ),
         ),
@@ -426,48 +476,58 @@ class KitQaFoot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    Widget link(String label, Color color, VoidCallback onTap,
-            {IconData? icon}) =>
-        KitDTap(
-          label: label,
-          onTap: onTap,
-          builder: (context, hover, focus) => Container(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-            decoration: BoxDecoration(
-              color: hover ? t.hover : null,
-              borderRadius: AppRadius.xsR,
-              border: focus ? Border.all(color: t.accent, width: 2) : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  KitGlyph(icon, size: 14, color: hover ? t.fg : color),
-                  const SizedBox(width: 6),
-                ],
-                Flexible(
-                  child: Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontSans,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: hover && icon != null ? t.fg : color,
-                      )),
+    Widget link(
+      String label,
+      Color color,
+      VoidCallback onTap, {
+      IconData? icon,
+    }) => KitDTap(
+      label: label,
+      onTap: onTap,
+      builder: (context, hover, focus) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+        decoration: BoxDecoration(
+          color: hover ? t.hover : null,
+          borderRadius: AppRadius.xsR,
+          border: focus ? Border.all(color: t.accent, width: 2) : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              KitGlyph(icon, size: 14, color: hover ? t.fg : color),
+              const SizedBox(width: 6),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontSans,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: hover && icon != null ? t.fg : color,
                 ),
-              ],
+              ),
             ),
-          ),
-        );
+          ],
+        ),
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Flexible(
-              child: link('What can I add?', t.fgMuted, onHelp,
-                  icon: Icons.help_outline)),
+            child: link(
+              'What can I add?',
+              t.fgMuted,
+              onHelp,
+              icon: Icons.help_outline,
+            ),
+          ),
           const SizedBox(width: 18),
           Flexible(child: link('More options →', t.link, onMore)),
         ],

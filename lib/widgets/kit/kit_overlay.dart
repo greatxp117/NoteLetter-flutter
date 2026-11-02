@@ -126,6 +126,11 @@ class KitOverlaySheet extends StatelessWidget {
     if (phoneSheet && KitD.phone(context)) {
       return showModalBottomSheet<void>(
         context: context,
+        // Over the whole screen, as §15's scrim and web's are: on the shell's
+        // own navigator the sheet sat between the app header and a live tab
+        // bar (kit §30: an open overlay's scrim covers the bar), and the
+        // shorter space clipped its body.
+        useRootNavigator: true,
         isScrollControlled: true,
         useSafeArea: true,
         enableDrag: holding == null,
