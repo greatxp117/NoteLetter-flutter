@@ -2329,7 +2329,7 @@ a new obligation on a finished screen is a new item.
 - notes: HomeHybrid and LibHybrid. Needs F-140. Ports from web's phone frames (isMobile). design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-153 · Home's study band: the newest session, under the letter (5.49.0)
-- status: open
+- status: done 2026-11-02
 - screen: library
 - route: /
 - spec: spec/screens/library.md §Data; spec/screens/library.md §Composition (item 4); spec/features/study-entry-points.md (new)
@@ -2356,7 +2356,7 @@ a new obligation on a finished screen is a new item.
 - notes: ReaderHybrid + SecD. Folds F-130 (Re-process, Mark as read, dwell) and F-132 (Listen speed, boundary drag): Xavier ruled D in tandem 2026-10-30, which lifts F-132's approval hold. Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
 
 ## F-154 · Study this on the source page: the new-program editor, pre-filled, writing nothing (5.49.0)
-- status: open
+- status: done 2026-11-02
 - screen: reader, study-new
 - route: /reader/{docId}, /study/new
 - spec: spec/screens/reader.md §Study this (new); spec/screens/reader.md §Composition; spec/screens/study.md §Create / edit a program; spec/screens/study.md §Composition (the program editor); spec/component-kit.md §39; spec/features/study-entry-points.md (new)
