@@ -571,6 +571,49 @@ void main() {
             '— the passage link has not been honoured (ADR-051)');
   });
 
+  // ── 5.44.0 / ADR-199 (F-147) ───────────────────────────────────────────────
+  // The History folds in the source's Activity, read by the doc-scoped query
+  // (`user_id ==` + `metadata.doc_id ==`) through the emulator's REAL rules —
+  // the seed gives this document two read events and one `doc_indexed`. The
+  // emulator enforces no composite index, so the index is proven only in prod.
+  testWidgets("the source's History folds in its Activity and the switch "
+      'filters it', (tester) async {
+    final router = await pumpApp(tester);
+    router.go('/reader/seed-doc-article-complete');
+    await _readerLoaded(tester);
+    await _readerJump(tester, 'History');
+    final indexed = find.text('Indexed into your library', skipOffstage: false);
+    for (var i = 0; i < 40 && indexed.evaluate().isEmpty; i++) {
+      await pumpFor(tester, total: const Duration(milliseconds: 250));
+    }
+    expect(find.byType(KitFailureBlock, skipOffstage: false), findsNothing,
+        reason: 'a half of the History failed against the emulator');
+    expect(indexed, findsOneWidget,
+        reason: "the source's doc_indexed event is not in its History");
+    expect(find.text('ACTIVITY', skipOffstage: false), findsOneWidget);
+    final viewed = find.text('Viewed a passage (Passage 1)', skipOffstage: false);
+    expect(viewed, findsOneWidget, reason: 'the reading half is missing');
+    debugPrint('DEVICE-RUN F-147 History: ${find.byType(HistoryPanel).evaluate().length} panel, '
+        'indexed + viewed rows drawn');
+
+    final show = find.byType(KitSlideSwitch<String>, skipOffstage: false);
+    Future<void> choose(String label) async {
+      await tester.ensureVisible(show);
+      await tester.tap(find.descendant(of: show, matching: find.text(label)));
+      await pumpFor(tester, total: const Duration(milliseconds: 600));
+    }
+
+    await choose('Activity');
+    expect(indexed, findsOneWidget);
+    expect(viewed, findsNothing, reason: 'Activity still shows reading rows');
+    await choose('Reading');
+    expect(indexed, findsNothing, reason: 'Reading still shows Activity rows');
+    expect(viewed, findsOneWidget);
+    await choose('All');
+    expect(indexed, findsOneWidget);
+    expect(viewed, findsOneWidget);
+  });
+
   testWidgets('the reader opens the source file', (tester) async {
     // §15.1 (ADR-075) and §6.4.2: the Original section reaches
     // `fn_get_raw_document_url` and a URL renders the §15.1 VIEW, not the

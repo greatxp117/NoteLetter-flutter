@@ -2392,3 +2392,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: flutter test test/contract
 - notes: Xavier 2026-10-30: D's look on today's signals. Offer only what the pre-filter measures (screenshot, or 80+ chars of on-device text; Automatic vs Review). The six kind switches, 'people, faces and IDs always passed over' and Cautious/Balanced/Trusting are declined on the record in ADR-198 and booked as a follow-up; 'cards or IDs never uploaded' would be false today. Web has no camera roll, so there is no web frame to pair: the reference is the prototype (Camera Roll Setup.html direction A, app-camera.jsx). Needs F-140. design handoff NoteLetter-design/handoff-d/README.md (mirror 2a4dd23). Redesign lane, briefs and reports in ../.claude/redesign-d-2026/.
+
+## F-147 · A source's History folds in its Activity, matched by metadata.doc_id (5.44.0, ADR-199)
+- status: in-progress
+- screen: reader-history
+- route: /reader/{id}
+- spec: spec/screens/reader.md §History; spec/screens/reader.md §Composition; spec/decisions/ADR-199-a-sources-history-folds-in-its-activity.md; spec/data-model.md
+- web: src/pages/reader/HistoryPanel.jsx; src/shared/sourceHistory.js (new); src/api.js; src/styles/app-source.css
+- flutter: lib/pages/reader/history_panel.dart; lib/services/source_history.dart (new); lib/services/firestore_service.dart; test/contract/source_history_test.dart (new); integration_test/hold_screen_test.dart; integration_test/device_run_test.dart; tool/seed_history.py (new)
+- folds: 5.44.0
+- device_test: integration_test: the History section mounts and its All / Reading / Activity switch filters the rows
+- shots: reader-history; reader-history-activity; reader-history-refused; reader-history-empty
+- extra_gates: flutter test test/contract
+- notes: Xavier's ruling 2 of 2026-11-01 (W2's XAVIER 1). Two reads: read_events (one-shot, limit 50) and a doc-scoped onSnapshot of activity_events (user_id == + metadata.doc_id ==, created_at desc, limit 50) over the composite index created in prod 2026-11-01. Never a title match, never the account's latest-200 window. No count; a half at its limit is labelled; a failed half is KitFailureBlock above the rows that loaded. Lane `history`, briefs and reports in ../.claude/calls-2026-11-01/.

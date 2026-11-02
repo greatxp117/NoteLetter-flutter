@@ -918,6 +918,33 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(find.byType(panel), findsOneWidget,
           reason: 'the $label section did not mount');
       return;
+    // A source's History (5.44.0, ADR-199; F-147), the reference's
+    // `reader-history-activity` / `-refused` / `-empty`. The rows are
+    // tool/seed_history.py's (web theme-shots writes the same ones):
+    // `history-activity` after a plain run, `history-refused` after
+    // `--deny-reads` (a real permission-denied from the read_events query,
+    // the Activity half still answering), `history-empty` after `--remove`.
+    case 'history-activity':
+    case 'history-refused':
+    case 'history-empty':
+      await _readerJump(tester, 'History');
+      await settle();
+      expect(find.byType(HistoryPanel), findsOneWidget,
+          reason: 'the History section did not mount');
+      if (holdState == 'history-activity') {
+        final option = find.descendant(
+            of: find.byType(KitSlideSwitch<String>), matching: find.text('Activity'));
+        expect(option, findsOneWidget, reason: 'no Activity filter — no rows?');
+        await tester.tap(option);
+        await settle();
+      } else if (holdState == 'history-refused') {
+        expect(find.byType(KitFailureBlock), findsOneWidget,
+            reason: 'the read_events refusal drew no §14.1 block');
+      } else {
+        expect(find.text('No history yet.'), findsOneWidget,
+            reason: 'the empty state did not draw — a leftover row?');
+      }
+      return;
     // §6.1 Waiting (4.107.0, ADR-140) — the reference's `summary-wait`: a
     // real 429 carrying `retry_after_s`, from Regenerate summary. The refusal
     // is the SERVER's: stamp the seed document's `last_summary_regen_at`

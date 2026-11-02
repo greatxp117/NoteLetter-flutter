@@ -18,6 +18,7 @@ import '../models/study.dart';
 import '../models/support.dart';
 import '../models/tag.dart';
 import 'activity_merge.dart';
+import 'source_history.dart' show sourceHistoryLimit;
 import 'read_counters.dart';
 import 'row_decode.dart';
 import 'auth_service.dart';
@@ -429,22 +430,51 @@ class FirestoreService {
       .orderBy('created_at', descending: true)
       .limit(maxItems)
       .snapshots()
-      .map((snap) => _rows('activity_events', snap.docs, (d) {
-            final data = d.data();
-            return ActivityItem(
-              kind: 'event',
-              id: d.id,
-              type: data['type'] as String? ?? '',
-              status: data['status'] as String? ?? '',
-              level: ActivityItem.eventLevel(
-                  data['level'] as String?, data['status'] as String?),
-              title: data['title'] as String? ?? '',
-              provider: data['provider'] as String?,
-              errorMessage: null,
-              metadata: data['metadata'] as Map<String, dynamic>?,
-              createdAt: tsMs(data['created_at']),
-            );
-          }));
+      .map((snap) => _rows('activity_events', snap.docs, _activityEvent));
+
+  /// One `/activity_events` document as a feed item — the feed's and a
+  /// source's History's one decoding.
+  static ActivityItem _activityEvent(
+      QueryDocumentSnapshot<Map<String, dynamic>> d) {
+    final data = d.data();
+    return ActivityItem(
+      kind: 'event',
+      id: d.id,
+      type: data['type'] as String? ?? '',
+      status: data['status'] as String? ?? '',
+      level: ActivityItem.eventLevel(
+          data['level'] as String?, data['status'] as String?),
+      title: data['title'] as String? ?? '',
+      provider: data['provider'] as String?,
+      errorMessage: null,
+      metadata: data['metadata'] as Map<String, dynamic>?,
+      createdAt: tsMs(data['created_at']),
+    );
+  }
+
+  /// A source's own Activity events, for its History (5.44.0, ADR-199;
+  /// reader.md §History): `user_id ==` + `metadata.doc_id ==`, newest first,
+  /// limited — a realtime subscription (INV-02) whose error reaches the panel
+  /// (INV-24). Served by the composite index activity_events (user_id,
+  /// metadata.doc_id, created_at DESC); the emulator enforces no composite
+  /// index, so only prod proves the query runs.
+  ///
+  /// Deliberately not the feed filtered here: the design prototype kept the
+  /// latest 200 events whose doc_id — or TITLE — matched, a title match over a
+  /// window of the whole account (web `subscribeSourceActivity`).
+  Stream<List<ActivityItem>> subscribeSourceActivity(String docId,
+      {int limit = sourceHistoryLimit}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('activity_events')
+        .where('user_id', isEqualTo: uid)
+        .where('metadata.doc_id', isEqualTo: docId)
+        .orderBy('created_at', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => _rows('activity_events', snap.docs, _activityEvent));
+  }
 
   /// The documents half — the fallback rows for documents that predate the
   /// events feed, and the source of every row an event's `doc_id` covers.
@@ -717,9 +747,10 @@ class FirestoreService {
     });
   }
 
-  /// Reading history for one document (Reader → History panel): the
-  /// `read_events` for [docId], `created_at desc`, limit 50 (INV-02 —
-  /// `user_id ==` filter). Timestamps → epoch ms (INV-06).
+  /// Reading history for one document (Reader → History, its reading half):
+  /// the `read_events` for [docId], `created_at desc`, limit
+  /// [sourceHistoryLimit] (INV-02 — `user_id ==` filter). Timestamps → epoch
+  /// ms (INV-06).
   Future<List<Map<String, dynamic>>> getReadHistory(String docId) async {
     final uid = _uid;
     if (uid == null) return const [];
@@ -728,7 +759,7 @@ class FirestoreService {
         .where('user_id', isEqualTo: uid)
         .where('document_id', isEqualTo: docId)
         .orderBy('created_at', descending: true)
-        .limit(50)
+        .limit(sourceHistoryLimit)
         .get();
     return snap.docs.map((d) {
       final data = d.data();
