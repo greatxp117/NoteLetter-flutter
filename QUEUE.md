@@ -2408,14 +2408,14 @@ a new obligation on a finished screen is a new item.
 
 ## F-148 · How Deep Study Works, inside Study; a session's key hints hidden below 1024 (5.45.0)
 - status: in-progress
-- screen: study, study-how, study-session
+- screen: study, study-how
 - route: /study, /study/how-it-works, /study/session/{id}
 - spec: spec/screens/study.md
 - web: src/pages/study/StudyHow.jsx (new); src/pages/StudyView.jsx; src/pages/study/SessionPlayer.jsx; src/styles/app-study.css; src/styles/app-d-pages.css
 - flutter: lib/pages/study/study_how.dart (new); lib/pages/study_page.dart; lib/pages/study/session_player.dart; lib/widgets/kit/kit_d_study.dart; lib/widgets/kit/kit_d_frame.dart; lib/router.dart; lib/services/analytics.dart; test/kit/d_study_review_activity_test.dart; integration_test/device_run_test.dart; CLAUDE.md
 - folds: 5.45.0
 - device_test: integration_test: Study's masthead link and the empty state's button open How Deep Study Works; its New program opens the editor; a session at phone width draws no key hint
-- shots: study; study-how; study-session
+- shots: study; study-how
 - extra_gates: flutter test test/contract
 - notes: Xavier 2026-11-01 (rulings 3 and 4): the page is built inside Study, reached from the programs masthead's standfirst link and the empty state (never onboarding); its copy is the spec's, corrected claim by claim against area_study.py (ten documents, not fifty). The references open in the system browser. Key hints (space, 1-4, the keys note, the sheet's Keys) hide below 1024; the keys stay bound. CLAUDE.md's touch-copy deviation line said 'no keys bound', false since F-145.
 
