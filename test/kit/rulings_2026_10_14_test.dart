@@ -231,11 +231,11 @@ void main() {
           reason: 'the track is a group named by its row');
       expect(
           tester.getSemantics(find.text('Default')),
-          containsSemantics(
+          isSemantics(
               isButton: true, isSelected: true, hasSelectedState: true));
       expect(
           tester.getSemantics(find.text('Large')),
-          containsSemantics(
+          isSemantics(
               isButton: true, isSelected: false, hasSelectedState: true));
       handle.dispose();
     });
@@ -275,11 +275,15 @@ void main() {
               matching: find.byType(IgnorePointer))
           .first);
       expect(hold.ignoring, isTrue);
-      // Steady: no animation runs on it.
+      // Steady: no animation runs on it. Only the panel's own: since Flutter
+      // 3.47 the route's page transition wraps every page in (settled)
+      // FadeTransitions above it.
       expect(
           find.ancestor(
               of: find.text('Unpinning…'),
-              matching: find.byType(FadeTransition)),
+              matching: find.descendant(
+                  of: find.byType(PinnedSources),
+                  matching: find.byType(FadeTransition))),
           findsNothing);
       pinned.complete();
       await tester.pumpAndSettle();

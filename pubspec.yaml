@@ -5,6 +5,15 @@ version: 1.0.0+1
 
 environment:
   sdk: '>=3.9.2 <4.0.0'
+  # The eMudhra floor (test/contract/firebase_sdk_floor_test.dart): on Android
+  # `dart:io` validates TLS with Dart's own compiled-in BoringSSL, so every
+  # Flutter below 3.47.8 (Dart 3.13.7) trusts the revoked intermediates, for
+  # Firestore and for Dio's fn_* calls alike. It also builds the patched
+  # FlutterFire set for iOS: firebase_auth 6.6+ needs Flutter 3.38+. This is a
+  # FLOOR on the SDK, not the language version — `sdk` above still says 3.9.
+  # The machine's shared ~/development/flutter is 3.35.4; this workspace runs
+  # /Volumes/DevCache/flutter-sdk/3.47.9 (the umbrella's SessionStart hook).
+  flutter: '>=3.47.8'
 
 dependencies:
   flutter:
@@ -13,9 +22,16 @@ dependencies:
   provider: ^6.1.2
   flutter_animate: ^4.5.0
   file_picker: ^8.0.7
-  firebase_core: ^4.6.0
-  firebase_auth: ^6.3.0
-  cloud_firestore: ^6.1.0
+  # FLOORS, not suggestions: FlutterFire BoM 4.20.1 (2026-10-23) is the first
+  # family whose iOS side carries the eMudhra fix — `firebase_core` 4.15.1 pins
+  # the Firebase iOS SDK to 12.19.3, and FirebaseFirestore 12.19.2 and earlier
+  # trusts the revoked intermediates it compiles in, so a man-in-the-middle can
+  # impersonate Firestore. Never lower any of these five; Firebase 13 / BoM 5.x
+  # is SPM-only, a separate move. Gated by
+  # test/contract/firebase_sdk_floor_test.dart.
+  firebase_core: ^4.15.1
+  firebase_auth: ^6.7.1
+  cloud_firestore: ^6.10.1
   dio: ^5.9.2
   url_launcher: ^6.3.2
   mime: ^2.0.0
@@ -28,15 +44,13 @@ dependencies:
   # ...and on Android in its own SharedPreferences file (F-125 S5c).
   shared_preferences_android: ^2.4.23
   visibility_detector: ^0.4.0+2
-  firebase_app_installations: ^0.4.2+7
-  # Pinned EXACTLY, and low, on purpose. `firebase_analytics` 12.5.0+ requires
-  # `firebase_core ^4.14.0`, which pins the Firebase **iOS SDK** to 12.19.0 —
-  # so adding a measurement plugin would move the SDK that Auth, Firestore and
-  # Installations all run on, on a client that points at REAL PROD. 12.4.6 is
-  # the newest analytics that pairs with the `firebase_core 4.13.0` already
-  # locked here, and it leaves the iOS SDK at 12.17.0 and every other plugin
-  # untouched. Adding a member is not a reason to move the family.
-  firebase_analytics: 12.4.6
+  firebase_app_installations: ^0.4.5
+  # Pinned EXACTLY: a measurement plugin moves with the family, never ahead of
+  # it — a newer analytics requires a newer `firebase_core`, which moves the
+  # Firebase iOS SDK that Auth, Firestore and Installations all run on, on a
+  # client that points at REAL PROD. 12.6.1 is BoM 4.20.1's (the eMudhra-patched
+  # family above); move it only with the other four.
+  firebase_analytics: 12.6.1
   flutter_html_table: ^3.0.0
   webview_flutter: ^4.13.1
   # Pinned, not floated: `flutter_html` 3.0.0 calls `queryselector.matches`,
@@ -46,12 +60,12 @@ dependencies:
   # file under plain `dart run`), not because anything wanted a newer one.
   html: 0.15.6
   # Continue with Google (F-44a). google_sign_in_ios 6.2.x (the newest that
-  # runs on Flutter 3.35) wants GoogleSignIn ~> 9.0, whose 9.x line pins
+  # ran on Flutter 3.35) wants GoogleSignIn ~> 9.0, whose 9.x line pins
   # GTMSessionFetcher/Core ~> 3.3 — so adding it moved that ONE transitive pod
-  # from 5.3.1 to 3.5.0, inside FirebaseAuth 12.17.0's own declared range
-  # (>= 3.4, < 6.0). The Firebase iOS SDK itself stays at 12.17.0, and every
-  # Firebase plugin is untouched. Flutter 3.38 lifts this (google_sign_in_ios
-  # 6.3 → GoogleSignIn 10, which allows GTMSessionFetcher 5).
+  # from 5.3.1 to 3.5.0, inside FirebaseAuth's own declared range
+  # (>= 3.4, < 6.0). Flutter 3.38+ (this app is on 3.47 since the eMudhra
+  # floor) allows google_sign_in_ios 6.3 → GoogleSignIn 10 → GTMSessionFetcher
+  # 5; that lift is available and NOT taken — the lock still holds 6.2.x.
   google_sign_in: ^7.2.0
   flutter_web_auth_2: ^5.1.0
   path_parsing: ^1.1.0
@@ -70,6 +84,13 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 
 flutter:
+  # iOS plugins stay on CocoaPods. Flutter 3.47 turns Swift Package Manager on
+  # by default, and `pod install` then drops every plugin pod — while the Share
+  # extension links FirebaseAuth through ios/Podfile, so SPM would put two
+  # Firebases in one app. Moving to SPM is its own change, owed before the next
+  # Firebase set: Firebase stopped publishing CocoaPods after October 2026.
+  config:
+    enable-swift-package-manager: false
   uses-material-design: true
   assets:
     - assets/contract/

@@ -31,9 +31,9 @@ void main() {
     ));
     expect(find.bySemanticsLabel('Order by'), findsOneWidget);
     expect(tester.getSemantics(find.bySemanticsLabel('Recent')),
-        containsSemantics(isButton: true, isSelected: true));
+        isSemantics(isButton: true, isSelected: true));
     expect(tester.getSemantics(find.bySemanticsLabel('Title')),
-        containsSemantics(isButton: true, isSelected: false));
+        isSemantics(isButton: true, isSelected: false));
     handle.dispose();
   });
 

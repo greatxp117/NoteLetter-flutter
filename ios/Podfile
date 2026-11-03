@@ -39,12 +39,19 @@ end
 # F-122 — the share extension (ios/Share; tool/add_share_target.rb). It signs in
 # through FirebaseAuth and files through fn_* over URLSession: Auth is the one
 # Firebase product it links, because an extension pays memory for every
-# framework it carries. The version is the one FlutterFire pins for Runner
-# (Podfile.lock: Firebase/Auth 12.17.0), so the two share one Firebase.
+# framework it carries. It asks for Auth EXACTLY as FlutterFire's firebase_auth
+# asks for Runner — the umbrella subspec at the family's version, READ from
+# firebase_core's firebase_sdk_version.rb — so the two resolve one Firebase.
+# Never a literal `pod 'FirebaseAuth', 'x.y.z'`: one stayed at 12.17.0 and
+# blocked the eMudhra fix, and a product's own pod need not exist at the
+# family's version (12.19.3 patched Core and Firestore; FirebaseAuth is
+# 12.19.0, which `Firebase/Auth` 12.19.3 asks for as `~> 12.19.0`).
+require File.join(File.dirname(File.realpath(__FILE__)),
+                  '.symlinks', 'plugins', 'firebase_core', 'ios', 'firebase_sdk_version.rb')
 target 'Share' do
   platform :ios, '16.0'
   use_frameworks!
-  pod 'FirebaseAuth', '12.17.0'
+  pod 'Firebase/Auth', firebase_sdk_version!
 end
 
 post_install do |installer|
