@@ -257,8 +257,16 @@ class KitProcAttention extends StatelessWidget {
   final Widget? failure;
   final List<Widget> actions;
 
+  /// A quiet line under the sentence — a copy's *In your library since…*
+  /// (5.51.0, [KitProcOriginLine]).
+  final Widget? note;
+
   const KitProcAttention(
-      {super.key, required this.detail, this.failure, required this.actions});
+      {super.key,
+      required this.detail,
+      this.failure,
+      required this.actions,
+      this.note});
 
   @override
   Widget build(BuildContext context) {
@@ -274,6 +282,7 @@ class KitProcAttention extends StatelessWidget {
                   height: 20 / 14,
                   fontStyle: FontStyle.italic,
                   color: t.fgLede)),
+        ?note,
         if (failure != null) ...[
           if (detail != null) const SizedBox(height: 6),
           failure!,

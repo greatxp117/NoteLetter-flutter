@@ -645,6 +645,10 @@ class KitLibProcRow extends StatelessWidget {
   final Widget? actions;
   final bool attention;
 
+  /// A quiet line under the [message] — a copy's *In your library since…*
+  /// (5.51.0, [KitProcOriginLine]).
+  final Widget? note;
+
   const KitLibProcRow({
     super.key,
     required this.word,
@@ -656,6 +660,7 @@ class KitLibProcRow extends StatelessWidget {
     this.refusal,
     this.actions,
     this.attention = false,
+    this.note,
   });
 
   @override
@@ -701,6 +706,7 @@ class KitLibProcRow extends StatelessWidget {
             titleText,
             if (attention) ...[
               if (msg != null) ...[const SizedBox(height: 4), msg],
+              ?note,
               if (wait != null) ...[const SizedBox(height: 4), wait!],
               if (refusal != null) ...[const SizedBox(height: 4), refusal!],
               if (actions != null) ...[const SizedBox(height: 8), actions!],
@@ -782,6 +788,7 @@ class KitLibProcRow extends StatelessWidget {
             children: [
               head,
               if (attention && msg != null) under(msg),
+              if (attention && note != null) under(note!, 0),
               if (wait != null) under(wait!),
               if (refusal != null) under(refusal!),
               if (attention && actions != null) under(actions!, 7),
@@ -818,6 +825,9 @@ class KitArrivalSlip extends StatelessWidget {
   final bool attention;
   final bool muted;
 
+  /// A quiet line under the [message] (5.51.0, [KitProcOriginLine]).
+  final Widget? note;
+
   const KitArrivalSlip({
     super.key,
     required this.word,
@@ -832,6 +842,7 @@ class KitArrivalSlip extends StatelessWidget {
     this.actions,
     this.attention = false,
     this.muted = false,
+    this.note,
   });
 
   @override
@@ -958,6 +969,7 @@ class KitArrivalSlip extends StatelessWidget {
           const SizedBox(height: 7),
           KitLibProcMessage(message!, small: true),
         ],
+        if (attention) ?note,
         if (wait != null) ...[const SizedBox(height: 7), wait!],
         if (refusal != null) ...[const SizedBox(height: 7), refusal!],
         if (actions != null) ...[const SizedBox(height: 7), actions!],

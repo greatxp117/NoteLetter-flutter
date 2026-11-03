@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
 import '../models/upload_file.dart';
+import '../services/api.dart' show UploadOrigin;
 import '../services/resumable_upload.dart';
 import '../services/share_intake.dart';
 import '../shared/share_content.dart';
@@ -176,6 +177,8 @@ class _SharePageState extends State<SharePage> {
       null,
       f.item.mimeType.isEmpty ? 'application/octet-stream' : f.item.mimeType,
       source: ChunkSource.file(copied.path, copied.size),
+      // Another app's Share → NoteLetter (5.51.0, `upload_origin`).
+      origin: UploadOrigin.shareSheet,
     );
     _rowOutcome(uploads, rowId);
     _finish();

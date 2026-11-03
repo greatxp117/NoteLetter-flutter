@@ -703,6 +703,34 @@ class FirestoreService {
     return Document.fromJson(snap.id, data);
   }
 
+  /// The caller's own document [docId], or null when the caller has none by
+  /// that id — the original a copy names (5.51.0, ADR-202 addendum 1; the
+  /// row's *In your library since…* and the Compare sheet).
+  ///
+  /// A query scoped to `user_id` (INV-02), not a get, for [findCapture]'s
+  /// reason: the documents rule reads `resource.data.user_id`, so a get on a
+  /// document deleted since answers `permission-denied`, and *The original is
+  /// no longer in your library.* would be the same answer as *couldn't be
+  /// read*. Here an empty result is a real "removed"; a refusal still throws.
+  /// Equality on `user_id` and the id alone: no composite index.
+  Future<Document?> findOwnDocument(String docId) async {
+    final uid = _uid;
+    if (uid == null) {
+      throw StateError('findOwnDocument: nobody is signed in');
+    }
+    final snap = await _db
+        .collection('documents')
+        .where('user_id', isEqualTo: uid)
+        .where(FieldPath.documentId, isEqualTo: docId)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    final d = snap.docs.single;
+    final data = Map<String, dynamic>.from(d.data());
+    data.remove('embedding');
+    return Document.fromJson(d.id, data);
+  }
+
   /// The caller's own document for one camera-roll asset key (INV-14), or
   /// null when there is none — the sweep's dry run (F-125 S2), which must say
   /// whether a photo is already filed without asking the endpoint that FILES

@@ -100,6 +100,10 @@ class UploadNotifier extends ChangeNotifier {
   /// [onRow] is told the row id the moment the row exists, before any request
   /// — quick add (F-152) draws its own rows from the ones it made, and the
   /// returned id arrives only once the upload has ended.
+  ///
+  /// [origin] (5.51.0): where the file came from, sent as the session's
+  /// `origin` — the app's picker and quick add are [UploadOrigin.app]; the
+  /// share screen says [UploadOrigin.shareSheet].
   Future<String> addFile(
     String name,
     int size,
@@ -107,6 +111,7 @@ class UploadNotifier extends ChangeNotifier {
     String mimeType, {
     ChunkSource? source,
     void Function(String rowId)? onRow,
+    String? origin,
   }) async {
     final from = source ?? (bytes == null ? null : ChunkSource.bytes(bytes));
     if (from == null) {
@@ -122,7 +127,7 @@ class UploadNotifier extends ChangeNotifier {
     _pending[file.id] = from;
     onRow?.call(file.id);
     notifyListeners();
-    await _uploadFile(file);
+    await _uploadFile(file, origin ?? UploadOrigin.app);
     return file.id;
   }
 
@@ -264,7 +269,7 @@ class UploadNotifier extends ChangeNotifier {
     _patch(id, description: description);
   }
 
-  Future<void> _uploadFile(UploadFile file) async {
+  Future<void> _uploadFile(UploadFile file, String origin) async {
     final source = _pending[file.id];
     if (source == null) return;
 
@@ -276,8 +281,9 @@ class UploadNotifier extends ChangeNotifier {
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.1);
 
-      final session = await Api.instance
-          .createUploadSession(file.name, file.mimeType, file.size);
+      final session = await Api.instance.createUploadSession(
+          file.name, file.mimeType, file.size,
+          origin: origin);
 
       final docId = session['docId'] as String;
       fileDoc = docId;

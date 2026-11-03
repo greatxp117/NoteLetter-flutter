@@ -1,5 +1,28 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+
 import '../shared/cooldown.dart';
 import 'api_service.dart';
+
+/// Where an upload came from, in the closed words `fn_create_upload_session`
+/// takes as `origin` (5.51.0, ADR-202 addendum 1; `data-model.md`
+/// `upload_origin`). Only a copy's Compare sheet reads it back — *Uploaded
+/// from your phone* — so the word is the client's, said once per upload, and
+/// a value outside the set is a 400 by name.
+abstract final class UploadOrigin {
+  static const computer = 'computer';
+  static const phone = 'phone';
+  static const shareSheet = 'share_sheet';
+
+  /// This app's own picker and quick add: `phone` (the spec's word for the
+  /// app's picker on a phone). The same build served in a desktop browser is
+  /// a computer, as web's `uploadOrigin()` says for one.
+  static String get app => kIsWeb &&
+          defaultTargetPlatform != TargetPlatform.iOS &&
+          defaultTargetPlatform != TargetPlatform.android
+      ? computer
+      : phone;
+}
 
 /// `purposeText`'s bound (api/newsletter.md, 5.48.0; web `MISSION_MAX`):
 /// `fn_newsletter_settings` keeps the first 1000 characters and drops the rest
@@ -26,10 +49,16 @@ class Api {
 
   // ── Uploads (INV-08) ──────────────────────────────────────────────────────
 
+  /// [origin] (5.51.0): [UploadOrigin]'s word, omitted when none is given —
+  /// the closed set refuses anything else by name.
   Future<Map<String, dynamic>> createUploadSession(
-          String filename, String mimeType, int size) =>
-      _http.post('/fn_create_upload_session',
-          data: {'filename': filename, 'mimeType': mimeType, 'size': size});
+          String filename, String mimeType, int size, {String? origin}) =>
+      _http.post('/fn_create_upload_session', data: {
+        'filename': filename,
+        'mimeType': mimeType,
+        'size': size,
+        'origin': ?origin,
+      });
 
   /// Multi-image note: one session over N image parts (contract 1.1.0).
   Future<Map<String, dynamic>> createMultiImageSession(

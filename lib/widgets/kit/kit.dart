@@ -19,6 +19,7 @@ library;
 export 'kit_ask_answer.dart';
 export 'kit_capture.dart';
 export 'kit_cards.dart';
+export 'kit_compare.dart';
 export 'kit_composer.dart';
 export 'kit_config.dart';
 export 'kit_confirm.dart';

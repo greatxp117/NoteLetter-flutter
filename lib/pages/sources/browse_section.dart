@@ -13,7 +13,9 @@ import '../../state/activity_notifier.dart';
 import '../../state/camera_sweep_host.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
+import '../../shared/picture_copy.dart';
 import '../reader/supersession_confirm.dart';
+import 'compare_sheet.dart';
 import 'source_sheet.dart';
 import '../../shared/stalled.dart';
 
@@ -228,8 +230,8 @@ class ProcessingRow extends StatefulWidget {
   /// Test seam for Dismiss; null is `Api.reviewDocuments`.
   final Future<void> Function(String docId)? dismiss;
 
-  /// Test seam for a copy's View (5.50.0): null pushes the reader of the
-  /// ORIGINAL, `/reader/{duplicate_of}`.
+  /// Test seam for a copy's *Open the original* (Compare's foot, 5.51.0):
+  /// null pushes the reader of the ORIGINAL, `/reader/{duplicate_of}`.
   final void Function(String originalId)? openOriginal;
 
   const ProcessingRow(
@@ -377,13 +379,32 @@ class _ProcessingRowState extends State<ProcessingRow> {
           ? 'Adding…'
           : primary.$1;
 
-  /// A copy's source is the ORIGINAL it names: the copy has nothing of its
-  /// own to read, and one never uploaded has no file at all (web
-  /// `SourceAffordance`). None when the row names no original.
-  VoidCallback? _openOriginal(Document doc) {
-    final original = doc.duplicateOf;
-    if (original == null || original.isEmpty) return null;
-    return () => (widget.openOriginal ?? (id) => context.push('/reader/$id'))(original);
+  /// A copy's source question is "is this the same picture?" (5.51.0,
+  /// ADR-202 addendum 1; web `SourceAffordance` → Compare): the copy has
+  /// nothing of its own to read, and one never uploaded has no file at all.
+  /// The sheet's foot is the row's own controls — Add anyway on the row's
+  /// condition ([primary]), Remove with its confirm — and the original from
+  /// there. On the phone that holds a copy never sent, its slot is the
+  /// photo's own thumbnail.
+  void _compare(Document doc, (String, _Act)? primary) {
+    final act = primary?.$2;
+    final adds = act == _Act.addAnyway || act == _Act.addFromPhone;
+    final host = context.read<CameraSweepHost?>();
+    final local = act == _Act.addFromPhone
+        ? host?.ledger?.holdingCopy(doc.captureAssetKey)
+        : null;
+    final bridge = host?.bridge;
+    CompareCopySheet.open(
+      context,
+      doc,
+      onOpenOriginal: (id) =>
+          (widget.openOriginal ?? (id) => context.push('/reader/$id'))(id),
+      onRemove: () => confirmRemove(context, doc),
+      onAddAnyway: adds && !_busy ? () => _runPrimary(act!) : null,
+      holdingThumbnail: local == null || bridge == null
+          ? null
+          : () => bridge.thumbnail(local, width: 720, height: 960),
+    );
   }
 
   Future<void> _runPrimary(_Act act) async {
@@ -535,12 +556,10 @@ class _ProcessingRowState extends State<ProcessingRow> {
     final passages = doc.chunkCount ?? 0;
     // Offered on EVERY row — failed, queued, uploading or mid-extraction — and
     // chosen by the document's shape, which is known at creation and does not
-    // depend on `status`. A copy's is View → the original (5.50.0).
-    final openOriginal = copy ? _openOriginal(doc) : null;
-    final Widget? source = copy
-        ? (openOriginal == null
-            ? null
-            : KitButton.ghost('View', icon: Icons.open_in_new, onPressed: openOriginal))
+    // depend on `status`. A copy's is Compare (5.51.0; 5.50.0's View).
+    final Widget source = copy
+        ? KitButton.ghost(compareLabel,
+            icon: Icons.layers_outlined, onPressed: () => _compare(doc, primary))
         : KitButton.ghost(SourceSheet.labelFor(doc),
             icon: SourceSheet.iconFor(doc),
             onPressed: () => SourceSheet.open(context, doc));
@@ -558,6 +577,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
       foot: attention
           ? KitProcAttention(
               detail: stalled ? stalledMsg : (doc.errorMessage ?? defaultMsg),
+              note: copy ? OriginLine(doc) : null,
               failure: refusal,
               actions: [
                 // One primary, never two: an `error` row and a `skipped` row
@@ -575,13 +595,13 @@ class _ProcessingRowState extends State<ProcessingRow> {
                 if (widget.dismissible)
                   KitButton.ghost(_dismissing ? 'Dismissing…' : 'Dismiss',
                       onPressed: _busy || _dismissing ? null : _dismiss),
-                ?source,
+                source,
               ],
             )
           : KitProcActive(
               queued: doc.status == DocumentStatus.queued,
               actions: [
-                ?source,
+                source,
                 KitButton.ghost('Cancel',
                     onPressed: () => confirmCancel(context, doc)),
               ],
@@ -623,11 +643,9 @@ extension on _ProcessingRowState {
             live: !done && pct == null && doc.status != DocumentStatus.queued,
             value: pct,
             done: done);
-    final openOriginal = copy ? _openOriginal(doc) : null;
-    final KitLibAct? source = copy
-        ? (openOriginal == null
-            ? null
-            : KitLibAct('View', icon: Icons.open_in_new, onTap: openOriginal))
+    final KitLibAct source = copy
+        ? KitLibAct(compareLabel,
+            icon: Icons.layers_outlined, onTap: () => _compare(doc, primary))
         : KitLibAct(SourceSheet.labelFor(doc),
             icon: SourceSheet.iconFor(doc),
             onTap: () => SourceSheet.open(context, doc));
@@ -637,7 +655,7 @@ extension on _ProcessingRowState {
       actions = null;
     } else if (!attention) {
       actions = KitLibActs(tight: arrival, children: [
-        ?source,
+        source,
         KitLibAct('Cancel', onTap: () => confirmCancel(context, doc)),
       ]);
     } else {
@@ -655,7 +673,7 @@ extension on _ProcessingRowState {
         if (widget.dismissible)
           KitLibAct(_dismissing ? 'Dismissing…' : 'Dismiss',
               onTap: _busy || _dismissing ? null : _dismiss),
-        ?source,
+        source,
       ]);
     }
     final word = kitTypeLabel(doc.type);
@@ -674,6 +692,7 @@ extension on _ProcessingRowState {
           // Already in your library, in the muted ink (5.50.0).
           stamp: attention ? (failed ? 'Couldn’t be read' : label) : null,
           message: attention ? message : null,
+          note: copy ? OriginLine(doc) : null,
           refusal: refusal,
           actions: actions,
           attention: attention,
@@ -687,9 +706,68 @@ extension on _ProcessingRowState {
       stage: stage,
       bar: bar,
       message: attention ? message : null,
+      note: copy ? OriginLine(doc) : null,
       refusal: refusal,
       actions: actions,
       attention: attention,
+    );
+  }
+}
+
+/// A copy's Compare control (5.51.0, replacing 5.50.0's *View*).
+const compareLabel = 'Compare';
+
+/// *In your library since Oct 12 · from your camera roll* — one quiet line
+/// under a copy's sentence, from the original's own record (5.51.0,
+/// `screens/sources.md`; web `OriginalLine`). Read once per original and
+/// shared ([OriginalRecords]); asked once per row, not on every rebuild — a
+/// list ticks every 15 seconds. A removed original and a read that failed
+/// each say so in the same line; nothing is drawn while it is read.
+class OriginLine extends StatefulWidget {
+  final Document copy;
+  const OriginLine(this.copy, {super.key});
+
+  @override
+  State<OriginLine> createState() => _OriginLineState();
+}
+
+class _OriginLineState extends State<OriginLine> {
+  Future<Document?>? _original;
+
+  @override
+  void initState() {
+    super.initState();
+    _ask();
+  }
+
+  @override
+  void didUpdateWidget(OriginLine old) {
+    super.didUpdateWidget(old);
+    if (old.copy.duplicateOf != widget.copy.duplicateOf) _ask();
+  }
+
+  void _ask() {
+    final id = widget.copy.duplicateOf;
+    _original = id == null || id.isEmpty ? null : OriginalRecords.of(id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final original = _original;
+    if (original == null) return const SizedBox.shrink();
+    return FutureBuilder<Document?>(
+      future: original,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        final String? line = snap.hasError
+            ? originalUnread
+            : snap.data == null
+                ? originalGone
+                : sinceLine(snap.data!);
+        return line == null ? const SizedBox.shrink() : KitProcOriginLine(line);
+      },
     );
   }
 }

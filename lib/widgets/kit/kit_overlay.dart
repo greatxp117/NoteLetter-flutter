@@ -88,6 +88,11 @@ class KitOverlaySheet extends StatelessWidget {
   /// floating panel — see [show]'s `phoneSheet`.
   final bool docked;
 
+  /// The head's 36px mark ([icon], or [lead]). False for a sheet whose head
+  /// is its words alone — Compare (5.51.0), whose `.qa-head` draws no
+  /// `.qa-mark`.
+  final bool mark;
+
   const KitOverlaySheet({
     super.key,
     required this.icon,
@@ -101,6 +106,7 @@ class KitOverlaySheet extends StatelessWidget {
     this.lead,
     this.foot,
     this.docked = false,
+    this.mark = true,
   });
 
   /// [phoneSheet]: on a phone (`KitD.phone`, at most 680 wide) the panel rises
@@ -122,6 +128,7 @@ class KitOverlaySheet extends StatelessWidget {
     Widget? lead,
     Widget? foot,
     bool phoneSheet = false,
+    bool mark = true,
   }) {
     if (phoneSheet && KitD.phone(context)) {
       return showModalBottomSheet<void>(
@@ -148,6 +155,7 @@ class KitOverlaySheet extends StatelessWidget {
           lead: lead,
           foot: foot,
           docked: true,
+          mark: mark,
           child: Builder(builder: builder),
         ),
       );
@@ -169,6 +177,7 @@ class KitOverlaySheet extends StatelessWidget {
             heading: heading,
             lead: lead,
             foot: foot,
+            mark: mark,
             child: Builder(builder: builder),
           ),
         ),
@@ -238,20 +247,22 @@ class KitOverlaySheet extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    lead ??
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: t.accentSoft,
-                            borderRadius: AppRadius.smR,
+                    if (mark) ...[
+                      lead ??
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: t.accentSoft,
+                              borderRadius: AppRadius.smR,
+                            ),
+                            // `.qa-mark` draws its glyph at --seal, not
+                            // --accent-text (the same value today, the wrong
+                            // name — F-81 (6)).
+                            child: KitGlyph(icon, size: 18, color: t.seal),
                           ),
-                          // `.qa-mark` draws its glyph at --seal, not
-                          // --accent-text (the same value today, the wrong
-                          // name — F-81 (6)).
-                          child: KitGlyph(icon, size: 18, color: t.seal),
-                        ),
-                    const SizedBox(width: 12),
+                      const SizedBox(width: 12),
+                    ],
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

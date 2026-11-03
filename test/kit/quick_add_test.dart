@@ -411,6 +411,9 @@ void main() {
     final sessions =
         wire.sent.where((r) => r.path.endsWith('fn_create_upload_session'));
     expect(sessions.length, 2);
+    // Quick add says where each came from (5.51.0, `upload_origin`): the
+    // app's own picker is `phone`.
+    expect(sessions.map((r) => (r.data as Map)['origin']), ['phone', 'phone']);
     // The server's words reach each row.
     expect(find.text('Not today.'), findsNWidgets(2));
     expect(find.text('0 of 2 filed'), findsOneWidget);

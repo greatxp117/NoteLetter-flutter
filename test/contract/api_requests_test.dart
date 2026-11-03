@@ -100,8 +100,12 @@ List<Map<String, dynamic>> _maps(dynamic v) =>
     (v as List).map((e) => (e as Map).cast<String, dynamic>()).toList();
 
 final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
-  'fn_create_upload_session': (b) =>
-      Api.instance.createUploadSession(b['filename'], b['mimeType'], b['size']),
+  // 5.51.0: `origin`, passed through and omitted when the case sends none —
+  // `create-origin-unknown` sends a word outside the closed set, which the
+  // builder carries and the server refuses by name.
+  'fn_create_upload_session': (b) => Api.instance.createUploadSession(
+      b['filename'], b['mimeType'], b['size'],
+      origin: b['origin'] as String?),
   'fn_create_multi_image_session': (b) =>
       Api.instance.createMultiImageSession(_maps(b['files']), b['title']),
   'fn_signal_uploads_complete': (b) =>
@@ -550,6 +554,19 @@ void main() {
         if (req['kind'] != null && method == null) {
           skipped['a backend prompt case, not a client request'] =
               (skipped['a backend prompt case, not a client request'] ?? 0) + 1;
+          continue;
+        }
+        // A case with no body and no query that says what it is in a `note`
+        // reads back what earlier cases made the server store
+        // (`uploads:origin-stored`, 5.51.0: each `upload_origin` as sent) —
+        // a statement about the database, not a request any client builds.
+        // Its content is asserted where it is read: the model
+        // (picture_copy_row_test.dart). A category, counted.
+        if (req['body'] == null && req['query'] == null && req['note'] != null) {
+          skipped['a read-back of what the server stored, not a client request'] =
+              (skipped['a read-back of what the server stored, not a client request'] ??
+                      0) +
+                  1;
           continue;
         }
         final body = req['body'];

@@ -212,6 +212,23 @@ class Document {
   /// (`features/picture-dedupe.md` §Add anyway). Opaque, never parsed.
   final String? captureAssetKey;
 
+  /// How this document came in, as a copy's Compare says it (5.51.0, ADR-202
+  /// addendum 1; `shared/picture_copy.dart` [howPhrase]) — read for that one
+  /// sentence and nothing else:
+  /// * [fromCameraRoll] — it carries `source_capture`;
+  /// * [cloudProvider] — `cloud_placement.provider` (an open id, named through
+  ///   the providers table);
+  /// * [uploadOrigin] — `upload_origin`, the client's word (`computer` ·
+  ///   `phone` · `share_sheet`); null on every upload before 5.51.0.
+  final bool fromCameraRoll;
+  final String? cloudProvider;
+  final String? uploadOrigin;
+
+  /// `picture.width` × `picture.height` (5.50.0) — the picture's upright pixel
+  /// size, drawn only by a copy's Compare. Its hashes are never read here.
+  final int? pictureWidth;
+  final int? pictureHeight;
+
   /// A copy of a picture the library already holds (5.50.0, ADR-202): a
   /// `skipped` document whose CLOSED `skip_reason` says so. Nothing failed and
   /// the reader lost nothing, so its row is muted, never failure-styled
@@ -302,6 +319,11 @@ class Document {
     this.skipReason,
     this.duplicateOf,
     this.captureAssetKey,
+    this.fromCameraRoll = false,
+    this.cloudProvider,
+    this.uploadOrigin,
+    this.pictureWidth,
+    this.pictureHeight,
     this.sourcePriority,
     this.sourcePrioritySetAt,
     this.viewCount = 0,
@@ -358,6 +380,11 @@ class Document {
       skipReason: skipReason,
       duplicateOf: duplicateOf,
       captureAssetKey: captureAssetKey,
+      fromCameraRoll: fromCameraRoll,
+      cloudProvider: cloudProvider,
+      uploadOrigin: uploadOrigin,
+      pictureWidth: pictureWidth,
+      pictureHeight: pictureHeight,
       sourcePriority: sourcePriority,
       sourcePrioritySetAt: sourcePrioritySetAt,
       viewCount: viewCount,
@@ -415,6 +442,11 @@ class Document {
       skipReason: skipReason,
       duplicateOf: duplicateOf,
       captureAssetKey: captureAssetKey,
+      fromCameraRoll: fromCameraRoll,
+      cloudProvider: cloudProvider,
+      uploadOrigin: uploadOrigin,
+      pictureWidth: pictureWidth,
+      pictureHeight: pictureHeight,
       sourcePriority: sourcePriority,
       sourcePrioritySetAt: sourcePrioritySetAt,
       viewCount: viewCount,
@@ -471,6 +503,11 @@ class Document {
       skipReason: skipReason,
       duplicateOf: duplicateOf,
       captureAssetKey: captureAssetKey,
+      fromCameraRoll: fromCameraRoll,
+      cloudProvider: cloudProvider,
+      uploadOrigin: uploadOrigin,
+      pictureWidth: pictureWidth,
+      pictureHeight: pictureHeight,
       sourcePriority: sourcePriority,
       sourcePrioritySetAt: sourcePrioritySetAt,
       viewCount: viewCount,
@@ -528,6 +565,11 @@ class Document {
       skipReason: skipReason,
       duplicateOf: duplicateOf,
       captureAssetKey: captureAssetKey,
+      fromCameraRoll: fromCameraRoll,
+      cloudProvider: cloudProvider,
+      uploadOrigin: uploadOrigin,
+      pictureWidth: pictureWidth,
+      pictureHeight: pictureHeight,
       sourcePriority: value ?? 0.5,
       sourcePrioritySetAt: value == null
           ? null
@@ -585,6 +627,17 @@ class Document {
       duplicateOf: json['duplicate_of'] as String?,
       captureAssetKey: json['source_capture'] is Map
           ? (json['source_capture'] as Map)['asset_key'] as String?
+          : null,
+      fromCameraRoll: json['source_capture'] is Map,
+      cloudProvider: json['cloud_placement'] is Map
+          ? (json['cloud_placement'] as Map)['provider'] as String?
+          : null,
+      uploadOrigin: json['upload_origin'] as String?,
+      pictureWidth: json['picture'] is Map
+          ? ((json['picture'] as Map)['width'] as num?)?.toInt()
+          : null,
+      pictureHeight: json['picture'] is Map
+          ? ((json['picture'] as Map)['height'] as num?)?.toInt()
           : null,
       sourcePriority: (json['source_priority'] as num?)?.toDouble(),
       sourcePrioritySetAt: tsMs(json['source_priority_set_at']),

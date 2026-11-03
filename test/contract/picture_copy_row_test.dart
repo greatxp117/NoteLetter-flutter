@@ -1,5 +1,6 @@
-/// A picture already in the library (5.50.0, ADR-202, INV-37) — the copy's
-/// row, its labels and its merge; web `tests/contract/picture-copy-row.test.js`.
+/// A picture already in the library (5.50.0–5.51.0, ADR-202, INV-37) — the
+/// copy's row, its Compare sheet, its labels and its merge; web
+/// `tests/contract/picture-copy-row.test.js`.
 ///
 /// The copy is a `skipped` document whose CLOSED `skip_reason` says so, and it
 /// is listed, never dropped (Xavier, 2026-11-02). These assert the row this
@@ -8,13 +9,16 @@
 /// looks (For your review's card, the Library's D row and its Grid arrival):
 ///   - muted (opacity 0.55), never failure-styled: no alert glyph, the stage
 ///     and stamp say "Already in your library";
+///   - one quiet line from the original's own record: *In your library since
+///     {date} · {how}*, or that it was removed, or could not be read;
 ///   - `already_in_library` offers Add anyway (a forced retry in its own
 ///     words), never Index it anyway and never Retry;
 ///   - `already_in_library_not_uploaded` offers Add anyway ONLY on the phone
 ///     whose camera-roll ledger holds the photo, and then it is the capture
 ///     session's `force`, never `fn_retry_document` (which 409s it:
 ///     `uploads:retry-not-uploaded-duplicate-refused`);
-///   - View opens the ORIGINAL, never the copy.
+///   - Compare (5.51.0, replacing View) opens both pictures side by side with
+///     when, how and size, and the row's three choices.
 library;
 
 import 'dart:convert';
@@ -29,10 +33,13 @@ import 'package:provider/provider.dart';
 import 'package:flutter_app/models/activity_item.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/pages/sources/browse_section.dart';
+import 'package:flutter_app/pages/sources/compare_sheet.dart';
 import 'package:flutter_app/services/activity_merge.dart';
+import 'package:flutter_app/services/api.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/source_history.dart';
 import 'package:flutter_app/services/sweep_ledger.dart';
+import 'package:flutter_app/shared/picture_copy.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/camera_sweep_host.dart';
 import 'package:flutter_app/theme/app_theme.dart';
@@ -41,28 +48,54 @@ import 'package:flutter_app/widgets/kit/kit.dart';
 import 'fixtures.dart';
 import 'sweep_fakes.dart';
 
-/// Records every request and answers 200.
+/// Records every request; answers `fn_get_raw_document_url` with a signed URL
+/// per document (or [rawUrl]'s answer), everything else 200.
 class _Router implements HttpClientAdapter {
   final List<RequestOptions> sent = [];
+
+  /// docId → (status, body) for fn_get_raw_document_url; default: a URL.
+  final Map<String, (int, Object)> raw = {};
 
   @override
   Future<ResponseBody> fetch(RequestOptions options,
       Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     sent.add(options);
-    return ResponseBody.fromString(jsonEncode({'ok': true}), 200, headers: {
+    var answer = (200, <String, Object?>{'ok': true} as Object);
+    if (options.path.endsWith('/fn_get_raw_document_url')) {
+      final id = (options.data as Map)['docId'] as String;
+      answer = raw[id] ?? (200, {'signed_url': 'https://signed.example/$id.jpg'});
+    }
+    return ResponseBody.fromString(jsonEncode(answer.$2), answer.$1, headers: {
       Headers.contentTypeHeader: [Headers.jsonContentType]
     });
   }
 
   @override
   void close({bool force = false}) {}
+
+  List<RequestOptions> to(String endpoint) =>
+      [for (final o in sent) if (o.path.endsWith('/$endpoint')) o];
 }
 
 Map<String, dynamic> _case(String suite, String id) =>
     ((loadSuite(suite)!['cases'] as List).firstWhere((c) => c['id'] == id) as Map)
         .cast<String, dynamic>();
 
-/// The copy as the pipeline left it (picture-dedupe, case 1).
+/// The original, as its record answers (web's ORIGINAL): a camera-roll photo
+/// added Oct 12 at 9:03 AM, on this machine's clock.
+final _octTwelve = DateTime(2026, 10, 12, 9, 3).millisecondsSinceEpoch;
+Document _original(String id) => Document.fromJson(id, {
+      'user_id': 'u1',
+      'title': 'IMG_0420.HEIC',
+      'type': 'image',
+      'status': 'complete',
+      'created_at': _octTwelve,
+      'source_capture': {'source': 'camera_roll'},
+      'picture': {'width': 3024, 'height': 4032},
+    });
+
+/// The copy as the pipeline left it (picture-dedupe, case 1), uploaded from a
+/// computer just now.
 Document _after() {
   final copy = (_case('picture-dedupe', 'picture-dedupe:same-file-is-listed-not-read')
           ['response']['body']['copy'] as Map)
@@ -72,6 +105,9 @@ Document _after() {
     'title': 'cap-dedupe-b.png',
     'type': 'image',
     ...copy,
+    'created_at': DateTime.now().millisecondsSinceEpoch,
+    'upload_origin': 'computer',
+    'picture': {'width': 1512, 'height': 2016},
   });
 }
 
@@ -101,6 +137,7 @@ Future<List<String>> _pumpRow(
   Document doc, {
   ProcessingLook look = ProcessingLook.card,
   CameraSweepHost? host,
+  Future<bool?> Function(String)? editCheck,
 }) async {
   final opened = <String>[];
   await tester.pumpWidget(MultiProvider(
@@ -117,7 +154,7 @@ Future<List<String>> _pumpRow(
             child: ProcessingRow(
               doc: doc,
               look: look,
-              editCheck: (_) async => false,
+              editCheck: editCheck ?? (_) async => false,
               studyCheck: (_) async => false,
               openOriginal: opened.add,
             ),
@@ -136,9 +173,32 @@ Finder _muted() => find.descendant(
     of: find.byType(ProcessingRow),
     matching: find.byWidgetPredicate((w) => w is Opacity && w.opacity == copyRowOpacity));
 
+Finder _stage({String? url, bool bytes = false}) => find.byWidgetPredicate((w) =>
+    w is KitCompareStage && (url == null || w.url == url) && (!bytes || w.bytes != null));
+
+Finder _inSheet(Finder f) =>
+    find.descendant(of: find.byType(KitOverlaySheet), matching: f);
+
+Future<_Router> _openCompare(WidgetTester tester, Document doc,
+    {CameraSweepHost? host}) async {
+  final rec = _Router();
+  ApiService.instance.httpClientAdapter = rec;
+  await _pumpRow(tester, doc, host: host);
+  await tester.tap(find.text(compareLabel));
+  await tester.pumpAndSettle();
+  return rec;
+}
+
 void main() {
-  setUp(() => ApiService.instance.tokenProvider = () async => 'test-token');
-  tearDown(() => ApiService.instance.resetTestSeams());
+  setUp(() {
+    ApiService.instance.tokenProvider = () async => 'test-token';
+    OriginalRecords.reset();
+    OriginalRecords.read = (id) async => _original(id);
+  });
+  tearDown(() {
+    ApiService.instance.resetTestSeams();
+    OriginalRecords.reset();
+  });
 
   group('the document', () {
     test('a copy names its original; skip_reason (closed) says it is one', () {
@@ -146,15 +206,20 @@ void main() {
       expect(after.skipReason, 'already_in_library');
       expect(after.duplicateOf, 'cap-dedupe-a');
       expect(after.isPictureCopy, isTrue);
+      expect(after.uploadOrigin, 'computer');
+      expect((after.pictureWidth, after.pictureHeight), (1512, 2016));
       final before = _before('v1:twin');
       expect(before.isPictureCopy, isTrue);
       expect(before.captureAssetKey, 'v1:twin');
+      expect(before.fromCameraRoll, isTrue);
       final skipped = Document.fromJson('s', {
         'status': 'skipped', 'skip_reason': 'no_text_content', 'duplicate_of': 'x'});
       expect(skipped.isPictureCopy, isFalse, reason: 'the reason decides, never a field beside it');
       final complete = Document.fromJson('c', {
         'status': 'complete', 'skip_reason': 'already_in_library'});
       expect(complete.isPictureCopy, isFalse, reason: 'only a skipped row is a copy');
+      expect(Document.fromJson('d', {'cloud_placement': {'provider': 'dropbox'}}).cloudProvider,
+          'dropbox');
     });
   });
 
@@ -183,45 +248,201 @@ void main() {
         }
       });
 
-      testWidgets('Add anyway and View (the original); no Retry, no Index it anyway',
+      testWidgets('the original\'s own record, in one quiet line', (tester) async {
+        await _pumpRow(tester, _after(), look: look);
+        expect(find.text('In your library since Oct 12 · from your camera roll'),
+            findsOneWidget);
+        expect(find.byType(KitProcOriginLine), findsOneWidget);
+      });
+
+      testWidgets('Add anyway and Compare; no Retry, no Index it anyway, no View',
           (tester) async {
         final rec = _Router();
         ApiService.instance.httpClientAdapter = rec;
-        final opened = await _pumpRow(tester, _after(), look: look);
+        await _pumpRow(tester, _after(), look: look);
         expect(find.textContaining('Index it anyway'), findsNothing);
         expect(find.text('Retry'), findsNothing);
+        expect(find.text('View'), findsNothing, reason: '5.51.0: Compare replaced it');
         expect(find.text('View file'), findsNothing, reason: 'the copy has nothing to read');
-        await tester.tap(find.text('View'));
-        await tester.pumpAndSettle();
-        expect(opened, ['cap-dedupe-a']);
+        expect(find.text(compareLabel), findsOneWidget);
         await tester.tap(find.text('Add anyway'));
         await tester.pumpAndSettle();
-        final sent = rec.sent.single;
-        expect(sent.path, endsWith('/fn_retry_document'));
+        final sent = rec.to('fn_retry_document').single;
         expect(sent.data, {'docId': 'copy-1', 'force': true},
             reason: 'force on a copy is allow_duplicate, the server\'s reading');
       });
     });
   }
 
+  group('the line, when the original cannot be drawn from', () {
+    testWidgets('removed since: said, never "couldn\'t be read"', (tester) async {
+      OriginalRecords.read = (_) async => null;
+      await _pumpRow(tester, _after());
+      expect(find.text(originalGone), findsOneWidget);
+      expect(originalGone, 'The original is no longer in your library.');
+    });
+
+    testWidgets('a read that failed: said, never "removed"', (tester) async {
+      OriginalRecords.read = (_) async => throw StateError('offline');
+      await _pumpRow(tester, _after());
+      expect(find.text(originalUnread), findsOneWidget);
+      expect(originalUnread, 'The original couldn’t be read.');
+    });
+
+    testWidgets('one read per original, shared by every row that names it', (tester) async {
+      var reads = 0;
+      OriginalRecords.read = (id) async {
+        reads++;
+        return _original(id);
+      };
+      await tester.pumpWidget(MultiProvider(
+        providers: [ChangeNotifierProvider(create: (_) => ActivityNotifier())],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: Column(children: [
+                for (final id in ['c1', 'c2', 'c3'])
+                  ProcessingRow(
+                      key: ValueKey(id),
+                      doc: Document.fromJson(id, {
+                        'title': id, 'type': 'image', 'status': 'skipped',
+                        'skip_reason': 'already_in_library', 'duplicate_of': 'orig',
+                        'error_message': 'A copy.'})),
+              ]),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byType(KitProcOriginLine), findsNWidgets(3));
+      expect(reads, 1);
+    });
+  });
+
+  group('Compare', () {
+    testWidgets('both pictures with when, how and size, and the three choices', (tester) async {
+      final copy = _after();
+      final rec = await _openCompare(tester, copy);
+      expect(_inSheet(find.text(CompareCopySheet.title)), findsOneWidget);
+      expect(CompareCopySheet.title, 'Is this the same picture?');
+      expect(_inSheet(find.text(copy.errorMessage!)), findsOneWidget,
+          reason: 'its sub-line is the copy\'s sentence');
+      expect(_inSheet(find.text('THIS ONE')), findsOneWidget);
+      expect(_inSheet(find.text('ALREADY IN YOUR LIBRARY')), findsOneWidget);
+      // Read only now, each through fn_get_raw_document_url.
+      expect(rec.to('fn_get_raw_document_url').map((o) => (o.data as Map)['docId']).toSet(),
+          {'copy-1', 'cap-dedupe-a'});
+      expect(_stage(url: 'https://signed.example/copy-1.jpg'), findsOneWidget);
+      expect(_stage(url: 'https://signed.example/cap-dedupe-a.jpg'), findsOneWidget);
+      expect(find.text('Uploaded from your computer'), findsOneWidget);
+      expect(find.text('1512 × 2016'), findsOneWidget);
+      expect(find.textContaining(RegExp(r'^Added today, \d{1,2}:\d\d (AM|PM)$')), findsOneWidget);
+      expect(find.text('From your camera roll'), findsOneWidget);
+      expect(find.text('3024 × 4032'), findsOneWidget);
+      expect(find.text('Added Oct 12, 9:03 AM'), findsOneWidget);
+      expect(_inSheet(find.text(CompareCopySheet.openOriginal)), findsOneWidget);
+      expect(_inSheet(find.text(CompareCopySheet.removeCopy)), findsOneWidget);
+      expect(_inSheet(find.text(CompareCopySheet.addAnyway)), findsOneWidget);
+    });
+
+    testWidgets('Open the original closes the sheet and opens it', (tester) async {
+      final rec = _Router();
+      ApiService.instance.httpClientAdapter = rec;
+      final opened = await _pumpRow(tester, _after());
+      await tester.tap(find.text(compareLabel));
+      await tester.pumpAndSettle();
+      await tester.tap(_inSheet(find.text(CompareCopySheet.openOriginal)));
+      await tester.pumpAndSettle();
+      expect(find.byType(KitOverlaySheet), findsNothing);
+      expect(opened, ['cap-dedupe-a']);
+    });
+
+    testWidgets('Remove this copy is the row\'s Remove, with its confirm', (tester) async {
+      final rec = await _openCompare(tester, _after());
+      await tester.tap(_inSheet(find.text(CompareCopySheet.removeCopy)));
+      await tester.pumpAndSettle();
+      expect(find.byType(KitOverlaySheet), findsNothing);
+      expect(find.text('Remove “cap-dedupe-b.png”?'), findsOneWidget, reason: '§18 first');
+      expect(rec.to('fn_delete_document'), isEmpty, reason: 'nothing leaves before the confirm');
+    });
+
+    testWidgets('Add anyway is the row\'s: a forced retry', (tester) async {
+      final rec = await _openCompare(tester, _after());
+      await tester.tap(_inSheet(find.text(CompareCopySheet.addAnyway)));
+      await tester.pumpAndSettle();
+      expect(find.byType(KitOverlaySheet), findsNothing);
+      expect(rec.to('fn_retry_document').single.data, {'docId': 'copy-1', 'force': true});
+    });
+
+    testWidgets('a picture whose request failed: §14.1 with Try again', (tester) async {
+      final rec = _Router()
+        ..raw['copy-1'] = (500, {'error': 'Storage is unavailable.', 'request_id': 'req-9'});
+      ApiService.instance.httpClientAdapter = rec;
+      await _pumpRow(tester, _after());
+      await tester.tap(find.text(compareLabel));
+      await tester.pumpAndSettle();
+      final block = find.widgetWithText(KitFailureBlock, CompareCopySheet.unopened);
+      expect(block, findsOneWidget);
+      expect(CompareCopySheet.unopened, 'This picture couldn’t be opened.');
+      rec.raw.remove('copy-1');
+      final before = rec.to('fn_get_raw_document_url').length;
+      await tester.tap(find.descendant(of: block, matching: find.text('Try again')));
+      await tester.pumpAndSettle();
+      expect(rec.to('fn_get_raw_document_url').length - before, 1, reason: 'asked again');
+      expect(_stage(url: 'https://signed.example/copy-1.jpg'), findsOneWidget);
+    });
+
+    testWidgets('a successful answer with no object is said, not a failure', (tester) async {
+      final rec = _Router()..raw['copy-1'] = (200, {'signed_url': null});
+      ApiService.instance.httpClientAdapter = rec;
+      await _pumpRow(tester, _after());
+      await tester.tap(find.text(compareLabel));
+      await tester.pumpAndSettle();
+      expect(find.text('No picture is stored for this source.'), findsOneWidget);
+      expect(find.byType(KitFailureBlock), findsNothing);
+    });
+
+    testWidgets('an original removed since: said, and no Open the original', (tester) async {
+      OriginalRecords.read = (_) async => null;
+      await _openCompare(tester, _after());
+      expect(_inSheet(find.text(originalGone)), findsOneWidget);
+      expect(_inSheet(find.text(CompareCopySheet.openOriginal)), findsNothing);
+      expect(_inSheet(find.text(CompareCopySheet.removeCopy)), findsOneWidget);
+    });
+
+    testWidgets('an original that could not be read: §14.1, Open the original stays',
+        (tester) async {
+      OriginalRecords.read = (_) async => throw StateError('offline');
+      await _openCompare(tester, _after());
+      final block = find.widgetWithText(KitFailureBlock, originalUnread);
+      expect(block, findsOneWidget);
+      expect(_inSheet(find.text(CompareCopySheet.openOriginal)), findsOneWidget);
+      // Try again reads again (a failure is never kept as the answer).
+      OriginalRecords.read = (id) async => _original(id);
+      await tester.tap(find.descendant(of: block, matching: find.text('Try again')));
+      await tester.pumpAndSettle();
+      expect(find.text('From your camera roll'), findsOneWidget);
+      // Its picture is asked for only now; let the answer arrive.
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+      expect(_stage(url: 'https://signed.example/cap-dedupe-a.jpg'), findsOneWidget);
+    });
+
+    testWidgets('a copy never uploaded, off the phone that holds it', (tester) async {
+      final rec = await _openCompare(tester, _before('v1:twin'));
+      expect(find.text(CompareCopySheet.stayedOnPhone), findsOneWidget);
+      expect(CompareCopySheet.stayedOnPhone, 'This photo stayed on your phone.');
+      expect(rec.to('fn_get_raw_document_url').map((o) => (o.data as Map)['docId']),
+          ['cap-uploads-original'], reason: 'nothing on the server to read for the copy');
+      expect(_inSheet(find.text(CompareCopySheet.addAnyway)), findsNothing);
+    });
+  });
+
   testWidgets('Add anyway asks in its own words when a confirm is owed', (tester) async {
     final rec = _Router();
     ApiService.instance.httpClientAdapter = rec;
-    await tester.pumpWidget(ChangeNotifierProvider(
-      create: (_) => ActivityNotifier(),
-      child: MaterialApp(
-        theme: AppTheme.light,
-        home: Scaffold(
-          body: ProcessingRow(
-            doc: _after(),
-            editCheck: (_) async => null,
-            studyCheck: (_) async => false,
-            openOriginal: (_) {},
-          ),
-        ),
-      ),
-    ));
-    await tester.pumpAndSettle();
+    await _pumpRow(tester, _after(), editCheck: (_) async => null);
     await tester.tap(find.text('Add anyway'));
     await tester.pumpAndSettle();
     expect(find.text('Add “cap-dedupe-b.png” anyway?'), findsOneWidget);
@@ -230,7 +451,7 @@ void main() {
         'This picture will be read as a source of its own, beside the one already in your library.');
     expect(find.descendant(of: find.byType(KitConfirm), matching: find.text('Add anyway')),
         findsOneWidget);
-    expect(rec.sent, isEmpty, reason: 'nothing leaves before the confirm');
+    expect(rec.to('fn_retry_document'), isEmpty, reason: 'nothing leaves before the confirm');
   });
 
   group('a copy recognised before its upload', () {
@@ -240,19 +461,17 @@ void main() {
       final rec = _Router();
       ApiService.instance.httpClientAdapter = rec;
       final doc = _before('v1:twin');
-      final opened = await _pumpRow(tester, doc);
+      await _pumpRow(tester, doc);
       expect(find.text('Add anyway'), findsNothing);
       expect(find.textContaining('Index it anyway'), findsNothing);
       expect(find.text(doc.errorMessage!), findsOneWidget, reason: 'its sentence says where to go');
       expect(find.text('Remove'), findsOneWidget);
-      await tester.tap(find.text('View'));
-      await tester.pumpAndSettle();
-      expect(opened, ['cap-uploads-original']);
+      expect(find.text(compareLabel), findsOneWidget);
       expect(rec.sent, isEmpty);
     });
 
-    testWidgets('on the phone that holds it: Add anyway is the capture session\'s force',
-        (tester) async {
+    testWidgets('on the phone that holds it: Add anyway is the capture session\'s force, '
+        'and Compare draws its own thumbnail', (tester) async {
       final store = MemoryLedgerStore();
       final bridge = FakeBridge([asset('p1')]);
       final endpoints = FakeEndpoints();
@@ -284,6 +503,25 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Add anyway'), findsOneWidget);
 
+      // Compare: on this phone, the copy's slot is its own thumbnail.
+      bridge.thumbnailBytes['p1'] = Uint8List.fromList(
+          base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
+      await tester.runAsync(() async {
+        await tester.tap(find.text(compareLabel));
+        for (var i = 0; i < 50 && bridge.thumbnailsAsked.isEmpty; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      await tester.pumpAndSettle();
+      expect(bridge.thumbnailsAsked, ['p1']);
+      expect(_stage(bytes: true), findsOneWidget);
+      expect(find.text(CompareCopySheet.stayedOnPhone), findsNothing);
+      expect(_inSheet(find.text(CompareCopySheet.addAnyway)), findsOneWidget,
+          reason: 'the row\'s condition: this phone holds it');
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+
       await tester.runAsync(() async {
         await tester.tap(find.text('Add anyway'));
         for (var i = 0; i < 50 && endpoints.uploader.starts.isEmpty; i++) {
@@ -291,7 +529,7 @@ void main() {
         }
       });
       await tester.pumpAndSettle();
-      expect(rec.sent, isEmpty, reason: 'never fn_retry_document: it would 409');
+      expect(rec.to('fn_retry_document'), isEmpty, reason: 'never fn_retry_document: it would 409');
       final call = endpoints.sessions.single;
       expect(call.force, isTrue);
       expect(call.assetKey, key);
@@ -301,7 +539,7 @@ void main() {
   });
 
   group('a plain skipped row is unchanged', () {
-    testWidgets('Error, the glyph, Index it anyway', (tester) async {
+    testWidgets('Error, the glyph, Index it anyway, its own source', (tester) async {
       final doc = Document.fromJson('s1', {
         'user_id': 'u1', 'title': 'beach.jpg', 'type': 'image', 'status': 'skipped',
         'skip_reason': 'no_text_content', 'error_message': 'No text was found.'});
@@ -311,13 +549,79 @@ void main() {
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
       expect(find.text('Index it anyway'), findsOneWidget);
       expect(find.text('Add anyway'), findsNothing);
+      expect(find.text(compareLabel), findsNothing);
+      expect(find.byType(KitProcOriginLine), findsNothing);
+    });
+  });
+
+  group('how and when', () {
+    Document d(Map<String, dynamic> j) => Document.fromJson('x', j);
+
+    test('how: camera roll, a cloud service, the upload origin, else Uploaded', () {
+      expect(howPhrase(d({'source_capture': {}})), 'From your camera roll');
+      expect(howPhrase(d({'cloud_placement': {'provider': 'google_drive'}})), 'From Google Drive');
+      expect(howPhrase(d({'upload_origin': 'computer'})), 'Uploaded from your computer');
+      expect(howPhrase(d({'upload_origin': 'phone'})), 'Uploaded from your phone');
+      expect(howPhrase(d({'upload_origin': 'share_sheet'})), 'Shared from your phone');
+      expect(howPhrase(d({'upload_origin': null})), 'Uploaded');
+      expect(howPhrase(d({'source_capture': {}, 'upload_origin': 'phone'})),
+          'From your camera roll', reason: 'most specific first');
+    });
+
+    test('when: today, this year, another year — on the reader\'s clock', () {
+      final now = DateTime(2026, 11, 2, 18);
+      expect(addedLine(DateTime(2026, 11, 2, 14, 14).millisecondsSinceEpoch, now: now),
+          'Added today, 2:14 PM');
+      expect(addedLine(DateTime(2026, 10, 12, 9, 3).millisecondsSinceEpoch, now: now),
+          'Added Oct 12, 9:03 AM');
+      expect(addedLine(DateTime(2025, 10, 12, 0, 5).millisecondsSinceEpoch, now: now),
+          'Added Oct 12, 2025, 12:05 AM');
+      expect(addedLine(null), isNull);
+      expect(
+          sinceLine(d({'created_at': DateTime(2025, 3, 4, 12).millisecondsSinceEpoch,
+              'upload_origin': 'phone'}), now: now),
+          'In your library since Mar 4, 2025 · uploaded from your phone');
+      expect(sizeLine(d({'picture': {'width': 3024, 'height': 4032}})), '3024 × 4032');
+      expect(sizeLine(d({})), isNull);
+    });
+
+    test('this client sends an origin of the closed set the server takes', () {
+      final taken = [
+        for (final c in (loadSuite('api/uploads')!['cases'] as List))
+          if ((c['id'] as String).startsWith('uploads:create-origin-') &&
+              c['response']['status'] == 201)
+            c['request']['body']['origin'] as String
+      ]..sort();
+      expect(taken, ['computer', 'phone', 'share_sheet']);
+      expect(taken, contains(UploadOrigin.app));
+      expect(UploadOrigin.app, UploadOrigin.phone, reason: 'the app\'s picker and quick add');
+      expect(taken, contains(UploadOrigin.shareSheet));
+      // What the server stored, read back (`uploads:origin-stored`): each
+      // origin as sent, null where none was — and each reads as its phrase.
+      final stored = (_case('api/uploads', 'uploads:origin-stored')['response']['body']
+          ['upload_origin_by_title'] as Map);
+      expect(stored.values.toSet(), {'computer', 'phone', 'share_sheet', null});
+      expect({
+        for (final e in stored.entries)
+          e.key: howPhrase(Document.fromJson('x', {'upload_origin': e.value}))
+      }, {
+        'from-computer.jpg': 'Uploaded from your computer',
+        'from-phone.jpg': 'Uploaded from your phone',
+        'from-share_sheet.jpg': 'Shared from your phone',
+        'photo.jpg': 'Uploaded',
+      });
+      // The share screen says so; the picker and quick add take the app's word.
+      expect(File('lib/pages/share_page.dart').readAsStringSync(),
+          contains('origin: UploadOrigin.shareSheet'));
+      expect(File('lib/state/upload_notifier.dart').readAsStringSync(),
+          contains('origin ?? UploadOrigin.app'));
     });
   });
 
   group('Added again', () {
     test('doc_duplicate is "Added again" in a source\'s History, its note the detail', () {
       final h = sourceHistory(docId: 'orig', activity: [
-        ActivityItem(
+        const ActivityItem(
           kind: 'event', id: 'e1', type: 'doc_duplicate', status: 'info', level: 'info',
           title: 'IMG_0420.HEIC', createdAt: 1,
           metadata: {
@@ -344,7 +648,7 @@ void main() {
           kind: 'document', id: id, type: 'image', status: 'skipped', level: 'info',
           title: id, createdAt: 1);
       final merged = mergeActivity([
-        ActivityItem(
+        const ActivityItem(
             kind: 'event', id: 'e', type: 'doc_duplicate', status: 'info', level: 'info',
             title: 'orig', createdAt: 2,
             metadata: {'doc_id': 'orig', 'duplicate_id': 'copy'}),

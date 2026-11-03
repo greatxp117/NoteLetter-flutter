@@ -201,12 +201,16 @@ class FakeBridge implements CameraSweepBridge {
       onListen: () => watched = true, onCancel: () => watched = false);
   bool watched = false;
 
+  /// What [thumbnail] draws, by local identifier; none by default (the
+  /// photo is not on the device).
+  final Map<String, Uint8List> thumbnailBytes = {};
+
   @override
   Future<Uint8List?> thumbnail(String localIdentifier,
       {int width = 216, int height = 280}) async {
     _guard();
     thumbnailsAsked.add(localIdentifier);
-    return null;
+    return thumbnailBytes[localIdentifier];
   }
 
   @override
