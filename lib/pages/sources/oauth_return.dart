@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/cloud_file.dart';
 import '../../models/cloud_integration.dart';
-import '../../models/tag.dart';
 import '../../shared/cloud_providers.dart';
+import '../../shared/cloud_return.dart';
 import '../../shared/dates.dart';
 import '../../state/cloud_notifier.dart';
 import '../../theme/app_radius.dart';
@@ -12,18 +16,18 @@ import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/kit/kit.dart';
 import 'cloud_sync_copy.dart';
-import 'file_under.dart';
 import 'folder_contents.dart' show cloudTypeLabel;
 import 'import_review_queue.dart' show fmtFileSize;
 
-/// The OAuth return (5.46.0, ADR-201; `screens/sources.md` §The OAuth return
-/// — the prototype's `oauth` route, its D branch; web
-/// `pages/sources/OAuthReturn.jsx`). It renders on `/sources` IN PLACE of the
-/// Library while a return is open, for every provider (the prototype is
-/// Notion's): the claim in flight, then either *{Provider}, Connected* — what
-/// the provider offers in the column, the Manifest on the sheet — or one of
-/// the notices. An app's `noteletter://cloud-connect` return is read exactly
-/// like a `/sources` one ([SourcesPage] takes both).
+/// The OAuth return (5.46.0, ADR-201; 5.52.0, ADR-203; `screens/sources.md`
+/// §The OAuth return — the prototype's `oauth` route, its D branch; web
+/// `pages/ConnectReturn.jsx` + `pages/sources/OAuthReturn.jsx`): the connect
+/// page, for every provider (the prototype is Notion's) — the claim in
+/// flight, then either *{Provider}, Connected* — what the provider offers in
+/// the column, the Manifest on the sheet — or one of the notices. Since 5.52.0
+/// it is its own route, `/connect/:provider` ([ConnectPage]), which an app's
+/// `noteletter://cloud-connect` return opens ([ConnectOnReturn]); until then it
+/// drew in place of the Library on `/sources`.
 ///
 /// Only measured figures (ADR-026/ADR-028): what the root listing answered and
 /// what the reader ticked. No pages, passages or indexing time — the listing
@@ -40,8 +44,10 @@ const _cadence = {
   'weekly': 'once a week',
 };
 
-/// Where a return stands (web SourcesBrowse's `ret.phase`).
-enum ReturnPhase { claiming, claimed, refused, error }
+/// Where a return stands (web ConnectReturn's `ret.phase`). `direct` is the
+/// page reopened with nothing to answer, for a provider found connected
+/// (5.52.0, ADR-203).
+enum ReturnPhase { claiming, claimed, refused, error, direct }
 
 /// A return the page is open on: the phase, the provider it is about (an
 /// error redirect carries none — the one this client sent to consent is
@@ -72,6 +78,7 @@ enum ReturnView { claiming, granted, empty, already, denied, expired, refused, f
 /// reason this does not name is *Not Connected*.
 ReturnView returnView(OAuthReturn r) {
   if (r.phase == ReturnPhase.claiming) return ReturnView.claiming;
+  if (r.phase == ReturnPhase.direct) return ReturnView.granted;
   if (r.phase == ReturnPhase.refused) return ReturnView.refused;
   final a = r.answer;
   if (r.phase == ReturnPhase.claimed && a?['cloud_connect'] == 'success') {
@@ -182,6 +189,68 @@ NoticeCopy noticeCopy(
   }
 }
 
+/// Notion's offer arrives ticked (5.52.0, ADR-203; web `tickOffer`): the
+/// reader chose these pages on Notion's permission screen seconds ago, so
+/// asking again is a second picker for one decision. A drive's root listing is
+/// everything the reader owns — nothing they chose — so nothing is ticked
+/// there (the caller asks only for Notion). Ticks [got] after [picked] up to
+/// the import's caps, counting what is already ticked by its kind ([folderById],
+/// every row listed so far; an id it does not name counts as a file); an item
+/// the import would refuse is never ticked. Returns a new list, in tick order.
+List<String> tickOffer(List<String> picked, Iterable<CloudFile> got,
+    Map<String, bool> folderById, String provider) {
+  final n = [...picked];
+  var folders = 0;
+  var files = 0;
+  for (final id in n) {
+    if (folderById[id] == true) {
+      folders += 1;
+    } else {
+      files += 1;
+    }
+  }
+  for (final i in got) {
+    if (n.contains(i.id) || cloudFileRefusal(provider, i) != null) continue;
+    if (i.isFolder) {
+      if (folders < kMaxImportFolders) {
+        n.add(i.id);
+        folders += 1;
+      }
+    } else if (files < kMaxImportFiles) {
+      n.add(i.id);
+      files += 1;
+    }
+  }
+  return n;
+}
+
+/// The line under a ticked offer when a cap left listed items unticked
+/// (web `capLines`). Only when the cap is what stopped it: a reader who
+/// unticked some has room, and is told nothing.
+List<String> capLines(
+    List<CloudFile> rows, Iterable<String> picked, String provider) {
+  final on = picked.toSet();
+  final tickable =
+      rows.where((i) => cloudFileRefusal(provider, i) == null).toList();
+  final files = tickable.where((i) => !i.isFolder).toList();
+  final folders = tickable.where((i) => i.isFolder).toList();
+  final nf = files.where((i) => on.contains(i.id)).length;
+  final nd = folders.where((i) => on.contains(i.id)).length;
+  final notion = provider == 'notion';
+  final one = notion ? 'pages' : 'files';
+  final many = notion ? 'databases' : 'folders';
+  return [
+    if (nf >= kMaxImportFiles && files.length > nf)
+      'The first $kMaxImportFiles $one are ticked — one import takes '
+          '$kMaxImportFiles at a time. Bring these in, then choose the rest '
+          'from the Library.',
+    if (nd >= kMaxImportFolders && folders.length > nd)
+      'The first $kMaxImportFolders $many are ticked — one import takes '
+          '$kMaxImportFolders at a time. Bring these in, then choose the rest '
+          'from the Library.',
+  ];
+}
+
 String _joinAnd(List<String> list) {
   if (list.length <= 1) return list.join();
   return '${list.sublist(0, list.length - 1).join(', ')} and ${list.last}';
@@ -194,19 +263,17 @@ String _now() => kitClockTime(DateTime.now().millisecondsSinceEpoch);
 bool _wide(BuildContext context) =>
     MediaQuery.sizeOf(context).width >= AppSpacing.compactWidth;
 
-/// The page. [ret] is [SourcesPage]'s open return; [onLeave] shows the
-/// Library again, with what *Bring in* queued (null for *Not now* and *Back
-/// to library*); [onAddFiles] is *Add files instead*.
+/// The views. [ret] is [ConnectPage]'s return; [onLeave] goes to the
+/// Library, with what *Bring in* queued (null for *Not now* and *Back to
+/// library*); [onAddFiles] is *Add files instead*.
 class OAuthReturnPage extends StatefulWidget {
   final OAuthReturn ret;
-  final List<Tag> shelves;
   final ValueChanged<String?> onLeave;
   final VoidCallback onAddFiles;
 
   const OAuthReturnPage({
     super.key,
     required this.ret,
-    required this.shelves,
     required this.onLeave,
     required this.onAddFiles,
   });
@@ -260,7 +327,6 @@ class _OAuthReturnPageState extends State<OAuthReturnPage> {
           provider: provider!,
           name: name,
           integration: integration,
-          shelves: widget.shelves,
           folio: connectedFolio,
           onLeave: widget.onLeave,
           onEmpty: () {
@@ -335,10 +401,272 @@ class _OAuthReturnPageState extends State<OAuthReturnPage> {
   /// A primary that connects again goes through the one connect entry point
   /// (`CloudNotifier.connect`) and keeps its failure slot: the answer is the
   /// refusal's sentence, or null. An app's session that comes back is held and
-  /// reaches [SourcesPage], which opens the page on the new return.
+  /// reaches the open [ConnectPage], which answers the new return in place.
   Future<String?> Function()? _again(String? provider) => provider == null
       ? null
       : () => context.read<CloudNotifier>().connect(provider);
+}
+
+// ── The route (5.52.0, ADR-203; web `pages/ConnectReturn.jsx`) ──────────────
+
+/// The connect page: its own route, `/connect/:provider` (and `/connect`).
+/// What it answers, in order:
+/// * a return held for it ([CloudReturn.take]) — an app's
+///   `noteletter://cloud-connect` session, or a web build's `/connect?…`
+///   callback that the router held and stripped: an error result, or a claim
+///   spent here, once. `org: "enabled"` and `insufficient_scope` are about
+///   organization, not a connection, so they are handed to the Library;
+/// * nothing — Back, a reload, a copied link. Then `/connect/{provider}` opens
+///   *{Provider}, Connected* while that provider is connected and its sign-in
+///   is live, and the Library otherwise; `/connect` alone is the Library. A
+///   notice is never reopened: what it said came with the return.
+///
+/// Leaving (*Not now*, *Back to library*, *Bring in*) goes to `/sources`,
+/// saying what it should say there through [ConnectHandoff].
+class ConnectPage extends StatefulWidget {
+  /// The route's provider id, or null on `/connect`.
+  final String? provider;
+
+  const ConnectPage({super.key, this.provider});
+
+  @override
+  State<ConnectPage> createState() => _ConnectPageState();
+}
+
+class _ConnectPageState extends State<ConnectPage> {
+  OAuthReturn? _ret;
+
+  /// The Library is asked for once.
+  bool _left = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Taken now, before anything draws: a claim is spent by its first request,
+    // so nothing else may find it.
+    final r = CloudReturn.take();
+    CloudReturn.pending.addListener(_onHeld);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (r != null && (r.result == 'error' || r.result == 'claim')) {
+        unawaited(_act(r));
+      } else {
+        unawaited(_direct());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    CloudReturn.pending.removeListener(_onHeld);
+    super.dispose();
+  }
+
+  /// A return that arrives while the page is open — a notice's *Try again* —
+  /// is answered here, in place.
+  void _onHeld() {
+    if (!mounted || CloudReturn.pending.value == null) return;
+    final r = CloudReturn.take();
+    if (r != null) unawaited(_act(r));
+  }
+
+  /// The address names the provider as soon as anything does: `/connect`
+  /// becomes `/connect/{provider}` in place — no history step that forwards.
+  /// Only a PUSHED page is renamed: go_router's replace keeps a pushed page
+  /// and its state, but over a page reached by address it is a `go`, which
+  /// would build a new page and drop the answer on screen. A page reached by
+  /// address keeps the one it was given: `router.dart`'s `holdConnectReturn`
+  /// has already named whatever the params or this run remember (a web
+  /// build's fresh load, which recalls the provider from storage, stays on
+  /// `/connect`; its page still names it).
+  void _name(String? provider) {
+    if (!mounted || provider == null) return;
+    if (!cloudProviders.containsKey(provider) || provider == widget.provider) {
+      return;
+    }
+    final router = GoRouter.of(context);
+    final at = router.routerDelegate.currentConfiguration.matches;
+    if (at.isEmpty || at.last is! ImperativeRouteMatch) return;
+    router.replace(CloudReturn.location(provider));
+  }
+
+  /// Leave for the Library, saying what it should say there.
+  void _toLibrary({
+    String? note,
+    String? orgEnabled,
+    ({String? provider, String reason})? connectError,
+  }) {
+    ConnectHandoff.handOff(
+        note: note, orgEnabled: orgEnabled, connectError: connectError);
+    if (_left || !mounted) return;
+    _left = true;
+    GoRouter.of(context).go('/sources');
+  }
+
+  // The OAuth return (ADR-012, ADR-158, ADR-159; api/cloud-storage.md §Client
+  // behavior on return). We do NOT infer a connection from the URL or from an
+  // integrations diff: the claim's answer is the source of truth.
+  Future<void> _act(CloudReturn r) async {
+    if (r.result == 'error') {
+      // An error return names no provider (api/cloud-storage.md §Result
+      // params): the one this client sent to consent is remembered.
+      final provider = r.provider ?? await CloudReturn.recallConnecting();
+      if (!mounted) return;
+      final reason = r.reason ?? '';
+      if (reason == 'insufficient_scope') {
+        _toLibrary(connectError: (provider: provider, reason: reason));
+        return;
+      }
+      setState(() => _ret =
+          OAuthReturn(ReturnPhase.error, provider: provider, reason: reason));
+      _name(provider);
+      return;
+    }
+    // `error` and `claim` are the only results a return carries (5.0.0);
+    // anything else is believed by nobody.
+    final claim = r.claim;
+    if (r.result != 'claim' || claim == null || claim.isEmpty) return;
+    final cloud = context.read<CloudNotifier>();
+    setState(() => _ret = OAuthReturn(ReturnPhase.claiming, provider: r.provider));
+    _name(r.provider);
+    final (:answer, :refusal, :requestId) = await cloud.claim(claim);
+    if (!mounted) return;
+    final res = answer;
+    if (res == null) {
+      if (refusal == null) {
+        // None at all: the session ended, and sign-in has the screen.
+        _toLibrary();
+        return;
+      }
+      // A refusal (403 another account started it, 404 expired or already
+      // finished) — its own sentence, verbatim (§14), on this page.
+      setState(() => _ret = OAuthReturn(ReturnPhase.refused,
+          provider: r.provider,
+          refusal: refusal,
+          refusalRequestId: requestId));
+      return;
+    }
+    final provider = (res['provider'] as String?) ?? r.provider;
+    if (res['cloud_connect'] == 'success' && res['org'] == 'enabled') {
+      // org_upgrade: confirm the write-scope grant on the Library — the
+      // reader was not importing, so no page here.
+      _toLibrary(orgEnabled: provider ?? '');
+    } else if (res['cloud_connect'] != 'success' &&
+        res['reason'] == 'insufficient_scope') {
+      _toLibrary(
+          connectError: (provider: provider, reason: 'insufficient_scope'));
+    } else {
+      setState(() => _ret =
+          OAuthReturn(ReturnPhase.claimed, provider: provider, answer: res));
+      _name(provider);
+    }
+  }
+
+  /// Nothing to answer: the page stands only for a provider that is connected
+  /// and whose sign-in is live — not connected, an unknown id, or integrations
+  /// that could not be read are the Library.
+  Future<void> _direct() async {
+    final p = widget.provider;
+    if (p == null || !cloudProviders.containsKey(p)) {
+      _toLibrary();
+      return;
+    }
+    final cloud = context.read<CloudNotifier>();
+    await cloud.loadIntegrations();
+    if (!mounted || _ret != null) return;
+    final i = cloud.integrationsError != null ? null : cloud.integrationFor(p);
+    if (i == null || i.needsReconnect) {
+      _toLibrary();
+      return;
+    }
+    setState(() => _ret = OAuthReturn(ReturnPhase.direct, provider: p));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ret = _ret;
+    if (ret == null) {
+      return const KitPage(
+        child: KitSkeletonLines(
+            lines: [KitSkelLine(0.6), KitSkelLine(0.4)], top: 0),
+      );
+    }
+    return OAuthReturnPage(
+      ret: ret,
+      onLeave: (note) => _toLibrary(note: note),
+      onAddFiles: () {
+        _left = true;
+        GoRouter.of(context).go('/sources/add');
+      },
+    );
+  }
+}
+
+/// The app's return opens the connect page as its own route (5.52.0,
+/// ADR-203): when an auth session hands back `noteletter://cloud-connect` —
+/// from Sources, quick add, Settings, wherever the reader pressed Connect —
+/// the app goes to Sources and pushes `/connect/{provider}` over it, so Back
+/// leaves the page for Sources. An open connect page answers a return itself
+/// ([ConnectPage]); the push waits a frame, so a page that takes the return
+/// first leaves nothing to open. Mounted once, around the app shell's pages
+/// (`router.dart`); a return held while it was not mounted (the reader is
+/// outside the shell) is opened when it mounts.
+class ConnectOnReturn extends StatefulWidget {
+  final Widget child;
+  const ConnectOnReturn({super.key, required this.child});
+
+  @override
+  State<ConnectOnReturn> createState() => _ConnectOnReturnState();
+}
+
+class _ConnectOnReturnState extends State<ConnectOnReturn> {
+  bool _scheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    CloudReturn.pending.addListener(_onHeld);
+    _onHeld();
+  }
+
+  @override
+  void dispose() {
+    CloudReturn.pending.removeListener(_onHeld);
+    super.dispose();
+  }
+
+  void _onHeld() {
+    if (CloudReturn.pending.value == null || _scheduled) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      _open();
+    });
+    SchedulerBinding.instance.scheduleFrame();
+  }
+
+  void _open() {
+    final r = CloudReturn.pending.value;
+    if (!mounted || r == null) return;
+    final router = GoRouter.of(context);
+    // The TOP page's address — a pushed page's own, not the one under it.
+    final String here;
+    try {
+      here = router.state.uri.path;
+    } catch (_) {
+      return; // no configuration yet; the next return will find one
+    }
+    // An open connect page takes it itself.
+    if (CloudReturn.isConnectPath(here)) return;
+    if (here != '/sources') router.go('/sources');
+    // An error return names no provider; the one this run sent to consent
+    // does (the session fills it in, `CloudReturn.runSession`).
+    unawaited(router.push(
+        CloudReturn.location(r.provider ?? CloudReturn.connectingProvider)));
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 // ── The notices. Same masthead, single column, one way on. ──────────────────
@@ -467,7 +795,6 @@ class _Manifest extends StatefulWidget {
   final String provider;
   final String name;
   final CloudIntegration? integration;
-  final List<Tag> shelves;
   final String folio;
   final ValueChanged<String?> onLeave;
   final VoidCallback onEmpty;
@@ -477,7 +804,6 @@ class _Manifest extends StatefulWidget {
     required this.provider,
     required this.name,
     required this.integration,
-    required this.shelves,
     required this.folio,
     required this.onLeave,
     required this.onEmpty,
@@ -496,7 +822,6 @@ class _ManifestState extends State<_Manifest> {
 
   /// Ticked ids, in the order ticked.
   final List<String> _picked = [];
-  String? _shelf;
   bool _sync = true;
   bool _busy = false;
   String? _err;
@@ -535,6 +860,15 @@ class _ManifestState extends State<_Manifest> {
       final got = listing.items;
       _items = token != null && _items != null ? [..._items!, ...got] : got;
       _pageToken = listing.nextPageToken;
+      // Notion's offer arrives ticked, page by page, up to the caps (5.52.0,
+      // ADR-203); a first page starts the ticks afresh.
+      if (widget.provider == 'notion') {
+        final next = tickOffer(token != null ? _picked : const [], got,
+            {for (final i in _items!) i.id: i.isFolder}, widget.provider);
+        _picked
+          ..clear()
+          ..addAll(next);
+      }
     });
     // A first page with nothing and no more to ask for: Nothing to Bring In.
     if (listing != null &&
@@ -567,16 +901,10 @@ class _ManifestState extends State<_Manifest> {
     });
   }
 
-  /// The shelf chosen, while it is still in the library.
-  String? get _filed =>
-      shelfPathLabel(widget.shelves, _shelf) == null ? null : _shelf;
-
   Future<void> _bringIn() async {
     final sel = _sel;
     final folders = sel.where((i) => i.isFolder).toList();
     final files = sel.where((i) => !i.isFolder).toList();
-    final shelf = _filed;
-    final shelfLabel = shelfPathLabel(widget.shelves, shelf);
     setState(() {
       _busy = true;
       _err = null;
@@ -590,7 +918,8 @@ class _ManifestState extends State<_Manifest> {
               if (f.name.isNotEmpty)
                 f.id: f.name.length > 200 ? f.name.substring(0, 200) : f.name,
           },
-          tagIds: shelf == null ? null : [shelf],
+          // No File under (5.52.0, ADR-203): what comes in is shelved by
+          // indexing, as every document is (INV-12) — `tag_ids` is never sent.
           // Keep in sync is the existing switch (ADR-201: no new sync model).
           keepInSync: _sync &&
               folders.isNotEmpty &&
@@ -609,8 +938,7 @@ class _ManifestState extends State<_Manifest> {
     final qf = res.folders;
     final qx = res.files;
     var note = 'Queued $qf folder${qf == 1 ? '' : 's'} and $qx '
-        'file${qx == 1 ? '' : 's'} from ${widget.name}'
-        '${shelfLabel != null ? ', filed under $shelfLabel' : ''}.';
+        'file${qx == 1 ? '' : 's'} from ${widget.name}.';
     if (res.syncRefusal != null) {
       note += ' Keep in sync was not turned on — ${res.syncRefusal}';
     }
@@ -635,23 +963,27 @@ class _ManifestState extends State<_Manifest> {
       for (final k in integration?.includeTypes ?? const <String>[])
         if (k.isNotEmpty) cloudTypeLabel(k),
     ];
-    final shelfLabel = shelfPathLabel(widget.shelves, _filed);
+    final capped = notion ? capLines(rows, _picked, widget.provider) : const <String>[];
     final n = sel.length;
     final fine = KitText.note(context, color: t.fgSubtle)
         .copyWith(height: 19 / 12.5);
     final wide = _wide(context);
 
-    Widget guide(String text) => ConstrainedBox(
+    // `.or-guide` / `.or-fine`: the eye, then the line; the cap line is the
+    // same face with no eye.
+    Widget guide(String text, {bool eye = true}) => ConstrainedBox(
           constraints: BoxConstraints(maxWidth: 62 * KitText.ch(context, fine)),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: KitGlyph(Icons.visibility_outlined,
-                    size: 14, color: t.fgSubtle),
-              ),
-              const SizedBox(width: 9),
+              if (eye) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: KitGlyph(Icons.visibility_outlined,
+                      size: 14, color: t.fgSubtle),
+                ),
+                const SizedBox(width: 9),
+              ],
               Expanded(child: Text(text, style: fine)),
             ],
           ),
@@ -713,6 +1045,13 @@ class _ManifestState extends State<_Manifest> {
             padding: const EdgeInsets.only(top: 6),
             child: _CardGrid(cards: cards, columns: wide ? 2 : 1),
           ),
+        // When a cap left listed items unticked, it says so under the offer
+        // (5.52.0, ADR-203; web `.or-guide`, 0 above and 16 below).
+        for (final line in capped)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: guide(line, eye: false),
+          ),
         if (_pageToken != null)
           Padding(
             padding: const EdgeInsets.only(top: 14),
@@ -740,14 +1079,7 @@ class _ManifestState extends State<_Manifest> {
           (folderSel == 1 ? nouns[0] : nouns[1], '$folderSel'),
           (fileSel == 1 ? nouns[2] : nouns[3], '$fileSel'),
         ]),
-        const SizedBox(height: 18),
-        FileUnder(
-          shelves: widget.shelves,
-          value: _filed,
-          onChanged: (v) => setState(() => _shelf = v),
-          disabled: _busy,
-          note: 'Applies to what you bring in now.',
-        ),
+        // No File under (5.52.0, ADR-203): the tally, then Keep in sync.
         const SizedBox(height: 18),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -848,7 +1180,6 @@ class _ManifestState extends State<_Manifest> {
         label: 'Manifest',
         peek: KitLibPeek(
           title: n > 0 ? '${kitCounted(n, 'item')} selected' : 'Nothing selected',
-          meta: shelfLabel,
         ),
         body: card,
       ),

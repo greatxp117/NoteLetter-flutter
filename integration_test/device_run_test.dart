@@ -4289,10 +4289,11 @@ void main() {
   // parked in the emulator in the callback's own shape. Everything after it is
   // real: Connect through the shim, the claim (the shim fakes only the
   // provider's code exchange), the return page, the listing (the shim's Drive
-  // fake), and the import with File under.
+  // fake), and the import. Since 5.52.0 (ADR-203, F-156) the return opens its
+  // own route over Sources, and nothing offers File under.
   testWidgets(
       'the OAuth return: an app session comes back, is claimed, and the page '
-      'files the import under a shelf (F-151)', (tester) async {
+      'brings in the import (F-151)', (tester) async {
     const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
         defaultValue: '8080');
     final rest = Dio(BaseOptions(
@@ -4351,9 +4352,11 @@ void main() {
       await pumpFor(tester, total: const Duration(seconds: 8));
       expect(sessionUrl, isNotNull, reason: 'Connect opened no auth session');
       expect(Uri.parse(sessionUrl!).host, 'api.notion.com');
+      expect(router.state.uri.path, '/connect/notion');
       expect(find.text('Nothing to Bring In'), findsOneWidget);
       await tester.tap(find.text('Back to library').first);
       await pumpFor(tester, total: const Duration(seconds: 4));
+      expect(router.state.uri.path, '/sources');
       // The connect card carries the account the claim stored (kit §5.1).
       expect(find.text('scn-notion@provider.example'), findsOneWidget);
 
@@ -4373,31 +4376,22 @@ void main() {
       await tester.ensureVisible(docs.first);
       await tester.tap(docs.first);
       await pumpFor(tester, total: const Duration(seconds: 1));
+      // No File under (5.52.0, ADR-203).
+      expect(find.text('NoteLetter chooses'), findsNothing);
       // On a phone the manifest is the running head's sheet (KitDSheet), as
-      // on web's phone frame: drop it to reach File under. Folded, it sits
-      // under an IgnorePointer, so a tap on the select reached the page's
-      // scroll instead (the first device run, 2026-11-02).
+      // on web's phone frame: drop it to reach Bring in. Folded, it sits
+      // under an IgnorePointer (the first device run, 2026-11-02).
       final head = find.byKey(const ValueKey('d-peek'));
       if (head.evaluate().isNotEmpty) {
         await tester.tap(head);
         await pumpFor(tester, total: const Duration(milliseconds: 1200));
       }
-      // File under: the seed's Finance shelf, from the select.
-      await tester.ensureVisible(find.text('NoteLetter chooses').first);
-      final chooses = find.text('NoteLetter chooses').hitTestable();
-      expect(chooses, findsOneWidget,
-          reason: 'File under cannot be reached on a phone');
-      await tester.tap(chooses);
-      await pumpFor(tester, total: const Duration(seconds: 1));
-      await tester.tap(find.text('Finance').last);
-      await pumpFor(tester, total: const Duration(seconds: 1));
       final bring = find.text('Bring in 1 item');
       await tester.ensureVisible(bring);
       await tester.tap(bring);
       await pumpFor(tester, total: const Duration(seconds: 6));
-      expect(
-          find.textContaining(
-              'Queued 1 folder and 0 files from Google Drive, filed under Finance'),
+      expect(router.state.uri.path, '/sources');
+      expect(find.text('Queued 1 folder and 0 files from Google Drive.'),
           findsOneWidget);
       final integ = await rest.get('/users/$uid/integrations/google_drive');
       final cfg = integ.data['fields']['sync_config']['mapValue']['fields'];
@@ -4408,6 +4402,99 @@ void main() {
           reason: 'Keep in sync did not turn auto-sync on');
     } finally {
       CloudReturn.session = null;
+    }
+  });
+
+  // F-156 (5.52.0, ADR-203): the connect page is its own route, Notion's offer
+  // arrives ticked, and nothing offers File under. The consent is stood in for
+  // (`CloudReturn.session`, as F-151's run does) and so is Notion's listing —
+  // the provider is the external edge, and the shim's Notion workspace lists
+  // nothing — with two pages and a database. Everything else is real: Connect
+  // through the shim, the claim, the route, and the import.
+  testWidgets(
+      'the connect page: an app return for Notion opens /connect/notion, every '
+      'page arrives ticked, no File under, and Bring in lands on Sources with '
+      'its notice (F-156)', (tester) async {
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final token = 'device-f156-${DateTime.now().millisecondsSinceEpoch}';
+    // A re-run starts from a Notion the seed does not have: a NEW connection.
+    await rest.delete('/users/$uid/integrations/notion');
+    final now = DateTime.now().toUtc();
+    final parked = await rest.post('/oauth_claims',
+        queryParameters: {
+          'documentId': sha256.convert(utf8.encode(token)).toString()
+        },
+        data: {
+          'fields': {
+            'uid': {'stringValue': uid},
+            'provider': {'stringValue': 'notion'},
+            'purpose': {'stringValue': 'connect'},
+            'write': {'booleanValue': false},
+            'code': {'stringValue': 'device-code-f156'},
+            'created_at': {'timestampValue': now.toIso8601String()},
+            'expires_at': {
+              'timestampValue':
+                  now.add(const Duration(minutes: 10)).toIso8601String()
+            },
+          },
+        });
+    expect(parked.statusCode, 200, reason: 'park: ${parked.data}');
+    CloudReturn.session = (url) async =>
+        'noteletter://cloud-connect?cloud_connect=claim'
+        '&claim=$token&provider=notion';
+    ApiService.instance.httpClientAdapter = _NotionWorkspace();
+    try {
+      final router = await pumpApp(tester);
+      router.go('/sources');
+      await pumpFor(tester, total: const Duration(seconds: 5));
+      final notionRow = find.ancestor(
+          of: find.text('Notion'), matching: find.byType(KitServiceRow));
+      final connect =
+          find.descendant(of: notionRow, matching: find.text('Connect'));
+      await tester.ensureVisible(connect.first);
+      await tester.tap(connect.first);
+      await pumpFor(tester, total: const Duration(seconds: 8));
+
+      // Its own route, pushed over Sources.
+      expect(router.state.uri.path, '/connect/notion');
+      expect(find.text('Notion, Connected'), findsOneWidget);
+      // Every page and the database arrive ticked.
+      for (final name in _NotionWorkspace.names) {
+        final box = tester.widget<KitCheckbox>(find.byWidgetPredicate(
+            (w) => w is KitCheckbox && w.semanticsLabel == 'Bring in $name'));
+        expect(box.value, isTrue, reason: '$name did not arrive ticked');
+      }
+      // No File under, anywhere on the page (the sheet included).
+      final head = find.byKey(const ValueKey('d-peek'));
+      if (head.evaluate().isNotEmpty) {
+        await tester.tap(head);
+        await pumpFor(tester, total: const Duration(milliseconds: 1200));
+      }
+      expect(find.text('File under'), findsNothing);
+      expect(find.text('NoteLetter chooses'), findsNothing);
+      debugPrint('DEVICE-RUN F-156 /connect/notion: 3 of 3 ticked, no File under');
+
+      final bring = find.text('Bring in 3 items');
+      await tester.ensureVisible(bring);
+      await tester.tap(bring);
+      await pumpFor(tester, total: const Duration(seconds: 6));
+      expect(router.state.uri.path, '/sources');
+      expect(find.text('Queued 1 folder and 2 files from Notion.'),
+          findsOneWidget,
+          reason: 'the Library did not say what Bring in queued');
+      debugPrint('DEVICE-RUN F-156 Bring in → /sources with its notice');
+      expect(tester.takeException(), isNull);
+    } finally {
+      CloudReturn.session = null;
+      ApiService.instance.resetTestSeams();
     }
   });
 
@@ -4629,6 +4716,40 @@ void main() {
     expect(tester.widget<KitTextField>(field).controller.text, mission,
         reason: 'a fresh visit did not read the stored mission back');
   });
+}
+
+/// Notion's root listing, stood in (F-156): the provider is the external edge,
+/// and the shim's Notion workspace lists nothing. Every other request — the
+/// connect, the claim, the import — goes to the shim for real.
+class _NotionWorkspace implements HttpClientAdapter {
+  final HttpClientAdapter _real = IOHttpClientAdapter();
+
+  static const names = ['Reading notes', 'Commonplace book', 'Research memos'];
+  static const _items = [
+    {'id': 'dv-db-1', 'name': 'Reading notes', 'type': 'folder',
+     'mime_type': 'application/x-notion-database', 'size': 0, 'modified_at': ''},
+    {'id': 'dv-pg-1', 'name': 'Commonplace book', 'type': 'file',
+     'mime_type': 'application/x-notion-page', 'size': 0, 'modified_at': ''},
+    {'id': 'dv-pg-2', 'name': 'Research memos', 'type': 'file',
+     'mime_type': 'application/x-notion-page', 'size': 0, 'modified_at': ''},
+  ];
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    if (!options.uri.path.endsWith('/fn_list_cloud_files') ||
+        options.queryParameters['provider'] != 'notion') {
+      return _real.fetch(options, requestStream, cancelFuture);
+    }
+    return ResponseBody.fromString(
+        jsonEncode({'items': _items, 'nextPageToken': null}), 200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType]
+        });
+  }
+
+  @override
+  void close({bool force = false}) => _real.close(force: force);
 }
 
 /// An adapter that holds every request to [path] until [release], then sends

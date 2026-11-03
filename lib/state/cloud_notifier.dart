@@ -374,8 +374,8 @@ class CloudNotifier extends ChangeNotifier {
 
   /// Start (or re-start, for reconnect) the OAuth flow. Returns an error string
   /// or null. The callback returns the `cloud_connect` params — to this app's
-  /// auth session (`return: "app"`, 5.1.0, ADR-159), or to /sources on a web
-  /// build — and Sources spends the claim ([claim], [CloudReturn]).
+  /// auth session (`return: "app"`, 5.1.0, ADR-159), or to /connect on a web
+  /// build — and the connect page spends the claim ([claim], [CloudReturn]).
   ///
   /// **The one way this client starts a connection** (5.46.0, ADR-201; web
   /// `shared/cloudClaim.js` `startCloudConnect`): every Connect, Reconnect,
@@ -604,10 +604,9 @@ class CloudNotifier extends ChangeNotifier {
   }
 
   /// Kick off the import of the current selection. Returns (message, isError).
-  /// [shelfId] is *File under* (5.46.0, ADR-201): the shelf every document
-  /// this import creates joins, sent as `tag_ids: [id]`; null sends none and
-  /// the import is shelved as every document is (INV-12).
-  Future<(String, bool)> importSelection({String? shelfId}) async {
+  /// No `tag_ids` (5.52.0, ADR-203): what an import creates is shelved by
+  /// indexing, as every document is (INV-12).
+  Future<(String, bool)> importSelection() async {
     final provider = _browseProvider;
     if (provider == null || !hasSelection) {
       return ('Nothing selected.', true);
@@ -628,7 +627,6 @@ class CloudNotifier extends ChangeNotifier {
           for (final id in _selectedFolders)
             if (_selectedFolderNames[id] case final n?) id: n,
         },
-        tagIds: shelfId == null ? null : [shelfId],
       );
       Analytics.track('capture_completed', {'surface': 'cloud'});
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
@@ -651,10 +649,10 @@ class CloudNotifier extends ChangeNotifier {
   }
 
   // ── The OAuth return's offer (5.46.0, ADR-201) ────────────────────────────
-  // The return page IS that provider's picker, opened on return
+  // The connect page IS that provider's picker, opened on return
   // (`screens/sources.md` §The OAuth return). Its reads and its import are
-  // its own: a picker open below on the Library keeps its crumbs, listing and
-  // ticks untouched.
+  // its own: a picker open on the Library keeps its crumbs, listing and ticks
+  // untouched.
 
   /// One page of what [provider] offers at its root (`fn_list_cloud_files`,
   /// no `folderId`), [pageToken] for the next. The listing, or the refusal's
@@ -679,7 +677,7 @@ class CloudNotifier extends ChangeNotifier {
   }
 
   /// *Bring in*: writes before it moves. `fn_import_from_cloud` with what was
-  /// ticked and — chosen — `tag_ids`; then, only when [keepInSync] (the
+  /// ticked — never `tag_ids` (5.52.0, ADR-203); then, only when [keepInSync] (the
   /// caller decides: the switch on, a folder ticked, auto-sync off),
   /// `fn_sync_settings {auto_sync_enabled: true}` — ADR-201 adds no sync
   /// model. Answers what the 202 COUNTED (ADR-103 §5), and a refused sync
@@ -691,7 +689,6 @@ class CloudNotifier extends ChangeNotifier {
     required List<String> folderIds,
     required List<String> fileIds,
     Map<String, String>? folderNames,
-    List<String>? tagIds,
     bool keepInSync = false,
   }) async {
     Analytics.track('capture_started', {'surface': 'cloud'});
@@ -703,7 +700,6 @@ class CloudNotifier extends ChangeNotifier {
         folderIds: folderIds,
         fileIds: fileIds,
         folderNames: folderNames,
-        tagIds: tagIds,
       );
       f = (data['queued_folders'] as num?)?.toInt() ?? 0;
       n = (data['queued_files'] as num?)?.toInt() ?? 0;

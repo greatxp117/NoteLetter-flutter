@@ -653,7 +653,9 @@ class Api {
   /// picker showed it, stored at `sync_config.folder_names` so the import row
   /// and the sync settings draw a name rather than a provider id. Only ids in
   /// [folderIds] may be named (400 otherwise); sent only when given.
-  /// [tagIds] (5.46.0, ADR-201): *File under* — sent only when non-empty.
+  /// [tagIds] (5.46.0, ADR-201): sent only when non-empty. The endpoint still
+  /// accepts it, and since 5.52.0 (ADR-203) no caller passes it — there is
+  /// no *File under* — so it is booked to retire with the endpoint's.
   Future<Map<String, dynamic>> importFromCloud(
     String provider, {
     List<String>? folderIds,
@@ -673,10 +675,10 @@ class Api {
     if (folderNames != null && folderNames.isNotEmpty) {
       body['folder_names'] = folderNames;
     }
-    // File under (5.46.0, ADR-201): the reader's own shelves, applied to
-    // every document this import creates instead of the shelves indexing
-    // would choose. Absent (not `[]`) when none is chosen: the import then
-    // shelves as every other document is shelved. Mirrors web.
+    // `tag_ids` (5.46.0, ADR-201): shelves applied to every document this
+    // import creates instead of the ones indexing would choose. Absent (not
+    // `[]`) when none is given — the only case since 5.52.0 (ADR-203), when
+    // File under left both surfaces. Mirrors web, which keeps it the same.
     if (tagIds != null && tagIds.isNotEmpty) body['tag_ids'] = tagIds;
     return _http.post('/fn_import_from_cloud', data: body);
   }

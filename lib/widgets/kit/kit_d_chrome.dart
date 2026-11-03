@@ -162,7 +162,7 @@ class KitTab {
 /// disabled. **While generative AI is off, or not yet read, Ask is absent and
 /// Shelves takes its slot** (5.29.0, ADR-186, INV-34). The active tab is
 /// `--accent-text`; Letters is active on Letter settings, Shelves on the map
-/// and on every shelf. While a D overlay is open its scrim covers the bar.
+/// and on every shelf, the Library on the connect page (5.52.0). While a D overlay is open its scrim covers the bar.
 class KitTabBar extends StatelessWidget {
   final String route;
   final ValueChanged<String> onGo;
@@ -189,6 +189,10 @@ class KitTabBar extends StatelessWidget {
 
   bool _on(String path) {
     if (path == '/') return route == '/';
+    if (path == '/sources' &&
+        (route == '/connect' || route.startsWith('/connect/'))) {
+      return true;
+    }
     return route == path || route.startsWith('$path/');
   }
 

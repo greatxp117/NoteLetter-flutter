@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'services/analytics.dart';
+import 'shared/cloud_return.dart';
 import 'shared/leave_guard.dart';
 import 'state/auth_notifier.dart';
 import 'widgets/app_layout.dart';
@@ -24,6 +25,7 @@ import 'pages/letter_settings_page.dart';
 import 'pages/letters_page.dart';
 import 'pages/sources_page.dart';
 import 'pages/add_source_page.dart';
+import 'pages/sources/oauth_return.dart';
 import 'pages/tags_page.dart';
 import 'pages/tags/shelf_map_page.dart';
 import 'pages/tags/shelf_page.dart';
@@ -43,6 +45,24 @@ const signedOutRoutes = {'/landing', '/signin'};
 /// signed-out reader is told "Sign in required" ON it, as iOS's sheet tells
 /// them, rather than losing the share to the landing page.
 const shareRoute = '/share';
+
+/// A web build's cloud-connect return (ADR-012, ADR-158; 5.52.0, ADR-203):
+/// the callback lands on `/connect?cloud_connect=…` — `/sources?…` until
+/// 5.51.x, which is forwarded — and the return leaves the address before
+/// anything draws. It is HELD for the connect page ([CloudReturn]), which
+/// spends it once, and the address becomes `/connect/{provider}` (or
+/// `/connect`), so neither a reload nor Back can claim twice. An app's return
+/// arrives through its auth session instead and never passes here. Null when
+/// [state] carries no return.
+String? holdConnectReturn(GoRouterState state) {
+  final r = CloudReturn.fromParams(state.uri.queryParameters);
+  if (r == null) return null;
+  // An error redirect names no provider: the one this run sent to consent
+  // (a fresh web load has none in memory — the page recalls the stored one).
+  final provider = r.provider ?? CloudReturn.connectingProvider;
+  CloudReturn.hold(r);
+  return CloudReturn.location(provider);
+}
 
 GoRouter createRouter(AuthNotifier authNotifier) {
   return GoRouter(
@@ -151,7 +171,10 @@ List<RouteBase> appRoutes() {
           ),
         ),
         ShellRoute(
-          builder: (context, state, child) => AppLayout(child: child),
+          // The app's cloud-connect return opens the connect page from
+          // wherever the reader pressed Connect (5.52.0, ADR-203).
+          builder: (context, state, child) =>
+              AppLayout(child: ConnectOnReturn(child: child)),
           routes: [
             // `/` IS the library (spec/screens/library.md) — the web reference's
             // default view and the rail's Home. `/library` is kept as a redirect
@@ -276,17 +299,28 @@ List<RouteBase> appRoutes() {
               builder: (context, state) => const AddSourcePage(),
             ),
             GoRoute(
-              // The OAuth callback lands here, on a web build, with an explicit
-              // result in the query string (ADR-012; a claim since 5.0.0).
               path: '/sources',
+              // The OAuth callback's web target until 5.51.x: a return that
+              // still lands here is the connect page's (5.52.0, ADR-203).
+              redirect: (context, state) => holdConnectReturn(state),
               builder: (context, state) => SourcesPage(
-                cloudConnectResult: state.uri.queryParameters['cloud_connect'],
-                cloudConnectProvider: state.uri.queryParameters['provider'],
-                cloudConnectReason: state.uri.queryParameters['reason'],
-                cloudConnectClaim: state.uri.queryParameters['claim'],
                 openCameraRoll:
                     state.uri.queryParameters['camera_roll'] == 'settings',
               ),
+            ),
+            // The connect page (5.52.0, ADR-203; sources.md §The OAuth
+            // return) — its own address, never drawn in place on Sources. The
+            // provider is the stored id, never a second spelling.
+            GoRoute(
+              path: '/connect',
+              redirect: (context, state) => holdConnectReturn(state),
+              builder: (context, state) => const ConnectPage(),
+            ),
+            GoRoute(
+              path: '/connect/:provider',
+              redirect: (context, state) => holdConnectReturn(state),
+              builder: (context, state) =>
+                  ConnectPage(provider: state.pathParameters['provider']),
             ),
             GoRoute(
               path: '/branding',

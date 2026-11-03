@@ -201,7 +201,15 @@ void main() {
     });
   });
 
-  group('Sources spends the claim once and answers it on the return page', () {
+  // 5.52.0 (ADR-203, F-156): the return is the connect page's, its own route
+  // pushed over Sources — no longer drawn in place on the Library.
+  group('the connect page spends the claim once and answers it', () {
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
     testWidgets('a held claim is spent on arrival, then {Provider}, Connected',
         (tester) async {
       final gate = Completer<void>();
@@ -210,18 +218,20 @@ void main() {
       CloudReturn.hold(CloudReturn.fromParams(
           (_body('cloud-storage', 'cloud:callback-claim-redirect'))
               .cast<String, String>())!);
-      await pumpSources(tester, SourcesStubService(), cloud: cloud);
+      final router =
+          await pumpConnectApp(tester, SourcesStubService(), cloud: cloud);
+      await settle(tester);
+      await tester.pump(const Duration(seconds: 1)); // the page transition
       expect(cloud.claimed, ['cap-claim-own']);
-      // 5.46.0 (ADR-201): the claim in flight is the return page's, in place
-      // of the Library.
+      expect(routerPath(router), '/connect/google_drive');
+      // The claim in flight is the connect page's, over the Library.
       expect(find.text('Connecting Google Drive'), findsOneWidget);
       expect(find.text('Finishing the Google Drive connection…'), findsOneWidget,
           reason: 'the exchange takes a moment, and the return says so');
       expect(find.text('The Library'), findsNothing);
 
       gate.complete();
-      await tester.pump();
-      await tester.pump();
+      await settle(tester);
       expect(find.text('Finishing the Google Drive connection…'), findsNothing);
       expect(find.text('Google Drive, Connected'), findsOneWidget);
       expect(find.text('Reading'), findsOneWidget,
@@ -235,19 +245,20 @@ void main() {
       await tester.pump(const Duration(seconds: 10));
     });
 
-    testWidgets('a claim that returns while Sources is open is spent there',
-        (tester) async {
+    testWidgets('a claim that returns while Sources is open opens the page '
+        'over it and is spent there', (tester) async {
       final cloud = _ClaimCloud(answer: {
         ..._body('cloud-storage', 'cloud:claim'),
         'connection': 'reconnected',
       });
-      await pumpSources(tester, SourcesStubService(), cloud: cloud);
+      final router =
+          await pumpConnectApp(tester, SourcesStubService(), cloud: cloud);
       expect(cloud.claimed, isEmpty);
       CloudReturn.hold(const CloudReturn('claim',
           claim: 'cap-claim-app', provider: 'google_drive'));
-      await tester.pump();
-      await tester.pump();
+      await settle(tester);
       expect(cloud.claimed, ['cap-claim-app']);
+      expect(routerPath(router), '/connect/google_drive');
       expect(find.text('Already Connected'), findsOneWidget);
       expect(
           find.text('This Google Drive account was connected already. Your '
@@ -265,8 +276,8 @@ void main() {
       final cloud = _ClaimCloud(refusal: refused['error'] as String);
       CloudReturn.hold(const CloudReturn('claim',
           claim: 'cap-claim-handed', provider: 'google_drive'));
-      await pumpSources(tester, SourcesStubService(), cloud: cloud);
-      await tester.pump();
+      await pumpConnectApp(tester, SourcesStubService(), cloud: cloud);
+      await settle(tester);
       expect(find.text('Not Connected'), findsOneWidget);
       expect(find.byType(KitFailureBlock), findsOneWidget);
       expect(find.text('The connection was not finished.'), findsOneWidget);
@@ -284,12 +295,15 @@ void main() {
       });
       CloudReturn.hold(const CloudReturn('claim',
           claim: 'cap-claim-org-app', provider: 'google_drive'));
-      await pumpSources(tester, SourcesStubService(), cloud: cloud);
-      await tester.pump();
+      final router =
+          await pumpConnectApp(tester, SourcesStubService(), cloud: cloud);
+      await settle(tester);
+      await tester.pump(const Duration(seconds: 1));
+      expect(routerPath(router), '/sources',
+          reason: 'about organization, not a connection: handed to the Library');
       expect(find.text('Auto-organization is now enabled for Google Drive.'),
           findsOneWidget);
-      expect(find.text('The Library'), findsOneWidget,
-          reason: 'about organization, not a connection: no return page');
+      expect(find.text('The Library'), findsOneWidget);
       expect(cloud.opened, isEmpty);
       await tester.pump(const Duration(seconds: 10));
     });
@@ -301,8 +315,8 @@ void main() {
           as Map;
       CloudReturn.hold(CloudReturn.fromParams(
           {...p.cast<String, String>(), 'provider': 'google_drive'})!);
-      await pumpSources(tester, SourcesStubService(), cloud: cloud);
-      await tester.pump();
+      await pumpConnectApp(tester, SourcesStubService(), cloud: cloud);
+      await settle(tester);
       expect(find.text('Nothing Was Shared'), findsOneWidget);
       expect(
           find.text('You declined access in the Google Drive window, so '
@@ -323,17 +337,19 @@ void main() {
       });
       CloudReturn.hold(
           const CloudReturn('claim', claim: 'c', provider: 'dropbox'));
-      await pumpSources(tester, SourcesStubService(), cloud: cloud);
-      await tester.pump();
+      final router =
+          await pumpConnectApp(tester, SourcesStubService(), cloud: cloud);
+      await settle(tester);
       expect(find.text('Not Connected'), findsOneWidget);
       expect(find.text('Couldn’t finish connecting Dropbox. Please try '
           'again.'), findsOneWidget,
           reason: 'open vocabulary: an unknown reason is the generic copy');
       expect(find.text('error: something_new'), findsOneWidget);
-      // Back to library leaves the page, nothing queued.
+      // Back to library leaves the page for Sources, nothing queued.
       await tester.ensureVisible(find.text('Back to library'));
       await tester.tap(find.text('Back to library'));
-      await tester.pump();
+      await settle(tester);
+      expect(routerPath(router), '/sources');
       expect(find.text('The Library'), findsOneWidget);
     });
   });

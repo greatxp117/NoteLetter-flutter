@@ -155,8 +155,12 @@ class _RailContentState extends State<RailContent> {
             KitRailCard(
               icon: Icons.menu_book_outlined,
               label: 'Library',
-              // Add a source (/sources/add) is the Library's page too.
-              active: route == '/sources' || route.startsWith('/sources/'),
+              // Add a source (/sources/add) and the connect page (/connect,
+              // 5.52.0) are the Library's pages too.
+              active: route == '/sources' ||
+                  route.startsWith('/sources/') ||
+                  route == '/connect' ||
+                  route.startsWith('/connect/'),
               onTap: () => go('/sources'),
               figures: [
                 // A refused or unarrived read is the dash, not three zeros

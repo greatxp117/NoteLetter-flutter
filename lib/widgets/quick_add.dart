@@ -39,8 +39,8 @@ import 'kit/kit.dart';
 /// own row, found by the id it was made under; a refusal at the door has no
 /// row there and is drawn here with its reason. *Connect* is the app's one
 /// connect entry point ([CloudNotifier.connect], F-151) — awaited, and only
-/// a return that came back moves the sheet: to the Library, whose return page
-/// answers it (ADR-201), as web lands there.
+/// a return that came back closes the sheet: the app opens the connect page
+/// for it, its own route over the Library (5.52.0, ADR-203, `ConnectOnReturn`).
 class QuickAdd extends StatefulWidget {
   /// Files picked before the sheet opened (an empty Home's drop zone), filed
   /// exactly as if they had been picked here.
@@ -49,8 +49,8 @@ class QuickAdd extends StatefulWidget {
   /// *More options →* — close, then Add a source.
   final VoidCallback onMore;
 
-  /// A connect whose session came back with a return: close, then the
-  /// Library, which spends it.
+  /// A connect whose session came back with a return: close. The app opens
+  /// the connect page, which spends it.
   final VoidCallback onReturn;
 
   const QuickAdd({
@@ -99,10 +99,7 @@ class QuickAdd extends StatefulWidget {
           Navigator.of(ctx).pop();
           router?.go('/sources/add');
         },
-        onReturn: () {
-          Navigator.of(ctx).pop();
-          router?.go('/sources');
-        },
+        onReturn: () => Navigator.of(ctx).pop(),
       ),
     );
   }
@@ -309,8 +306,8 @@ class _QuickAddState extends State<QuickAdd> {
       });
       return;
     }
-    // The app's session came back with a return (5.1.0, ADR-159): the Library
-    // is where it is spent and answered.
+    // The app's session came back with a return (5.1.0, ADR-159): the connect
+    // page, opened over the Library, is where it is spent and answered.
     if (CloudReturn.pending.value != null) {
       widget.onReturn();
       return;

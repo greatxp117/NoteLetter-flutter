@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/models/activity_item.dart';
@@ -14,7 +15,9 @@ import 'package:flutter_app/models/organization_settings.dart';
 import 'package:flutter_app/models/organization_suggestion.dart';
 import 'package:flutter_app/models/study.dart';
 import 'package:flutter_app/models/tag.dart';
+import 'package:flutter_app/pages/sources/oauth_return.dart';
 import 'package:flutter_app/pages/sources_page.dart';
+import 'package:flutter_app/router.dart' show holdConnectReturn;
 import 'package:flutter_app/services/firestore_service.dart';
 import 'package:flutter_app/state/activity_notifier.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
@@ -172,6 +175,73 @@ class StubActivity extends ActivityNotifier {
 /// Mounts [SourcesPage] — the Library in direction D (F-141) — with the real
 /// `CloudNotifier`, `OrgNotifier` and `DocumentsNotifier` over [service], and
 /// [shelves] for the Shelf facet and the covers' cloth.
+/// Sources and the connect page under a real [GoRouter] (5.52.0, ADR-203):
+/// the routes `router.dart` declares for them — `/sources` (forwarding the
+/// callback's old target), `/connect`, `/connect/:provider` — through the
+/// app's own [holdConnectReturn], inside the app shell's [ConnectOnReturn],
+/// plus a Home and an Add a source to leave for. Returns the router, so a test
+/// can read the address and go Back. The provider tree is [pumpSources]'s.
+Future<GoRouter> pumpConnectApp(WidgetTester tester, SourcesStubService service,
+    {CloudNotifier? cloud,
+    List<Tag> shelves = const [],
+    String initial = '/sources'}) async {
+  FirestoreService.instance = service;
+  addTearDown(FirestoreService.resetInstance);
+  final router = GoRouter(
+    initialLocation: initial,
+    routes: [
+      ShellRoute(
+        builder: (context, state, child) =>
+            Scaffold(body: ConnectOnReturn(child: child)),
+        routes: [
+          GoRoute(path: '/', builder: (_, __) => const Text('Home')),
+          GoRoute(
+              path: '/sources/add',
+              builder: (_, __) => const Text('Add a source')),
+          GoRoute(
+            path: '/sources',
+            redirect: (_, state) => holdConnectReturn(state),
+            builder: (_, __) => const SourcesPage(),
+          ),
+          GoRoute(
+            path: '/connect',
+            redirect: (_, state) => holdConnectReturn(state),
+            builder: (_, __) => const ConnectPage(),
+          ),
+          GoRoute(
+            path: '/connect/:provider',
+            redirect: (_, state) => holdConnectReturn(state),
+            builder: (_, state) =>
+                ConnectPage(provider: state.pathParameters['provider']),
+          ),
+        ],
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  await tester.pumpWidget(MultiProvider(
+    providers: [
+      ChangeNotifierProvider<DocumentsNotifier>(create: (_) => DocumentsNotifier()),
+      ChangeNotifierProvider<TagsNotifier>(create: (_) => StubTags(shelves)),
+      ChangeNotifierProvider<CloudNotifier>(create: (_) => cloud ?? QuietCloud()),
+      ChangeNotifierProvider<OrgNotifier>(create: (_) => QuietOrg()),
+      ChangeNotifierProvider<ActivityNotifier>(create: (_) => StubActivity()),
+      ChangeNotifierProvider<UploadNotifier>(create: (_) => UploadNotifier()),
+    ],
+    child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
+  ));
+  await tester.pump();
+  await tester.pump();
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+  return router;
+}
+
+/// The address the router is on (the top page's, a pushed one included).
+String routerPath(GoRouter router) => router.state.uri.path;
+
 Future<void> pumpSources(WidgetTester tester, SourcesStubService service,
     {DocumentsNotifier? documents,
     CloudNotifier? cloud,

@@ -6,6 +6,8 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'cloud_providers.dart';
+
 /// The cloud-connect return (5.0.0, ADR-158, INV-32; 5.1.0, ADR-159 —
 /// `api/cloud-storage.md` §Return target). Mirrors web `shared/cloudClaim.js`.
 ///
@@ -19,12 +21,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Where the return arrives:
 /// * **this app on a phone** (`return: "app"`) — the consent runs in an
 ///   in-app auth session waiting for [appReturnScheme], and the session hands
-///   back `noteletter://cloud-connect?…` with exactly the /sources params;
-/// * **a web build** — the browser lands on `/sources?…`, which the router
-///   reads.
-/// Either way the return is HELD here and Sources takes it exactly once
-/// ([take]): a claim is spent by its first request, so a second reader must
-/// find nothing rather than send it again.
+///   back `noteletter://cloud-connect?…` with exactly the callback's params;
+/// * **a web build** — the browser lands on `/connect?…` (`/sources?…` until
+///   5.51.x, which the router forwards), whose redirect holds it here.
+/// Either way the return is HELD here and the connect page takes it exactly
+/// once ([take]): a claim is spent by its first request, so a second reader
+/// must find nothing rather than send it again. Since 5.52.0 (ADR-203) that
+/// page is its own route, [location] — until then it drew in place on Sources.
 class CloudReturn {
   final String result;
   final String? claim;
@@ -34,7 +37,7 @@ class CloudReturn {
   const CloudReturn(this.result, {this.claim, this.provider, this.reason});
 
   /// The return's params, from a `noteletter://cloud-connect?…` URL or a
-  /// `/sources?…` route alike. Null when it carries no `cloud_connect`.
+  /// `/connect?…` route alike. Null when it carries no `cloud_connect`.
   static CloudReturn? fromParams(Map<String, String> q) {
     final result = q['cloud_connect'];
     if (result == null || result.isEmpty) return null;
@@ -46,11 +49,25 @@ class CloudReturn {
   /// constant: it moves only with an app release).
   static const appReturnScheme = 'noteletter';
 
+  /// The connect page's address for [provider] (5.52.0, ADR-203;
+  /// `screens/sources.md` §The OAuth return): `/connect/{provider}` by the
+  /// stored id — never a second spelling of the four — or `/connect` when the
+  /// return names none this client knows.
+  static String location(String? provider) =>
+      provider != null && cloudProviders.containsKey(provider)
+          ? '/connect/$provider'
+          : '/connect';
+
+  /// Whether [path] is the connect page's (`/connect`, `/connect/{provider}`).
+  static bool isConnectPath(String path) =>
+      path == '/connect' || path.startsWith('/connect/');
+
   /// A claim's own lifetime (`api/cloud-storage.md`); a held return older
   /// than this can only answer 404, so it is dropped.
   static const _ttl = Duration(minutes: 10);
 
-  /// The held return, and when it was held. Sources listens.
+  /// The held return, and when it was held. The app shell and an open
+  /// connect page listen (`pages/sources/oauth_return.dart`).
   static final ValueNotifier<CloudReturn?> pending = ValueNotifier(null);
   static DateTime? _heldAt;
 
@@ -174,5 +191,49 @@ class CloudReturn {
   static void forgetConnecting() {
     _connecting = null;
     _connectingAt = null;
+  }
+}
+
+/// What the connect page hands the Library as it leaves (5.52.0, ADR-203;
+/// web `shared/connectHandoff.js`): the sentence *Bring in* earned, and the
+/// two answers about organization rather than a connection — `org:
+/// "enabled"` and `insufficient_scope` — which have always been the Library's
+/// notices. The page has its own route now, so they cross a navigation. The
+/// import's kickoff does not ride here: it is [CloudNotifier]'s, which the
+/// Library already reads.
+typedef LibraryHandoff = ({
+  String? note,
+  String? orgEnabled,
+  ({String? provider, String reason})? connectError,
+});
+
+class ConnectHandoff {
+  ConnectHandoff._();
+
+  /// The Library listens (it may be mounted under the connect page) and reads
+  /// it on mount; whichever comes first takes it, once.
+  static final ValueNotifier<LibraryHandoff?> pending = ValueNotifier(null);
+
+  /// Merged, never replaced. Nothing to say is no handoff: *Not now* leaves
+  /// the Library exactly as it was.
+  static void handOff({
+    String? note,
+    String? orgEnabled,
+    ({String? provider, String reason})? connectError,
+  }) {
+    if (note == null && orgEnabled == null && connectError == null) return;
+    final p = pending.value;
+    pending.value = (
+      note: note ?? p?.note,
+      orgEnabled: orgEnabled ?? p?.orgEnabled,
+      connectError: connectError ?? p?.connectError,
+    );
+  }
+
+  /// The handoff, removed as it is read.
+  static LibraryHandoff? take() {
+    final v = pending.value;
+    pending.value = null;
+    return v;
   }
 }

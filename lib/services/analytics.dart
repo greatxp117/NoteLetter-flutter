@@ -102,6 +102,11 @@ const Map<String, String> screenNames = <String, String>{
   '/sources': 'sources',
   // Add a source (direction D) — the reference's `add` route token.
   '/sources/add': 'add',
+  // The connect page (5.52.0, ADR-203). The reference's tokens are `connect`
+  // and `connect-{provider}`; keyed on the PATTERN, this client sends
+  // `connect` for both — the provider is a `:parameter` here, as an id is.
+  '/connect': 'connect',
+  '/connect/:provider': 'connect',
   '/settings': 'settings',
   '/settings/notifications': 'notification-settings',
   // The camera-roll sweep's settings (F-125 S3). The reference has no sweep,

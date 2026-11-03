@@ -8,7 +8,6 @@ import '../models/cloud_file.dart';
 import '../models/cloud_integration.dart';
 import '../models/document.dart';
 import '../models/import_job.dart';
-import '../models/tag.dart';
 import '../shared/cloud_providers.dart';
 import '../shared/cloud_return.dart';
 import '../shared/cooldown.dart';
@@ -33,13 +32,11 @@ import 'settings/summaries_section.dart';
 import 'sources/browse_section.dart';
 import 'sources/cloud_picker.dart';
 import 'sources/cloud_sync_copy.dart';
-import 'sources/file_under.dart';
 import 'sources/import_review_queue.dart';
 import 'sources/source_facets.dart';
 import 'sources/suggestion_queue.dart';
 import 'sources/organization_settings_panel.dart';
 import 'sources/camera_roll.dart';
-import 'sources/oauth_return.dart';
 import 'sources/sync_settings_panel.dart';
 import 'reader/supersession_confirm.dart';
 import '../widgets/quick_add.dart';
@@ -88,16 +85,11 @@ enum LibraryState { loading, failed, empty, reading, ready }
 /// *Add a source* opens quick add over the page (F-152, `widgets/quick_add.dart`),
 /// whose *More options →* is the Add a source page (`/sources/add`). The empty
 /// catalogue holds the uploader, through the same [FileUploader].
+///
+/// The OAuth return is not drawn here (5.52.0, ADR-203): it is the connect
+/// page's, its own route (`pages/sources/oauth_return.dart`). What that page
+/// hands over as it leaves lands in the notices ([ConnectHandoff]).
 class SourcesPage extends StatefulWidget {
-  /// OAuth return params (ADR-012, ADR-158), passed from the /sources route
-  /// on a web build: `claim` (with [cloudConnectClaim]) or `error` (with
-  /// [cloudConnectReason]). An app's return arrives through its auth session
-  /// instead ([CloudReturn]). A 4.x `success` link is believed by nobody.
-  final String? cloudConnectResult; // 'claim' | 'error'
-  final String? cloudConnectProvider;
-  final String? cloudConnectReason;
-  final String? cloudConnectClaim;
-
   /// Arrived from the retired `/settings/camera-roll` (5.43.0, ADR-198
   /// decision 6): the camera roll's panel opens — or, while it is off, its
   /// setup, which is what that screen's switch began.
@@ -105,10 +97,6 @@ class SourcesPage extends StatefulWidget {
 
   const SourcesPage({
     super.key,
-    this.cloudConnectResult,
-    this.cloudConnectProvider,
-    this.cloudConnectReason,
-    this.cloudConnectClaim,
     this.openCameraRoll = false,
   });
 
@@ -117,15 +105,9 @@ class SourcesPage extends StatefulWidget {
 }
 
 class _SourcesPageState extends State<SourcesPage> {
-  // ── The OAuth return (§States, §The OAuth return) ─────────────────────────
+  // ── What the connect page handed over (§States, §The OAuth return) ───────
 
-  /// The open return (5.46.0, ADR-201): while there is one, the return page
-  /// stands in place of the Library — the claim in flight, *{Provider},
-  /// Connected* or a notice. Leaving it (*Not now*, *Back to library*,
-  /// *Bring in*) comes back here, with what Bring in queued in [_returnNote].
-  OAuthReturn? _ret;
-
-  /// What the return page's *Bring in* queued — a status in the notices.
+  /// What the connect page's *Bring in* queued — a status in the notices.
   String? _returnNote;
 
   /// An `insufficient_scope` reason, in §States' copy — one of the two
@@ -170,8 +152,10 @@ class _SourcesPageState extends State<SourcesPage> {
       context.read<TagsNotifier>().start();
       // A page arriving starts with nothing answered (web: a new intake).
       context.read<UploadNotifier>().clearAnswered();
-      CloudReturn.pending.addListener(_onReturn);
-      _handleOAuthReturn();
+      // The Library may sit under the connect page (an app pushes it over
+      // Sources), so the handoff is listened for as well as read on mount.
+      ConnectHandoff.pending.addListener(_onHandoff);
+      _onHandoff();
       if (widget.openCameraRoll) unawaited(_openCameraRoll());
     });
   }
@@ -192,7 +176,7 @@ class _SourcesPageState extends State<SourcesPage> {
   void dispose() {
     _cloud?.completionMessage.removeListener(_onSessionComplete);
     _docs?.removeListener(_onDocs);
-    CloudReturn.pending.removeListener(_onReturn);
+    ConnectHandoff.pending.removeListener(_onHandoff);
     for (final t in _justDone.values) {
       t.cancel();
     }
@@ -225,13 +209,6 @@ class _SourcesPageState extends State<SourcesPage> {
     if (changed) setState(() {});
   }
 
-  // An app's auth session came back while this screen was open.
-  void _onReturn() {
-    if (!mounted || CloudReturn.pending.value == null) return;
-    final r = CloudReturn.take();
-    if (r != null) _actOnReturn(r);
-  }
-
   // Completion notification (1.4.0): a tracked import/sync session went
   // all-terminal — summarize it as a toast, then clear the one-shot.
   void _onSessionComplete() {
@@ -241,97 +218,20 @@ class _SourcesPageState extends State<SourcesPage> {
     _cloud!.completionMessage.value = null;
   }
 
-  // The OAuth return (ADR-012, ADR-158, ADR-159; api/cloud-storage.md §Client
-  // behavior on return). It arrives as /sources params on a web build — stripped
-  // FIRST, so neither a refresh nor Back can claim twice — or through the
-  // app's auth session, held by [CloudReturn] for whichever Sources takes it.
-  // Either way it is acted on once. We do NOT infer a connection from the URL
-  // or from an integrations diff.
-  Future<void> _handleOAuthReturn() async {
-    final result = widget.cloudConnectResult;
-    CloudReturn? routed;
-    if (result != null) {
-      routed = CloudReturn.fromParams({
-        'cloud_connect': result,
-        if (widget.cloudConnectClaim != null) 'claim': widget.cloudConnectClaim!,
-        if (widget.cloudConnectProvider != null)
-          'provider': widget.cloudConnectProvider!,
-        if (widget.cloudConnectReason != null)
-          'reason': widget.cloudConnectReason!,
-      });
-      // Strip the params (equivalent of history.replaceState).
-      context.go('/sources');
-    }
-    final r = routed ?? CloudReturn.take();
-    if (r != null) await _actOnReturn(r);
-  }
-
-  Future<void> _actOnReturn(CloudReturn r) async {
-    if (r.result == 'error') {
-      // An error return names no provider (api/cloud-storage.md §Result
-      // params): the one this client sent to consent is remembered.
-      final provider = r.provider ?? await CloudReturn.recallConnecting();
-      if (!mounted) return;
-      final reason = r.reason ?? '';
-      setState(() {
-        if (reason == 'insufficient_scope') {
-          _errorBanner = connectReasonCopy(provider, reason);
-        } else {
-          _ret = OAuthReturn(ReturnPhase.error,
-              provider: provider, reason: reason);
-        }
-      });
-      return;
-    }
-    // `error` and `claim` are the only results a return carries (5.0.0);
-    // anything else is believed by nobody.
-    final claim = r.claim;
-    if (r.result != 'claim' || claim == null || claim.isEmpty) return;
-    final cloud = context.read<CloudNotifier>();
+  /// What the connect page handed over as it left (5.52.0, ADR-203;
+  /// [ConnectHandoff]), taken once: what Bring in queued, and the two answers
+  /// about organization rather than a connection — `org: "enabled"` and
+  /// `insufficient_scope` — which have always been the Library's notices.
+  void _onHandoff() {
+    if (!mounted || ConnectHandoff.pending.value == null) return;
+    final h = ConnectHandoff.take();
+    if (h == null) return;
+    final err = h.connectError;
     setState(() {
-      _ret = OAuthReturn(ReturnPhase.claiming, provider: r.provider);
-      _errorBanner = null;
+      if (h.note != null) _returnNote = h.note;
+      if (h.orgEnabled != null) _orgEnabled = h.orgEnabled;
+      if (err != null) _errorBanner = connectReasonCopy(err.provider, err.reason);
     });
-    final (:answer, :refusal, :requestId) = await cloud.claim(claim);
-    if (!mounted) return;
-    final res = answer;
-    setState(() {
-      if (res == null) {
-        // A refusal (403 another account started it, 404 expired or already
-        // finished) — its own sentence, verbatim (§14), on the return page.
-        // None at all: the session ended, and sign-in has the screen.
-        _ret = refusal == null
-            ? null
-            : OAuthReturn(ReturnPhase.refused,
-                provider: r.provider,
-                refusal: refusal,
-                refusalRequestId: requestId);
-        return;
-      }
-      final provider = (res['provider'] as String?) ?? r.provider;
-      if (res['cloud_connect'] == 'success' && res['org'] == 'enabled') {
-        // org_upgrade: confirm the write-scope grant; the reader was not
-        // importing, so no return page.
-        _ret = null;
-        _orgEnabled = provider ?? '';
-      } else if (res['cloud_connect'] != 'success' &&
-          res['reason'] == 'insufficient_scope') {
-        _ret = null;
-        _errorBanner = connectReasonCopy(provider, 'insufficient_scope');
-      } else {
-        _ret = OAuthReturn(ReturnPhase.claimed, provider: provider, answer: res);
-      }
-    });
-  }
-
-  /// Leaving the return page: the Library again, on the same address, with
-  /// what Bring in queued said in the notices.
-  void _leaveReturn(String? note) {
-    setState(() {
-      _ret = null;
-      if (note != null) _returnNote = note;
-    });
-    context.read<CloudNotifier>().loadIntegrations();
   }
 
   /// The strip's sentences, in web's order.
@@ -367,22 +267,6 @@ class _SourcesPageState extends State<SourcesPage> {
     final upload = context.watch<UploadNotifier>();
     final aiOn = shellAiOn(context);
     final dark = Tokens.of(context).isDark;
-
-    // The return page stands in for the Library while a return is open
-    // (5.46.0, ADR-201). Every listener and subscription above runs either
-    // way; only what is drawn changes.
-    final ret = _ret;
-    if (ret != null) {
-      return OAuthReturnPage(
-        ret: ret,
-        shelves: tags.tags,
-        onLeave: _leaveReturn,
-        onAddFiles: () {
-          setState(() => _ret = null);
-          context.go('/sources/add');
-        },
-      );
-    }
 
     final model = kitShelfModel(tags.tags, docs.documents);
     final all = model.complete.where((d) => !_justDone.containsKey(d.id)).toList();
@@ -1110,10 +994,8 @@ class _PickerPanel extends StatefulWidget {
 class _PickerPanelState extends State<_PickerPanel> {
   bool _saving = false;
 
-  /// *File under* (5.46.0, ADR-201): the shelf this import files under —
-  /// null, *NoteLetter chooses*. The import picker only: a folder chooser
-  /// imports nothing, so there is nothing to file.
-  String? _shelf;
+  // No File under (5.52.0, ADR-203): what an import brings in is shelved by
+  // indexing, as every document is (INV-12). 5.46.0 had a shelf select here.
 
   /// A cap that blocks a toggle says so IN the panel, as the reference's
   /// `capNote` does — a control that silently does nothing reads as broken.
@@ -1124,12 +1006,9 @@ class _PickerPanelState extends State<_PickerPanel> {
     setState(() => _capNote = note);
   }
 
-  Future<void> _confirm(CloudNotifier cloud, List<Tag> shelves) async {
+  Future<void> _confirm(CloudNotifier cloud) async {
     setState(() => _saving = true);
-    // Sent only while the library still holds it — the select draws exactly
-    // what the request files.
-    final shelf = shelfPathLabel(shelves, _shelf) == null ? null : _shelf;
-    final (msg, isErr) = await cloud.importSelection(shelfId: shelf);
+    final (msg, isErr) = await cloud.importSelection();
     if (!mounted) return;
     setState(() => _saving = false);
     // A refusal is drawn in the picker (importError); only the 202's count is
@@ -1141,7 +1020,6 @@ class _PickerPanelState extends State<_PickerPanel> {
   @override
   Widget build(BuildContext context) {
     final cloud = context.watch<CloudNotifier>();
-    final shelves = context.watch<TagsNotifier>().tags;
     final listing = cloud.listing;
     final provider = cloud.browseProvider ?? '';
     final crumbs = cloud.crumbs;
@@ -1192,22 +1070,11 @@ class _PickerPanelState extends State<_PickerPanel> {
         if (listing?.nextPageToken != null)
           CloudPickerLoadMore(
               loading: cloud.loadingMore, onTap: cloud.loadMore),
-        Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child: FileUnder(
-            shelves: shelves,
-            value: shelfPathLabel(shelves, _shelf) == null ? null : _shelf,
-            onChanged: (v) => setState(() => _shelf = v),
-            disabled: _saving,
-            note: 'Applies to what you import now.',
-            top: 10,
-          ),
-        ),
         CloudPickerFoot(
           confirmLabel: _saving
               ? 'Queuing…'
               : 'Import $total item${total == 1 ? '' : 's'}',
-          onConfirm: total == 0 ? null : () => _confirm(cloud, shelves),
+          onConfirm: total == 0 ? null : () => _confirm(cloud),
           onCancel: cloud.closePicker,
           busy: _saving,
         ),

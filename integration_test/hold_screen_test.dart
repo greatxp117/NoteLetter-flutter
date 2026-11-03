@@ -924,13 +924,17 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(find.byType(panel), findsOneWidget,
           reason: 'the $label section did not mount');
       return;
-    // The OAuth return (5.46.0, ADR-201; F-151), the reference's theme-shots
-    // `oauth-*` states, reached as a reader reaches them: an error return is
-    // held as the app's session would hand it back; a claim is PARKED in the
-    // emulator in the callback's own shape and its return held, so the claim,
-    // the shim's faked exchange and the listing all run for real. Drive is in
-    // the seed (its claim answers `reconnected`); Notion is not (its fake
-    // workspace lists nothing). Route: /sources.
+    // The OAuth return (5.46.0, ADR-201; F-151; 5.52.0, ADR-203; F-156), the
+    // reference's theme-shots `oauth-*` states, reached as a reader reaches
+    // them: an error return is held as the app's session would hand it back;
+    // a claim is PARKED in the emulator in the callback's own shape and its
+    // return held, so the claim, the shim's faked exchange and the listing
+    // all run for real. Drive is in the seed (its claim answers
+    // `reconnected`); Notion is not (its fake workspace lists nothing). Route:
+    // /sources — the held return opens /connect/{provider} over it, as the
+    // app's own return does. `oauth-granted-notion-ticked` stands in for
+    // Notion's listing (the provider is the external edge; the shim's Notion
+    // lists nothing) with the reference frame's three rows.
     case 'oauth-denied':
     case 'oauth-expired':
     case 'oauth-failed':
@@ -948,8 +952,11 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     case 'oauth-granted':
     case 'oauth-granted-picked':
     case 'oauth-empty':
-      final notion = holdState == 'oauth-empty';
+    case 'oauth-granted-notion-ticked':
+      final ticked = holdState == 'oauth-granted-notion-ticked';
+      final notion = holdState == 'oauth-empty' || ticked;
       final provider = notion ? 'notion' : 'google_drive';
+      if (ticked) ApiService.instance.httpClientAdapter = _NotionOffer();
       final token = 'hold-$holdState-${DateTime.now().microsecondsSinceEpoch}';
       final rest = Dio(BaseOptions(
         baseUrl: 'http://${ApiService.emulatorHost}:${ApiService.firestorePort}'
@@ -980,6 +987,13 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 250));
       }
+      if (ticked) {
+        expect(find.text('Notion, Connected'), findsOneWidget,
+            reason: 'the Notion claim did not open the manifest');
+        expect(find.text('Bring in 3 items'), findsOneWidget,
+            reason: 'Notion\'s offer did not arrive ticked');
+        return;
+      }
       if (notion) {
         expect(find.text('Nothing to Bring In'), findsOneWidget,
             reason: 'the empty listing did not draw');
@@ -995,29 +1009,9 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       expect(find.text('Google Drive, Connected'), findsOneWidget,
           reason: 'the manifest did not open');
       if (holdState == 'oauth-granted-picked') {
+        // No File under since 5.52.0 (ADR-203): the pick is the frame.
         await tester.tap(find.bySemanticsLabel('Bring in Docs').first);
         await settle();
-        // On a phone the manifest is the running head's sheet: drop it to
-        // reach File under (folded, an IgnorePointer takes the tap), file
-        // under Finance, and fold it again — web's phone frame holds the
-        // closed peek with the shelf as its meta.
-        final peek = find.byKey(const ValueKey('d-peek'));
-        if (peek.evaluate().isNotEmpty) {
-          await tester.tap(peek);
-          await settle();
-        }
-        await tester.ensureVisible(find.text('NoteLetter chooses').first);
-        final chooses = find.text('NoteLetter chooses').hitTestable();
-        expect(chooses, findsOneWidget,
-            reason: 'File under cannot be reached on a phone');
-        await tester.tap(chooses);
-        await settle();
-        await tester.tap(find.text('Finance').last);
-        await settle();
-        if (peek.evaluate().isNotEmpty) {
-          await tester.tap(peek);
-          await settle();
-        }
       }
       return;
     // A source's History (5.44.0, ADR-199; F-147), the reference's
@@ -2031,6 +2025,42 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
   }
 }
 
+
+/// Notion's root listing, stood in with the reference frame's three rows (web
+/// theme-shots `SHOT_OAUTH_NOTION`): the shim's Notion workspace lists
+/// nothing. Every other request — the claim, the import — goes through.
+class _NotionOffer implements HttpClientAdapter {
+  final _inner = IOHttpClientAdapter();
+
+  static const _items = [
+    {'id': 'sn-db-1', 'name': 'Reading notes', 'type': 'folder',
+     'mime_type': 'application/x-notion-database', 'size': 0,
+     'modified_at': '2026-10-29T10:00:00Z'},
+    {'id': 'sn-pg-1', 'name': 'Commonplace book', 'type': 'file',
+     'mime_type': 'application/x-notion-page', 'size': 0,
+     'modified_at': '2026-10-27T10:00:00Z'},
+    {'id': 'sn-pg-2', 'name': 'Research memos', 'type': 'file',
+     'mime_type': 'application/x-notion-page', 'size': 0,
+     'modified_at': '2026-10-12T10:00:00Z'},
+  ];
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    if (!options.path.endsWith('/fn_list_cloud_files') ||
+        options.queryParameters['provider'] != 'notion') {
+      return _inner.fetch(options, requestStream, cancelFuture);
+    }
+    return ResponseBody.fromString(
+        jsonEncode({'items': _items, 'nextPageToken': null}), 200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType]
+        });
+  }
+
+  @override
+  void close({bool force = false}) => _inner.close(force: force);
+}
 
 /// Forwards every request to the real transport, with the Psalm's
 /// `fn_search_notes` carrying `sourceTypes` as a string — not a list
