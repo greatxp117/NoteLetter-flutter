@@ -128,6 +128,7 @@ void main() {
         'doc_processing_failed': 'Processing failed',
         'doc_indexing_failed': 'Indexing failed',
         'doc_skipped': 'Skipped at import',
+        'doc_duplicate': 'Added again',
         'doc_cancelled': 'Cancelled',
         'article_resolved': 'Article found',
         'organization_move': 'Moved in your cloud folder',

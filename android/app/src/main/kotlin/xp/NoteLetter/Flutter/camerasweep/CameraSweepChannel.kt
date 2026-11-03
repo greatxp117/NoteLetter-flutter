@@ -450,15 +450,45 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
 
     // ── §2 the pre-filter ──────────────────────────────────────────────────
 
+    /**
+     * The picture hash of a decode already upright (5.50.0, ADR-202): null
+     * when its pixels cannot be read. Never throws — a hash is a question
+     * asked before reading, and no answer only means the photo is read.
+     */
+    private fun pictureHash(bitmap: Bitmap): String? = try {
+        val px = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(px, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        PictureHash.dhash(px, bitmap.width, bitmap.height)
+    } catch (e: Exception) {
+        android.util.Log.w("CameraSweep", "the thumbnail's pixels could not be read for its hash", e)
+        null
+    }
+
     private fun examine(args: Map<String, Any?>, result: MethodChannel.Result) {
         val row = row(args, result) ?: return
-        fun answer(verdict: String, chars: Int?, w: Int?, h: Int?) {
+        fun answer(verdict: String, chars: Int?, w: Int?, h: Int?, hash: String? = null) {
             main.post {
                 result.success(mapOf("verdict" to verdict, "characters" to chars,
-                    "thumbnailWidth" to w, "thumbnailHeight" to h, "prefilterVersion" to PREFILTER_VERSION))
+                    "thumbnailWidth" to w, "thumbnailHeight" to h, "prefilterVersion" to PREFILTER_VERSION,
+                    // 5.50.0 (ADR-202): the thumbnail's picture hash, or null.
+                    "pictureHash" to hash))
             }
         }
-        if (row.screenshot) return answer("candidate", null, null, null)
+        if (row.screenshot) {
+            // A candidate unread, as before; its decode at THUMBNAIL_EDGE is
+            // read now for the hash alone (5.50.0). A file that will not
+            // decode is no hash, never another verdict: the photo is then
+            // read as before.
+            io.execute {
+                val bitmap = try {
+                    decode(row.uri, THUMBNAIL_EDGE, row.orientation)
+                } catch (e: Exception) {
+                    null
+                }
+                answer("candidate", null, null, null, bitmap?.let(::pictureHash))
+            }
+            return
+        }
         io.execute {
             val bitmap = try {
                 decode(row.uri, THUMBNAIL_EDGE, row.orientation)
@@ -479,7 +509,13 @@ class CameraSweepChannel(private val context: Context) : EventChannel.StreamHand
                     // characters; the lines here are its observations.
                     val joined = text.textBlocks.flatMap { it.lines }.joinToString(" ") { it.text }
                     val n = characters(joined)
-                    answer(if (n >= MINIMUM_CHARACTERS) "candidate" else "noText", n, bitmap.width, bitmap.height)
+                    if (n >= MINIMUM_CHARACTERS) {
+                        // A candidate is the one photo ever asked about: its
+                        // decode is hashed (5.50.0), off the main thread.
+                        io.execute { answer("candidate", n, bitmap.width, bitmap.height, pictureHash(bitmap)) }
+                    } else {
+                        answer("noText", n, bitmap.width, bitmap.height)
+                    }
                 }
                 .addOnFailureListener {
                     // Swift's recognizer failure reads as "" too.

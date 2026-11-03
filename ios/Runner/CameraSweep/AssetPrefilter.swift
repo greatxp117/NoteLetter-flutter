@@ -57,14 +57,23 @@ enum AssetPrefilter {
         let characters: Int?
         let thumbnailWidth: Int?
         let thumbnailHeight: Int?
+        /// PORT CHANGE 3 (5.50.0, ADR-202): the picture hash of the thumbnail,
+        /// upright (`PictureHash`), for a candidate only — so the server can
+        /// recognise a photo the library already holds before it is read off
+        /// iCloud. nil with no local thumbnail. The verdict never reads it.
+        var pictureHash: String? = nil
     }
 
     static func examination(of asset: PHAsset) async -> Examination {
         // Apple already tags screenshots, and they are the highest-value class
         // here. Free, high precision, no recognition pass needed.
         if PhotoLibraryAccess.isScreenshot(asset) {
+            // PORT CHANGE 3: the same thumbnail, network off, read for its
+            // hash alone — the verdict stays a candidate with or without it,
+            // and no thumbnail is no hash (the photo is then read as before).
+            let hash = await localThumbnail(for: asset).flatMap(PictureHash.dhash(of:))
             return Examination(verdict: .candidate, characters: nil,
-                               thumbnailWidth: nil, thumbnailHeight: nil)
+                               thumbnailWidth: nil, thumbnailHeight: nil, pictureHash: hash)
         }
 
         guard let image = await localThumbnail(for: asset) else {
@@ -77,9 +86,13 @@ enum AssetPrefilter {
         }
 
         let text = await recognizeText(in: cgImage)
-        return Examination(verdict: text.count >= minimumCharacters ? .candidate : .noText,
+        let verdict: Verdict = text.count >= minimumCharacters ? .candidate : .noText
+        // PORT CHANGE 3: hashed only when it is a candidate — the one photo that
+        // is ever asked about.
+        return Examination(verdict: verdict,
                            characters: text.count,
-                           thumbnailWidth: cgImage.width, thumbnailHeight: cgImage.height)
+                           thumbnailWidth: cgImage.width, thumbnailHeight: cgImage.height,
+                           pictureHash: verdict == .candidate ? PictureHash.dhash(of: image) : nil)
     }
 
     // MARK: - Local-only image access

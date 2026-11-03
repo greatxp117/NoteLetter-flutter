@@ -42,25 +42,47 @@ class Api {
 
   /// One camera-roll photo's upload session (2.18.0, ADR-023, INV-14;
   /// `spec/api/uploads.md`). The closed key set is `assetKey · filename ·
-  /// mimeType · size · capturedAt`, and `capturedAt` is OMITTED, never null,
-  /// when the asset has no date. The answer carries `duplicate` on both the
-  /// 201 and the 200; reading it is the sweep's (`CaptureSession`).
+  /// mimeType · size · capturedAt · width · height · pictureHash · precheck ·
+  /// force` (the last five 5.50.0, ADR-202, INV-37), and every optional key is
+  /// OMITTED, never null, when it has no value: the server refuses a key
+  /// outside the set by name, and a null where it wants a number. The answer
+  /// carries `duplicate` and, since 5.50.0, `duplicateOf` on every answer;
+  /// reading it is the sweep's (`CaptureSession`).
   ///
   /// `capturedAt` goes out as the Swift app sent it — `ISO8601DateFormatter`'s
   /// default, UTC, whole seconds: `2026-10-04T09:00:00Z`.
+  ///
+  /// * `size` — the staged bytes; absent on a [precheck], which is asked
+  ///   BEFORE the photo is read.
+  /// * `width`, `height`, `pictureHash` — the photo's size as the library
+  ///   records it and the hash of its pre-filter thumbnail: with
+  ///   `capturedAt`, the four values the server's check needs.
+  /// * [precheck] — ask only whether the library already holds this photo;
+  ///   nothing is written for one it does not.
+  /// * [force] — Add anyway, from the phone that holds the photo.
   Future<Map<String, dynamic>> createCaptureSession({
     required String assetKey,
     required String filename,
     required String mimeType,
-    required int size,
+    int? size,
     DateTime? capturedAt,
+    int? width,
+    int? height,
+    String? pictureHash,
+    bool precheck = false,
+    bool force = false,
   }) =>
       _http.post('/fn_create_capture_session', data: {
         'assetKey': assetKey,
         'filename': filename,
         'mimeType': mimeType,
-        'size': size,
+        'size': ?size,
         if (capturedAt != null) 'capturedAt': captureInstant(capturedAt),
+        'width': ?width,
+        'height': ?height,
+        'pictureHash': ?pictureHash,
+        if (precheck) 'precheck': true,
+        if (force) 'force': true,
       });
 
   /// `capturedAt`'s wire form: UTC, whole seconds (sub-second truncated, as

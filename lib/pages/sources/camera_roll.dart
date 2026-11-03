@@ -146,6 +146,9 @@ class CameraRollCopy {
   // Review.
   static String reviewHead(int k, int n) => 'Camera roll · Review · $k of $n';
   static const reviewHeadEnd = 'Camera roll · Review';
+  /// [filed] counts what is in the library — sent, or already there
+  /// (5.50.0: a picture the library already held, recognised before it was
+  /// read, is *already in your library*, ADR-202; `SweepLedger.inLibraryCount`).
   static String summary(int filed, int waiting, int passed) =>
       'Filed ${kitThousands(filed)} · Waiting ${kitThousands(waiting)} · '
       'Passed over ${kitThousands(passed)}';
@@ -297,7 +300,7 @@ class CameraRollRow extends StatelessWidget {
                   onTap: () => CameraRollFlow.open(context, CameraRollStep.review),
                 ),
               )
-            : (CameraRollCopy.rowOn(ledger.ingestedCount), false, settings());
+            : (CameraRollCopy.rowOn(ledger.inLibraryCount), false, settings());
         // `.lx-svc.on`: the positive dot while it looks, waits or is on —
         // never on a failure or lost access, which are not "on".
         final on = ledger.enabled &&
@@ -799,7 +802,7 @@ class _CameraRollFlowState extends State<CameraRollFlow> {
       body: [
         KitFlowSummary(
           CameraRollCopy.summary(
-            ledger.ingestedCount,
+            ledger.inLibraryCount,
             waiting.length,
             ledger.passedOverCount,
           ),
@@ -864,7 +867,7 @@ class _CameraRollFlowState extends State<CameraRollFlow> {
           folio: CameraRollCopy.endFolio,
           title: CameraRollCopy.endTitle,
           stand:
-              '${CameraRollCopy.endCounts(ledger.ingestedCount, ledger.passedOverCount)} '
+              '${CameraRollCopy.endCounts(ledger.inLibraryCount, ledger.passedOverCount)} '
               '$next',
         ),
       ],

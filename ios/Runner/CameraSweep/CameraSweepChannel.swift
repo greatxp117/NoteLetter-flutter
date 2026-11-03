@@ -300,6 +300,8 @@ enum CameraSweepChannel {
                 "thumbnailWidth": e.thumbnailWidth as Any? ?? NSNull(),
                 "thumbnailHeight": e.thumbnailHeight as Any? ?? NSNull(),
                 "prefilterVersion": AssetPrefilter.version,
+                // 5.50.0 (ADR-202): the thumbnail's picture hash, or null.
+                "pictureHash": e.pictureHash as Any? ?? NSNull(),
             ]
             await MainActor.run { result(answer) }
         }

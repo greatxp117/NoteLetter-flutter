@@ -119,6 +119,8 @@ class CameraSweepBridge {
   }
 
   /// The on-device text check for one asset. Never downloads an original.
+  /// Since 5.50.0 it also hashes the thumbnail it read (screenshots included:
+  /// their thumbnail is read for the hash alone), [SweepExamination.pictureHash].
   Future<SweepExamination> examine(String localIdentifier) async =>
       SweepExamination.fromWire(_map(await _guard(() => _channel.invokeMethod<Object?>(
             'examine',
@@ -357,7 +359,28 @@ class SweepAsset {
     required this.originalFilename,
     required this.isScreenshot,
     required this.isRepresentative,
+    this.pictureHash,
   });
+
+  /// The picture hash of this photo's pre-filter thumbnail (5.50.0, ADR-202;
+  /// `features/picture-dedupe.md` §The picture hash), carried from its
+  /// examination ([withPictureHash]) — never read by [identify], which reads
+  /// no pixel. null: no local thumbnail, so no question is asked before the
+  /// photo is read.
+  final String? pictureHash;
+
+  /// This asset, carrying its examination's [pictureHash].
+  SweepAsset withPictureHash(String? hash) => SweepAsset(
+        localIdentifier: localIdentifier,
+        assetKey: assetKey,
+        creationSeconds: creationSeconds,
+        pixelWidth: pixelWidth,
+        pixelHeight: pixelHeight,
+        originalFilename: originalFilename,
+        isScreenshot: isScreenshot,
+        isRepresentative: isRepresentative,
+        pictureHash: hash,
+      );
 
   /// This device's id for the asset — a fast ledger key, never the durable
   /// one (INV-14).
@@ -424,7 +447,16 @@ class SweepExamination {
     required this.thumbnailWidth,
     required this.thumbnailHeight,
     required this.prefilterVersion,
+    this.pictureHash,
   });
+
+  /// The picture hash of the thumbnail the pre-filter read, upright
+  /// (5.50.0, ADR-202): 16 lowercase hex digits, computed natively by the
+  /// rule `spec/picture-hash.json` holds both bridges to. A screenshot's
+  /// thumbnail is read for it too (network off). null when no local
+  /// thumbnail was read, or it was under 9×8 — and then no question is asked
+  /// before the photo is read. Hashed for a candidate only.
+  final String? pictureHash;
 
   final SweepVerdict verdict;
 
@@ -443,7 +475,17 @@ class SweepExamination {
         thumbnailWidth: _intOrNull(m, 'thumbnailWidth'),
         thumbnailHeight: _intOrNull(m, 'thumbnailHeight'),
         prefilterVersion: _int(m, 'prefilterVersion'),
+        pictureHash: _hashOrNull(m, 'pictureHash'),
       );
+}
+
+/// 16 lowercase hex digits or null; anything else is a broken bridge. The
+/// server refuses any other shape with a 400 (`api/uploads.md`), so a wrong
+/// one is caught here, where it was made.
+String? _hashOrNull(Map<Object?, Object?> m, String key) {
+  final v = _strOrNull(m, key);
+  if (v == null || RegExp(r'^[0-9a-f]{16}$').hasMatch(v)) return v;
+  throw FormatException('camera sweep: "$key" is not 16 lowercase hex digits');
 }
 
 class SweepRendered {

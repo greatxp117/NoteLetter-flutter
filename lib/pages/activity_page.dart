@@ -370,6 +370,7 @@ const _kinds = <String, _Kind>{
   'doc_processing_failed': (family: 'processing', chip: 'Failed', icon: Icons.warning_amber_rounded),
   'doc_indexing_failed': (family: 'processing', chip: 'Failed', icon: Icons.warning_amber_rounded),
   'doc_skipped': (family: 'processing', chip: 'Skipped', icon: Icons.close),
+  'doc_duplicate': (family: 'processing', chip: 'Added again', icon: Icons.layers_outlined),
   'doc_cancelled': (family: 'processing', chip: 'Cancelled', icon: Icons.close),
   'article_resolved': (family: 'processing', chip: 'Article found', icon: Icons.article_outlined),
 

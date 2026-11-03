@@ -177,6 +177,7 @@ void main() {
               'thumbnailWidth': 1024,
               'thumbnailHeight': 768,
               'prefilterVersion': 1,
+              'pictureHash': null,
             }
           : null);
       await bridge.examine('A/L0/001');
@@ -315,11 +316,13 @@ void main() {
             'thumbnailWidth': null,
             'thumbnailHeight': null,
             'prefilterVersion': 1,
+            'pictureHash': null,
           });
       final e = await bridge.examine('s');
       expect(e.verdict, SweepVerdict.candidate);
       expect(e.characters, isNull);
       expect(e.prefilterVersion, 1);
+      expect(e.pictureHash, isNull);
 
       answer((_) async => {
             'verdict': 'maybe',
@@ -327,8 +330,32 @@ void main() {
             'thumbnailWidth': 1,
             'thumbnailHeight': 1,
             'prefilterVersion': 1,
+            'pictureHash': null,
           });
       await expectLater(bridge.examine('s'), throwsFormatException);
+    });
+
+    // 5.50.0 (ADR-202): the thumbnail's picture hash, as both bridges send it
+    // — 16 lowercase hex digits, or null with no local thumbnail. A shape the
+    // server would refuse with a 400 is caught here, where it was made.
+    test('an examination carries its thumbnail\'s hash, closed', () async {
+      Map<String, Object?> exam(Object? hash) => {
+            'verdict': 'candidate',
+            'characters': null,
+            'thumbnailWidth': 1024,
+            'thumbnailHeight': 768,
+            'prefilterVersion': 1,
+            'pictureHash': hash,
+          };
+      answer((_) async => exam('485a88d46d35b9a6'));
+      expect((await bridge.examine('s')).pictureHash, '485a88d46d35b9a6');
+      for (final bad in ['485A88D46D35B9A6', '485a88d4', 7]) {
+        answer((_) async => exam(bad));
+        await expectLater(bridge.examine('s'), throwsFormatException, reason: '$bad');
+      }
+      answer((_) async => exam(null)..remove('pictureHash'));
+      await expectLater(bridge.examine('s'), throwsFormatException,
+          reason: 'a missing field is a failure, never a default');
     });
 
     test('a missing field is a failure, never a default', () async {

@@ -799,6 +799,11 @@ class KitLibProcRow extends StatelessWidget {
 /// with its [word], [title] and [author] and its [bar] — or, when it needs the
 /// reader ([attention]), a [stamp] (*Couldn’t be read*, *Stalled*) — then its
 /// [stage], [message], wait, refusal and [actions] under the slip, 7 apart.
+///
+/// [muted] (5.50.0, ADR-202; web `.lx-arr-copy`): a copy of a picture the
+/// library already holds still needs the reader, but is not a failure — its
+/// slip keeps the plain `--border` edge and its stamp takes `--fg-muted`,
+/// never `--critical`.
 class KitArrivalSlip extends StatelessWidget {
   final String word;
   final String title;
@@ -811,6 +816,7 @@ class KitArrivalSlip extends StatelessWidget {
   final Widget? refusal;
   final Widget? actions;
   final bool attention;
+  final bool muted;
 
   const KitArrivalSlip({
     super.key,
@@ -825,13 +831,15 @@ class KitArrivalSlip extends StatelessWidget {
     this.refusal,
     this.actions,
     this.attention = false,
+    this.muted = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     // color-mix(in oklab, --critical 45%, --border), mixed in sRGB.
-    final edge = attention ? Color.lerp(t.border, t.critical, 0.45)! : t.border;
+    final edge = attention && !muted ? Color.lerp(t.border, t.critical, 0.45)! : t.border;
+    final stampInk = muted ? t.fgMuted : t.criticalText;
     final slip = AspectRatio(
       aspectRatio: 7 / 10,
       child: LayoutBuilder(
@@ -844,6 +852,7 @@ class KitArrivalSlip extends StatelessWidget {
               rule: t.rule,
               edge: edge,
               step: 1.9 * em,
+              spine: !muted,
             ),
             child: Stack(
               children: [
@@ -910,7 +919,7 @@ class KitArrivalSlip extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: t.surface.withValues(alpha: 0.88),
-                          border: Border.all(color: t.criticalText, width: 1.5),
+                          border: Border.all(color: stampInk, width: 1.5),
                           borderRadius: BorderRadius.circular(3),
                         ),
                         child: Text(
@@ -920,7 +929,7 @@ class KitArrivalSlip extends StatelessWidget {
                           style: AppTheme.mono(
                             fontSize: 0.58 * em,
                             letterSpacing: 0.14 * 0.58 * em,
-                            color: t.criticalText,
+                            color: stampInk,
                           ),
                         ),
                       ),
@@ -960,11 +969,16 @@ class KitArrivalSlip extends StatelessWidget {
 class _RuledSlip extends CustomPainter {
   final Color ground, rule, edge;
   final double step;
+
+  /// The 3px spine; a copy's slip draws the hairline alone (web
+  /// `.lx-arr.lx-arr-copy .lx-arr-c{box-shadow:inset 0 0 0 1px var(--border)}`).
+  final bool spine;
   _RuledSlip({
     required this.ground,
     required this.rule,
     required this.edge,
     required this.step,
+    this.spine = true,
   });
 
   @override
@@ -987,7 +1001,7 @@ class _RuledSlip extends CustomPainter {
     }
     final e = Paint()..color = edge;
     // inset 0 0 0 1px, inset 3px 0 0 — the slip's hairline and its spine.
-    canvas.drawRect(Rect.fromLTWH(0, 0, 3, size.height), e);
+    if (spine) canvas.drawRect(Rect.fromLTWH(0, 0, 3, size.height), e);
     canvas.restore();
     canvas.drawRRect(
       r.deflate(0.5),
@@ -1003,7 +1017,8 @@ class _RuledSlip extends CustomPainter {
       old.ground != ground ||
       old.rule != rule ||
       old.edge != edge ||
-      old.step != step;
+      old.step != step ||
+      old.spine != spine;
 }
 
 // ── The sheet: the Shelf facet (`.lx-shelf`) ────────────────────────────────

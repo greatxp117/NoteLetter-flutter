@@ -37,6 +37,9 @@ const sourceEventLabels = {
   'doc_processing_failed': 'Processing failed',
   'doc_indexing_failed': 'Indexing failed',
   'doc_skipped': 'Skipped at import',
+  // 5.50.0 (ADR-202): written on the ORIGINAL when the same picture came in
+  // again; its `note` (the detail line) says from where.
+  'doc_duplicate': 'Added again',
   'doc_cancelled': 'Cancelled',
   'article_resolved': 'Article found',
   'organization_move': 'Moved in your cloud folder',

@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
+import '../../services/camera_sweep_service.dart' show CameraSweepService;
 import '../../shared/cooldown.dart';
 import '../../state/activity_notifier.dart';
+import '../../state/camera_sweep_host.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import '../reader/supersession_confirm.dart';
@@ -31,6 +34,32 @@ import '../../shared/stalled.dart';
 
 /// How a [ProcessingRow] is drawn; its rules are the same in every one.
 enum ProcessingLook { card, row, arrival }
+
+/// A copy of a picture the library already holds (5.50.0, ADR-202, INV-37)
+/// is drawn muted — the cloud import's *Already imported* row, one road over
+/// (`screens/sources.md` §Document processing; web `COPY_STYLE`), and this
+/// client's skipped import job (`sources_page.dart`'s `_JobRow`).
+const copyRowOpacity = 0.55;
+
+/// The pill and stamp of a copy (web `procPill`).
+const copyLabel = 'Already in your library';
+
+/// What the row's one primary does (ADR-085; 5.50.0 adds the two Add anyways).
+enum _Act {
+  /// `fn_retry_document` — an `error`, or a stalled run.
+  retry,
+
+  /// `fn_retry_document {force: true}` — Index it anyway.
+  force,
+
+  /// `fn_retry_document {force: true}` on a copy, which the server reads as
+  /// `allow_duplicate` — Add anyway, in its own words.
+  addAnyway,
+
+  /// A copy recognised before its upload, on the phone that holds the photo:
+  /// `fn_create_capture_session {force: true}`, then the photo's upload.
+  addFromPhone,
+}
 
 /// The stage clock (4.74.0, ADR-108; `queued` 5.3.0, ADR-161): a run crosses
 /// its stall moment with NO write behind it, so something must tick. One
@@ -199,6 +228,10 @@ class ProcessingRow extends StatefulWidget {
   /// Test seam for Dismiss; null is `Api.reviewDocuments`.
   final Future<void> Function(String docId)? dismiss;
 
+  /// Test seam for a copy's View (5.50.0): null pushes the reader of the
+  /// ORIGINAL, `/reader/{duplicate_of}`.
+  final void Function(String originalId)? openOriginal;
+
   const ProcessingRow(
       {super.key,
       required this.doc,
@@ -209,7 +242,8 @@ class ProcessingRow extends StatefulWidget {
       this.studyCheck,
       this.editCheck,
       this.dismissible = false,
-      this.dismiss});
+      this.dismiss,
+      this.openOriginal});
 
   @override
   State<ProcessingRow> createState() => _ProcessingRowState();
@@ -306,27 +340,75 @@ class _ProcessingRowState extends State<ProcessingRow> {
   /// **Retry is never rendered on a `skipped` row**: `fn_retry_document`
   /// refuses that status by name, so the control could not succeed and never
   /// could. The two branches are disjoint by construction.
-  (String, bool)? _primary(Document doc, DateTime now) {
-    if (doc.status == DocumentStatus.error) return ('Retry', false);
+  ///
+  /// **A copy is checked first** (5.50.0, ADR-202; `skip_reason`, closed,
+  /// chooses — never the sentence): `already_in_library` → **Add anyway**;
+  /// `already_in_library_not_uploaded` → **Add anyway** only on the phone
+  /// whose ledger holds the photo ([phoneHolds]), and on every other client
+  /// none — the server holds no bytes, `fn_retry_document` would 409, and
+  /// the row's sentence already says where to go. Never Index it anyway.
+  (String, _Act)? _primary(Document doc, DateTime now, {required bool phoneHolds}) {
+    if (doc.status == DocumentStatus.error) return ('Retry', _Act.retry);
     // A stalled `processing` row gets the same primary (4.74.0, ADR-108), and
     // a stalled `queued` one (5.3.0, ADR-161). `fn_retry_document` accepts
     // both — the widened status is reachable from here, which is the whole
     // reason the backend half was not shipped alone.
-    if (doc.isStalled(now)) return ('Retry', false);
+    if (doc.isStalled(now)) return ('Retry', _Act.retry);
+    if (doc.isPictureCopy) {
+      if (doc.skipReason == 'already_in_library') return ('Add anyway', _Act.addAnyway);
+      return phoneHolds ? ('Add anyway', _Act.addFromPhone) : null;
+    }
     if (doc.status == DocumentStatus.skipped &&
         (doc.skipReason == 'unresolved_article' || !doc.forceProcess)) {
-      return ('Index it anyway', true);
+      return ('Index it anyway', _Act.force);
     }
     return null;
   }
 
-  Future<void> _runPrimary(bool force) async {
+  IconData _glyph(_Act act) => switch (act) {
+        _Act.force => Icons.notes,
+        // web `IcoRetry`, as Add anyway's glyph is.
+        _Act.retry || _Act.addAnyway || _Act.addFromPhone => Icons.refresh,
+      };
+
+  /// web `heldLabel`'s busy word for Add anyway, `Adding…`.
+  String _label((String, _Act) primary) =>
+      _busy && (primary.$2 == _Act.addAnyway || primary.$2 == _Act.addFromPhone)
+          ? 'Adding…'
+          : primary.$1;
+
+  /// A copy's source is the ORIGINAL it names: the copy has nothing of its
+  /// own to read, and one never uploaded has no file at all (web
+  /// `SourceAffordance`). None when the row names no original.
+  VoidCallback? _openOriginal(Document doc) {
+    final original = doc.duplicateOf;
+    if (original == null || original.isEmpty) return null;
+    return () => (widget.openOriginal ?? (id) => context.push('/reader/$id'))(original);
+  }
+
+  Future<void> _runPrimary(_Act act) async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     final doc = widget.doc;
+    if (act == _Act.addFromPhone) {
+      // Nothing is superseded — the copy has no passages and is in no
+      // program — so there is no confirm: the photo is read, the session
+      // turns the row into an upload, and the subscription moves the row.
+      final service = context.read<CameraSweepHost?>()?.service;
+      final err = service == null
+          ? CameraSweepService.notHeldSentence
+          : await service.addAnyway(doc.captureAssetKey ?? '');
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = err;
+      });
+      return;
+    }
+    final force = act != _Act.retry;
     // reader.md §Supersession confirm names "retry of an errored doc": it
     // re-derives the document, and an errored document CAN hold both facts —
     // one whose edit failed to re-embed keeps its passages (a `docHtml`
@@ -341,6 +423,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
     // is §14.2 under the row, as before. The control is held until it resolves.
     final res = await runSourcePrimary(context, doc,
         force: force,
+        copy: act == _Act.addAnyway,
         studyCheck: widget.studyCheck,
         editCheck: widget.editCheck);
     if (!mounted) return;
@@ -362,22 +445,66 @@ class _ProcessingRowState extends State<ProcessingRow> {
   /// Sources tray and For your review wait on one clock), and is the row's
   /// sentence while it runs: the calm caption, where the hard retry cap and
   /// every other refusal stay §14.2 (sources.md, 4.108.0, ADR-145).
+  ///
+  /// A copy recognised before its upload (`already_in_library_not_uploaded`)
+  /// listens to this phone's camera-roll ledger: only the phone whose ledger
+  /// holds the photo may add it anyway (`features/picture-dedupe.md` §Add
+  /// anyway), and the ledger may record the photo after the row arrived.
+  /// Every other row, and every platform with no camera roll, reads nothing.
   @override
-  Widget build(BuildContext context) => KitWait(
-        waitKey: WaitKey.documentRetry(widget.doc.id),
-        builder: _row,
-      );
+  Widget build(BuildContext context) {
+    final doc = widget.doc;
+    Widget waiting(bool phoneHolds) => KitWait(
+          waitKey: WaitKey.documentRetry(doc.id),
+          builder: (context, wait) => _row(context, wait, phoneHolds: phoneHolds),
+        );
+    if (doc.isPictureCopy && doc.skipReason == 'already_in_library_not_uploaded') {
+      final ledger = context.watch<CameraSweepHost?>()?.ledger;
+      if (ledger != null) {
+        return ListenableBuilder(
+          listenable: ledger,
+          builder: (context, _) =>
+              waiting(ledger.holdingCopy(doc.captureAssetKey) != null),
+        );
+      }
+    }
+    return waiting(false);
+  }
 
-  Widget _row(BuildContext context, CooldownWait wait) {
+  Widget _row(BuildContext context, CooldownWait wait, {required bool phoneHolds}) {
     final doc = widget.doc;
     final now = widget.now ?? DateTime.now();
-    final failed = doc.status == DocumentStatus.error ||
-        doc.status == DocumentStatus.skipped;
+    // A copy of a picture already in the library (5.50.0, ADR-202) is
+    // `skipped`, but nothing failed and the reader lost nothing: muted, never
+    // failure-styled — no failed edge, no alert glyph, its stage the copy's.
+    final copy = doc.isPictureCopy;
+    final failed = (doc.status == DocumentStatus.error ||
+            doc.status == DocumentStatus.skipped) &&
+        !copy;
     final stalled = doc.isStalled(now);
     final refusal = kitRefusalSlot(wait, _error, dense: true);
     // A stalled run takes the attention branch — Retry, Remove and the source
-    // live there — but not the failed EDGE: it is not an error.
-    final attention = failed || stalled;
+    // live there — but not the failed EDGE: it is not an error. Nor does a
+    // copy, which still needs a decision (INV-30).
+    final attention = failed || stalled || copy;
+    final row = _drawn(context, wait,
+        now: now, copy: copy, failed: failed, stalled: stalled,
+        refusal: refusal, attention: attention, phoneHolds: phoneHolds);
+    return copy ? Opacity(opacity: copyRowOpacity, child: row) : row;
+  }
+
+  Widget _drawn(
+    BuildContext context,
+    CooldownWait wait, {
+    required DateTime now,
+    required bool copy,
+    required bool failed,
+    required bool stalled,
+    required Widget? refusal,
+    required bool attention,
+    required bool phoneHolds,
+  }) {
+    final doc = widget.doc;
     // The failure message is shown VERBATIM: there is no error reason code, and
     // a client that pattern-matches the message to substitute its own copy is
     // inventing a classification the backend never made.
@@ -391,11 +518,12 @@ class _ProcessingRowState extends State<ProcessingRow> {
     // web DEFAULT_PROC_ERROR, for a failed row the backend left unexplained.
     const defaultMsg =
         'No readable text was found. Retry, or remove this source.';
-    final primary = _primary(doc, now);
+    final primary = _primary(doc, now, phoneHolds: phoneHolds);
     final title = doc.title.isEmpty ? 'Untitled' : doc.title;
     if (widget.look != ProcessingLook.card) {
       return _dRow(context, wait,
           now: now,
+          copy: copy,
           failed: failed,
           attention: attention,
           message: stalled ? stalledMsg : (doc.errorMessage ?? defaultMsg),
@@ -407,10 +535,15 @@ class _ProcessingRowState extends State<ProcessingRow> {
     final passages = doc.chunkCount ?? 0;
     // Offered on EVERY row — failed, queued, uploading or mid-extraction — and
     // chosen by the document's shape, which is known at creation and does not
-    // depend on `status`.
-    final source = KitButton.ghost(SourceSheet.labelFor(doc),
-        icon: SourceSheet.iconFor(doc),
-        onPressed: () => SourceSheet.open(context, doc));
+    // depend on `status`. A copy's is View → the original (5.50.0).
+    final openOriginal = copy ? _openOriginal(doc) : null;
+    final Widget? source = copy
+        ? (openOriginal == null
+            ? null
+            : KitButton.ghost('View', icon: Icons.open_in_new, onPressed: openOriginal))
+        : KitButton.ghost(SourceSheet.labelFor(doc),
+            icon: SourceSheet.iconFor(doc),
+            onPressed: () => SourceSheet.open(context, doc));
 
     return KitProcCard(
       kind: kitDocKind(doc.type),
@@ -430,9 +563,9 @@ class _ProcessingRowState extends State<ProcessingRow> {
                 // One primary, never two: an `error` row and a `skipped` row
                 // are the same pattern with a different decision in it.
                 if (primary != null)
-                  KitButton.primary(primary.$1,
-                      icon: primary.$2 ? Icons.notes : Icons.refresh,
-                      wait: _busy ? 0 : wait.left,
+                  KitButton.primary(_label(primary),
+                      icon: _glyph(primary.$2),
+                      wait: _busy || primary.$2 == _Act.addFromPhone ? 0 : wait.left,
                       onPressed:
                           _busy ? null : () => _runPrimary(primary.$2)),
                 KitButton.ghost('Remove',
@@ -442,13 +575,13 @@ class _ProcessingRowState extends State<ProcessingRow> {
                 if (widget.dismissible)
                   KitButton.ghost(_dismissing ? 'Dismissing…' : 'Dismiss',
                       onPressed: _busy || _dismissing ? null : _dismiss),
-                source,
+                ?source,
               ],
             )
           : KitProcActive(
               queued: doc.status == DocumentStatus.queued,
               actions: [
-                source,
+                ?source,
                 KitButton.ghost('Cancel',
                     onPressed: () => confirmCancel(context, doc)),
               ],
@@ -466,10 +599,11 @@ extension on _ProcessingRowState {
     BuildContext context,
     CooldownWait wait, {
     required DateTime now,
+    required bool copy,
     required bool failed,
     required bool attention,
     required String message,
-    required (String, bool)? primary,
+    required (String, _Act)? primary,
     required String title,
     required Widget? refusal,
   }) {
@@ -489,16 +623,21 @@ extension on _ProcessingRowState {
             live: !done && pct == null && doc.status != DocumentStatus.queued,
             value: pct,
             done: done);
-    final source = KitLibAct(SourceSheet.labelFor(doc),
-        icon: SourceSheet.iconFor(doc),
-        onTap: () => SourceSheet.open(context, doc));
+    final openOriginal = copy ? _openOriginal(doc) : null;
+    final KitLibAct? source = copy
+        ? (openOriginal == null
+            ? null
+            : KitLibAct('View', icon: Icons.open_in_new, onTap: openOriginal))
+        : KitLibAct(SourceSheet.labelFor(doc),
+            icon: SourceSheet.iconFor(doc),
+            onTap: () => SourceSheet.open(context, doc));
     final arrival = widget.look == ProcessingLook.arrival;
     Widget? actions;
     if (done) {
       actions = null;
     } else if (!attention) {
       actions = KitLibActs(tight: arrival, children: [
-        source,
+        ?source,
         KitLibAct('Cancel', onTap: () => confirmCancel(context, doc)),
       ]);
     } else {
@@ -506,17 +645,17 @@ extension on _ProcessingRowState {
         // One primary, never two (ADR-085): the row's strong slot holds the
         // one control that can change this document's outcome.
         if (primary != null)
-          KitLibAct(primary.$1,
+          KitLibAct(_label(primary),
               strong: true,
-              icon: primary.$2 ? Icons.notes : Icons.refresh,
-              wait: _busy ? 0 : wait.left,
+              icon: _glyph(primary.$2),
+              wait: _busy || primary.$2 == _Act.addFromPhone ? 0 : wait.left,
               onTap: _busy ? null : () => _runPrimary(primary.$2)),
         KitLibAct('Remove',
             onTap: _busy || _dismissing ? null : () => confirmRemove(context, doc)),
         if (widget.dismissible)
           KitLibAct(_dismissing ? 'Dismissing…' : 'Dismiss',
               onTap: _busy || _dismissing ? null : _dismiss),
-        source,
+        ?source,
       ]);
     }
     final word = kitTypeLabel(doc.type);
@@ -531,12 +670,14 @@ extension on _ProcessingRowState {
           stage: stage,
           bar: bar,
           // A stalled run is not a failure — nothing reported one (ADR-108) —
-          // so its stamp says Stalled, the stage's own word.
+          // so its stamp says Stalled, the stage's own word; a copy's says
+          // Already in your library, in the muted ink (5.50.0).
           stamp: attention ? (failed ? 'Couldn’t be read' : label) : null,
           message: attention ? message : null,
           refusal: refusal,
           actions: actions,
           attention: attention,
+          muted: copy,
         ),
       );
     }
@@ -556,6 +697,8 @@ extension on _ProcessingRowState {
 /// The pill's tone (web `procPill`): a failure or a stall is `fail` (no
 /// spinner on a run that ended, ADR-108), queued waits, the rest work.
 KitProcTone _stageTone(Document doc, DateTime now) {
+  // A copy waits on the reader; nothing failed (5.50.0, ADR-202).
+  if (doc.isPictureCopy) return KitProcTone.wait;
   switch (doc.status) {
     case DocumentStatus.error:
     case DocumentStatus.skipped:
@@ -577,6 +720,7 @@ KitProcTone _stageTone(Document doc, DateTime now) {
 /// (ADR-024): an unrecognised value falls back to the generic "Processing",
 /// never to an error.
 String _stageLabel(Document doc, DateTime now) {
+  if (doc.isPictureCopy) return copyLabel;
   switch (doc.status) {
     case DocumentStatus.pendingUpload:
       return 'Uploading';
@@ -649,7 +793,11 @@ Future<void> confirmRemove(BuildContext context, Document doc) async {
 
 String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
 
-/// The confirm's lead sentences, verbatim from the reference (web 71987f6).
+/// The confirm's lead sentences, verbatim from the reference (web 71987f6;
+/// Add anyway's, 5.50.0, web `useDocActions`).
+const sourceCopyLead =
+    'This picture will be read as a source of its own, beside the one '
+    'already in your library.';
 const sourceRetryLead =
     'This source will be processed again from its original, and any '
     'passages it has are replaced with a fresh extraction.';
@@ -665,10 +813,15 @@ const sourceForceLead =
 /// (ADR-085: a forced retry is a retry; 4.107.0, ADR-140). Inside the confirm
 /// a refusal stays in the panel's §18 slot; with no confirm owed the caller
 /// renders [SupersessionResult.message] in its own §14.2 slot, verbatim.
+///
+/// [copy] (5.50.0, ADR-202): *Add anyway* on a picture already in the
+/// library — the same forced retry, which the server reads on a copy as
+/// `allow_duplicate`, in its own words.
 Future<SupersessionResult> runSourcePrimary(
   BuildContext context,
   Document doc, {
   required bool force,
+  bool copy = false,
   Future<bool?> Function(String docId)? studyCheck,
   Future<bool?> Function(String docId)? editCheck,
 }) {
@@ -677,9 +830,13 @@ Future<SupersessionResult> runSourcePrimary(
   return SupersessionConfirm.run(
     context,
     docId: doc.id,
-    title: force ? 'Index “$title” anyway?' : 'Retry “$title”?',
-    lead: force ? sourceForceLead : sourceRetryLead,
-    confirmLabel: force ? 'Index it anyway' : 'Retry and replace',
+    title: copy
+        ? 'Add “$title” anyway?'
+        : force
+            ? 'Index “$title” anyway?'
+            : 'Retry “$title”?',
+    lead: copy ? sourceCopyLead : force ? sourceForceLead : sourceRetryLead,
+    confirmLabel: copy ? 'Add anyway' : force ? 'Index it anyway' : 'Retry and replace',
     action: () => force
         ? activity.forceProcessDocument(doc.id)
         : activity.retryDocument(doc.id),

@@ -69,9 +69,27 @@ class EmulatorPutStandIn implements SweepEndpoints {
     required String assetKey,
     required String filename,
     required String mimeType,
-    required int size,
+    int? size,
     DateTime? capturedAt,
+    int? width,
+    int? height,
+    String? pictureHash,
+    bool precheck = false,
+    bool force = false,
   }) async {
+    // The 5.50.0 question (precheck) opens no session and carries no link:
+    // straight through, uncounted.
+    if (precheck) {
+      return live.openSession(
+          assetKey: assetKey,
+          filename: filename,
+          mimeType: mimeType,
+          capturedAt: capturedAt,
+          width: width,
+          height: height,
+          pictureHash: pictureHash,
+          precheck: true);
+    }
     sessions.add((assetKey, DateTime.now()));
     onSessionStart?.call(assetKey);
     final delay = sessionDelay;
@@ -81,7 +99,11 @@ class EmulatorPutStandIn implements SweepEndpoints {
         filename: filename,
         mimeType: mimeType,
         size: size,
-        capturedAt: capturedAt);
+        capturedAt: capturedAt,
+        width: width,
+        height: height,
+        pictureHash: pictureHash,
+        force: force);
     final url = r['uploadUrl'];
     if (url is! String) return r;
     final String put, readBack;
@@ -94,7 +116,7 @@ class EmulatorPutStandIn implements SweepEndpoints {
       put = await resumable(url, mimeType);
       readBack = url;
     }
-    uploads.add(StandInUpload(assetKey, readBack, put, size, DateTime.now()));
+    uploads.add(StandInUpload(assetKey, readBack, put, size ?? 0, DateTime.now()));
     final via = this.via;
     return {
       ...r,

@@ -502,8 +502,9 @@ class CameraSweepService extends ChangeNotifier {
         pass.noText++;
       case SweepVerdict.candidate:
         // Only now is the key read (spec §4): a candidate is the one photo
-        // that is looked up or sent.
-        final asset = await bridge.identify(id);
+        // that is looked up or sent. It carries its thumbnail's hash, so the
+        // photo can be asked about before it is read (5.50.0, §6).
+        final asset = (await bridge.identify(id)).withPictureHash(exam.pictureHash);
         // Waiting until it is in or dismissed, so a pass from a change token
         // finds it again however this ends: a tray a relaunch forgets, or an
         // upload that fails (spec §2).
@@ -531,6 +532,8 @@ class CameraSweepService extends ChangeNotifier {
           switch (await _ingest(asset, fromPass: true)) {
             case _Landed():
               pass.ingested++;
+            case _AlreadyInLibrary():
+              pass.duplicates++;
             case _Refused(:final sentence):
               failed(sentence);
             case _NotStarted():
@@ -593,6 +596,7 @@ class CameraSweepService extends ChangeNotifier {
     notifyListeners();
     switch (await _ingest(asset, fromPass: false)) {
       case _Landed():
+      case _AlreadyInLibrary():
         record(null, id);
       case _Refused(:final sentence):
         record(sentence, id);
@@ -615,6 +619,78 @@ class CameraSweepService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Add anyway (5.50.0, ADR-202) ───────────────────────────────────────────
+
+  /// Whether THIS phone holds the photo a copy recognised before its upload
+  /// came from: its ledger kept the asset key in a `duplicate` verdict. Only
+  /// then is *Add anyway* drawn on that copy's row (`screens/sources.md`
+  /// §Document processing; every other client draws no control).
+  bool holdsCopy(String? assetKey) => ledger.holdingCopy(assetKey) != null;
+
+  /// *Add anyway* on a copy recognised before its upload
+  /// (`already_in_library_not_uploaded`), from the phone that holds the
+  /// photo (`features/picture-dedupe.md` §Add anyway; camera-roll-sweep.md
+  /// §6): the photo is found by the asset key its `duplicate` verdict kept,
+  /// read and staged, then `fn_create_capture_session {force: true}` turns
+  /// the row into `pending_upload` with `allow_duplicate` and hands back its
+  /// link, and the upload is handed off as §5's is.
+  ///
+  /// The session is asked for only once the bytes are STAGED (§5 rule 2),
+  /// as every capture session is: a read that fails leaves the copy where it
+  /// was, still offering Add anyway, rather than a row waiting at
+  /// `pending_upload` for bytes no upload is bringing — which no pass would
+  /// ever send, since the photo's verdict is terminal.
+  ///
+  /// null once the upload is on its way (or the server already had it);
+  /// otherwise the sentence for the row's slot. An upload that fails later
+  /// is the screen's alert, as an automatic pass's is, and the photo is
+  /// `waiting` again, so the next pass sends it.
+  Future<String?> addAnyway(String assetKey) async {
+    final id = ledger.holdingCopy(assetKey);
+    if (id == null) return notHeldSentence;
+    final SweepAsset found;
+    try {
+      found = await bridge.identify(id);
+    } on SweepAccessRefused catch (e) {
+      return e.sentence;
+    } on PlatformException catch (e) {
+      return e.message ?? e.code;
+    } on FormatException catch (e) {
+      return e.message;
+    }
+    // The copy's own key, the one its row was written under — whatever the
+    // photo's metadata reads now, Add anyway is a statement about THAT row.
+    final asset = SweepAsset(
+      localIdentifier: found.localIdentifier,
+      assetKey: assetKey,
+      creationSeconds: found.creationSeconds,
+      pixelWidth: found.pixelWidth,
+      pixelHeight: found.pixelHeight,
+      originalFilename: found.originalFilename,
+      isScreenshot: found.isScreenshot,
+      isRepresentative: found.isRepresentative,
+    );
+    switch (await _ingest(asset, fromPass: false, force: true)) {
+      case _Landed():
+      case _AlreadyInLibrary():
+      case _NotStarted():
+        return null;
+      case _Refused(:final sentence):
+        return sentence;
+      case _Uploading(:final landed):
+        unawaited(landed.then((sentence) {
+          if (sentence != null) presentFailure(sentence, stopsSweep: false);
+        }));
+        return null;
+    }
+  }
+
+  /// Add anyway on a phone whose ledger no longer holds the photo (Start
+  /// over, a reinstall): the control is not drawn there, so this is only
+  /// ever a race with one of those.
+  static const notHeldSentence =
+      'This phone no longer holds that photo, so it cannot add it.';
+
   // ── Ingest ─────────────────────────────────────────────────────────────────
 
   /// What became of one photo: in already, on its way, refused (with the
@@ -628,15 +704,53 @@ class CameraSweepService extends ChangeNotifier {
   /// may go on, then open the session and hand its upload off, as one step
   /// [expire] waits for. A session is never opened for bytes that are not
   /// already staged, and never left without its upload.
-  Future<_Ingest> _ingest(SweepAsset asset, {required bool fromPass}) async {
+  ///
+  /// **Before any of that, the photo is asked about** (5.50.0, ADR-202,
+  /// INV-37; spec §6): with its capture second, its size and its thumbnail's
+  /// hash, `precheck: true` asks whether the library already holds it. A
+  /// photo it does is recorded `duplicate` and never read off iCloud or
+  /// sent. The precheck opens no session, so §5's order is kept. No hash (no
+  /// local thumbnail) asks nothing, and the photo is read as before.
+  ///
+  /// [force] is the phone's Add anyway ([addAnyway]): no question, and the
+  /// session turns the copy into an upload.
+  Future<_Ingest> _ingest(SweepAsset asset,
+      {required bool fromPass, bool force = false}) async {
     final id = asset.localIdentifier;
     final already = _uploads[id];
     if (already != null) return _Uploading(already.landed.future);
+    final picture = force ? null : pictureValues(asset);
     String? staged;
     try {
+      if (picture != null) {
+        final pre = CaptureSession.fromResponse(
+          await endpoints.openSession(
+            assetKey: asset.assetKey,
+            filename: uploadFilename(asset),
+            mimeType: uploadMimeType,
+            capturedAt: picture.capturedAt,
+            width: picture.width,
+            height: picture.height,
+            pictureHash: picture.hash,
+            precheck: true,
+          ),
+          precheck: true,
+        );
+        // Every answer is logged, match and miss: the server logs the hash
+        // distance of a match, and the device run holds PRECHECK_RADIUS to
+        // the pair (ADR-202 §Calibration).
+        debugPrint('camera sweep: precheck ${asset.assetKey} hash ${picture.hash} '
+            '${picture.width}x${picture.height} → '
+            '${pre.duplicateOf != null ? 'already in the library as ${pre.duplicateOf}' : pre.duplicate ? 'known (${pre.existingStatus})' : 'new'}');
+        // `duplicate: true` with an upload link is a replay whose bytes never
+        // landed (§6): read and send it, below.
+        if (pre.duplicate && pre.uploadUrl == null) return await _settled(asset, pre);
+      }
       final rendered = await bridge.renderedJpeg(id);
       if (rendered == null) {
-        await ledger.record(LedgerVerdict.deferredNotLocal, id);
+        // An Add anyway keeps its `duplicate` verdict: the copy's row keeps
+        // its control, with the sentence beside it.
+        if (!force) await ledger.record(LedgerVerdict.deferredNotLocal, id);
         return _Refused(words.deferredSentence);
       }
       final stage = await uploader.stage(rendered.path);
@@ -647,21 +761,32 @@ class CameraSweepService extends ChangeNotifier {
       try {
         // Requested immediately before the upload: the signed URL lasts 15
         // minutes, so sessions are never taken out ahead of time.
+        // The same four values again: the check runs on every call that
+        // carries them, so a copy that landed between the two calls is still
+        // caught, and the bytes read are simply not sent (spec §6).
         final session = CaptureSession.fromResponse(await endpoints.openSession(
           assetKey: asset.assetKey,
           filename: uploadFilename(asset),
           mimeType: uploadMimeType,
           size: stage.bytes,
           capturedAt: capturedAt(asset),
+          width: picture?.width,
+          height: picture?.height,
+          pictureHash: picture?.hash,
+          force: force,
         ));
         final url = session.uploadUrl;
         if (url == null) {
-          // `uploadUrl: null` is the bytes having already landed: record and
-          // move on — the whole point of the server-side key.
-          await ledger.record(LedgerVerdict.ingested, id);
-          _ingestedThisSession++;
-          notifyListeners();
-          return const _Landed();
+          // `uploadUrl: null` is the bytes having already landed — or a
+          // picture the library already holds: record and move on, the
+          // whole point of the server-side key.
+          return await _settled(asset, session);
+        }
+        if (force) {
+          // Add anyway turned the copy into an upload: the photo is a
+          // candidate again until its bytes land, so a failed upload is sent
+          // by the next pass rather than left behind a terminal verdict.
+          await ledger.record(LedgerVerdict.waiting, id);
         }
         // A fresh session, or a replay whose document never received bytes
         // (`pending_upload`/`error`): upload against it (spec §6). Skipping
@@ -710,6 +835,38 @@ class CameraSweepService extends ChangeNotifier {
     } finally {
       if (staged != null) await _discard(staged);
     }
+  }
+
+  /// A session answered with nothing to upload: the bytes already landed
+  /// (`ingested`), or the photo is a picture the library already holds
+  /// (`duplicate`, keeping its asset key for the phone's Add anyway; 5.50.0).
+  Future<_Ingest> _settled(SweepAsset asset, CaptureSession session) async {
+    if (session.duplicateOf != null) {
+      await ledger.record(LedgerVerdict.duplicate(asset.assetKey), asset.localIdentifier);
+      notifyListeners();
+      return const _AlreadyInLibrary();
+    }
+    await ledger.record(LedgerVerdict.ingested, asset.localIdentifier);
+    _ingestedThisSession++;
+    notifyListeners();
+    return const _Landed();
+  }
+
+  /// The four values the server's check needs (`api/uploads.md`, 5.50.0):
+  /// the capture second, the size as the library records it, and the
+  /// thumbnail's hash — or null when any is missing, and then nothing is
+  /// asked. A size outside what the server takes (a positive whole number up
+  /// to 100,000) is one the library did not record.
+  @visibleForTesting
+  static ({DateTime capturedAt, int width, int height, String hash})? pictureValues(
+      SweepAsset asset) {
+    final at = capturedAt(asset);
+    final hash = asset.pictureHash;
+    bool sized(int n) => n > 0 && n <= 100000;
+    if (at == null || hash == null || !sized(asset.pixelWidth) || !sized(asset.pixelHeight)) {
+      return null;
+    }
+    return (capturedAt: at, width: asset.pixelWidth, height: asset.pixelHeight, hash: hash);
   }
 
   Future<void> _discard(String uploadId) async {
@@ -942,12 +1099,19 @@ class CameraSweepService extends ChangeNotifier {
 /// (`Api.createCaptureSession`) and the "already in NoteLetter" read. The
 /// bare signed PUT is the background uploader's (S4, [SweepUploader]).
 abstract class SweepEndpoints {
+  /// `fn_create_capture_session` — a session, or with [precheck] only the
+  /// question whether the library already holds the photo (5.50.0).
   Future<Map<String, dynamic>> openSession({
     required String assetKey,
     required String filename,
     required String mimeType,
-    required int size,
+    int? size,
     DateTime? capturedAt,
+    int? width,
+    int? height,
+    String? pictureHash,
+    bool precheck = false,
+    bool force = false,
   });
 
   Future<CaptureMatch?> findCapture(String assetKey);
@@ -963,8 +1127,13 @@ class LiveSweepEndpoints implements SweepEndpoints {
     required String assetKey,
     required String filename,
     required String mimeType,
-    required int size,
+    int? size,
     DateTime? capturedAt,
+    int? width,
+    int? height,
+    String? pictureHash,
+    bool precheck = false,
+    bool force = false,
   }) =>
       Api.instance.createCaptureSession(
         assetKey: assetKey,
@@ -972,6 +1141,11 @@ class LiveSweepEndpoints implements SweepEndpoints {
         mimeType: mimeType,
         size: size,
         capturedAt: capturedAt,
+        width: width,
+        height: height,
+        pictureHash: pictureHash,
+        precheck: precheck,
+        force: force,
       );
 
   @override
@@ -986,10 +1160,15 @@ class CaptureSession {
     required this.duplicate,
     required this.uploadUrl,
     required this.existingStatus,
+    this.duplicateOf,
   });
 
   final String docId;
   final bool duplicate;
+
+  /// The original a copy names (5.50.0, ADR-202): on every answer, null
+  /// unless this photo is a picture the library already holds.
+  final String? duplicateOf;
 
   /// Present on a fresh create, and on a replay whose document never received
   /// bytes (`pending_upload`/`error`). Null: nothing to upload.
@@ -1007,7 +1186,12 @@ class CaptureSession {
   /// Swift read it as "already landed" and recorded the photo ingested, so
   /// its document would have sat at `pending_upload` with no pass ever
   /// coming back for it.
-  factory CaptureSession.fromResponse(Map<String, dynamic> r) {
+  ///
+  /// [precheck] (5.50.0): the answer to the question alone, where
+  /// `duplicate: false` with no link is the server saying "new — read it,
+  /// then ask for the session". Read as a session, that same answer is
+  /// still refused.
+  factory CaptureSession.fromResponse(Map<String, dynamic> r, {bool precheck = false}) {
     final docId = r['docId'];
     final duplicate = r['duplicate'];
     if (docId is! String || duplicate is! bool) throw const DedupeUnsupported();
@@ -1015,8 +1199,12 @@ class CaptureSession {
     if (url != null && url is! String) {
       throw const FormatException('The capture session’s upload link could not be read.');
     }
-    if (!duplicate && url == null) {
+    if (!duplicate && url == null && !precheck) {
       throw const FormatException('The capture session came back without an upload link.');
+    }
+    final of = r['duplicateOf'];
+    if (of != null && (of is! String || of.isEmpty)) {
+      throw const FormatException('The capture session named an original that could not be read.');
     }
     final status = r['status'];
     return CaptureSession(
@@ -1024,6 +1212,7 @@ class CaptureSession {
       duplicate: duplicate,
       uploadUrl: url as String?,
       existingStatus: status is String ? status : null,
+      duplicateOf: of as String?,
     );
   }
 }
@@ -1081,6 +1270,11 @@ class SweepPass extends SweepTally {
   /// stopped.
   int uploading = 0;
 
+  /// Already in your library (5.50.0, ADR-202): a picture the library holds,
+  /// recognised before it was read — or between the question and the
+  /// session — and recorded `duplicate`. Nothing was sent.
+  int duplicates = 0;
+
   /// Nothing ran: the sweep was halted (background time ran out, or the app
   /// is away with no background task).
   bool halted = false;
@@ -1098,7 +1292,7 @@ class SweepPass extends SweepTally {
   String toString() => 'SweepPass(handled $handled, settled $settled, '
       'nonRepresentative $nonRepresentative, inFlight $inFlight, noText $noText, '
       'deferred $deferred, toTray $toTray, held $held, uploading $uploading, '
-      'ingested $ingested, failed ${failed.length}'
+      'ingested $ingested, already in your library $duplicates, failed ${failed.length}'
       '${fromChangeToken ? ', from the change token' : ''}'
       '${halted ? ', halted' : ''}'
       '${refused == null ? '' : ', refused ${refused!.access.name}'})';
@@ -1128,6 +1322,12 @@ sealed class _Ingest {
 /// In: the server already had its bytes, and the ledger says so.
 class _Landed extends _Ingest {
   const _Landed();
+}
+
+/// A picture the library already holds (5.50.0): recorded `duplicate`, and
+/// nothing sent.
+class _AlreadyInLibrary extends _Ingest {
+  const _AlreadyInLibrary();
 }
 
 /// On its way; [landed] says how it ended.

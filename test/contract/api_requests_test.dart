@@ -109,14 +109,24 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   // The camera-roll sweep (F-125 S2; INV-14). `capturedAt` is a «iso8601»
   // token in the capture, so any instant stands in for it — and it is passed
   // only when the case sends one, because the builder OMITS an absent date.
+  // 5.50.0 (ADR-202, INV-37): `width` · `height` · `pictureHash` ·
+  // `precheck` · `force`, each omitted when the case does not send it — a
+  // precheck carries no `size`. The typed builder cannot send a width that is
+  // a string (`capture-session-bad-width`), so that case is a local cast
+  // failure pinning the server's refusal.
   'fn_create_capture_session': (b) => Api.instance.createCaptureSession(
         assetKey: b['assetKey'],
         filename: b['filename'],
         mimeType: b['mimeType'],
-        size: b['size'],
+        size: b['size'] as int?,
         capturedAt: b.containsKey('capturedAt')
             ? DateTime.utc(2026, 7, 14, 9, 30, 15, 999)
             : null,
+        width: b['width'] as int?,
+        height: b['height'] as int?,
+        pictureHash: b['pictureHash'] as String?,
+        precheck: b['precheck'] == true,
+        force: b['force'] == true,
       ),
   'fn_ingest_url': (b) => Api.instance.ingestUrl(b['url'], b['type']),
   'fn_update_document': (b) => Api.instance

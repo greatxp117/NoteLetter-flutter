@@ -167,6 +167,10 @@ class FakeBridge implements CameraSweepBridge {
   /// When set, every examination waits on it — a pass held mid-flight.
   Future<void>? examineGate;
 
+  /// The thumbnail hash each examination reports (5.50.0); none by default,
+  /// so a photo is read without the question, as before.
+  final Map<String, String> hashes = {};
+
   @override
   Future<SweepExamination> examine(String localIdentifier) async {
     _guard();
@@ -179,6 +183,7 @@ class FakeBridge implements CameraSweepBridge {
       thumbnailWidth: 1024,
       thumbnailHeight: 768,
       prefilterVersion: version,
+      pictureHash: hashes[localIdentifier],
     );
   }
 
@@ -233,17 +238,34 @@ class FakeBridge implements CameraSweepBridge {
 }
 
 class SessionCall {
-  SessionCall(this.assetKey, this.filename, this.mimeType, this.size, this.capturedAt);
+  SessionCall(this.assetKey, this.filename, this.mimeType, this.size, this.capturedAt,
+      {this.width, this.height, this.pictureHash, this.precheck = false, this.force = false});
   final String assetKey, filename, mimeType;
-  final int size;
+
+  /// null on a precheck (5.50.0): asked before the photo is read.
+  final int? size;
   final DateTime? capturedAt;
+  final int? width, height;
+  final String? pictureHash;
+  final bool precheck, force;
 }
 
 class FakeEndpoints implements SweepEndpoints {
   /// What the next session call answers, by asset key; the default is a
   /// fresh 201.
   final Map<String, Object> answers = {};
+
+  /// What a precheck answers (5.50.0), by asset key; the default is "new"
+  /// — `duplicate: false`, no link, nothing written.
+  final Map<String, Object> prechecks = {};
+
+  /// Every session call, the prechecks included ([sessionsOpened] leaves
+  /// them out).
   final List<SessionCall> sessions = [];
+
+  /// The calls that asked for a session — never a precheck.
+  List<SessionCall> get sessionsOpened => [for (final c in sessions) if (!c.precheck) c];
+  List<SessionCall> get prechecksAsked => [for (final c in sessions) if (c.precheck) c];
   final Map<String, CaptureMatch?> filed = {};
   final List<String> finds = [];
   Object? findThrows;
@@ -270,11 +292,30 @@ class FakeEndpoints implements SweepEndpoints {
     required String assetKey,
     required String filename,
     required String mimeType,
-    required int size,
+    int? size,
     DateTime? capturedAt,
+    int? width,
+    int? height,
+    String? pictureHash,
+    bool precheck = false,
+    bool force = false,
   }) async {
-    final call = SessionCall(assetKey, filename, mimeType, size, capturedAt);
+    final call = SessionCall(assetKey, filename, mimeType, size, capturedAt,
+        width: width, height: height, pictureHash: pictureHash, precheck: precheck, force: force);
     sessions.add(call);
+    if (precheck) {
+      final p = prechecks[assetKey];
+      if (p is Exception) throw p;
+      return (p as Map<String, dynamic>?) ??
+          {
+            'docId': 'cam-$assetKey',
+            'duplicate': false,
+            'duplicateOf': null,
+            'status': null,
+            'gcsPath': 'raw/u/camera/cam-$assetKey',
+            'uploadUrl': null,
+          };
+    }
     onSession?.call(call);
     if (sessionGate != null) await sessionGate;
     final a = answers[assetKey];

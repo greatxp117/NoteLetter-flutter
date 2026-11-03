@@ -187,14 +187,39 @@ class Document {
 
   /// 4.48.0 (ADR-085 §7) — why a `skipped` document was skipped. **Closed**
   /// vocabulary, unlike `image_classification`, so a client may switch on it:
-  /// `no_text_content` · `unresolved_article`. `null` on every non-skipped
-  /// document. The distinction drives the row: the appeal stays on offer on
+  /// `no_text_content` · `unresolved_article` · `already_in_library` ·
+  /// `already_in_library_not_uploaded` (the last two 5.50.0, ADR-202, INV-37:
+  /// a COPY of a picture the library already holds — [isPictureCopy]).
+  /// `null` on every non-skipped document. The distinction drives the row: the appeal stays on offer on
   /// `unresolved_article` even after `force_process` is true. Its reason changed
   /// at 4.60.0 (ADR-085 §8) — a forced run no longer runs the lookup at all, so
   /// that pair can no longer be produced, and the clause is now the rescue for
   /// the documents stranded in it by the old rule, which without it would have
   /// no control at all.
   final String? skipReason;
+
+  /// 5.50.0 (ADR-202, INV-37) — the ORIGINAL a copy names: the document the
+  /// library already held when this picture arrived again. Present only on a
+  /// copy (`skip_reason` `already_in_library` / `…_not_uploaded`); the row's
+  /// View opens it, never the copy, which has nothing of its own to read.
+  /// Cleared by the claim of an Add anyway.
+  final String? duplicateOf;
+
+  /// `source_capture.asset_key` (INV-14) — the camera roll's key for the photo
+  /// this document came from; null for every other road. Read for one thing:
+  /// a copy recognised before its upload (`already_in_library_not_uploaded`)
+  /// can be added anyway only by the phone whose ledger holds this key
+  /// (`features/picture-dedupe.md` §Add anyway). Opaque, never parsed.
+  final String? captureAssetKey;
+
+  /// A copy of a picture the library already holds (5.50.0, ADR-202): a
+  /// `skipped` document whose CLOSED `skip_reason` says so. Nothing failed and
+  /// the reader lost nothing, so its row is muted, never failure-styled
+  /// (`screens/sources.md` §Document processing).
+  bool get isPictureCopy =>
+      status == DocumentStatus.skipped &&
+      (skipReason == 'already_in_library' ||
+          skipReason == 'already_in_library_not_uploaded');
 
   /// The stored weight (`source_priority`, 0.0–1.0). **Null when the
   /// document has none** — never 0.5 solved for: the reader's Priority row
@@ -275,6 +300,8 @@ class Document {
     this.errorMessage,
     this.forceProcess = false,
     this.skipReason,
+    this.duplicateOf,
+    this.captureAssetKey,
     this.sourcePriority,
     this.sourcePrioritySetAt,
     this.viewCount = 0,
@@ -329,6 +356,8 @@ class Document {
       errorMessage: errorMessage,
       forceProcess: forceProcess,
       skipReason: skipReason,
+      duplicateOf: duplicateOf,
+      captureAssetKey: captureAssetKey,
       sourcePriority: sourcePriority,
       sourcePrioritySetAt: sourcePrioritySetAt,
       viewCount: viewCount,
@@ -384,6 +413,8 @@ class Document {
       errorMessage: errorMessage,
       forceProcess: forceProcess,
       skipReason: skipReason,
+      duplicateOf: duplicateOf,
+      captureAssetKey: captureAssetKey,
       sourcePriority: sourcePriority,
       sourcePrioritySetAt: sourcePrioritySetAt,
       viewCount: viewCount,
@@ -438,6 +469,8 @@ class Document {
       errorMessage: errorMessage,
       forceProcess: forceProcess,
       skipReason: skipReason,
+      duplicateOf: duplicateOf,
+      captureAssetKey: captureAssetKey,
       sourcePriority: sourcePriority,
       sourcePrioritySetAt: sourcePrioritySetAt,
       viewCount: viewCount,
@@ -493,6 +526,8 @@ class Document {
       errorMessage: errorMessage,
       forceProcess: forceProcess,
       skipReason: skipReason,
+      duplicateOf: duplicateOf,
+      captureAssetKey: captureAssetKey,
       sourcePriority: value ?? 0.5,
       sourcePrioritySetAt: value == null
           ? null
@@ -547,6 +582,10 @@ class Document {
       errorMessage: json['error_message'] as String?,
       forceProcess: json['force_process'] as bool? ?? false,
       skipReason: json['skip_reason'] as String?,
+      duplicateOf: json['duplicate_of'] as String?,
+      captureAssetKey: json['source_capture'] is Map
+          ? (json['source_capture'] as Map)['asset_key'] as String?
+          : null,
       sourcePriority: (json['source_priority'] as num?)?.toDouble(),
       sourcePrioritySetAt: tsMs(json['source_priority_set_at']),
       viewCount: json['view_count'] as int? ?? 0,

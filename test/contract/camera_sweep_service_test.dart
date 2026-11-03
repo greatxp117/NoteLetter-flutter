@@ -172,26 +172,79 @@ void main() {
   // ── The answer ─────────────────────────────────────────────────────────────
 
   group('capture session answer (fixtures api/uploads)', () {
-    final cases = {
+    final captured = [
       for (final c in (loadSuite('api/uploads')!['cases'] as List))
         if ((c['request'] as Map)['endpoint'] == 'fn_create_capture_session' &&
             ((c['response'] as Map)['status'] as int) < 300)
-          c['id'] as String:
-              ((c['response'] as Map)['body'] as Map).cast<String, dynamic>()
+          c as Map
+    ];
+    final cases = {
+      for (final c in captured)
+        c['id'] as String:
+            ((c['response'] as Map)['body'] as Map).cast<String, dynamic>()
+    };
+    // Which captured requests asked only the question (5.50.0).
+    final asked = {
+      for (final c in captured)
+        if (((c['request'] as Map)['body'] as Map)['precheck'] == true) c['id'] as String
     };
 
-    test('every captured 2xx is read', () {
+    test('every captured 2xx is read — a precheck as the question it asked', () {
       expect(cases.keys, containsAll(<String>[
         'uploads:capture-session-create',
         'uploads:capture-session-duplicate-resumable',
         'uploads:capture-session-duplicate-settled',
+        'uploads:capture-session-precheck-new',
+        'uploads:capture-session-precheck-far-hash',
+        'uploads:capture-session-precheck-duplicate',
+        'uploads:capture-session-duplicate-not-uploaded-replay',
+        'uploads:capture-session-force-add-anyway',
       ]));
-      for (final body in cases.values) {
-        final s = CaptureSession.fromResponse(body);
+      for (final e in cases.entries) {
+        final body = e.value;
+        final s = CaptureSession.fromResponse(body, precheck: asked.contains(e.key));
         expect(s.docId, body['docId']);
         expect(s.duplicate, body['duplicate']);
         expect(s.uploadUrl, body['uploadUrl']);
+        expect(s.duplicateOf, body['duplicateOf'],
+            reason: '${e.key}: duplicateOf is on every answer since 5.50.0');
+        expect(body.containsKey('duplicateOf'), isTrue, reason: e.key);
       }
+    });
+
+    test('5.50.0: the question, a copy, its replay and Add anyway', () {
+      // Nothing matched: no link, nothing written — read, then ask again.
+      for (final id in ['uploads:capture-session-precheck-new',
+          'uploads:capture-session-precheck-far-hash']) {
+        final s = CaptureSession.fromResponse(cases[id]!, precheck: true);
+        expect(s.duplicate, isFalse, reason: id);
+        expect(s.uploadUrl, isNull, reason: id);
+        expect(s.duplicateOf, isNull, reason: id);
+        expect(() => CaptureSession.fromResponse(cases[id]!), throwsFormatException,
+            reason: '$id read as a SESSION is still a fresh one with no link');
+      }
+      final dup = CaptureSession.fromResponse(
+          cases['uploads:capture-session-precheck-duplicate']!, precheck: true);
+      expect(dup.duplicate, isTrue);
+      expect(dup.uploadUrl, isNull, reason: 'recognised before its upload: nothing to send');
+      expect(dup.duplicateOf, 'cap-uploads-original');
+      expect(dup.existingStatus, 'skipped');
+      final replay = CaptureSession.fromResponse(
+          cases['uploads:capture-session-duplicate-not-uploaded-replay']!);
+      expect(replay.duplicateOf, 'cap-uploads-original',
+          reason: 'INV-14\'s replay carries the original');
+      expect(replay.uploadUrl, isNull);
+      final add = CaptureSession.fromResponse(cases['uploads:capture-session-force-add-anyway']!);
+      expect(add.duplicate, isTrue);
+      expect(add.existingStatus, 'pending_upload');
+      expect(add.uploadUrl, isNotNull, reason: 'Add anyway hands back the copy\'s link');
+      expect(add.duplicateOf, isNull, reason: 'the claim cleared it');
+    });
+
+    test('an original that cannot be read is refused, never read as no original', () {
+      final bad = Map<String, dynamic>.of(cases['uploads:capture-session-precheck-duplicate']!)
+        ..['duplicateOf'] = 42;
+      expect(() => CaptureSession.fromResponse(bad, precheck: true), throwsFormatException);
     });
 
     test('create, resumable replay and settled replay', () {
@@ -979,6 +1032,223 @@ void main() {
   });
 
   // ── Sentences ──────────────────────────────────────────────────────────────
+
+  // ── A picture already in the library (5.50.0, ADR-202, INV-37) ──────────────
+
+  group('a picture already in the library: asked before it is read', () {
+    const hash = 'f0f0f0f0f0f0f0ff';
+    Map<String, dynamic> captured(String id) => ((loadSuite('api/uploads')!['cases'] as List)
+            .firstWhere((c) => c['id'] == id)['response']['body'] as Map)
+        .cast<String, dynamic>();
+
+    test('the duplicate verdict: terminal, keeps its key, in Swift\'s shape', () async {
+      final store = MemoryLedgerStore();
+      final l = await SweepLedger.load(store);
+      await l.record(const LedgerVerdict.duplicate('v1:twin'), 'p1');
+      await l.record(LedgerVerdict.ingested, 'p2');
+      expect(SweepLedger.decodeVerdicts(store.values[SweepLedger.kVerdicts]), {
+        'p1': const LedgerVerdict.duplicate('v1:twin'),
+        'p2': LedgerVerdict.ingested,
+      });
+      expect(jsonDecode(store.values[SweepLedger.kVerdicts] as String)['p1'],
+          {'duplicate': {'assetKey': 'v1:twin'}});
+      expect(l.needsExamination('p1', prefilterVersion: 9), isFalse, reason: 'terminal');
+      expect(l.owedAnotherLook, isEmpty);
+      expect(l.holdingCopy('v1:twin'), 'p1');
+      expect(l.holdingCopy('v1:other'), isNull);
+      expect(l.holdingCopy(null), isNull);
+      expect(l.duplicateCount, 1);
+      expect(l.inLibraryCount, 2, reason: 'already in your library counts as in it');
+      for (final bad in [
+        {'duplicate': {}},
+        {'duplicate': {'assetKey': ''}},
+        {'duplicate': {'assetKey': 7}},
+      ]) {
+        expect(() => LedgerVerdict.fromJson(bad), throwsFormatException, reason: '$bad');
+      }
+    });
+
+    test('the four values: all of them, or no question', () {
+      final a = asset('p1').withPictureHash(hash);
+      final v = CameraSweepService.pictureValues(a)!;
+      expect((v.width, v.height, v.hash), (1600, 1200, hash));
+      expect(Api.captureInstant(v.capturedAt), '2025-10-04T09:00:00Z');
+      expect(CameraSweepService.pictureValues(asset('p1')), isNull,
+          reason: 'no thumbnail, no hash');
+      const undated = SweepAsset(
+          localIdentifier: 'u', assetKey: 'v1:u', creationSeconds: null, pixelWidth: 10,
+          pixelHeight: 10, originalFilename: null, isScreenshot: false,
+          isRepresentative: true, pictureHash: hash);
+      expect(CameraSweepService.pictureValues(undated), isNull, reason: 'no capture second');
+      const unsized = SweepAsset(
+          localIdentifier: 'z', assetKey: 'v1:z', creationSeconds: 1759568400, pixelWidth: 0,
+          pixelHeight: 10, originalFilename: null, isScreenshot: false,
+          isRepresentative: true, pictureHash: hash);
+      expect(CameraSweepService.pictureValues(unsized), isNull,
+          reason: 'a size the library did not record');
+    });
+
+    test('a match: recorded duplicate with its key; nothing read, staged or sent', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      bridge.hashes['p1'] = hash;
+      final key = bridge.assets.single.assetKey;
+      ep.prechecks[key] = captured('uploads:capture-session-precheck-duplicate');
+      await svc.sweep();
+      expect(svc.candidates.single.pictureHash, hash, reason: 'the card carries its hash');
+      await svc.approveAll();
+      final q = ep.sessions.single;
+      expect(q.precheck, isTrue);
+      expect((q.width, q.height, q.pictureHash), (1600, 1200, hash));
+      expect(q.capturedAt, isNotNull);
+      expect(q.size, isNull, reason: 'asked BEFORE the photo is read');
+      expect(bridge.renderedPaths, isEmpty, reason: 'never read off iCloud');
+      expect(ep.sessionsOpened, isEmpty);
+      expect(ep.puts, isEmpty);
+      expect(ledger.verdict('p1'), LedgerVerdict.duplicate(key));
+      expect(svc.candidates, isEmpty, reason: 'the card leaves: it is in the library');
+      expect(svc.ingestedThisSession, 0, reason: 'nothing was taken in');
+    });
+
+    test('automatic: the pass counts it as already in your library', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1'), asset('p2')]);
+      await ledger.setMode(SweepMode.automatic);
+      await ledger.setBackfillComplete(true);
+      bridge.hashes.addAll({'p1': hash, 'p2': '0f0f0f0f0f0ff0f0'});
+      ep.prechecks[bridge.assets.first.assetKey] =
+          captured('uploads:capture-session-precheck-duplicate');
+      final pass = await svc.sweep();
+      expect(pass.duplicates, 1);
+      expect(pass.ingested, 1);
+      expect(ledger.duplicateCount, 1);
+      expect(ledger.inLibraryCount, 2);
+      expect(ep.prechecksAsked, hasLength(2));
+      expect(ep.sessionsOpened.single.assetKey, bridge.assets.last.assetKey);
+    });
+
+    test('new: read, staged, and the session carries the four values again', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      bridge.hashes['p1'] = hash;
+      await svc.sweep();
+      await svc.approveAll();
+      expect([for (final c in ep.sessions) c.precheck], [true, false],
+          reason: 'the question first, then the session');
+      final open = ep.sessionsOpened.single;
+      expect((open.width, open.height, open.pictureHash), (1600, 1200, hash));
+      expect(open.size, ep.puts.single.$2.length);
+      expect(open.force, isFalse);
+      expect(ledger.verdict('p1'), LedgerVerdict.ingested);
+    });
+
+    test('a copy that landed between the two calls: the read bytes are not sent', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      bridge.hashes['p1'] = hash;
+      final key = bridge.assets.single.assetKey;
+      ep.answers[key] = captured('uploads:capture-session-precheck-duplicate');
+      await svc.sweep();
+      await svc.approveAll();
+      expect(ep.puts, isEmpty);
+      expect(ep.uploader.discarded, hasLength(1), reason: 'the staged copy is deleted');
+      expect(ledger.verdict('p1'), LedgerVerdict.duplicate(key));
+    });
+
+    test('a replay whose bytes never landed is read and sent', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      bridge.hashes['p1'] = hash;
+      ep.prechecks[bridge.assets.single.assetKey] = {
+        'docId': 'cam-1', 'duplicate': true, 'duplicateOf': null, 'status': 'pending_upload',
+        'gcsPath': 'raw/x', 'uploadUrl': 'https://storage.example/again',
+      };
+      await svc.sweep();
+      await svc.approveAll();
+      expect(bridge.renderedPaths, hasLength(1));
+      expect(ep.puts, hasLength(1));
+      expect(ledger.verdict('p1'), LedgerVerdict.ingested);
+    });
+
+    test('a known photo already filed: recorded, never read', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      bridge.hashes['p1'] = hash;
+      ep.prechecks[bridge.assets.single.assetKey] =
+          captured('uploads:capture-session-duplicate-settled');
+      await svc.sweep();
+      await svc.approveAll();
+      expect(bridge.renderedPaths, isEmpty);
+      expect(ledger.verdict('p1'), LedgerVerdict.ingested);
+      expect(svc.ingestedThisSession, 1);
+    });
+
+    test('no hash: no question, the photo is read as before', () async {
+      final (svc, _, bridge, ep, _) = await rig([asset('p1')]);
+      await svc.sweep();
+      await svc.approveAll();
+      expect(ep.prechecksAsked, isEmpty);
+      expect(ep.sessionsOpened.single.pictureHash, isNull);
+      expect(ep.sessionsOpened.single.width, isNull);
+      expect(bridge.renderedPaths, hasLength(1));
+    });
+
+    test('a refused question is one refused photo: it stays waiting, nothing read', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      bridge.hashes['p1'] = hash;
+      ep.prechecks[bridge.assets.single.assetKey] =
+          const ApiException(400, 'pictureHash must be 16 lowercase hex digits');
+      await svc.sweep();
+      await svc.approveAll();
+      expect(svc.candidateErrors['p1'], 'pictureHash must be 16 lowercase hex digits');
+      expect(bridge.renderedPaths, isEmpty);
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting);
+    });
+
+    test('Add anyway from the phone: read, staged, force, then the upload', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      final key = bridge.assets.single.assetKey;
+      await ledger.record(LedgerVerdict.duplicate(key), 'p1');
+      expect(svc.holdsCopy(key), isTrue);
+      expect(svc.holdsCopy('v1:elsewhere'), isFalse);
+      final forced = captured('uploads:capture-session-force-add-anyway');
+      ep.answers[key] = forced;
+      expect(await svc.addAnyway(key), isNull);
+      expect(bridge.renderedPaths, hasLength(1), reason: 'the photo was read');
+      final open = ep.sessions.single;
+      expect(open.force, isTrue);
+      expect(open.precheck, isFalse);
+      expect(open.pictureHash, isNull, reason: 'Add anyway asks nothing');
+      expect(open.size, ep.puts.single.$2.length, reason: 'a session only for staged bytes');
+      expect(ep.puts.single.$1, forced['uploadUrl']);
+      await pumpEventQueue();
+      expect(ledger.verdict('p1'), LedgerVerdict.ingested, reason: 'the bytes landed');
+    });
+
+    test('Add anyway that fails to send is waiting again, so the next pass sends it', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      final key = bridge.assets.single.assetKey;
+      await ledger.record(LedgerVerdict.duplicate(key), 'p1');
+      ep.answers[key] = captured('uploads:capture-session-force-add-anyway');
+      ep.putFailsWith = 500;
+      expect(await svc.addAnyway(key), isNull);
+      await pumpEventQueue();
+      expect(ledger.verdict('p1'), LedgerVerdict.waiting);
+      expect(svc.errorMessage,
+          'A photo could not be uploaded (HTTP 500). The next look tries again.');
+    });
+
+    test('Add anyway whose read fails asks for no session', () async {
+      final (svc, ledger, bridge, ep, _) = await rig([asset('p1')]);
+      final key = bridge.assets.single.assetKey;
+      await ledger.record(LedgerVerdict.duplicate(key), 'p1');
+      bridge.notRenderable.add('p1');
+      expect(await svc.addAnyway(key), SweepWords.ios.deferredSentence);
+      expect(ep.sessions, isEmpty, reason: 'no session for bytes not staged');
+      expect(ledger.verdict('p1'), LedgerVerdict.duplicate(key),
+          reason: 'the copy keeps its control, with the sentence beside it');
+    });
+
+    test('a phone that does not hold the photo cannot add it', () async {
+      final (svc, _, _, ep, _) = await rig([asset('p1')]);
+      expect(await svc.addAnyway('v1:not-here'), CameraSweepService.notHeldSentence);
+      expect(ep.sessions, isEmpty);
+    });
+  });
 
   group('sentences (the Swift app\'s, "sweep" made "look" in D)', () {
     test('upload failures each name the retry', () {

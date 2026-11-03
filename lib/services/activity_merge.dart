@@ -7,13 +7,18 @@ import '../models/activity_item.dart';
 /// `metadata['doc_id']`, sorted by `createdAt` descending, capped at
 /// [maxItems]. Pure so it is unit-testable without a live Firestore
 /// (contract harness: test/contract/activity_merge_test.dart).
+///
+/// An event covers every document it names: since 5.50.0 (ADR-202) a
+/// `doc_duplicate` is written on the ORIGINAL and names the copy it explains
+/// in `metadata['duplicate_id']`, so the copy's bare *Skipped* row is not
+/// listed beside the *Added again* that explains it.
 List<ActivityItem> mergeActivity(
   List<ActivityItem> events,
   List<ActivityItem> docs, {
   int maxItems = 100,
 }) {
   final coveredDocIds = events
-      .map((e) => e.metadata?['doc_id'] as String?)
+      .expand((e) => [e.metadata?['doc_id'], e.metadata?['duplicate_id']])
       .whereType<String>()
       .toSet();
   final combined = [

@@ -235,7 +235,10 @@ class SweepLedger extends ChangeNotifier {
   /// deferred or waiting one always is (Swift `needsExamination`).
   bool needsExamination(String localIdentifier, {required int prefilterVersion}) =>
       switch (_verdicts[localIdentifier]?.kind) {
-        SweepVerdictKind.ingested || SweepVerdictKind.dismissed => false,
+        SweepVerdictKind.ingested ||
+        SweepVerdictKind.dismissed ||
+        SweepVerdictKind.duplicate =>
+          false,
         SweepVerdictKind.noText =>
           _verdicts[localIdentifier]!.prefilterVersion! < prefilterVersion,
         SweepVerdictKind.deferredNotLocal || SweepVerdictKind.waiting || null => true,
@@ -253,6 +256,31 @@ class SweepLedger extends ChangeNotifier {
 
   int get ingestedCount =>
       _verdicts.values.where((v) => v.kind == SweepVerdictKind.ingested).length;
+
+  /// Photos the server recognised as a picture the library already holds,
+  /// before they were read (5.50.0, ADR-202).
+  int get duplicateCount =>
+      _verdicts.values.where((v) => v.kind == SweepVerdictKind.duplicate).length;
+
+  /// Photos that are in the library: sent, already filed under their key, or
+  /// already there as another picture (5.50.0, ADR-202 — a pass's summary
+  /// counts a duplicate as *already in your library*, ADR-198's *already
+  /// there*, which this figure has always counted for a key already filed).
+  int get inLibraryCount => ingestedCount + duplicateCount;
+
+  /// The photo a copy recognised before its upload came from, by the asset
+  /// key its `duplicate` verdict kept — or null when this phone does not hold
+  /// it. Only the phone that holds the photo can add it anyway
+  /// (`features/picture-dedupe.md` §Add anyway).
+  String? holdingCopy(String? assetKey) {
+    if (assetKey == null || assetKey.isEmpty) return null;
+    for (final e in _verdicts.entries) {
+      if (e.value.kind == SweepVerdictKind.duplicate && e.value.assetKey == assetKey) {
+        return e.key;
+      }
+    }
+    return null;
+  }
   int get deferredCount => _verdicts.values
       .where((v) => v.kind == SweepVerdictKind.deferredNotLocal)
       .length;
@@ -421,7 +449,7 @@ enum SweepMode {
       };
 }
 
-enum SweepVerdictKind { ingested, dismissed, noText, deferredNotLocal, waiting }
+enum SweepVerdictKind { ingested, dismissed, noText, deferredNotLocal, waiting, duplicate }
 
 /// One asset's standing verdict. **Never a boolean** (spec §2): with remote
 /// fetch off the system hands back a low-resolution placeholder for an
@@ -434,12 +462,20 @@ enum SweepVerdictKind { ingested, dismissed, noText, deferredNotLocal, waiting }
 /// `waiting` (5.40.0, spec §2): a candidate found and not yet in or
 /// dismissed. It decides nothing; it is what lets a pass that reads only what
 /// changed find the photo again.
+///
+/// A sixth, `duplicate` (5.50.0, ADR-202, spec §2): the server recognised the
+/// photo as a picture the library already holds, before it was read.
+/// Terminal, like `ingested`, and it KEEPS the photo's asset key: the phone's
+/// Add anyway finds the photo by it ([SweepLedger.holdingCopy]).
 @immutable
 class LedgerVerdict {
-  const LedgerVerdict._(this.kind, [this.prefilterVersion]);
+  const LedgerVerdict._(this.kind, [this.prefilterVersion, this.assetKey]);
 
   const LedgerVerdict.noText(int prefilterVersion)
       : this._(SweepVerdictKind.noText, prefilterVersion);
+
+  const LedgerVerdict.duplicate(String assetKey)
+      : this._(SweepVerdictKind.duplicate, null, assetKey);
 
   static const ingested = LedgerVerdict._(SweepVerdictKind.ingested);
   static const dismissed = LedgerVerdict._(SweepVerdictKind.dismissed);
@@ -452,14 +488,20 @@ class LedgerVerdict {
   /// Set exactly on [SweepVerdictKind.noText].
   final int? prefilterVersion;
 
+  /// Set exactly on [SweepVerdictKind.duplicate]: the INV-14 key, opaque.
+  final String? assetKey;
+
   Map<String, Object?> toJson() => switch (kind) {
         SweepVerdictKind.noText => {
             'noText': {'prefilterVersion': prefilterVersion}
           },
+        SweepVerdictKind.duplicate => {
+            'duplicate': {'assetKey': assetKey}
+          },
         _ => {kind.name: <String, Object?>{}},
       };
 
-  /// Closed: anything but one of the five shapes throws.
+  /// Closed: anything but one of the six shapes throws.
   static LedgerVerdict fromJson(Object? raw) {
     if (raw is! Map || raw.length != 1) {
       throw const FormatException('a verdict is a one-key map');
@@ -477,6 +519,11 @@ class LedgerVerdict {
         return waiting;
       case 'noText' when value.length == 1 && value['prefilterVersion'] is int:
         return LedgerVerdict.noText(value['prefilterVersion'] as int);
+      case 'duplicate'
+          when value.length == 1 &&
+              value['assetKey'] is String &&
+              (value['assetKey'] as String).isNotEmpty:
+        return LedgerVerdict.duplicate(value['assetKey'] as String);
     }
     throw FormatException('unknown verdict "$key"');
   }
@@ -485,15 +532,18 @@ class LedgerVerdict {
   bool operator ==(Object other) =>
       other is LedgerVerdict &&
       other.kind == kind &&
-      other.prefilterVersion == prefilterVersion;
+      other.prefilterVersion == prefilterVersion &&
+      other.assetKey == assetKey;
 
   @override
-  int get hashCode => Object.hash(kind, prefilterVersion);
+  int get hashCode => Object.hash(kind, prefilterVersion, assetKey);
 
   @override
-  String toString() => kind == SweepVerdictKind.noText
-      ? 'noText@$prefilterVersion'
-      : kind.name;
+  String toString() => switch (kind) {
+        SweepVerdictKind.noText => 'noText@$prefilterVersion',
+        SweepVerdictKind.duplicate => 'duplicate($assetKey)',
+        _ => kind.name,
+      };
 }
 
 /// Where the ledger lives. Small on purpose: read the six keys, write one.
