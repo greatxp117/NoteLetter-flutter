@@ -11,8 +11,9 @@
  *    tile, inset 0.14–0.16, corner radius 0.22.
  *  - The colours are TOKENS. The tile is `--seal` in light (`--brick-700`,
  *    AppColors.sealLight) and the mark is `--accent-fg` (`--paper-50`,
- *    AppColors.primaryForeground), as web draws a filled seal. The extension
- *    script still holds pre-ADR-066 literals (#7A2820 / #FAF7F2); these do not.
+ *    AppColors.primaryForeground), as web draws a filled seal. The extension's
+ *    script and web's favicon script read the same two tokens from their own
+ *    sheets (spec/features/app-icon.md).
  *  test/contract/app_icon_test.dart holds all three to their sources.
  *
  * Writes:
