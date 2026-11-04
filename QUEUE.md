@@ -2515,7 +2515,7 @@ a new obligation on a finished screen is a new item.
 - placed: after F-152
 
 ## F-157 · Cloud import batches: no 50-file cap, Notion's offer listed to its end (5.56.0, ADR-208)
-- status: blocked: device proof owed: at 19:13 swap was 22.9 of 23.5 GB used and load ~12 with the main session's backend work running, so no simulator build; the code is in (flutter analyze clean, contract+kit 2380 pass with pin excluded by policy; cloud_import_batches_test 12 new; oauth_return_test 7 new replacing the 2 cap tests) — run the device_test line and shoot oauth-granted-notion-ticked once the machine has headroom
+- status: blocked: device test NOT WRITTEN: the name on this item's device_test line exists nowhere in integration_test (found 2026-11-04); swap was never the blocker. Write it, then run it from the Mac
 - screen: sources
 - route: /sources
 - spec: spec/decisions/ADR-208-an-import-is-not-one-request.md (new); spec/features/cloud-import-batches.md (new); spec/screens/sources.md §Cloud import; spec/screens/sources.md §The OAuth return; spec/screens/sources.md §Import job status; spec/api/cloud-storage.md
@@ -2529,7 +2529,7 @@ a new obligation on a finished screen is a new item.
 - placed: after F-156
 
 ## F-158 · A duplicate row draws its sentence; the Notion note; Keep in sync survives a refused batch (5.57.0, ADR-209 + ADR-210)
-- status: blocked: device proof owed: swap 22.1 of 23.5 GB at 19:25 (no simulator headroom); code, tests and analyze green
+- status: blocked: device test NOT WRITTEN: the name on this item's device_test line exists nowhere in integration_test (found 2026-11-04); swap was never the blocker. Write it, then run it from the Mac
 - screen: sources
 - route: /sources
 - spec: spec/decisions/ADR-209-a-direct-import-asks-whether-the-file-is-already-in-the-library.md (new); spec/decisions/ADR-210-a-notion-page-keeps-what-it-links-to.md (new); spec/screens/sources.md §Trust & feedback; spec/screens/sources.md §Cloud import; spec/api/cloud-storage.md
@@ -2543,7 +2543,7 @@ a new obligation on a finished screen is a new item.
 - placed: after F-157
 
 ## F-159 · The documents window is 2,000 and a full one says so; a Notion page link opens the library's copy (5.58.0, ADR-211 + ADR-212)
-- status: blocked: device proof owed: load average ~300-600 and swap 14.9-15.6 of 16 GB from another project's Android emulator (no simulator headroom); code, tests and analyze green
+- status: blocked: device test NOT WRITTEN: the name on this item's device_test line exists nowhere in integration_test (found 2026-11-04); swap was never the blocker. Write it, then run it from the Mac
 - screen: reader
 - route: /reader/{docId}
 - spec: spec/decisions/ADR-211-the-library-reads-the-whole-library.md (new); spec/decisions/ADR-212-a-link-to-a-notion-page-in-the-library-opens-it-there.md (new); spec/screens/reader.md §A link to a Notion page in the library; spec/screens/reader.md §The way back; spec/screens/sources.md §Library reading summary; spec/screens/library.md §Composition (Folio)
@@ -2556,7 +2556,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier 2026-11-04: 'How come my library count didn't increase when I connected all those documents from notion?' — the window was the newest 200 and the folios printed it as the library (551 complete volumes read '200'). And, on ADR-210's sub-page links, 'the links should point to the subpages.' Web reference built 2026-11-04. Flutter, built 2026-11-04 (lane): ADR-211 — documentWindow 2000 is ONE const, lib/shared/document_window.dart (relmap_layout re-exports it; subscribeDocuments defaults to it), windowFull() counted over every row; the Library folio draws 'N+ volumes' (kitCountedFloor), Home's 'N+ sources · N+ passages', the reading figures' line keyed on the whole window and printing 'Of your most recent 2,000.'; the shelves standfirst and the map legend print the window with separators; the test doubles' limit = 200 went with it. ADR-212 — lib/shared/notion_links.dart (the id rule, the dashed id, the drawn rewrite, the lookup rule resolveNotionPagesWith) under FirestoreService.resolveNotionPages (notionImportJobs: user_id ==, provider_file_id in, at most 30 a query; getDocument for a candidate the subscription does not hold). ManuscriptPanel looks up when drawn, once per set of linked pages and only when it can open a source; redraws a resolved anchor at rest only (href /reader/{id}, data-nl-doc, no target), never in c.html; onLinkTap opens a resolved one through onOpenSource (ReaderPage pushes /reader/{id}?from=/reader/{parent}) and any other http(s) link outside through onOpenLink. Manuscript links were DEAD taps on this client until now (no onLinkTap), so every manuscript web link now opens, as web's target=_blank. readerOrigin names /reader/{docId} by the title the documents subscription holds, else Source; a pushed reader pops back. Tests: notion_page_links_test 17, library_window_test 5 (a REAL 2,000-row window: a Dart const cannot be mocked as web's 12; each pump ~15 s under load); 24 mutations, all red; flutter test test/contract test/kit -x pin 2405 pass; analyze clean.
 
 ## F-160 · A connected service has its own page; an import row says where it landed (5.59.0, ADR-213)
-- status: in-progress
+- status: blocked: device test PASSED 2026-11-04 on the iPhone 17 Pro simulator (iOS 26.5); its first frame shows composition drift, web's .lx-cloud scope was not ported (flat row, plain status text, mono eyebrow), with cloud lane F2. The six pairs follow that fix
 - screen: service-page
 - route: /sources/:provider
 - spec: spec/decisions/ADR-213-a-connected-service-has-its-own-page.md (new); spec/screens/sources.md §A service's page, §Cloud import, §Trust & feedback, §Sync control; spec/component-kit.md §33 Cover lead; spec/screens/settings.md §Sources section

@@ -4760,8 +4760,12 @@ void main() {
     await pumpFor(tester, total: const Duration(seconds: 5));
     expect(router.state.uri.path, '/reader/seed-doc-pdf-complete');
     expect(router.state.uri.queryParameters['from'], '/sources/google_drive');
-    // The Reader names the service as its way back.
-    expect(find.text('Google Drive'), findsWidgets);
+    // The Reader names the service as its way back. The control draws its
+    // label in mono caps, so ask the widget, never the drawn text.
+    expect(
+        find.byWidgetPredicate(
+            (w) => w is KitDBackControl && w.label == 'Google Drive'),
+        findsOneWidget);
     router.go('/sources/google_drive');
     await pumpFor(tester, total: const Duration(seconds: 5));
 
