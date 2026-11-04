@@ -488,7 +488,10 @@ class _ChatPageState extends State<ChatPage> {
           ? const KitAskReply(line: 'Reading your notes…')
           : KitAskReply(
               failure: KitFailureInline(refused, dense: true),
-              retry: KitButton.primary('Try again', onPressed: _retry),
+              // A text-weight action (web `.hx-link`, 5.60.1), never the
+              // §6.1 primary: a filled one set a second brick directly above
+              // the composer's send.
+              retry: KitHxLink('Try again', onTap: _retry),
             ));
     }
     return Column(

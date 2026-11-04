@@ -2583,7 +2583,7 @@ a new obligation on a finished screen is a new item.
 - placed: after F-160
 
 ## F-162 · Letters sent counts the letters that were sent; Ask's Try again is text weight (5.60.1)
-- status: open
+- status: in-progress
 - screen: letters
 - route: /letters; /ask
 - spec: spec/screens/letters.md; spec/screens/ask.md

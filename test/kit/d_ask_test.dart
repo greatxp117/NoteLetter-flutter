@@ -136,11 +136,13 @@ class _Turn implements HttpClientAdapter {
   final hold = Completer<void>();
   bool held = false;
   int calls = 0;
+  final sent = <Object?>[];
 
   @override
   Future<ResponseBody> fetch(RequestOptions options,
       Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     calls++;
+    sent.add(options.data);
     if (held) await hold.future;
     return ResponseBody.fromString(jsonEncode(body), status, headers: {
       Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -614,6 +616,50 @@ void main() {
         await _unmount(tester);
       });
     }
+
+    // 5.60.1 (web ask-refused-turn.test.js): *Try again* beside a §14.2 line
+    // is a text-weight action, never a second filled brick over the
+    // composer's send, and it re-sends the turn on screen, not the composer.
+    // Mutants run against it: the retry back to `KitButton.primary`; the
+    // retry sending the composer's draft. Each turns a case red.
+    testWidgets('draws Try again as a text-weight action, never a second '
+        'filled brick', (tester) async {
+      ApiService.instance.httpClientAdapter =
+          _Turn(500, {'error': 'Ask failed.', 'error_code': 'INTERNAL'});
+      await _pump(tester,
+          at: '/ask', service: _Ask(threads: const []), size: _phone);
+      await tester.enterText(
+          find.byKey(const ValueKey('ask-field')), 'What about bread?');
+      await _settle(tester);
+      await tester.tap(find.byKey(const ValueKey('ask-send')));
+      await _settle(tester);
+      expect(find.widgetWithText(KitHxLink, 'Try again'), findsOneWidget);
+      expect(find.widgetWithText(KitButton, 'Try again'), findsNothing);
+      await _unmount(tester);
+    });
+
+    testWidgets('re-sends the turn on screen, not the composer',
+        (tester) async {
+      final turn =
+          _Turn(500, {'error': 'Ask failed.', 'error_code': 'INTERNAL'});
+      ApiService.instance.httpClientAdapter = turn;
+      await _pump(tester,
+          at: '/ask', service: _Ask(threads: const []), size: _phone);
+      await tester.enterText(
+          find.byKey(const ValueKey('ask-field')), 'What about bread?');
+      await _settle(tester);
+      await tester.tap(find.byKey(const ValueKey('ask-send')));
+      await _settle(tester);
+      await tester.enterText(
+          find.byKey(const ValueKey('ask-field')), 'A different draft');
+      await _settle(tester);
+      await tester.tap(find.text('Try again'));
+      await _settle(tester);
+      expect(turn.calls, 2);
+      expect(jsonEncode(turn.sent.last), contains('What about bread?'));
+      expect(jsonEncode(turn.sent.last), isNot(contains('A different draft')));
+      await _unmount(tester);
+    });
 
     testWidgets('Shift+Enter and an IME\'s Enter are not a send',
         (tester) async {
