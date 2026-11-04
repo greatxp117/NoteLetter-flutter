@@ -2591,6 +2591,6 @@ a new obligation on a finished screen is a new item.
 - flutter: lib/pages/letters_page.dart; lib/pages/chat_page.dart; lib/services/api.dart
 - folds: 5.60.1
 - device_test: tool/device_test.sh "Letters sent counts sent letters; a refused Ask turn offers Try again at text weight (F-162)"
-- shots: letters; ask-refused
+- shots: letters; ask-turn-failed
 - extra_gates: flutter test test/contract
 - notes: 5.60.1 is web's cloud lane W, taken as 5.59.1 on the lane. Web's tests are the acceptance list: letters-sent-figure.test.js, ask-refused-turn.test.js. Also correct the stale comment above missionMax in lib/services/api.dart: since 5.61.0 the endpoint refuses past the bound (fn_newsletter_settings).
