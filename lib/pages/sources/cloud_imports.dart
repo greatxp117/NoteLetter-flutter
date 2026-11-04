@@ -155,6 +155,14 @@ class CloudImportActivity extends StatelessWidget {
   }
 }
 
+/// What an import's 202 queued, as the reference says it (web
+/// `CloudImportPanel` `setNotice`): *Queued {f} folder(s) and {n} file(s)
+/// from {Provider}.*, each noun singular at one. The figures are the ones the
+/// server counted, summed over the batches (ADR-103 §5, 5.56.0).
+String cloudQueuedNotice(int folders, int files, String provider) =>
+    'Queued $folders folder${folders == 1 ? '' : 's'} and $files '
+    'file${files == 1 ? '' : 's'} from $provider.';
+
 /// The progress summary (`screens/sources.md` §Cloud import): "{N} of {M}
 /// imported" where M is the rows on screen — **never a determinate
 /// fraction**, because discovery adds jobs as it goes and dedupe skips

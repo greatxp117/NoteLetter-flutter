@@ -6,6 +6,7 @@
 //
 // The port of the reference's `tests/contract/service-page.test.js`, case for
 // case and in its order: it is F-160's acceptance list.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -415,6 +416,52 @@ void main() {
       expect(mimeSourceType('image/png'), 'image');
       expect(mimeSourceType('audio/mpeg'), 'audio');
       expect(mimeSourceType('video/mp4'), 'video');
+    });
+  });
+
+  // F-160's deviation, closed in round 2: the 202's count is §Bring in's
+  // notice under the closed picker (web `CloudImportPanel`'s `notice`), never
+  // a toast. Mutant: the toast back in `_confirm` — red.
+  group('what an import queued', () {
+    testWidgets('is said in Bring in, in the server\'s figures, not a toast',
+        (tester) async {
+      ApiService.instance.httpClientAdapter = _Recorder((o) {
+        if (o.path.contains('fn_list_cloud_files')) {
+          return (200, {
+            'items': [
+              {'id': 'f1', 'name': 'Essay.pdf', 'type': 'file',
+               'mime_type': 'application/pdf'},
+            ],
+            'nextPageToken': null,
+          });
+        }
+        return (202, {'queued_folders': 0, 'queued_files': 1});
+      });
+      final cloud = _Read(const [
+        CloudIntegration(provider: 'google_drive', tokenValid: true),
+      ]);
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive', cloud: cloud);
+      // Opened without awaiting it inside the fake-async zone, as the
+      // tandem suite's picker cases do; the listing lands over bounded pumps.
+      unawaited(cloud.openPicker('google_drive'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.ensureVisible(find.byType(KitCheckbox));
+      await tester.tap(find.byType(KitCheckbox));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Import 1 item'));
+      await tester.tap(find.text('Import 1 item'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.text('Queued 0 folders and 1 file from Google Drive.'),
+          findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(cloudQueuedNotice(1, 1, 'Notion'),
+          'Queued 1 folder and 1 file from Notion.');
+      await tester.pump(const Duration(seconds: 61));
     });
   });
 
