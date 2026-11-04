@@ -366,8 +366,18 @@ class _SourcesPageState extends State<SourcesPage> {
         sheetBody = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Kit §29 (5.60.0, ADR-214): the switch leads and the shelves
+            // come last, so a long list never stands between the reader and
+            // a control.
+            KitLibOrder(
+              first: true,
+              options: kSorts,
+              value: _sort,
+              onChanged: (v) => setState(() => _sort = v),
+            ),
             KitFacet(
               label: 'Kind',
+              first: false,
               value: _kind,
               onChanged: (v) => setState(() => _kind = v),
               items: [
@@ -395,11 +405,6 @@ class _SourcesPageState extends State<SourcesPage> {
                     count: n.vols.length,
                   ),
               ],
-            ),
-            KitLibOrder(
-              options: kSorts,
-              value: _sort,
-              onChanged: (v) => setState(() => _sort = v),
             ),
             // Library reading summary (4.1.0) — opt-in, the reader's own
             // preference, computed from the subscription already loaded (no

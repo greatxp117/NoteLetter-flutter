@@ -4717,6 +4717,42 @@ void main() {
         reason: 'a fresh visit did not read the stored mission back');
   });
 
+  // F-161 (5.60.0, ADR-214): past the crumb, the sheet carries the way back.
+  // A device is a phone, so the sheet is the running head and the row heads
+  // its dropped sheet. Needs tool/seed_long_doc.py (a page long enough to
+  // scroll the crumb away).
+  testWidgets(
+      'scrolled past the crumb, the sheet opens on the way back and a tap goes '
+      "where the crumb goes; the Library's sheet leads with Order (F-161)",
+      (tester) async {
+    final router = await pumpApp(tester);
+    router.go('/reader/device-run-long-doc?from=%2Fsources');
+    await pumpFor(tester, total: const Duration(seconds: 6));
+    final row = find.byKey(const ValueKey('d-sheet-back'));
+    expect(row, findsNothing, reason: 'a page at its top has one way back');
+    // A real drag, twice: the crumb leaves the screen.
+    for (var i = 0; i < 2; i++) {
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
+      await pumpFor(tester, total: const Duration(milliseconds: 750));
+    }
+    final peek = find.byKey(const ValueKey('d-peek'));
+    expect(peek, findsOneWidget, reason: 'a phone runs the sheet as its head');
+    await tester.tap(peek);
+    await pumpFor(tester, total: const Duration(milliseconds: 1200));
+    expect(row, findsOneWidget, reason: 'the dropped sheet leads with the way back');
+    final back = find.descendant(of: row, matching: find.text('LIBRARY'));
+    expect(back, findsOneWidget);
+    await tester.tap(back);
+    await pumpFor(tester, total: const Duration(seconds: 4));
+    expect(router.state.uri.path, '/sources');
+
+    // The Library's sheet: Order first, then Kind, then Shelf.
+    await tester.tap(find.byKey(const ValueKey('d-peek')));
+    await pumpFor(tester, total: const Duration(milliseconds: 1200));
+    double y(String t) => tester.getTopLeft(find.text(t).first).dy;
+    expect(y('ORDER'), lessThan(y('KIND')));
+  });
+
   // F-160 (5.59.0, ADR-213): a connected service's own page. Google Drive is
   // in the seed, with `seed-import-job-1` complete → seed-doc-pdf-complete.
   // Disconnect is last: it removes the seed's integration for the rest of

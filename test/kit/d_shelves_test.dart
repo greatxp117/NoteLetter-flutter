@@ -404,6 +404,27 @@ void main() {
   });
 
   group('The shelf map (/shelves/map)', () {
+    // Kit §29 (5.60.0, ADR-214; web sheet-way-back.test.js §the map's sheet):
+    // what picks what the page shows comes before the figures about it.
+    // Mutant: the Figures back above the list — red.
+    testWidgets('the list that picks a shelf leads, then the figures, then Also',
+        (tester) async {
+      await _pump(tester, const ShelfMapPage(), height: 1600);
+      double y(String t) => tester.getTopLeft(find.text(t)).dy;
+      expect(y('GO TO A SHELF'), lessThan(y('ON THE MAP')));
+      expect(y('ON THE MAP'), lessThan(y('ALSO')));
+    });
+
+    testWidgets('with nothing read yet there is no list, and the figures draw '
+        'the dash', (tester) async {
+      await _pump(tester, const ShelfMapPage(),
+          height: 1600, reads: _Reads(tagsError: Exception('denied')));
+      expect(find.text('GO TO A SHELF'), findsNothing);
+      expect(find.text('ON THE MAP'), findsOneWidget);
+      expect(find.text('ALSO'), findsOneWidget);
+      expect(find.text('—'), findsWidgets);
+    });
+
     testWidgets('the frame, the figures, Go to a shelf in tree order; a pick '
         're-centres the map already drawn', (tester) async {
       await _pump(tester, const ShelfMapPage(), height: 1600);

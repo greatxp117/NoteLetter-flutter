@@ -642,18 +642,12 @@ class _FiltersSheet extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        KitFacet(
-          label: 'Kind',
-          value: filter,
-          onChanged: onFilter,
-          items: [
-            for (final e in _filters.entries) KitFacetItem(e.key, e.value),
-          ],
-        ),
-        // Read as and its Breadth are absent while generative AI is off
-        // (5.29.0, ADR-186): the mode is passages, whatever was last picked.
+        // Kit §29 (5.60.0, ADR-214): the switches lead, the list of kinds
+        // follows. Read as and its Breadth are absent while generative AI is
+        // off (5.29.0, ADR-186): the mode is passages, whatever was last
+        // picked.
         if (aiOn) ...[
-          const KitDLabel('Read as'),
+          const KitDLabel('Read as', first: true),
           Align(
             alignment: Alignment.centerLeft,
             child: KitSlideSwitch<String>(
@@ -686,6 +680,15 @@ class _FiltersSheet extends StatelessWidget {
             ),
           ],
         ],
+        KitFacet(
+          label: 'Kind',
+          first: !aiOn,
+          value: filter,
+          onChanged: onFilter,
+          items: [
+            for (final e in _filters.entries) KitFacetItem(e.key, e.value),
+          ],
+        ),
       ],
     );
   }
