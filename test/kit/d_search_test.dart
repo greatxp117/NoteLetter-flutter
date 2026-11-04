@@ -424,7 +424,7 @@ void main() {
   });
 
   group('Filters', () {
-    testWidgets('Kind, then Read as over its note; Breadth only while '
+    testWidgets('Kind, and Read as over its note; Breadth only while '
         'Cohesive', (tester) async {
       await _pump(tester, _Search(), _Reads(docs: const []));
       expect(find.text('KIND'), findsOneWidget);

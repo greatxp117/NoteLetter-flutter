@@ -37,9 +37,9 @@ import 'search/search_field.dart';
 ///   of Search. It stays in the masthead at every width: the toolbar's field
 ///   wider than a phone, under the standfirst and above the rule on one. No
 ///   action, no settings.
-/// * **Sheet** — *Filters*: Kind (kit §29's facet over the kind chips, the
-///   `pdf`/`epub` fold), **Read as** and **Breadth** (both absent while
-///   generative AI is off). For a citation the sheet is *Scripture* instead.
+/// * **Sheet** — *Filters*: **Read as** and **Breadth** (both absent while
+///   generative AI is off), then Kind (kit §29's facet over the kind chips,
+///   the `pdf`/`epub` fold): the switches lead (5.60.0, ADR-214). For a citation the sheet is *Scripture* instead.
 ///   The running head on a phone says the kind, the mode and the count.
 /// * **Column** — no query: *Try searching for* and the suggestions; results:
 ///   the ruled register of [SearchResultD] rows, each opening in place; no
@@ -616,8 +616,8 @@ const _suggestions = <String>[
 
 // ── The sheet ───────────────────────────────────────────────────────────────
 
-/// *Filters* (kit §29): Kind; then — only while generative AI is on — Read as
-/// over its note, and Breadth only while Cohesive.
+/// *Filters* (kit §29): only while generative AI is on, Read as over its note
+/// and Breadth only while Cohesive; then Kind (5.60.0, ADR-214).
 class _FiltersSheet extends StatelessWidget {
   final String filter;
   final ValueChanged<String> onFilter;
