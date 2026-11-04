@@ -470,11 +470,15 @@ class _SourcesPageState extends State<SourcesPage> {
       for (final p in _providers.keys)
         if (cloud.integrationFor(p) != null) p,
     ];
+    // The catalogue's own count is a count over the window too (ADR-211).
+    final ofAll = atWindowCap
+        ? kitCountedFloor(all.length, 'volumes')
+        : kitCounted(all.length, 'volume');
     final meta = !measured
         ? null
         : items.length == all.length
-            ? kitCounted(all.length, 'volume')
-            : '${items.length} of ${kitCounted(all.length, 'volume')}';
+            ? ofAll
+            : '${items.length} of $ofAll';
 
     return KitDPage(
       folio: folio,

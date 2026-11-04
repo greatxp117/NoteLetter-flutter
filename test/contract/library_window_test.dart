@@ -116,6 +116,9 @@ void main() {
       await pumpSources(tester,
           SourcesStubService(documents: Stream.value(_library(documentWindow))));
       expect(_libraryFolio(tester), 'The library · 3+ volumes · 0 shelves');
+      // The catalogue's own count, which is a count over the window too
+      // (KitSectionHead draws its meta in capitals).
+      expect(find.text('3+ VOLUMES', skipOffstage: false), findsOneWidget);
       expect(find.text('Of your most recent 2,000.'), findsOneWidget,
           reason: 'three complete volumes in a full window: the line was '
               'keyed on the complete ones alone, and missed it — and it '
@@ -127,6 +130,8 @@ void main() {
           SourcesStubService(
               documents: Stream.value(_library(documentWindow - 1))));
       expect(_libraryFolio(tester), 'The library · 3 volumes · 0 shelves');
+      expect(find.text('3 VOLUMES', skipOffstage: false), findsOneWidget);
+      expect(find.textContaining('+ VOLUMES', skipOffstage: false), findsNothing);
       expect(find.textContaining('Of your most recent'), findsNothing);
     });
   });
