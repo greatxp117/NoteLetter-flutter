@@ -2567,3 +2567,17 @@ a new obligation on a finished screen is a new item.
 - shots: service-page; service-notion; service-notion-types; library-services; import-activity; import-activity-failed
 - extra_gates: flutter test test/contract
 - notes: Xavier 2026-11-04, on the Library's cloud section: shelves on the rows, a row that opens its source, the new note icons, a white Notion mark in dark mode, Manage instead of Disconnect with the service's controls on a page of their own, and the unclear type control. Web RELEASED first. Also owed by this item: Settings' link to organized folders goes to the service's page, the connect page's fine print says Manage, and an expired row on the Library says Sign-in expired with Reconnect beside Manage. KitProviderLogo's Notion mark is black on a dark page today, so check every bare mark, not only the plates. Xavier approved the look 2026-11-04. Cloud brief: umbrella `.claude/cloud/README.md` lane F.
+
+## F-161 · A sheet's controls come first; its way back follows the scroll (5.60.0, ADR-214)
+- status: blocked: held for Xavier's approval of the look on web (port-after-approval); nothing built
+- screen: reader-way-back
+- route: every page with a KitDSheet; the order on /sources, /search, /shelves/map
+- spec: spec/decisions/ADR-214-a-sheets-controls-come-first-and-its-way-back-follows-the-scroll.md; spec/features/sheet-controls-and-way-back.md; spec/component-kit.md; spec/screens/sources.md; spec/screens/search.md; spec/screens/library.md
+- web: src/kit/d/Sheet.jsx; src/kit/d/Page.jsx; src/kit/d/Masthead.jsx; src/pages/SourcesBrowse.jsx; src/pages/SearchView.jsx; src/pages/map/MapView.jsx; src/styles/app-redesign-d.css
+- flutter: lib/widgets/kit/kit_d_frame.dart; lib/widgets/kit/kit_d_parts.dart; lib/pages/sources_page.dart; lib/pages/search_page.dart; lib/pages/tags/shelf_map_page.dart
+- folds: 5.60.0
+- device_test: tool/device_test.sh "scrolled past the crumb, the sheet opens on the way back and a tap goes where the crumb goes; the Library's sheet leads with Order (F-161)"
+- shots: reader-way-back; sources-sheet; search; shelf-map
+- extra_gates: flutter test test/contract
+- notes: Xavier 2026-11-04: 'In the side panels, all sort/filter options should be near the top. Also, if there is a back button, when the page is scrolled it should be at the top of the side panel, so the user doesn't have to scroll up to get to it.' Held until he approves the look on web. Web is the reference: Sheet.jsx useCrumbGone (the masthead crumb outside the page's primary scroller) and SheetBack; Page.jsx hands the sheet its back, so no page names it. Order: the Library KitLibOrder, then Kind, then Shelf; Search Read as, Breadth, then Kind; the map Go to a shelf, then On the map, then Also (and its header comment at shelf_map_page.dart). The row is drawn only while the crumb is off screen, so a page at its top has one back control; it carries a sub-shelf's whole trail (KitDBackControl's trail); it stays pinned when the sheet scrolls inside itself, and on web that needed a sticky offset, which a Flutter layout that pins it above the scrolling body does not. On a phone it heads the running head's dropped sheet, never the line. A stacked (static) sheet draws no row. Web's real-gesture proof is npm run gate:sheet-back.
+- placed: after F-160
