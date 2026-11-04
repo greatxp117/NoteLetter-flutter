@@ -237,7 +237,9 @@ class _HeldRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return KitSourceRow(
-      leading: KitFileBadge(kitDocKind(job.docType)),
+      // §33's Cover lead (5.59.0, ADR-213): a held file has no document
+      // yet, so its object is what the file will become.
+      leading: KitCoverLead(id: job.id, type: job.sourceType),
       title: job.providerFileName.isEmpty
           ? '(fetching name…)'
           : job.providerFileName,

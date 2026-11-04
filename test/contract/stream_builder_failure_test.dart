@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/models/cloud_folder.dart';
+import 'package:flutter_app/models/cloud_integration.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/import_job.dart';
 import 'package:flutter_app/models/organization_suggestion.dart';
@@ -187,7 +188,9 @@ void main() {
     testWidgets('a failed suggestions subscription is a notice, not a gap',
         (tester) async {
       final sug = StreamController<List<OrganizationSuggestion>>.broadcast();
-      await pumpSources(tester, SourcesStubService(suggestions: sug.stream));
+      // A service's suggestions are on its own page (5.59.0, ADR-213).
+      await pumpServicePage(tester, SourcesStubService(suggestions: sug.stream),
+          provider: 'dropbox', cloud: _Dropbox());
 
       sug.addError(FirebaseException(plugin: 'cloud_firestore', code: 'failed-precondition'));
       await tester.pump();
@@ -198,4 +201,12 @@ void main() {
       expect(textLike('Suggestions · '), findsNothing);
     });
   });
+}
+
+/// Dropbox connected, without a network read.
+class _Dropbox extends QuietCloud {
+  @override
+  CloudIntegration? integrationFor(String provider) => provider == 'dropbox'
+      ? const CloudIntegration(provider: 'dropbox', tokenValid: true)
+      : null;
 }

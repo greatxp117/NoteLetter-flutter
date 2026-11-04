@@ -285,6 +285,11 @@ class KitServiceRow extends StatelessWidget {
   /// The connected account (`provider_email`), drawn in place of *Connected*.
   final String? account;
   final bool connected;
+
+  /// A connected service whose sign-in has expired (`reconnect_required`,
+  /// 5.59.0, ADR-213; web `.lx-svc.on.expired`): *Sign-in expired* in place of
+  /// the account, its dot and its words in `--warning`.
+  final bool expired;
   final bool on;
   final bool critical;
   final Widget? action;
@@ -298,6 +303,7 @@ class KitServiceRow extends StatelessWidget {
     this.line,
     this.account,
     this.connected = false,
+    this.expired = false,
     this.on = false,
     this.critical = false,
     this.action,
@@ -311,7 +317,9 @@ class KitServiceRow extends StatelessWidget {
       fontFamily: AppTheme.fontSans,
       fontSize: 12,
       height: 17 / 12,
-      color: connected || on
+      color: connected && expired
+          ? t.warning
+          : connected || on
           ? t.positiveText
           : critical
           ? t.criticalText
@@ -323,9 +331,9 @@ class KitServiceRow extends StatelessWidget {
             height: 32,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              // literal-ok: a vendor brand-mark plate — fixed white in both
-              // themes (Notion's mark is black; web `.lx-svc-logo`).
-              color: const Color(0xFFFFFFFF),
+              // A vendor's plate (web `.lx-svc-logo`): white under a colour
+              // mark, `--surface` under a mono one in dark mode (ADR-213).
+              color: KitProviderLogo.plateColor(context, provider),
               borderRadius: AppRadius.controlR(32),
               border: Border.all(color: t.border),
             ),
@@ -346,7 +354,9 @@ class KitServiceRow extends StatelessWidget {
               color: t.fg,
             ),
           );
-    final shown = connected
+    final shown = connected && expired
+        ? 'Sign-in expired'
+        : connected
         ? (account != null && account!.isNotEmpty ? account! : 'Connected')
         : line;
     return Container(
@@ -383,7 +393,9 @@ class KitServiceRow extends StatelessWidget {
                               width: 6,
                               height: 6,
                               decoration: BoxDecoration(
-                                color: t.positive,
+                                color: connected && expired
+                                    ? t.warning
+                                    : t.positive,
                                 shape: BoxShape.circle,
                               ),
                             ),

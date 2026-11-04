@@ -1136,7 +1136,7 @@ class _ManifestState extends State<_Manifest> {
           padding: const EdgeInsets.only(top: 22),
           child: guide('Read-only. NoteLetter reads the text of '
               '${notion ? 'these pages' : 'these files'} and never writes '
-              'back to $name. Disconnect any time from the Library.'),
+              'back to $name. Disconnect any time under Manage in the Library.'),
         ),
       ],
     );

@@ -307,6 +307,51 @@ class KitCover extends StatelessWidget {
   }
 }
 
+/// §33 **Cover lead** (5.59.0, ADR-213; web `CoverLead`) — the object at a
+/// row's size, for a row that names a source without being §32's register row:
+/// an import row, a held import, a file in the cloud picker. 30 wide, 7/10.
+/// Its words are hidden, because they cannot be read at this width and the row
+/// says them, and its ribbon is not drawn. [shelf] is the home shelf's colour
+/// (resolved for the theme) when a document exists; null is ink. Before a
+/// document exists [type] is what the file will become
+/// (`ImportJob.sourceType`, `mimeSourceType`); once one does, the document's own `type`.
+class KitCoverLead extends StatelessWidget {
+  final String id;
+  final String type;
+  final Color? shelf;
+
+  static const double width = 30;
+
+  const KitCoverLead(
+      {super.key, required this.id, required this.type, this.shelf});
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Tokens.of(context).isDark;
+    final (k, _) = kitCoverOf(type);
+    final cloth = kitCoverCloth(shelf, kitCoverHash(id) % 4, dark: dark);
+    return ExcludeSemantics(
+      child: SizedBox(
+        width: width,
+        child: AspectRatio(
+          aspectRatio: 7 / 10,
+          child: LayoutBuilder(builder: (context, box) {
+            final f = _F(
+                w: box.maxWidth,
+                cloth: cloth,
+                label: '',
+                title: '',
+                by: '',
+                date: '');
+            return _frame(f, k,
+                dark: dark, lift: 0, unread: false, lead: true);
+          }),
+        ),
+      ),
+    );
+  }
+}
+
 /// A cover's geometry and words: `w` the cover's width, `h` its height, `em`
 /// the reference's `10.4cqi`.
 class _F {
@@ -328,9 +373,20 @@ class _F {
 }
 
 Widget _frame(_F f, String k,
-    {required bool dark, required double lift, required bool unread}) {
+    {required bool dark,
+    required double lift,
+    required bool unread,
+    bool lead = false}) {
   final radius = _radiusOf(k);
-  final rest = dark
+  // §33 Cover lead: one small shadow, `0 1px 2px rgba(20,23,31,.28)`.
+  final rest = lead
+      ? [
+          BoxShadow(
+              color: _a(_ink, 0.28),
+              offset: const Offset(0, 1),
+              blurRadius: 2),
+        ]
+      : dark
       ? [
           BoxShadow(color: _sheen(0.07), spreadRadius: 1),
           BoxShadow(

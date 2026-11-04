@@ -24,7 +24,7 @@ class FolderContents extends StatefulWidget {
   final String provider;
   final String folderId;
 
-  /// The *Import these types* control, where the host has one to point at.
+  /// The type control (*File types a sync brings in*), where the host has one to point at.
   final VoidCallback? onFixTypes;
 
   /// The request, injectable so the rendering is testable without a network.

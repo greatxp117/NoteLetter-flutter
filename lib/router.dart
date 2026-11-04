@@ -26,6 +26,7 @@ import 'pages/letters_page.dart';
 import 'pages/sources_page.dart';
 import 'pages/add_source_page.dart';
 import 'pages/sources/oauth_return.dart';
+import 'pages/sources/service_page.dart';
 import 'pages/tags_page.dart';
 import 'pages/tags/shelf_map_page.dart';
 import 'pages/tags/shelf_page.dart';
@@ -297,6 +298,16 @@ List<RouteBase> appRoutes() {
             GoRoute(
               path: '/sources/add',
               builder: (context, state) => const AddSourcePage(),
+            ),
+            // A connected service's own page, what *Manage* opens (5.59.0,
+            // ADR-213; sources.md §A service's page). The provider is the
+            // stored id; `/sources/add` above keeps its meaning. A path naming
+            // no connected service is answered by the page, which opens the
+            // Library in its place.
+            GoRoute(
+              path: '/sources/:provider',
+              builder: (context, state) =>
+                  ServicePage(provider: state.pathParameters['provider']!),
             ),
             GoRoute(
               path: '/sources',

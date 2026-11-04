@@ -107,6 +107,10 @@ const Map<String, String> screenNames = <String, String>{
   // `connect` for both — the provider is a `:parameter` here, as an id is.
   '/connect': 'connect',
   '/connect/:provider': 'connect',
+  // A service's own page (5.59.0, ADR-213). The reference's token is
+  // `service-{provider}`, and keyed on the pattern this client has no
+  // provider-free token web sends, so it is silent until one is named.
+  '/sources/:provider': '',
   '/settings': 'settings',
   '/settings/notifications': 'notification-settings',
   // The camera-roll sweep's settings (F-125 S3). The reference has no sweep,

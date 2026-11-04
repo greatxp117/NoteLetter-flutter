@@ -1326,6 +1326,72 @@ class _KitFilterChipState extends State<KitFilterChip> {
   }
 }
 
+/// A sync's type choice (5.59.0, ADR-213; web `.sync-types .daypill`): a
+/// **tick and a checkbox** to assistive technology, not a lit pill — a filled
+/// pill beside an empty one did not say which of the two meant "comes in".
+/// 38 tall, `0 14px`, wrapping; the tick 13 with 6 after it, drawn only while
+/// ticked. Write before move: [checked] is what the server returned.
+class KitTypeChoice extends StatelessWidget {
+  final String label;
+  final bool checked;
+  final VoidCallback? onPressed;
+
+  const KitTypeChoice(this.label,
+      {super.key, required this.checked, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final disabled = onPressed == null;
+    final fg = checked ? t.accentChipFg : t.fgMuted;
+    return Semantics(
+      checked: checked,
+      enabled: !disabled,
+      label: label,
+      excludeSemantics: true,
+      onTap: onPressed,
+      child: MouseRegion(
+        cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onPressed,
+          child: Opacity(
+            opacity: disabled ? AppSpacing.heldOpacity : 1,
+            child: Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: checked ? t.accentSoft : t.surface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                    color: checked ? t.accentChipBorder : t.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (checked) ...[
+                    Icon(Icons.check, size: 13, color: fg),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: AppTheme.fontSans,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// One position of a [KitSegmented].
 class KitSegment {
   final String label;

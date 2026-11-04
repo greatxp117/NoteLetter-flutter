@@ -45,7 +45,7 @@ class SyncFolderPicker extends StatefulWidget {
   /// unticking every one clears the scope (web `allowEmpty`).
   final bool allowEmpty;
 
-  /// The *Import these types* control, for §Folder contents' "Change types".
+  /// The type control (*File types a sync brings in*), for §Folder contents' "Change types".
   final VoidCallback? onFixTypes;
 
   /// The listing request, injectable so the picker is testable without a

@@ -1052,11 +1052,12 @@ void main() {
       const sentence = 'Sync was requested moments ago — try again shortly.';
       ApiService.instance.httpClientAdapter =
           _Canned((_) => (429, _envelope(sentence, 'RATE_LIMITED', 280)));
-      await pumpSources(tester, SourcesStubService(),
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true, folderIds: ['f1'])));
-      // A link in the provider's "Import from" header since the connect card
-      // became fixed (ruled 2026-10-08), not a button inside the card.
+      // A link in §Sync settings' head on the service's own page (5.59.0,
+      // ADR-213), never a button inside the service's row.
       final link = find.widgetWithText(KitSettingLink, 'Sync now');
       await tester.ensureVisible(link);
       await tester.tap(link);
@@ -1090,16 +1091,11 @@ void main() {
             mimeType: 'application/pdf',
             createdAt: DateTime(2026, 9, 20).millisecondsSinceEpoch),
       ];
-      await pumpSources(tester, SourcesStubService(jobs: Stream.value(jobs)),
+      await pumpServicePage(tester, SourcesStubService(jobs: Stream.value(jobs)),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true)));
       await tester.pumpAndSettle();
-      final retry = _link('Retry');
-      if (retry.evaluate().isEmpty) {
-        await tester.ensureVisible(find.text('Show 1'));
-        await tester.tap(find.text('Show 1'));
-        await tester.pumpAndSettle();
-      }
       await tester.ensureVisible(_link('Retry'));
       await tester.tap(_link('Retry'));
       await tester.pumpAndSettle();

@@ -9,6 +9,7 @@ import '../../theme/tokens.dart';
 import 'kit_controls.dart';
 import 'kit_letter.dart' show KitVersal;
 import 'kit_shell.dart' show KitGlyph;
+import 'kit_provider_logo.dart';
 import 'kit_text.dart';
 
 /// §5.1 — the base card: `--surface`, 1px `--border`, `--r-md`, and **shadow on
@@ -128,13 +129,12 @@ class KitConnectCard extends StatelessWidget {
               height: 36,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                // The kit's one sanctioned raw colour: the iconbox is a plate
-                // holding a VENDOR's mark, and vendor artwork is tuned for light
-                // surfaces. A `--surface` fill flips near-black in dark mode and
-                // swallows half of them (component-kit.md §5.1).
-                // literal-ok: a vendor brand-mark plate, fixed white in both
-                // themes — the same class as `.connect-card .iconbox` on the web
-                color: const Color(0xFFFFFFFF),
+                // The iconbox is a plate holding a VENDOR's mark: white under
+                // a colour mark (vendor artwork is tuned for light surfaces,
+                // component-kit.md §5.1), and under a mono mark it follows the
+                // page in dark mode, as the mark does (ADR-213).
+                color: KitProviderLogo.plateColor(
+                    context, KitProviderLogo.providerOf(icon)),
                 borderRadius: AppRadius.smR,
                 border: Border.all(color: t.border),
               ),

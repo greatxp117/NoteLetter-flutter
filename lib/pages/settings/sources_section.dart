@@ -270,9 +270,12 @@ class _SourcesSectionState extends State<SourcesSection> {
                     : null,
                 trailing: [
                   if (i.orgWriteReady)
+                    // The provider's own page (5.59.0, ADR-213): choosing
+                    // the roots, charters and rescans stay there, beside the
+                    // files they organize.
                     KitSettingLink(
-                      'Choose organized folders in Sources',
-                      onTap: () => context.go('/sources'),
+                      'Choose organized folders',
+                      onTap: () => context.go('/sources/$p'),
                     )
                   else
                     KitSettingLink(
