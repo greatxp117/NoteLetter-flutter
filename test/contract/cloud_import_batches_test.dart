@@ -5,6 +5,7 @@
 // first; on a refusal after an accepted batch it says how far it got and keeps
 // the rest. Tier-1 asserts request CONSTRUCTION, so this drives the real Api
 // and the real notifier through a transport that answers like the endpoint.
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -88,6 +89,26 @@ class _Connected extends QuietCloud {
 
 void main() {
   setUp(() => ApiService.instance.tokenProvider = () async => 'test-token');
+
+  // The Library's Notion note (5.57.0, ADR-210) is the reference's sentence,
+  // word for word — read from web's own source, so a paraphrase here (or a
+  // web edit this client missed) goes red. Until 5.57.0 web said pages import
+  // as text without pictures, and this client said nothing at all.
+  test('the Notion note is the reference\'s, word for word', () {
+    String words(String s) => s
+        .replaceAll(RegExp(r"'\s*\n\s*'"), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final web = File('../NoteLetter-web/src/pages/sources/CloudImportPanel.jsx')
+        .readAsStringSync();
+    final m = RegExp(r"provider === 'notion' && \(\s*<p[^>]*>\s*([^<]+?)\s*</p>")
+        .firstMatch(web);
+    expect(m, isNotNull, reason: 'the web note moved — this gate reads nothing');
+    final want = words(m![1]!);
+    expect(want, startsWith('Notion pages keep their headings'));
+    final mine = words(File('lib/pages/sources_page.dart').readAsStringSync());
+    expect(mine, contains(want));
+  });
   tearDown(() => ApiService.instance.resetTestSeams());
 
   group('importFromCloud — request construction', () {

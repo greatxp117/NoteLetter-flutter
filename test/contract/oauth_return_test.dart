@@ -732,6 +732,47 @@ void main() {
       await tester.pump(const Duration(seconds: 61));
     });
 
+    testWidgets(
+        'a refused batch after the folders went still turns on Keep in sync '
+        'for them (5.57.0)', (tester) async {
+      tester.view.physicalSize = const Size(1200, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final files = [
+        for (var i = 0; i < 55; i++)
+          {
+            'id': 'fx-$i',
+            'name': 'F$i.pdf',
+            'type': 'file',
+            'mime_type': 'application/pdf',
+            'size': 10,
+            'modified_at': ''
+          }
+      ];
+      final backend = _Backend(
+          answer: _granted,
+          listing: [_items[0], ...files],
+          importReply: (i, b) => i == 1
+              ? (500, {'error': 'Could not start the import. Try again.'})
+              : null);
+      ApiService.instance.httpClientAdapter = backend;
+      _claimReturn();
+      await pumpConnectApp(tester, SourcesStubService(),
+          cloud: _Cloud([_drive]), shelves: _shelves);
+      await _settle(tester);
+      await _tap(tester, find.text('Reading'));
+      for (final f in files) {
+        await _tap(tester, find.text(f['name'] as String));
+      }
+      await _tap(tester, find.text('Bring in 56 items'));
+      await _settle(tester);
+      expect(find.textContaining('The other 5 were not sent'), findsOneWidget);
+      expect(backend.bodies('fn_sync_settings'), [
+        {'provider': 'google_drive', 'auto_sync_enabled': true}
+      ]);
+      await tester.pump(const Duration(seconds: 61));
+    });
+
     testWidgets('Not now after a refused batch still says what was queued',
         (tester) async {
       tester.view.physicalSize = const Size(1200, 4000);

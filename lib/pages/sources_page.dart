@@ -1035,6 +1035,15 @@ class _PickerPanelState extends State<_PickerPanel> {
 
     return CloudPickerPanel(
       children: [
+        // What a Notion page brings (5.57.0, ADR-210; sources.md §Cloud
+        // import) — web's note above its picker, word for word.
+        if (provider == 'notion')
+          const KitProcNote(
+            'Notion pages keep their headings, lists, tables, pictures and '
+            'links. A PDF, video or file stored in Notion becomes a link to it '
+            'there.',
+            padding: EdgeInsets.only(bottom: 8),
+          ),
         // The folder cap is `fn_import_from_cloud`'s own (≤20) and the picker
         // enforces it; files are uncapped — the import sends them 50 to a
         // request (5.56.0, ADR-208).
@@ -1547,11 +1556,12 @@ class _JobRowState extends State<_JobRow> {
           if (job.status == 'error' && job.errorMessage != null)
             KitProcAttention(detail: job.errorMessage!, actions: const []),
           // A skip's reason is what makes a skip a fact rather than a shrug —
-          // calm, never failure-styled. Not for a duplicate or a dismissal:
-          // their `error_message` IS the pill's word.
+          // calm, never failure-styled. Not for a dismissal: its
+          // `error_message` IS the pill's word. A duplicate draws its sentence
+          // (5.57.0, ADR-209): a direct import's says whether its document is
+          // being updated, kept for the reader's edits, or unchanged.
           if (job.status == 'skipped' &&
               job.errorMessage != null &&
-              !job.isDuplicate &&
               !job.isDismissed)
             KitProcNote(job.errorMessage!,
                 padding: const EdgeInsets.only(bottom: 12)),

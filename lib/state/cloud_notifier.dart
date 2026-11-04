@@ -813,10 +813,16 @@ class CloudNotifier extends ChangeNotifier {
       _beginSession(provider, e.partial.queuedFolders,
           queuedFiles: e.partial.queuedFiles, partial: true);
       _notify();
+      // The folders went with the first request and are unticked now, so
+      // Keep in sync is applied HERE — the next Bring in has no folder to
+      // hang it on (5.57.0; web 543861d).
+      final refused = keepInSync && e.partial.queuedFolders > 0
+          ? await syncSettings(provider, autoSyncEnabled: true)
+          : null;
       return (
         folders: e.partial.queuedFolders,
         files: e.partial.queuedFiles,
-        syncRefusal: null,
+        syncRefusal: refused,
         error: e.message,
         partial: e.partial
       );

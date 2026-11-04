@@ -370,6 +370,37 @@ void main() {
       expect(find.text('Import again'), findsNothing);
     });
 
+    // 5.57.0 (ADR-209), reference NoteLetter-web@543861d: a duplicate draws
+    // its sentence — a direct import's says whether its document is being
+    // updated, kept for the reader's edits, or unchanged. Until 5.57.0 the
+    // row drew only its pill, so those sentences reached no reader.
+    testWidgets('a duplicate row draws its sentence under Already imported',
+        (tester) async {
+      const sentence =
+          'Already in your library — updating it to the version in Notion.';
+      final jobs = [
+        ImportJob(
+            id: 'j-dup',
+            provider: 'notion',
+            status: 'skipped',
+            skipReason: 'duplicate',
+            documentId: 'doc-1',
+            errorMessage: sentence,
+            providerFileName: 'Homily notes',
+            mimeType: 'application/x-notion-page',
+            createdAt: DateTime(2026, 9, 20).millisecondsSinceEpoch),
+      ];
+      await pumpSources(tester, SourcesStubService(jobs: Stream.value(jobs)),
+          cloud: _ConnectedCloud(
+              const CloudIntegration(provider: 'notion', tokenValid: true)));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Show 1'));
+      await tester.tap(find.text('Show 1'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('ALREADY IMPORTED'), findsWidgets);
+      expect(find.text(sentence), findsOneWidget);
+    });
+
     // 4.96.0 (ADR-129), reference NoteLetter-web@f0143dc `ImportJobRow`. The
     // seed has no cloud import rows, so the sources pair cannot show this row:
     // these cases are the proof.

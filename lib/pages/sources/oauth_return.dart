@@ -987,8 +987,11 @@ class _ManifestState extends State<_Manifest> {
             ..clear()
             ..addAll(partial.unsent);
           _err = partialImportSentence(partial, fileIds.length, res.error!,
-              noun: widget.provider == 'notion' ? 'pages' : 'files',
-              folderNoun: widget.provider == 'notion' ? 'database' : 'folder');
+                  noun: widget.provider == 'notion' ? 'pages' : 'files',
+                  folderNoun: widget.provider == 'notion' ? 'database' : 'folder') +
+              (res.syncRefusal != null
+                  ? ' Keep in sync was not turned on — ${res.syncRefusal}'
+                  : '');
         } else {
           _err = res.error;
         }
