@@ -170,7 +170,7 @@ class _ServicePageState extends State<ServicePage> {
       ),
       ('Last synced', _synced(i.lastSyncAt)),
     ];
-    return KitDPage(
+    return KitCloudScope(ruled: false, child: KitDPage(
       back: back,
       crumbStacks: true,
       folio: '${expired ? 'Sign-in expired' : 'Connected'}'
@@ -231,7 +231,7 @@ class _ServicePageState extends State<ServicePage> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   int _historyCount(CloudNotifier cloud) => cloud.historyJobs

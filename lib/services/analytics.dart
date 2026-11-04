@@ -42,6 +42,7 @@ import 'dart:io' show Platform;
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 
+import '../shared/cloud_providers.dart';
 import 'api_service.dart';
 
 /// Event name -> the params it may carry. This map IS the contract mirror; a
@@ -107,10 +108,11 @@ const Map<String, String> screenNames = <String, String>{
   // `connect` for both — the provider is a `:parameter` here, as an id is.
   '/connect': 'connect',
   '/connect/:provider': 'connect',
-  // A service's own page (5.59.0, ADR-213). The reference's token is
-  // `service-{provider}`, and keyed on the pattern this client has no
-  // provider-free token web sends, so it is silent until one is named.
-  '/sources/:provider': '',
+  // A service's own page (5.59.0, ADR-213). The value is the reference's stem:
+  // [Analytics.screenName] sends `service-{provider}`, web's token, because two
+  // spellings of one screen is two screens. A provider is one of four names we
+  // chose, never the reader's content, so it may ride where an id may not.
+  '/sources/:provider': 'service',
   '/settings': 'settings',
   '/settings/notifications': 'notification-settings',
   // The camera-roll sweep's settings (F-125 S3). The reference has no sweep,
@@ -228,10 +230,15 @@ class Analytics {
   }
 
   /// The screen a route pattern reports, or null when it reports none.
-  static String? screenName(String? pattern) {
+  static String? screenName(String? pattern, {String? provider}) {
     if (pattern == null) return null;
     final token = screenNames[pattern];
     if (token == null) return 'unknown';
+    if (token == 'service') {
+      // Closed by [cloudProviders]: whatever else sits in that path segment is
+      // not sent, and the page replaces itself with /sources, which reports.
+      return cloudProviders.containsKey(provider) ? 'service-$provider' : null;
+    }
     return token.isEmpty ? null : token;
   }
 

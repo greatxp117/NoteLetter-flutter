@@ -432,13 +432,19 @@ class SectionHeader extends StatelessWidget {
         ],
       );
     }
-    return Padding(
-      padding: EdgeInsets.only(top: first ? 0 : AppSpacing.s8, bottom: 14),
-      child: Row(
+    final cloud = KitCloudScope.maybeOf(context);
+    final row = Row(
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
         children: [
-          Expanded(child: Eyebrow(eyebrow)),
+          Expanded(
+            child: cloud == null
+                ? Eyebrow(eyebrow)
+                // `.lx-cloud .eyebrow`: mono 11/500 at .16em, in `--fg`.
+                : Text(eyebrow.toUpperCase(),
+                    style: KitText.capsLabel(context,
+                        letterSpacing: 0.16, color: t.fg)),
+          ),
           // Expanded, not Flexible: the reference's `space-between` puts the
           // note at the row's END. A loose Flexible shrank a one-line note to
           // its text and left it mid-row ("0 of 1 imported", F-102's pair);
@@ -502,6 +508,23 @@ class SectionHeader extends StatelessWidget {
               ],
             ),
         ],
+    );
+    if (cloud == null) {
+      return Padding(
+        padding: EdgeInsets.only(top: first ? 0 : AppSpacing.s8, bottom: 14),
+        child: row,
+      );
+    }
+    // `.lx-cloud .lib-section-h` under web's `marginTop: 18`; a service's page
+    // takes off the rule and keeps the air (`.dp-svc .lib-section-h`).
+    return Padding(
+      padding: const EdgeInsets.only(top: 18, bottom: 6),
+      child: Container(
+        padding: EdgeInsets.only(top: cloud.ruled ? 12 : 14, bottom: 10),
+        decoration: cloud.ruled
+            ? BoxDecoration(border: Border(top: BorderSide(color: t.fg)))
+            : null,
+        child: row,
       ),
     );
   }

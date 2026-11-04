@@ -35,12 +35,18 @@ class KitProcPill extends StatelessWidget {
       KitProcTone.fail => (t.accentSoft, t.criticalText),
       KitProcTone.hold => (t.surfaceSunken, t.warning),
     };
+    // `.lx-cloud .proc-pill`: the words alone, a little wider set.
+    final flat = KitCloudScope.maybeOf(context) != null;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
+      padding: flat
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: flat
+          ? null
+          : BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(999),
+            ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -65,12 +71,34 @@ class KitProcPill extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: KitText.capsLabel(context,
-                fontSize: 10, letterSpacing: 0.06, color: fg),
+                fontSize: 10, letterSpacing: flat ? 0.12 : 0.06, color: fg),
           ),
         ],
       ),
     );
   }
+}
+
+/// Web's `.lx-cloud` (`app-library.css`), the scope around what a connected
+/// service brings in: the Library's Correspondence and a service's own page.
+/// Inside it [KitProcCard] is a flat row on a `--rule` edge, [KitProcPill] is
+/// its words with no fill, and [SectionHeader] sets its eyebrow in mono.
+///
+/// A scope and not a change to those widgets, because web's is: every other
+/// host of `.proc-row` keeps the card. Drawing the card here was the F-160
+/// frame's drift, with every test green.
+class KitCloudScope extends InheritedWidget {
+  /// The Library draws a `--fg` rule over a list's head; a service's page does
+  /// not (`.dp-svc .lib-section-h`).
+  final bool ruled;
+
+  const KitCloudScope({super.key, this.ruled = true, required super.child});
+
+  static KitCloudScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<KitCloudScope>();
+
+  @override
+  bool updateShouldNotify(KitCloudScope oldWidget) => ruled != oldWidget.ruled;
 }
 
 /// `.proc-row`: a `--surface` card (1px `--border`, `--r-md`, `--shadow-1`)
@@ -137,6 +165,7 @@ class KitProcCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    final flat = KitCloudScope.maybeOf(context) != null;
     final compact = MediaQuery.sizeOf(context).width < AppSpacing.compactWidth;
     final sub = Text(subtitle,
         maxLines: 1,
@@ -151,8 +180,15 @@ class KitProcCard extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [...actions, pill],
           );
-    final titleStyle =
-        AppTheme.serif(fontSize: 15, fontWeight: FontWeight.w500, color: t.fg);
+    // `.lx-cloud .proc-title`: serif 16/21, where the card's is 15.
+    final titleStyle = flat
+        ? AppTheme.serif(
+            fontSize: 16,
+            height: 21 / 16,
+            fontWeight: FontWeight.w500,
+            color: t.fg)
+        : AppTheme.serif(
+            fontSize: 15, fontWeight: FontWeight.w500, color: t.fg);
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -180,14 +216,20 @@ class KitProcCard extends StatelessWidget {
       ],
     );
     return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        border: Border.all(color: failed ? t.accentChipBorder : t.border),
-        borderRadius: AppRadius.mdR,
-        boxShadow: AppShadows.s1,
-      ),
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      // `.lx-cloud .proc-row` comes after `.proc-row.failed` in the cascade, so
+      // a failed row keeps the plain rule too.
+      decoration: flat
+          ? BoxDecoration(border: Border(bottom: BorderSide(color: t.rule)))
+          : BoxDecoration(
+              color: t.surface,
+              border: Border.all(color: failed ? t.accentChipBorder : t.border),
+              borderRadius: AppRadius.mdR,
+              boxShadow: AppShadows.s1,
+            ),
+      clipBehavior: flat ? Clip.none : Clip.antiAlias,
+      padding: flat
+          ? const EdgeInsets.symmetric(vertical: 12)
+          : const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

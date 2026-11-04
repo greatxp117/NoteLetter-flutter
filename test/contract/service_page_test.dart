@@ -335,6 +335,34 @@ void main() {
 
     Finder link() => find.byKey(const ValueKey('import-row-link-j1'));
 
+    // Web's `.lx-cloud` wraps both hosts, and the frame found it missing from
+    // both with every test green: the kit's own test cannot see who wraps it.
+    KitCloudScope scopeOfRow(WidgetTester tester) => tester.widget<KitCloudScope>(
+        find.ancestor(
+            of: find.byType(ImportJobRow).first,
+            matching: find.byType(KitCloudScope)));
+
+    testWidgets("on a service's page it is in the scope, unruled",
+        (tester) async {
+      await page(tester, [_job(documentId: 'd1')],
+          documents: [_doc('d1')]);
+      await tester.scrollUntilVisible(find.byType(ImportJobRow).first, 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(scopeOfRow(tester).ruled, isFalse);
+    });
+
+    testWidgets('on the Library it is in the scope, ruled', (tester) async {
+      await pumpSources(
+          tester,
+          SourcesStubService(
+              jobs: Stream.value([_job(status: 'pending')]),
+              documents: Stream.value(const [])),
+          cloud: _Read());
+      await tester.scrollUntilVisible(find.byType(ImportJobRow).first, 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(scopeOfRow(tester).ruled, isTrue);
+    });
+
     testWidgets(
         'opens its source, and says every shelf holding it, the home shelf '
         'first', (tester) async {

@@ -662,11 +662,20 @@ class _SourcesPageState extends State<SourcesPage> {
         // section, and a line about what just happened would vanish with it.
         if (cloud.reviewOutcome != null)
           ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
-        ImportReviewQueue(
-          held: cloud.heldJobs,
-          rulesFor: (p) => cloud.integrationFor(p)?.reviewRules ?? const {},
+        // Web's `.lx-cloud`: Correspondence's rows are flat (ADR-213).
+        KitCloudScope(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ImportReviewQueue(
+                held: cloud.heldJobs,
+                rulesFor: (p) =>
+                    cloud.integrationFor(p)?.reviewRules ?? const {},
+              ),
+              const CloudImportActivity(),
+            ],
+          ),
         ),
-        const CloudImportActivity(),
       ],
     );
   }

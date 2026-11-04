@@ -181,22 +181,26 @@ String? cloudProgressSummary(CloudNotifier cloud, List<ImportJob> visible,
 /// `.proc-list` of import job cards: 12 under its header, 10 apart.
 Widget importJobList(List<ImportJob> jobs, ImportDocLookup lookup,
         {required String from}) =>
-    Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < jobs.length; i++) ...[
-            if (i > 0) const SizedBox(height: 10),
-            ImportJobRow(
-                key: ValueKey(jobs[i].id),
-                job: jobs[i],
-                lookup: lookup,
-                from: from),
+    Builder(builder: (context) {
+      // `.lx-cloud .proc-list`: rows on their rules, with no gap between them.
+      final flat = KitCloudScope.maybeOf(context) != null;
+      return Padding(
+        padding: EdgeInsets.only(top: flat ? 0 : 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < jobs.length; i++) ...[
+              if (i > 0 && !flat) const SizedBox(height: 10),
+              ImportJobRow(
+                  key: ValueKey(jobs[i].id),
+                  job: jobs[i],
+                  lookup: lookup,
+                  from: from),
+            ],
           ],
-        ],
-      ),
-    );
+        ),
+      );
+    });
 
 /// **Import history** (`screens/sources.md` §Trust & feedback): a section of
 /// a service's own page since 5.59.0 (ADR-213), open — it is what a reader

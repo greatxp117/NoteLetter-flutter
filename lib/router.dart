@@ -102,20 +102,30 @@ void attachAnalytics(GoRouter router) {
   String? last;
   void report() {
     String? pattern;
+    String? provider;
     try {
       pattern = router.state.fullPath;
+      provider = router.state.pathParameters['provider'];
     } catch (_) {
       return; // no configuration yet
     }
-    if (pattern == last) return;
-    last = pattern;
-    final token = Analytics.screenName(pattern);
+    final key = screenViewKey(pattern, provider);
+    if (key == last) return;
+    last = key;
+    final token = Analytics.screenName(pattern, provider: provider);
     if (token != null) Analytics.track('screen_view', {'screen_name': token});
   }
 
   router.routerDelegate.addListener(report);
   WidgetsBinding.instance.addPostFrameCallback((_) => report());
 }
+
+/// What makes two navigations the same `screen_view`. One pattern is four
+/// screens for a service's page, each with its own token, so going from one to
+/// another reports. Every other parameter stays out: two documents are one
+/// `reader`, and an id must not decide what is measured.
+String? screenViewKey(String? pattern, String? provider) =>
+    pattern == '/sources/:provider' ? '$pattern=$provider' : pattern;
 
 /// **The route table itself**, separated from [createRouter] so INV-22's gate
 /// can walk it.

@@ -14,6 +14,7 @@ library;
 
 import 'package:flutter_app/router.dart';
 import 'package:flutter_app/services/analytics.dart';
+import 'package:flutter_app/shared/cloud_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -97,6 +98,44 @@ void main() {
       expect(Analytics.screenName('/reader/:docId'), 'reader');
       expect(Analytics.screenName('/shelves/:shelfId'), 'shelf');
       expect(Analytics.screenName('/study/session/:sessionId'), 'study-session');
+    });
+  });
+
+  group("a service's page (5.59.0, ADR-213)", () {
+    test('sends the reference\'s token, `service-{provider}`', () {
+      for (final p in cloudProviders.keys) {
+        expect(Analytics.screenName('/sources/:provider', provider: p),
+            'service-$p');
+      }
+    });
+
+    test('a segment that names no provider sends nothing', () {
+      // The page replaces itself with /sources, which reports. What sat in the
+      // path must not reach the property, whatever it was.
+      expect(Analytics.screenName('/sources/:provider', provider: 'my-tax-file'),
+          isNull);
+      expect(Analytics.screenName('/sources/:provider'), isNull);
+    });
+
+    test('the bare stem is never a screen', () {
+      for (final p in const ['google_drive', 'notion']) {
+        expect(Analytics.screenName('/sources/:provider', provider: p),
+            isNot('service'));
+      }
+    });
+
+    test('the provider never rides on any other route', () {
+      expect(Analytics.screenName('/connect/:provider', provider: 'notion'),
+          'connect');
+      expect(Analytics.screenName('/reader/:docId', provider: 'notion'),
+          'reader');
+    });
+
+    test('two services are two screen views; two documents are one', () {
+      expect(screenViewKey('/sources/:provider', 'notion'),
+          isNot(screenViewKey('/sources/:provider', 'dropbox')));
+      expect(screenViewKey('/reader/:docId', 'a'),
+          screenViewKey('/reader/:docId', 'b'));
     });
   });
 
