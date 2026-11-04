@@ -13,6 +13,7 @@ library;
 
 import '../models/document.dart';
 import '../models/tag.dart';
+import 'cloud_providers.dart';
 
 /// The label for every route a screen can open the Reader from. **Closed**: a
 /// route with no entry here gets [readerOriginDefault] rather than a name
@@ -96,6 +97,15 @@ ReaderOrigin readerOrigin(String? from,
       }
     }
     return ReaderOrigin(readerOriginLabels['/shelves']!, from);
+  }
+
+  // A connected service's own page (5.59.0, ADR-213) is named by the service
+  // (web `backOrigin`: `providerName`). `/sources/add` is matched whole above.
+  final service = RegExp(r'^/sources/([a-z_]+)$').firstMatch(from);
+  if (service != null) {
+    final name = cloudProviders[service.group(1)]?.name;
+    if (name != null) return ReaderOrigin(name, from);
+    return readerOriginDefault;
   }
 
   // Another source (ADR-212).

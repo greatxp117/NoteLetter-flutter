@@ -258,8 +258,10 @@ void main() {
           tester,
           const CloudIntegration(
               provider: 'notion', tokenValid: true, includeTypes: ['notion']));
-      // The chips spell the key as web's cloudTypeLabel does (4.98.0 check).
-      expect(find.text('Notion page'), findsOneWidget);
+      // Notion's one choice reads *Notion pages* (5.59.0, ADR-213; web
+      // `TYPE_CHOICE_LABEL`); the file types spell the key as web's
+      // cloudTypeLabel does (4.98.0 check).
+      expect(find.text('Notion pages'), findsOneWidget);
       expect(find.text('PDF'), findsNothing);
 
       await pumpPanel(
@@ -268,7 +270,7 @@ void main() {
               provider: 'google_drive',
               tokenValid: true,
               includeTypes: ['pdf']));
-      expect(find.text('Notion page'), findsNothing);
+      expect(find.text('Notion pages'), findsNothing);
       // PDF is ticked, so its rule row names it too.
       expect(find.text('PDF'), findsWidgets);
       expect(find.text('Word'), findsOneWidget);
@@ -325,11 +327,13 @@ void main() {
     });
   });
 
-  group('sources screen', () {
+  // §Sync settings on a service's own page since 5.59.0 (ADR-213).
+  group('a service\'s page', () {
     testWidgets('sync now is disabled with the reason on screen',
         (tester) async {
-      await pumpSources(
+      await pumpServicePage(
           tester, SourcesStubService(),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true)));
       expect(find.text('Nothing to sync — choose sync folders first.'),
@@ -342,7 +346,8 @@ void main() {
             'error': 'Sync was requested 12 seconds ago — try again in 48 seconds.',
             'error_code': 'COOLDOWN',
           }));
-      await pumpSources(tester, SourcesStubService(),
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive',
               tokenValid: true,

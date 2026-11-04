@@ -981,8 +981,9 @@ void main() {
       final backend = _Backend();
       ApiService.instance.httpClientAdapter = backend;
       final cloud = _Cloud([_drive]);
-      await pumpSources(tester, SourcesStubService(),
-          cloud: cloud, shelves: _shelves);
+      // Browse is §Bring in's, on the service's own page (5.59.0, ADR-213).
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive', cloud: cloud, shelves: _shelves);
       await _tap(tester, find.text('Browse files…'));
       expect(find.text('File under'), findsNothing);
       expect(find.text('NoteLetter chooses'), findsNothing);

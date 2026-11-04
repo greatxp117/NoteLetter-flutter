@@ -140,6 +140,11 @@ class ImportJob {
     'application/x-notion-page': 'notion',
   };
 
+  /// The document `type` this file will become, for §33's object before a
+  /// document exists (5.59.0, ADR-213) — as the backend's
+  /// `_mime_to_source_type` decides, falling to `plain`. Web `mimeSourceType`.
+  String get sourceType => mimeSourceType(mimeType);
+
   /// The document `type` this file becomes, for the plate — which is keyed by
   /// **type**, never by MIME (`kitDocKind`). Feeding it a MIME answered `note`
   /// for everything, and a hardcoded `'web'` plate said every PDF was a page.
@@ -152,3 +157,27 @@ class ImportJob {
     return typeKey ?? 'plain';
   }
 }
+
+/// What a provider file becomes once it is a source, for its §33 object before
+/// a document exists (a job waiting, a file in the picker) — web
+/// `mimeSourceType`. The backend's `_mime_to_source_type` decides for real and
+/// ends in `plain` the same way; a row whose document exists reads the
+/// document's own `type`.
+String mimeSourceType(String? mime) {
+  if (mime == null || mime.isEmpty) return 'plain';
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('video/')) return 'video';
+  return _sourceTypeByMime[mime] ?? 'plain';
+}
+
+const _sourceTypeByMime = <String, String>{
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      'docx',
+  'application/msword': 'docx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+      'pptx',
+  'application/vnd.ms-powerpoint': 'pptx',
+  'application/epub+zip': 'epub',
+};

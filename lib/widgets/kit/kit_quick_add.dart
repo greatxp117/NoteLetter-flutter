@@ -436,9 +436,9 @@ class KitQaChip extends StatelessWidget {
                 height: 24,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  // literal-ok: a vendor brand-mark plate — fixed white in
-                  // both themes (Notion's mark is black; web `.qa-chip .iconbox`).
-                  color: const Color(0xFFFFFFFF),
+                  // A vendor's plate (web `.qa-chip .iconbox`): it follows a
+                  // mono mark in dark mode (ADR-213).
+                  color: KitProviderLogo.plateColor(context, provider),
                   borderRadius: AppRadius.xsR,
                   border: Border.all(color: t.border),
                 ),

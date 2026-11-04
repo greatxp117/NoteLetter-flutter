@@ -122,11 +122,10 @@ void main() {
 
     // Direction D (screens/sources.md §Composition, Correspondence): the
     // connect cards are retired; a service is a ROW — its mark, its name,
-    // *Connected* or its line, and ONE quiet control. Everything a connected
-    // provider can do still lives under its "Import from" header, never in
-    // the row, and the rows stay ABOVE the panels so Disconnect and a second
-    // service remain reachable.
-    testWidgets('Sources: one control per service row; Connected says so',
+    // *Connected* or its line, and one quiet control: *Connect*, or **Manage**
+    // once connected (5.59.0, ADR-213), which opens the service's own page.
+    // Everything a connected provider can do lives there, never in the row.
+    testWidgets('Sources: one control per service row; Connected says Manage',
         (tester) async {
       await pumpSources(tester, SourcesStubService(),
           cloud: _ConnectedCloud(const CloudIntegration(
@@ -144,14 +143,16 @@ void main() {
         expect(inRow(name, find.text('Sync now')), findsNothing);
       }
       expect(inRow('Google Drive', find.text('Connected')), findsOneWidget);
-      expect(inRow('Google Drive', find.text('Disconnect')), findsOneWidget);
+      expect(inRow('Google Drive', find.text('Manage')), findsOneWidget);
+      expect(find.text('Disconnect'), findsNothing,
+          reason: 'Disconnect is on the service\'s page (ADR-213)');
       expect(inRow('OneDrive', find.text('Files & folders')), findsOneWidget);
       expect(inRow('OneDrive', find.text('Connect')), findsOneWidget);
-      // Rows above the panels: the connected provider's header follows them.
-      expect(
-          tester.getTopLeft(find.text('IMPORT FROM GOOGLE DRIVE')).dy,
-          greaterThan(tester.getBottomLeft(rows.last).dy));
-      expect(find.text('IMPORTS · FILING · FOLDERS'), findsOneWidget);
+      // No per-service panel on the Library any more.
+      expect(find.textContaining('IMPORT FROM'), findsNothing);
+      expect(_link('Sync settings'), findsNothing);
+      expect(_link('Browse files…'), findsNothing);
+      expect(find.text('1 OF 4 CONNECTED'), findsOneWidget);
       expect(find.text('Enable auto-organization'), findsNothing,
           reason: 'organizing is enabled from Settings now');
     });
@@ -165,18 +166,18 @@ void main() {
     });
   });
 
-  group('Import from {provider}', () {
-    testWidgets('a connected provider gets its header and four links',
+  // What hung under "Import from {provider}" on the Library is a service's
+  // own page since 5.59.0 (ADR-213): Browse in §Bring in's head, Sync now in
+  // §Sync settings', Organization settings in §Filing's.
+  group('a service\'s page', () {
+    testWidgets('a connected provider gets its page\'s controls',
         (tester) async {
-      await pumpSources(tester, SourcesStubService(),
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true, folderIds: ['f1'])));
-      expect(find.text('IMPORT FROM GOOGLE DRIVE'), findsOneWidget);
-      expect(find.textContaining(RegExp('IMPORT FROM (ONEDRIVE|NOTION|DROPBOX)')),
-          findsNothing, reason: 'only a connected provider has a block');
       for (final l in [
         'Sync now',
-        'Sync settings',
         'Browse files…',
         // The door to Settings → Sources (ruled 2026-10-09), drawn for a
         // provider whose organizing is NOT on — Settings is where it is
@@ -185,11 +186,22 @@ void main() {
       ]) {
         expect(_link(l), findsOneWidget, reason: l);
       }
+      // The panel is the section's body, open: no disclosure.
+      expect(find.byType(SyncSettingsPanel), findsOneWidget);
+      expect(_link('Sync settings'), findsNothing);
+      expect(
+          find.descendant(
+              of: find.byType(SyncSettingsPanel),
+              matching: find.text('AUTO-SYNC')),
+          findsOneWidget);
+      expect(find.textContaining('SYNC · '), findsNothing,
+          reason: 'the section is the disclosure; the panel draws no second one');
     });
 
-    testWidgets('the no-folders sentence is under the header, not in the card',
+    testWidgets('the no-folders sentence is under Sync now, not in the row',
         (tester) async {
-      await pumpSources(tester, SourcesStubService(),
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true)));
       const sentence = 'Nothing to sync — choose sync folders first.';
@@ -200,25 +212,10 @@ void main() {
       expect(syncNow.onTap, isNull, reason: 'held with its reason on screen');
     });
 
-    testWidgets('Sync settings opens the panel, expanded, with no second header',
+    testWidgets('an expired sign-in: the banner is under Bring in, Browse held',
         (tester) async {
-      await pumpSources(tester, SourcesStubService(),
-          cloud: _ConnectedCloud(const CloudIntegration(
-              provider: 'google_drive', tokenValid: true, folderIds: ['f1'])));
-      expect(find.byType(SyncSettingsPanel), findsNothing);
-      await tester.ensureVisible(_link('Sync settings'));
-      await tester.tap(_link('Sync settings'));
-      await tester.pump();
-      expect(find.byType(SyncSettingsPanel), findsOneWidget);
-      expect(_link('Close settings'), findsOneWidget);
-      expect(find.text('AUTO-SYNC'), findsOneWidget);
-      expect(find.textContaining('SYNC · '), findsNothing,
-          reason: 'the link is the disclosure; the panel draws no second one');
-    });
-
-    testWidgets('an expired sign-in: the banner is under the header, Browse held',
-        (tester) async {
-      await pumpSources(tester, SourcesStubService(),
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive',
               tokenValid: false,
@@ -301,7 +298,7 @@ void main() {
               orgWriteAccess: true)));
       expect(tester.takeException(), isNull,
           reason: 'a RenderFlex overflow is the row drawn past its edge');
-      expect(_link('Choose organized folders in Sources'), findsOneWidget);
+      expect(_link('Choose organized folders'), findsOneWidget);
     });
 
     testWidgets('settings read: the threshold, the mode and the switches are here',
@@ -396,7 +393,9 @@ void main() {
               tokenValid: true,
               orgEnabled: true,
               orgWriteAccess: true)));
-      expect(_link('Choose organized folders in Sources'), findsOneWidget);
+      // The provider's own page (5.59.0, ADR-213; settings.md §Sources
+      // section): web `go(`service-${p.id}`)`.
+      expect(_link('Choose organized folders'), findsOneWidget);
       expect(_link('Enable organizing'), findsNothing);
     });
   });

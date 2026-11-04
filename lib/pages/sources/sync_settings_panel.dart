@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/cloud_integration.dart';
+import '../../shared/cloud_providers.dart';
 import '../../state/cloud_notifier.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
@@ -41,6 +42,30 @@ String lastSyncedLine(int? ms) {
   // A no-break space holds the time to its AM/PM if the line ever wraps.
   return 'Last synced ${months[d.month - 1]} ${d.day}, $h:$m\u00a0'
       '${d.hour < 12 ? 'AM' : 'PM'}';
+}
+
+/// What the type control says (5.59.0, ADR-213; `screens/sources.md` §Sync
+/// control), word for word with web `typesCopy`.
+({String label, String note, String none}) syncTypesCopy(String provider) {
+  if (provider == 'notion') {
+    return (
+      label: 'What a sync brings in',
+      note: 'A sync looks through the databases you chose and brings in their '
+          'pages while this is ticked. Pages you pick with Browse pages… come '
+          'in either way.',
+      none: 'Nothing is ticked, so a sync brings in nothing. Pages you pick '
+          'with Browse pages… still come in.',
+    );
+  }
+  final name = cloudProviders[provider]?.name ?? provider;
+  return (
+    label: 'File types a sync brings in',
+    note: 'A sync looks through your sync folders and brings in only the '
+        'ticked types. Every other file stays in $name, untouched. Files you '
+        'pick with Browse files… come in either way.',
+    none: 'Nothing is ticked, so a sync brings in nothing. Files you pick '
+        'with Browse files… still come in.',
+  );
 }
 
 class SyncSettingsPanel extends StatefulWidget {
@@ -89,8 +114,13 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   /// The sync-folder chooser is open.
   bool _picking = false;
 
-  /// *Import these types*, for §Folder contents' "Change types".
+  /// The type control, for §Folder contents' "Change types".
   final _typesKey = GlobalKey();
+
+  /// The type control's sentences, verbatim from §Sync control (5.59.0,
+  /// ADR-213; web `typesCopy`).
+  ({String label, String note, String none}) get _typesCopy =>
+      syncTypesCopy(widget.providerId);
 
   final _patternsController = TextEditingController();
   final _patternsFocus = FocusNode();
@@ -463,38 +493,50 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                     // this one answers *never this type* — the file is dropped
                     // at discovery with no row, no count and no record it was
                     // seen. The one below answers *ask me about this one*.
-                    _Label('Import these types',
-                        key: _typesKey,
-                        note: 'everything else is skipped entirely'),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final type in _types)
-                          KitFilterChip(
-                            // web `cloudTypeLabel`: PDF / Word / PowerPoint.
-                            cloudTypeLabel(type),
-                            selected: i.includeTypes.contains(type),
-                            onPressed: () {
-                              final next = {...i.includeTypes};
-                              i.includeTypes.contains(type)
-                                  ? next.remove(type)
-                                  : next.add(type);
-                              _save((c) => c.syncSettings(widget.providerId,
-                                  includeTypes: next.toList()));
-                            },
-                          ),
-                      ],
+                    // What the control decides, said where it is decided
+                    // (5.59.0, ADR-213: "the import these types is unclear").
+                    // `include_types` filters what a SYNC finds and nothing
+                    // else: a file picked by hand is not filtered by it
+                    // (`_classify_cloud_file`). Until 5.59.0 it said "Import
+                    // these types · everything else is skipped entirely".
+                    _Label(_typesCopy.label, key: _typesKey),
+                    KitProcNote(_typesCopy.note,
+                        padding: const EdgeInsets.only(bottom: 10)),
+                    Semantics(
+                      container: true,
+                      label: _typesCopy.label,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final type in _types)
+                            KitTypeChoice(
+                              // web `TYPE_CHOICE_LABEL[t] || cloudTypeLabel(t)`.
+                              type == 'notion'
+                                  ? 'Notion pages'
+                                  : cloudTypeLabel(type),
+                              checked: i.includeTypes.contains(type),
+                              onPressed: _saving
+                                  ? null
+                                  : () {
+                                      final next = {...i.includeTypes};
+                                      i.includeTypes.contains(type)
+                                          ? next.remove(type)
+                                          : next.add(type);
+                                      _save((c) => c.syncSettings(
+                                          widget.providerId,
+                                          includeTypes: next.toList()));
+                                    },
+                            ),
+                        ],
+                      ),
                     ),
-                    // No type ticked means nothing imports (4.59.0, ADR-096).
-                    // Until then it meant the opposite and silently imported
-                    // everything, under this control's own "everything else
-                    // is skipped" label.
+                    // No type ticked means a sync takes nothing (4.59.0,
+                    // ADR-096). A hand-picked file is not filtered by it, so
+                    // this does not say nothing can come in.
                     if (i.includeTypes.isEmpty)
-                      const KitProcNote(
-                          'No types are ticked — nothing will be imported from '
-                          'this account until you choose at least one.',
-                          padding: EdgeInsets.only(top: 6)),
+                      KitProcNote(_typesCopy.none,
+                          padding: const EdgeInsets.only(top: 6)),
 
                     // **Ask first** (4.45.0, ADR-083) — the adjacent, different
                     // decision. Only the types actually being imported are
@@ -579,8 +621,7 @@ class _Label extends StatelessWidget {
 
   /// The reference's `.v` clause — what the control means, beside its name.
   /// On the two review controls it is load-bearing rather than decorative:
-  /// it is where "everything else is skipped entirely" and "nothing
-  /// downloaded" are said (ADR-083).
+  /// it is where "nothing downloaded" is said (ADR-083).
   final String? note;
 
   const _Label(this.text, {super.key, this.note});

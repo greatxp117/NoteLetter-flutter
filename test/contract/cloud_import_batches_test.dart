@@ -90,10 +90,12 @@ class _Connected extends QuietCloud {
 void main() {
   setUp(() => ApiService.instance.tokenProvider = () async => 'test-token');
 
-  // The Library's Notion note (5.57.0, ADR-210) is the reference's sentence,
-  // word for word — read from web's own source, so a paraphrase here (or a
-  // web edit this client missed) goes red. Until 5.57.0 web said pages import
-  // as text without pictures, and this client said nothing at all.
+  // The Notion note (5.57.0, ADR-210) is the reference's sentence, word for
+  // word — read from web's own source, so a paraphrase here (or a web edit
+  // this client missed) goes red. Until 5.57.0 web said pages import as text
+  // without pictures, and this client said nothing at all. Since 5.59.0
+  // (ADR-213) it is §Bring in's line on Notion's own page (web
+  // `CloudImportPanel`'s `notion ? '…' : …`), not a note above the picker.
   test('the Notion note is the reference\'s, word for word', () {
     String words(String s) => s
         .replaceAll(RegExp(r"'\s*\n\s*'"), '')
@@ -101,12 +103,13 @@ void main() {
         .trim();
     final web = File('../NoteLetter-web/src/pages/sources/CloudImportPanel.jsx')
         .readAsStringSync();
-    final m = RegExp(r"provider === 'notion' && \(\s*<p[^>]*>\s*([^<]+?)\s*</p>")
+    final m = RegExp(r"\{notion\s*\?\s*'(Notion pages keep[^']+)'")
         .firstMatch(web);
     expect(m, isNotNull, reason: 'the web note moved — this gate reads nothing');
     final want = words(m![1]!);
     expect(want, startsWith('Notion pages keep their headings'));
-    final mine = words(File('lib/pages/sources_page.dart').readAsStringSync());
+    final mine =
+        words(File('lib/pages/sources/service_page.dart').readAsStringSync());
     expect(mine, contains(want));
   });
   tearDown(() => ApiService.instance.resetTestSeams());
@@ -344,8 +347,8 @@ void main() {
         },
       );
       ApiService.instance.httpClientAdapter = e;
-      await pumpSources(tester, SourcesStubService(),
-          cloud: _Connected());
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive', cloud: _Connected());
       await tap(tester, find.text('Browse files…'));
       for (final id in _ids(60)) {
         await tester.tap(find.text('$id.pdf'));

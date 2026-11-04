@@ -4716,6 +4716,68 @@ void main() {
     expect(tester.widget<KitTextField>(field).controller.text, mission,
         reason: 'a fresh visit did not read the stored mission back');
   });
+
+  // F-160 (5.59.0, ADR-213): a connected service's own page. Google Drive is
+  // in the seed, with `seed-import-job-1` complete → seed-doc-pdf-complete.
+  // Disconnect is last: it removes the seed's integration for the rest of
+  // this boot.
+  testWidgets(
+      "Manage opens a service's page; a row shows its shelves and opens its "
+      'source; Disconnect confirms there and returns to the Library (F-160)',
+      (tester) async {
+    final router = await pumpApp(tester);
+    router.go('/sources');
+    await pumpFor(tester, total: const Duration(seconds: 5));
+
+    // The Library's row says Manage, never Disconnect.
+    final driveRow = find.ancestor(
+        of: find.text('Google Drive'), matching: find.byType(KitServiceRow));
+    final manage = find.descendant(
+        of: driveRow.first, matching: find.widgetWithText(KitLibAct, 'Manage'));
+    expect(manage, findsOneWidget);
+    expect(find.widgetWithText(KitLibAct, 'Disconnect'), findsNothing);
+    await tester.ensureVisible(manage);
+    await tester.tap(manage);
+    await pumpFor(tester, total: const Duration(seconds: 5));
+    expect(router.state.uri.path, '/sources/google_drive');
+    expect(
+        [
+          for (final e in find.byType(KitSecHead).evaluate())
+            (e.widget as KitSecHead).title
+        ],
+        ['Bring in', 'Sync settings', 'Filing', 'Import history', 'Connection']);
+
+    // Import history: the complete row says its shelves and opens its source.
+    final link =
+        find.byKey(const ValueKey('import-row-link-seed-import-job-1'));
+    await tester.scrollUntilVisible(link, 300,
+        scrollable: find.byType(Scrollable).first);
+    expect(
+        find.descendant(of: link, matching: find.byType(KitImportShelves)),
+        findsOneWidget,
+        reason: 'a complete row says where it landed');
+    await tester.tap(link);
+    await pumpFor(tester, total: const Duration(seconds: 5));
+    expect(router.state.uri.path, '/reader/seed-doc-pdf-complete');
+    expect(router.state.uri.queryParameters['from'], '/sources/google_drive');
+    // The Reader names the service as its way back.
+    expect(find.text('Google Drive'), findsWidgets);
+    router.go('/sources/google_drive');
+    await pumpFor(tester, total: const Duration(seconds: 5));
+
+    // Connection: Disconnect behind its §18 confirm, then the Library.
+    final disconnect = find.widgetWithText(KitLibAct, 'Disconnect');
+    await tester.scrollUntilVisible(disconnect, 300,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(disconnect);
+    await pumpFor(tester, total: const Duration(seconds: 2));
+    expect(find.text('Disconnect Google Drive?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(KitButton, 'Disconnect').last);
+    await pumpFor(tester, total: const Duration(seconds: 6));
+    expect(router.state.uri.path, '/sources');
+    expect(find.byType(KitLibNote), findsOneWidget,
+        reason: 'the Library says what the provider answered');
+  });
 }
 
 /// Notion's root listing, stood in (F-156): the provider is the external edge,

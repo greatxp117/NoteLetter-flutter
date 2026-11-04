@@ -818,12 +818,12 @@ class KitSettingRow extends StatelessWidget {
                     height: 38,
                     alignment: Alignment.center,
                     // A vendor's mark sits on `.set-row-ico.provider`'s plate:
-                    // white with the border, in both themes — the marks are
-                    // tuned for light grounds (F-101).
+                    // white with the border under a colour mark; under a mono
+                    // one it follows the page in dark mode (ADR-213).
                     decoration: KitProviderLogo.providerOf(icon) != null
                         ? BoxDecoration(
-                            // literal-ok: a vendor brand-mark plate, fixed white in both themes (`.set-row-ico.provider`)
-                            color: const Color(0xFFFFFFFF),
+                            color: KitProviderLogo.plateColor(
+                                context, KitProviderLogo.providerOf(icon)),
                             borderRadius: AppRadius.smR,
                             border: Border.all(color: t.border),
                           )

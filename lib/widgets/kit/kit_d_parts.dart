@@ -904,6 +904,29 @@ class KitShelfTag extends StatelessWidget {
   }
 }
 
+/// An import row's shelves (5.59.0, ADR-213; web `.import-row-shelves`): every
+/// shelf holding the document as §35 tags, the home shelf first, 12 apart with
+/// a 7px clearing for their underline; *Unshelved* when none. `(title, colour)`
+/// — the colour already resolved for the theme.
+class KitImportShelves extends StatelessWidget {
+  final List<(String, Color?)> shelves;
+
+  const KitImportShelves({super.key, required this.shelves});
+
+  @override
+  Widget build(BuildContext context) {
+    if (shelves.isEmpty) return const KitShelfTag(row: true);
+    return Wrap(
+      spacing: 12,
+      runSpacing: 2,
+      children: [
+        for (final (title, color) in shelves)
+          KitShelfTag(title: title, color: color, row: true),
+      ],
+    );
+  }
+}
+
 class _TagPainter extends CustomPainter {
   final TextPainter tp;
   final double baseline;

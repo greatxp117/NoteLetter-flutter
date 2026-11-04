@@ -13,39 +13,6 @@ import '../../shared/cloud_providers.dart';
 import 'cloud_picker.dart' show CloudPickerFoot;
 import 'sync_folder_picker.dart';
 
-/// Organized folders on Sources (`screens/sources.md` §Organized-folders
-/// panel): one [OrganizedFoldersPanel] per provider whose organizing grant is
-/// write-ready — the reference's `OrganizationPanel` gate
-/// (`organization.enabled && write_access`, read off the integration).
-///
-/// The SETTINGS this panel drew until 2026-10-09 — the confidence threshold,
-/// the default reorganize mode and each provider's three switches — live in
-/// Settings → Sources now (`SourcesSection`, ruled that day); each provider's
-/// *Import from* header links there. What stays here is what is about the
-/// folders themselves: roots, charters, READMEs and rescans.
-class OrganizedFoldersSection extends StatelessWidget {
-  const OrganizedFoldersSection({super.key});
-
-  static const _order = ['google_drive', 'onedrive', 'dropbox', 'notion'];
-
-  @override
-  Widget build(BuildContext context) {
-    final cloud = context.watch<CloudNotifier?>();
-    if (cloud == null) return const SizedBox.shrink();
-    final ready = [
-      for (final p in _order)
-        if (cloud.integrationFor(p)?.orgWriteReady ?? false) p,
-    ];
-    if (ready.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final p in ready) OrganizedFoldersPanel(provider: p),
-      ],
-    );
-  }
-}
-
 /// Organized folders for one provider, from the `cloud_folders` subscription
 /// (INV-02): path, charter preview/edit, README status chip, doc count, rescan.
 ///

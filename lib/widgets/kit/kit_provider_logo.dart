@@ -1,12 +1,16 @@
 import 'package:flutter/widgets.dart';
 import 'package:path_parsing/path_parsing.dart';
 
+import '../../theme/tokens.dart';
+
 /// The cloud connectors' own marks (F-101) — web `shared/ProviderLogo.jsx`,
-/// each vendor's published SVG geometry and colours, unmodified: brand
-/// guidelines allow scaling only, so nothing here is redrawn or recoloured.
-/// The marks that are black (Notion) are why every TILE holding one is a
-/// fixed white plate in both themes (`.connect-card .iconbox`,
-/// `.set-row-ico.provider`).
+/// each vendor's published SVG geometry, unmodified, and a colour mark keeps
+/// its colours in both themes, on its white plate. A MONO mark (Notion) has no
+/// colour of its own: it is black on a light page and white on a dark one
+/// (5.59.0, ADR-213; web `.provider-mono`). Black on a dark page drew nothing
+/// wherever a mark sat without a plate, as every import row's does. Its plate
+/// follows it ([plateColor]), or a white mark would sit on a white plate and
+/// draw nothing either.
 ///
 /// [size] is the box the mark is fitted into, centred, aspect preserved
 /// (`preserveAspectRatio="xMidYMid meet"`). A provider with no mark draws
@@ -39,6 +43,30 @@ class KitProviderLogo extends StatelessWidget {
 
   static bool has(String provider) => _logos.containsKey(provider);
 
+  /// A mark with no colour of its own, drawn in the page's ink (ADR-213).
+  static bool isMono(String provider) =>
+      _logos[provider]?.paths.every((p) => p.$1 == null) ?? false;
+
+  /// The colour a mono mark is drawn in: black on a light page, white on a
+  /// dark one, in both dark paths (the app's chosen theme and the platform's,
+  /// which [Tokens.of] resolves alike).
+  static Color monoColor(BuildContext context) => Tokens.of(context).isDark
+      // literal-ok: the white form of a vendor's brand mark — not the surface, whatever its value
+      ? const Color(0xFFFFFFFF)
+      // literal-ok: the black form of a vendor's brand mark
+      : const Color(0xFF000000);
+
+  /// The plate a vendor's mark sits on: white for a colour mark in both
+  /// themes, and for a mono mark the page's `--surface` in dark mode, so the
+  /// white mark has something to stand on (web `.dark … :has(.provider-mono)
+  /// { background: var(--surface) }`). One rule for every plate.
+  static Color plateColor(BuildContext context, String? provider) {
+    final t = Tokens.of(context);
+    if (provider != null && isMono(provider) && t.isDark) return t.surface;
+    // literal-ok: a vendor brand-mark plate — fixed white for a colour mark in both themes
+    return const Color(0xFFFFFFFF);
+  }
+
   // OneDrive's mark is much wider than tall, so fitted to the same box as the
   // squarer marks it reads undersized beside them (web OPTICAL_SCALE).
   static const _opticalScale = {'onedrive': 1.15};
@@ -57,7 +85,9 @@ class KitProviderLogo extends StatelessWidget {
         child: Semantics(
           label: logo.name(provider),
           image: true,
-          child: CustomPaint(size: Size(box, box), painter: _LogoPainter(logo)),
+          child: CustomPaint(
+              size: Size(box, box),
+              painter: _LogoPainter(logo, monoColor(context))),
         ),
       ),
     );
@@ -66,7 +96,8 @@ class KitProviderLogo extends StatelessWidget {
 
 class _Logo {
   final Rect viewBox;
-  final List<(Color, String)> paths;
+  /// `(fill, d)`; a null fill is the mono ink ([KitProviderLogo.monoColor]).
+  final List<(Color?, String)> paths;
   const _Logo({required this.viewBox, required this.paths});
 
   String name(String provider) => const {
@@ -80,7 +111,8 @@ class _Logo {
 
 class _LogoPainter extends CustomPainter {
   final _Logo logo;
-  _LogoPainter(this.logo);
+  final Color mono;
+  _LogoPainter(this.logo, this.mono);
 
   static final _parsed = <String, Path>{};
 
@@ -102,13 +134,13 @@ class _LogoPainter extends CustomPainter {
     canvas.scale(scale);
     canvas.translate(-vb.left, -vb.top);
     for (final (fill, d) in logo.paths) {
-      canvas.drawPath(_path(d), Paint()..color = fill);
+      canvas.drawPath(_path(d), Paint()..color = fill ?? mono);
     }
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_LogoPainter old) => old.logo != logo;
+  bool shouldRepaint(_LogoPainter old) => old.logo != logo || old.mono != mono;
 }
 
 class _Proxy extends PathProxy {
@@ -190,8 +222,8 @@ const _logos = <String, _Logo>{
   'notion': _Logo(
     viewBox: Rect.fromLTWH(0.0, 0.0, 24.0, 24.0),
     paths: [
-      // literal-ok: notion's published brand mark — vendor artwork, never recoloured
-      (Color(0xFF000000),
+      // Notion's mark is mono: the page's ink, black or white (ADR-213).
+      (null,
           'M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z'),
     ],
   ),

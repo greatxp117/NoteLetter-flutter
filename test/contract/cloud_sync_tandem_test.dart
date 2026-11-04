@@ -161,25 +161,37 @@ void main() {
       c.dispose();
     });
 
-    testWidgets('the outcome stands under the grid, not in a toast',
+    // Disconnect is on the service's page since 5.59.0 (ADR-213), behind its
+    // §18 confirm; on success the page leaves for the Library, whose note says
+    // what the provider answered.
+    testWidgets('Disconnect confirms on the page, and the page leaves',
         (tester) async {
       ApiService.instance.httpClientAdapter = _Recorder(
           (_) => (200, {'disconnected': 'google_drive', 'revoked': false}));
       final cloud = _ConnectedCloud(const CloudIntegration(
           provider: 'google_drive', tokenValid: true, folderIds: ['f1']));
-      await pumpSources(tester, SourcesStubService(), cloud: cloud);
-      // Direction D: the service row's one quiet control (web `Services`).
+      final router = await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive', cloud: cloud);
       final row = find.widgetWithText(KitServiceRow, 'Google Drive');
       final disconnect =
           find.descendant(of: row, matching: find.widgetWithText(KitLibAct, 'Disconnect'));
       await tester.ensureVisible(disconnect);
       await tester.tap(disconnect);
       await tester.pumpAndSettle();
+      expect(find.text('Disconnect Google Drive?'), findsOneWidget);
       expect(find.textContaining('asks Google Drive to revoke'), findsOneWidget);
       expect(find.textContaining('files already downloaded finish'),
           findsOneWidget);
       await tester.tap(find.widgetWithText(KitButton, 'Disconnect').last);
       await tester.pumpAndSettle();
+      expect(routerPath(router), '/sources');
+      expect(cloud.lastDisconnect!.$1, 'google_drive');
+    });
+
+    testWidgets('the outcome stands on the Library, not in a toast',
+        (tester) async {
+      await pumpSources(tester, SourcesStubService(),
+          cloud: _DisconnectedCloud());
       expect(
           find.descendant(
               of: find.byType(KitLibNote),
@@ -249,7 +261,8 @@ void main() {
       ApiService.instance.httpClientAdapter = _Recorder(listing);
       final cloud = _ConnectedCloud(
           const CloudIntegration(provider: 'notion', tokenValid: true));
-      await pumpSources(tester, SourcesStubService(), cloud: cloud);
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'notion', cloud: cloud);
       await openPicker(tester, cloud, 'notion');
       expect(find.textContaining('Notion passes along only the pages you ticked'),
           findsOneWidget,
@@ -265,7 +278,8 @@ void main() {
       ApiService.instance.httpClientAdapter = _Recorder(listing);
       final drive = _ConnectedCloud(const CloudIntegration(
           provider: 'google_drive', tokenValid: true));
-      await pumpSources(tester, SourcesStubService(), cloud: drive);
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive', cloud: drive);
       await openPicker(tester, drive, 'google_drive');
 
       expect(find.text('Root'), findsOneWidget);
@@ -300,7 +314,8 @@ void main() {
       ApiService.instance.httpClientAdapter = _Recorder(listing);
       final drive = _ConnectedCloud(const CloudIntegration(
           provider: 'google_drive', tokenValid: true));
-      await pumpSources(tester, SourcesStubService(), cloud: drive);
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive', cloud: drive);
       await openPicker(tester, drive, 'google_drive');
 
       expect(find.textContaining('isn’t a supported file type'), findsOneWidget);
@@ -352,8 +367,8 @@ void main() {
         job('pending'),
         job('queued'),
       ];
-      await pumpSources(tester,
-          SourcesStubService(jobs: Stream.value(jobs)),
+      await pumpServicePage(tester, SourcesStubService(jobs: Stream.value(jobs)),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true)));
       await tester.pumpAndSettle();
@@ -361,10 +376,8 @@ void main() {
       expect(find.textContaining('WAITING'), findsWidgets);
       expect(find.text('QUEUED'), findsOneWidget,
           reason: '`queued` fell to the default branch and read "Waiting"');
-      // A terminal row from before this session lives in Import history.
-      await tester.ensureVisible(find.text('Show 1'));
-      await tester.tap(find.text('Show 1'));
-      await tester.pumpAndSettle();
+      // A terminal row from before this session lives in Import history,
+      // which stands open on the service's page (5.59.0, ADR-213).
       expect(find.textContaining('isn’t a supported file type'), findsWidgets);
       expect(find.text('Retry'), findsNothing);
       expect(find.text('Import again'), findsNothing);
@@ -390,12 +403,10 @@ void main() {
             mimeType: 'application/x-notion-page',
             createdAt: DateTime(2026, 9, 20).millisecondsSinceEpoch),
       ];
-      await pumpSources(tester, SourcesStubService(jobs: Stream.value(jobs)),
-          cloud: _ConnectedCloud(
-              const CloudIntegration(provider: 'notion', tokenValid: true)));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Show 1'));
-      await tester.tap(find.text('Show 1'));
+      await pumpServicePage(tester, SourcesStubService(jobs: Stream.value(jobs)),
+          provider: 'notion',
+          cloud: _ConnectedCloud(const CloudIntegration(
+              provider: 'notion', tokenValid: true)));
       await tester.pumpAndSettle();
       expect(find.textContaining('ALREADY IMPORTED'), findsWidgets);
       expect(find.text(sentence), findsOneWidget);
@@ -442,12 +453,10 @@ void main() {
             mimeType: 'application/pdf',
             createdAt: DateTime(2026, 9, 20).millisecondsSinceEpoch),
       ];
-      await pumpSources(tester, SourcesStubService(jobs: Stream.value(jobs)),
+      await pumpServicePage(tester, SourcesStubService(jobs: Stream.value(jobs)),
+          provider: 'google_drive',
           cloud: _ConnectedCloud(const CloudIntegration(
               provider: 'google_drive', tokenValid: true)));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Show 1'));
-      await tester.tap(find.text('Show 1'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('use Update from source'), findsOneWidget,
@@ -505,12 +514,10 @@ void main() {
       ];
 
       Future<void> openRow(WidgetTester tester, SourcesStubService svc) async {
-        await pumpSources(tester, svc,
-            cloud: _ConnectedCloud(const CloudIntegration(
-                provider: 'google_drive', tokenValid: true)));
-        await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('Show 1'));
-        await tester.tap(find.text('Show 1'));
+        await pumpServicePage(tester, svc,
+          provider: 'google_drive',
+          cloud: _ConnectedCloud(const CloudIntegration(
+              provider: 'google_drive', tokenValid: true)));
         await tester.pumpAndSettle();
         final control =
             find.widgetWithText(KitSettingLink, 'Update from source');
@@ -798,24 +805,39 @@ void main() {
       );
       const b = OrganizationSuggestion(
         id: 's-b',
-        provider: 'notion',
+        provider: 'google_drive',
         type: 'move',
         confidence: 0.9,
         reason: 'A recipe.',
         status: 'pending',
         payload: {'file_name': 'Pasta', 'to_path': '/Recipes'},
       );
+      // Another service's suggestion waits on its own page (5.59.0,
+      // ADR-213) and in For your review.
+      const c = OrganizationSuggestion(
+        id: 's-c',
+        provider: 'notion',
+        type: 'move',
+        confidence: 0.9,
+        reason: 'A hymn.',
+        status: 'pending',
+        payload: {'file_name': 'Hymn', 'to_path': '/Music'},
+      );
       final rec = _Recorder(
           (_) => (200, {'approved': ['s-a', 's-b'], 'declined': [], 'skipped': []}));
       ApiService.instance.httpClientAdapter = rec;
-      await pumpSources(
-          tester, _OrgStub(suggestions: Stream.value(const [a, b])));
+      await pumpServicePage(
+          tester, _OrgStub(suggestions: Stream.value(const [a, b, c])),
+          provider: 'google_drive',
+          cloud: _ConnectedCloud(const CloudIntegration(
+              provider: 'google_drive', tokenValid: true)));
       await tester.pumpAndSettle();
 
       expect(find.byType(KitProcCard), findsWidgets);
       expect(find.text('Move taxes.pdf → /Docs/Finance'), findsOneWidget);
-      expect(find.text('Copy Pasta → /Recipes'), findsOneWidget,
-          reason: 'a Notion move is a copy (ADR-005 §3)');
+      expect(find.text('Move Pasta → /Recipes'), findsOneWidget);
+      expect(find.textContaining('Hymn'), findsNothing,
+          reason: 'Notion\'s suggestion is on Notion\'s page');
       expect(find.text('from /Docs/Recipes · Content matches the folder charter.'),
           findsOneWidget);
       final pill = tester.widget<KitProcPill>(find.byWidgetPredicate(
@@ -848,6 +870,26 @@ void main() {
           reason: 'the selection clears once the batch is accepted');
     });
 
+    testWidgets('a Notion move is a copy, on Notion\'s page', (tester) async {
+      const n = OrganizationSuggestion(
+        id: 's-n',
+        provider: 'notion',
+        type: 'move',
+        confidence: 0.9,
+        reason: 'A recipe.',
+        status: 'pending',
+        payload: {'file_name': 'Pasta', 'to_path': '/Recipes'},
+      );
+      await pumpServicePage(
+          tester, _OrgStub(suggestions: Stream.value(const [n])),
+          provider: 'notion',
+          cloud: _ConnectedCloud(
+              const CloudIntegration(provider: 'notion', tokenValid: true)));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy Pasta → /Recipes'), findsOneWidget,
+          reason: 'a Notion move is a copy (ADR-005 §3)');
+    });
+
     testWidgets(
         'a readme card says it adopts; a failed approval stays with the '
         'worker\'s sentence', (tester) async {
@@ -864,11 +906,14 @@ void main() {
       addTearDown(one.close);
       ApiService.instance.httpClientAdapter = _Recorder(
           (_) => (200, {'approved': ['s-readme'], 'declined': [], 'skipped': []}));
-      await pumpSources(
+      await pumpServicePage(
           tester,
           _OrgStub(
               suggestions: Stream.value(const [card]),
-              one: (_) => one.stream));
+              one: (_) => one.stream),
+          provider: 'dropbox',
+          cloud: _ConnectedCloud(
+              const CloudIntegration(provider: 'dropbox', tokenValid: true)));
       await tester.pumpAndSettle();
       expect(find.text('Adopt README edits'), findsOneWidget);
       expect(find.text('“Tax papers”'), findsOneWidget);
@@ -971,7 +1016,8 @@ void main() {
       ApiService.instance.httpClientAdapter = _Recorder(listing);
       final drive = _ConnectedCloud(const CloudIntegration(
           provider: 'google_drive', tokenValid: true));
-      await pumpSources(tester, SourcesStubService(), cloud: drive);
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive', cloud: drive);
       unawaited(drive.openPicker('google_drive'));
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 50));
@@ -996,4 +1042,11 @@ class _DropboxConnected extends QuietCloud {
   CloudIntegration? integrationFor(String provider) => provider == 'dropbox'
       ? const CloudIntegration(provider: 'dropbox', tokenValid: true)
       : null;
+}
+
+/// A disconnect that has answered (`revoked: false`) — what the service's
+/// page leaves behind for the Library to say (4.89.0, ADR-123 §5).
+class _DisconnectedCloud extends QuietCloud {
+  @override
+  (String, Object?)? get lastDisconnect => ('google_drive', false);
 }

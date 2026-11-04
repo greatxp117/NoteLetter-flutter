@@ -109,6 +109,10 @@ class KitProcCard extends StatelessWidget {
   /// Lines under the sub-line, inside the info column — a README suggestion's
   /// proposed charter and what approving it does.
   final List<Widget> infoExtra;
+
+  /// A line between the title and the sub-line: an import row's shelves
+  /// (5.59.0, ADR-213 — "on a line of their own above the origin line").
+  final Widget? underTitle;
   final Widget foot;
 
   /// A failed row's edge takes the accent chip border (`.proc-row.failed`).
@@ -127,6 +131,7 @@ class KitProcCard extends StatelessWidget {
     this.actions = const [],
     this.titleSpans,
     this.infoExtra = const [],
+    this.underTitle,
   });
 
   @override
@@ -158,6 +163,7 @@ class KitProcCard extends StatelessWidget {
           Text.rich(TextSpan(style: titleStyle, children: titleSpans),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 2),
+        if (underTitle != null) ...[underTitle!, const SizedBox(height: 2)],
         if (subtitleLeading == null)
           sub
         else

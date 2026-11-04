@@ -17,6 +17,7 @@ import 'package:flutter_app/models/organization_suggestion.dart';
 import 'package:flutter_app/models/study.dart';
 import 'package:flutter_app/models/tag.dart';
 import 'package:flutter_app/pages/sources/oauth_return.dart';
+import 'package:flutter_app/pages/sources/service_page.dart';
 import 'package:flutter_app/pages/sources_page.dart';
 import 'package:flutter_app/router.dart' show holdConnectReturn;
 import 'package:flutter_app/services/firestore_service.dart';
@@ -282,4 +283,62 @@ Future<void> pumpSources(WidgetTester tester, SourcesStubService service,
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+}
+
+/// Mounts a connected service's own page (5.59.0, ADR-213) at
+/// `/sources/{provider}` under a real [GoRouter] — with the Library, Settings
+/// → Sources and the Reader to leave for — over the same provider tree as
+/// [pumpSources]. Returns the router, so a test can read the address.
+Future<GoRouter> pumpServicePage(
+    WidgetTester tester, SourcesStubService service,
+    {required String provider,
+    DocumentsNotifier? documents,
+    CloudNotifier? cloud,
+    OrgNotifier? org,
+    List<Tag> shelves = const [],
+    bool dark = false}) async {
+  FirestoreService.instance = service;
+  addTearDown(FirestoreService.resetInstance);
+  final router = GoRouter(
+    initialLocation: '/sources/$provider',
+    routes: [
+      GoRoute(path: '/', builder: (_, __) => const Text('Home')),
+      GoRoute(
+          path: '/settings/sources',
+          builder: (_, __) => const Text('Settings · Sources')),
+      GoRoute(
+          path: '/reader/:docId',
+          builder: (_, state) =>
+              Text('Reader ${state.pathParameters['docId']}')),
+      GoRoute(
+          path: '/sources',
+          builder: (_, __) => const Text('The Library')),
+      GoRoute(
+        path: '/sources/:provider',
+        builder: (_, state) => Scaffold(
+            body: ServicePage(provider: state.pathParameters['provider']!)),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  await tester.pumpWidget(MultiProvider(
+    providers: [
+      ChangeNotifierProvider<DocumentsNotifier>(
+          create: (_) => documents ?? DocumentsNotifier()),
+      ChangeNotifierProvider<TagsNotifier>(create: (_) => StubTags(shelves)),
+      ChangeNotifierProvider<CloudNotifier>(create: (_) => cloud ?? QuietCloud()),
+      ChangeNotifierProvider<OrgNotifier>(create: (_) => org ?? QuietOrg()),
+      ChangeNotifierProvider<ActivityNotifier>(create: (_) => StubActivity()),
+      ChangeNotifierProvider<UploadNotifier>(create: (_) => UploadNotifier()),
+    ],
+    child: MaterialApp.router(
+        theme: dark ? AppTheme.dark : AppTheme.light, routerConfig: router),
+  ));
+  await tester.pump();
+  await tester.pump();
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+  return router;
 }
