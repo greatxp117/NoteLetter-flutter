@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_app/shared/document_window.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/newsletter.dart';
 import 'package:flutter_app/models/newsletter_settings.dart';
@@ -49,7 +50,7 @@ class _Reads extends FirestoreService {
   Future<List<Newsletter>> listAllNewsletters({int limit = 30}) async =>
       const [];
   @override
-  Stream<List<Document>> subscribeDocuments({int limit = 200}) =>
+  Stream<List<Document>> subscribeDocuments({int limit = documentWindow}) =>
       Stream.value([
         _doc('d-cat', ['cat']),
         _doc('d-mary', ['mary']),

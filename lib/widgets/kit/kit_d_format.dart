@@ -30,6 +30,12 @@ String kitCap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 String kitCounted(int n, String one, [String? many]) =>
     '${kitThousands(n)} ${n == 1 ? one : (many ?? '${one}s')}';
 
+/// A count that is a floor, not a total: *2,000+ volumes* (5.58.0, ADR-211;
+/// web `countedFloor`). It is what a figure counted over a FULL documents
+/// window is — the attention inbox's `500+` (ADR-135). Always the plural: a
+/// floor is never "one thing".
+String kitCountedFloor(int n, String many) => '${kitThousands(n)}+ $many';
+
 const List<String> _weekdays = [
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
 ];

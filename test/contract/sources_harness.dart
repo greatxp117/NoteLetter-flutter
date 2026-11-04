@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:flutter_app/shared/document_window.dart';
 import 'package:flutter_app/models/activity_item.dart';
 import 'package:flutter_app/models/chunk.dart';
 import 'package:flutter_app/models/cloud_folder.dart';
@@ -72,7 +73,7 @@ class SourcesStubService extends FirestoreService {
   String? get currentUid => 'u1';
 
   @override
-  Stream<List<Document>> subscribeDocuments({int limit = 200}) {
+  Stream<List<Document>> subscribeDocuments({int limit = documentWindow}) {
     documentsSubscribed++;
     return documents ?? Stream.value(const []);
   }

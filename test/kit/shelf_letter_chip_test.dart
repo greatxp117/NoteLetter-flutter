@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_app/shared/document_window.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/newsletter.dart';
 import 'package:flutter_app/models/newsletter_settings.dart';
@@ -43,7 +44,7 @@ class _Reads extends FirestoreService {
       const [];
 
   @override
-  Stream<List<Document>> subscribeDocuments({int limit = 200}) =>
+  Stream<List<Document>> subscribeDocuments({int limit = documentWindow}) =>
       Stream.value([
         for (final s in _shelves)
           Document(
@@ -72,7 +73,7 @@ class _Settings extends SettingsNotifier {
 
 class _Uncounted extends _Reads {
   @override
-  Stream<List<Document>> subscribeDocuments({int limit = 200}) =>
+  Stream<List<Document>> subscribeDocuments({int limit = documentWindow}) =>
       Stream.value([
         Document(
             id: 'd-u',

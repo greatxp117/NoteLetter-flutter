@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../shared/relmap_layout.dart' show documentWindow;
+import '../shared/document_window.dart';
 import '../state/documents_notifier.dart';
 import '../state/settings_notifier.dart';
 import '../state/tags_notifier.dart';
@@ -89,7 +89,7 @@ class _ShelvesPageState extends State<ShelvesPage> {
     final known = loaded && libError == null;
     final model = kitShelfModel(shelves, docs.documents);
     final totalVols = model.total;
-    final windowFull = docs.documents.length >= documentWindow;
+    final full = windowFull(docs.documents);
     final nodes = model.nodes;
     final ids = [for (final n in nodes) n.id];
     if (!_sameIds(_sec.ids, ids)) _sec.ids = ids;
@@ -174,7 +174,7 @@ class _ShelvesPageState extends State<ShelvesPage> {
 
     final volsShelved = known
         ? ' ${kitCounted(totalVols, 'volume')}, shelved'
-              '${windowFull ? ', of your most recent $documentWindow' : ''}.'
+              '${full ? ', of your most recent ${kitThousands(documentWindow)}' : ''}.'
         : '';
 
     return KitDPage(

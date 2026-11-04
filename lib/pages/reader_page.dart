@@ -400,6 +400,8 @@ class _ReaderPageState extends State<ReaderPage> {
     final origin = readerOrigin(
       widget.from,
       tags: context.watch<TagsNotifier>().tags,
+      // A source origin is named by its title (ADR-212).
+      documents: context.watch<DocumentsNotifier>().documents,
     );
     return KitDBackControl(origin.label, onTap: _goBack);
   }
@@ -829,7 +831,11 @@ class _ReaderPageState extends State<ReaderPage> {
       return;
     }
     context.go(
-      readerOrigin(widget.from, tags: context.read<TagsNotifier>().tags).path,
+      readerOrigin(
+        widget.from,
+        tags: context.read<TagsNotifier>().tags,
+        documents: context.read<DocumentsNotifier>().documents,
+      ).path,
     );
   }
 
@@ -928,6 +934,18 @@ class _ReaderPageState extends State<ReaderPage> {
               : null,
           onOpenLink: (url) =>
               launchUrlString(url, mode: LaunchMode.externalApplication),
+          // A Notion page link whose page is in the library opens it here
+          // (5.58.0, ADR-212): PUSHED, so Back pops to this source, and with
+          // `?from=` naming it, so the pushed Reader's back control says this
+          // source's title (§The way back).
+          onOpenSource: (docId) => context.push(KitSourceLink.readerHref(
+              docId,
+              'from=${Uri.encodeComponent('/reader/${widget.docId}')}')),
+          // The documents the app holds, so the lookup reads only the
+          // candidates it does not (ADR-212).
+          heldDocIds: {
+            for (final d in context.read<DocumentsNotifier>().documents) d.id,
+          },
         );
       case 'speedread':
         return SpeedReadPanel(paras: _paras);

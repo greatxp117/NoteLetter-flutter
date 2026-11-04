@@ -19,6 +19,8 @@ import '../models/support.dart';
 import '../models/tag.dart';
 import 'activity_merge.dart';
 import 'source_history.dart' show sourceHistoryLimit;
+import '../shared/document_window.dart';
+import '../shared/notion_links.dart';
 import 'read_counters.dart';
 import 'row_decode.dart';
 import 'auth_service.dart';
@@ -105,7 +107,9 @@ class FirestoreService {
   String? get _uid => currentUid;
 
   /// Realtime document list, newest first. Strips `embedding` if present.
-  Stream<List<Document>> subscribeDocuments({int limit = 200}) {
+  /// The newest [documentWindow] (2,000 since 5.58.0, ADR-211; it was 200):
+  /// a count over it is the library's only while it is not full.
+  Stream<List<Document>> subscribeDocuments({int limit = documentWindow}) {
     final uid = _uid;
     if (uid == null) return Stream.value(const []);
     return _db
@@ -122,8 +126,9 @@ class FirestoreService {
   }
 
   /// Pinned-for-the-next-letter sources (2.33.0). **Its own subscription, not a
-  /// filter over [subscribeDocuments]**: that one is capped at the 200 most
-  /// recent, so a pin on an older source would silently never appear.
+  /// filter over [subscribeDocuments]**: that one is a window (the newest
+  /// [documentWindow], ADR-211), so a pin on an older source would silently
+  /// never appear.
   ///
   /// Ordered by the field and filtered client-side rather than with `!= null`,
   /// because an unpin writes **null** rather than deleting the key, so those
@@ -691,6 +696,42 @@ class FirestoreService {
 
     unawaited(logReadEvent('chunk_viewed', documentId, chunkId));
     return chunks;
+  }
+
+  /// Which document each Notion page in [pageIds] is (5.58.0, ADR-212;
+  /// web `api.js` `resolveNotionPages`): page id → document id, for each one
+  /// that resolved. The rule is [resolveNotionPagesWith]'s, over the reader's
+  /// own import jobs ([notionImportJobs]) and a document `get` for each
+  /// candidate [held] — the documents subscription's ids — does not hold.
+  ///
+  /// Throws when a jobs query fails; the Reader leaves every link as written.
+  Future<Map<String, String>> resolveNotionPages(Iterable<String> pageIds,
+      {Set<String>? held}) async {
+    final uid = _uid;
+    if (uid == null) return const {};
+    return resolveNotionPagesWith(
+      pageIds,
+      uid: uid,
+      held: held,
+      queryJobs: notionImportJobs,
+      readDocument: getDocument,
+    );
+  }
+
+  /// The reader's `cloud_import_jobs` for some Notion pages: `user_id == uid`
+  /// and `provider_file_id in` [providerFileIds] (dashed, at most 30). Two
+  /// equality filters, which Firestore serves without a composite index
+  /// (ADR-212, verified in prod). The seam a test answers like the rules do.
+  @protected
+  @visibleForTesting
+  Future<List<Map<String, dynamic>>> notionImportJobs(
+      String uid, List<String> providerFileIds) async {
+    final snap = await _db
+        .collection('cloud_import_jobs')
+        .where('user_id', isEqualTo: uid)
+        .where('provider_file_id', whereIn: providerFileIds)
+        .get();
+    return [for (final d in snap.docs) d.data()];
   }
 
   /// One-shot document read (Library detail sheet): strip `embedding`,

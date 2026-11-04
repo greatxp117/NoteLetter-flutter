@@ -11,6 +11,7 @@
 /// citation, so the platform back gesture arrives in the same place.
 library;
 
+import '../models/document.dart';
 import '../models/tag.dart';
 
 /// The label for every route a screen can open the Reader from. **Closed**: a
@@ -34,6 +35,10 @@ const Map<String, String> readerOriginLabels = <String, String>{
   '/study': 'Deep study',
 };
 
+/// Another source whose title is not known (5.58.0, ADR-212): it is outside
+/// the documents window, or the window has not answered yet.
+const String readerOriginSourceLabel = 'Source';
+
 /// What the Reader shows when it knows nothing about where the reader came
 /// from: a cold open — a newsletter link, a notification, a shared URL — and
 /// every `from` this file refuses. It is 1.0.0's behaviour, and the honest one.
@@ -56,7 +61,16 @@ class ReaderOrigin {
 /// [tags] names a shelf origin with the shelf's own title when the caller has
 /// the shelves loaded; a shelf that is gone or still loading falls back to the
 /// index's name, because the reader still came from there.
-ReaderOrigin readerOrigin(String? from, {List<Tag> tags = const []}) {
+///
+/// [documents] names a SOURCE origin — `/reader/{docId}`, the Reader opened
+/// from another source's Notion page link (5.58.0, ADR-212) — by that
+/// source's title while the documents subscription holds it, and
+/// [readerOriginSourceLabel] when it does not; the destination stands either
+/// way, as a shelf's does. One level: that source's own way back is not
+/// carried (a pushed Reader pops back to the source page itself, which still
+/// knows its own).
+ReaderOrigin readerOrigin(String? from,
+    {List<Tag> tags = const [], List<Document> documents = const []}) {
   if (from == null || from.isEmpty) return readerOriginDefault;
   if (!from.startsWith('/') || from.startsWith('//')) return readerOriginDefault;
   if (from.contains('?') || from.contains('#')) return readerOriginDefault;
@@ -82,6 +96,16 @@ ReaderOrigin readerOrigin(String? from, {List<Tag> tags = const []}) {
       }
     }
     return ReaderOrigin(readerOriginLabels['/shelves']!, from);
+  }
+
+  // Another source (ADR-212).
+  final source = RegExp(r'^/reader/([A-Za-z0-9_.~:@+-]+)$').firstMatch(from);
+  if (source != null) {
+    final id = source.group(1);
+    for (final d in documents) {
+      if (d.id == id && d.title.isNotEmpty) return ReaderOrigin(d.title, from);
+    }
+    return ReaderOrigin(readerOriginSourceLabel, from);
   }
 
   return readerOriginDefault;

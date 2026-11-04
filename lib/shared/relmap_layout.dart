@@ -20,14 +20,14 @@ library;
 import 'dart:math' as math;
 import 'dart:ui' show Offset;
 
+import 'document_window.dart';
 import 'shelf_pick.dart' show fold, foldQuery;
 
-String nodeKey(String kind, String id) => '$kind:$id';
+// The documents subscription's window (ADR-211, `document_window.dart`).
+// Every figure the map shows is counted inside it, and a full window says so.
+export 'document_window.dart' show documentWindow, windowFull;
 
-/// The documents subscription's window (`FirestoreService.subscribeDocuments`
-/// limit 200, web App.jsx's `subscribeDocuments(200, …)`). Every figure the
-/// map shows is counted inside it, and a full window says so.
-const int documentWindow = 200;
+String nodeKey(String kind, String id) => '$kind:$id';
 
 /// A shelf as the map reads it — the tags subscription's fields it needs.
 class MapShelf {
@@ -237,7 +237,7 @@ MapGraph buildShelfGraph(
     links: edges.length,
     unshelved: unshelved,
   );
-  graph.windowFull = documents.length >= documentWindow;
+  graph.windowFull = windowFull(documents);
   return graph;
 }
 

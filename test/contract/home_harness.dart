@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:flutter_app/shared/document_window.dart';
 import 'package:flutter_app/models/background_task.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/import_job.dart';
@@ -69,7 +70,7 @@ class HomeReads extends FirestoreService {
   }
 
   @override
-  Stream<List<Document>> subscribeDocuments({int limit = 200}) {
+  Stream<List<Document>> subscribeDocuments({int limit = documentWindow}) {
     subscribed++;
     return docsStream ?? Stream.value(docs);
   }

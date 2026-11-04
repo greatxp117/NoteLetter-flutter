@@ -23,6 +23,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
+import 'kit_d_format.dart' show kitThousands;
 import 'kit_frame.dart' show KitScrollView;
 
 /// §24 — the Relationship map (5.25.0, ADR-177): shelves and the volumes on
@@ -481,7 +482,7 @@ class _Legend extends StatelessWidget {
           entry(counts.unshelved, 'unshelved', 'unshelved'),
         if (windowFull)
           Text(
-            'of your most recent $windowSize',
+            'of your most recent ${kitThousands(windowSize)}',
             style: AppTheme.serif(
               fontSize: 12.5,
               fontStyle: FontStyle.italic,

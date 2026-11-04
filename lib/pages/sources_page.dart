@@ -11,6 +11,7 @@ import '../models/import_job.dart';
 import '../shared/cloud_providers.dart';
 import '../shared/cloud_return.dart';
 import '../shared/cooldown.dart';
+import '../shared/document_window.dart';
 import '../shared/local_flags.dart';
 import '../shared/shelf_tree.dart';
 import '../state/camera_sweep_host.dart';
@@ -322,8 +323,18 @@ class _SourcesPageState extends State<SourcesPage> {
       if (n.id == _shelf) shelfNode = n;
     }
 
+    // Library reading summary's window, and the folio's floor (ADR-211): full
+    // is counted over EVERY row the subscription returned, not only the
+    // complete ones — it was keyed on the complete volumes alone, and the
+    // folio printed the newest 200 as the library for 551 volumes.
+    final atWindowCap = windowFull(docs.documents);
+    final volumesFig = !measured
+        ? '— volumes'
+        : atWindowCap
+            ? kitCountedFloor(all.length, 'volumes')
+            : kitCounted(all.length, 'volume');
     final folio = 'The library · '
-        '${measured ? kitCounted(all.length, 'volume') : '— volumes'} · '
+        '$volumesFig · '
         '${measured ? kitCounted(model.roots.length, 'shelf', 'shelves') : '— shelves'}';
     final stand = measured
         ? librarySentence(
@@ -401,8 +412,7 @@ class _SourcesPageState extends State<SourcesPage> {
             // Library reading summary (4.1.0) — opt-in, the reader's own
             // preference, computed from the subscription already loaded (no
             // extra read). Opened and Finished are two facts, never stages;
-            // at the subscription's cap the figures describe the window and
-            // say so.
+            // on a full window the figures describe the window and say so.
             ValueListenableBuilder<ReaderPrefs>(
               valueListenable: ReaderPrefs.current,
               builder: (context, p, _) => !p.stats
@@ -422,8 +432,9 @@ class _SourcesPageState extends State<SourcesPage> {
                                 all.where((s) => s.finishedAt != null).length)
                           ),
                         ]),
-                        if (all.length >= 200)
-                          KitLibNote('Of your most recent ${all.length}.',
+                        if (atWindowCap)
+                          KitLibNote(
+                              'Of your most recent ${kitThousands(documentWindow)}.',
                               status: false),
                       ],
                     ),

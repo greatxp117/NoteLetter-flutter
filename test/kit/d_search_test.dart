@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_app/shared/document_window.dart';
 import 'package:flutter_app/models/cohesive_reading.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/search_result.dart';
@@ -41,7 +42,7 @@ class _Reads extends FirestoreService {
   String? get currentUid => 'u1';
 
   @override
-  Stream<List<Document>> subscribeDocuments({int limit = 200}) =>
+  Stream<List<Document>> subscribeDocuments({int limit = documentWindow}) =>
       docs == null ? const Stream.empty() : Stream.value(docs!);
 
   @override

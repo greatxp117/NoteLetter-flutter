@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_app/shared/document_window.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/study.dart';
 import 'package:flutter_app/pages/study/program_editor.dart';
@@ -98,7 +99,7 @@ class _Docs extends FirestoreService {
   String? get currentUid => 'u1';
 
   @override
-  Stream<List<Document>> subscribeDocuments({int limit = 200}) =>
+  Stream<List<Document>> subscribeDocuments({int limit = documentWindow}) =>
       Stream.value(docs);
 
   @override

@@ -12,6 +12,7 @@ import '../services/api.dart';
 import '../services/api_service.dart' show ApiException;
 import '../services/error_text.dart';
 import '../services/firestore_service.dart';
+import '../shared/document_window.dart';
 import '../shared/local_flags.dart';
 import '../state/documents_notifier.dart';
 import '../state/newsletter_notifier.dart';
@@ -263,10 +264,15 @@ class _LibraryPageState extends State<LibraryPage> {
     // ── The page's words ────────────────────────────────────────────────────
     final sources = measured ? kitThousands(model.total) : '—';
     final passages = measured ? kitThousands(model.passages) : '—';
+    // On a full documents window both are floors and say so (ADR-211): they
+    // counted the newest 200 as the library. Full over every row, not only
+    // the complete ones.
+    final floor = measured && windowFull(documents) ? '+' : '';
+    final one = measured && floor.isEmpty;
     final folio =
         '${kitLongDay(now.millisecondsSinceEpoch)} · '
-        '$sources ${measured && model.total == 1 ? 'source' : 'sources'} · '
-        '$passages ${measured && model.passages == 1 ? 'passage' : 'passages'}';
+        '$sources$floor ${one && model.total == 1 ? 'source' : 'sources'} · '
+        '$passages$floor ${one && model.passages == 1 ? 'passage' : 'passages'}';
     final standParts = [
       kitLetterSentence(
         read,

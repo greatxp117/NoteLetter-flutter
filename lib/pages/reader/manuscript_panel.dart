@@ -13,6 +13,7 @@ import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../shared/extraction_markers.dart';
 import '../../shared/leave_guard.dart';
+import '../../shared/notion_links.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
@@ -87,8 +88,20 @@ class ManuscriptPanel extends StatefulWidget {
   /// not a control at all.
   final ValueChanged<double>? onSeekAudio;
 
-  /// §Step jump branch 2 — the source opened at an offset.
+  /// §Step jump branch 2 — the source opened at an offset. Also where a
+  /// manuscript link opens while reading: an `http(s)` address outside the
+  /// app, as the reference's `target="_blank"` (its sanitizer keeps no other
+  /// scheme).
   final void Function(String url)? onOpenLink;
+
+  /// A Notion page link whose page is in the library opens that source here
+  /// (5.58.0, ADR-212; reader.md §A link to a Notion page in the library).
+  /// Null where there is nowhere to open one — and then nothing is looked up.
+  final ValueChanged<String>? onOpenSource;
+
+  /// The documents subscription's ids, so the lookup reads only the
+  /// candidates it does not hold (ADR-212).
+  final Set<String>? heldDocIds;
 
   /// Passages whose `chunk_read` write CONFIRMED — the dwell rule's batch and
   /// **Mark as read** (5.27.0, ADR-184) alike — with the ids the write
@@ -110,6 +123,8 @@ class ManuscriptPanel extends StatefulWidget {
       this.anchorChunkId,
       this.onSeekAudio,
       this.onOpenLink,
+      this.onOpenSource,
+      this.heldDocIds,
       this.onChunksRead});
 
   /// While true no dwell timer starts — a frame or a device test that must
@@ -151,10 +166,48 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   /// measure on open says 0, and it must not be what the offer reads.
   bool _prefsLoaded = false;
 
+  /// Notion page links that resolved to a document in the library (ADR-212),
+  /// page id → document id. Looked up once per set of linked pages, when the
+  /// manuscript is drawn — the reference's reason is a lookup on click opening
+  /// Notion after an await, as a pop-up. A failed lookup leaves every link as
+  /// written: each still opens a working page.
+  Map<String, String> _notionLinks = const {};
+
+  /// The set of page ids last looked up, so a chunk refold (a dwell write, a
+  /// reload) that links the same pages reads nothing again.
+  String? _notionKey;
+  int _notionGen = 0;
+
+  void _lookUpNotionLinks() {
+    if (widget.onOpenSource == null) return;
+    final ids = notionPageIdsIn([for (final c in widget.chunks) c.html]);
+    final key = (List.of(ids)..sort()).join(',');
+    if (key == _notionKey) return;
+    _notionKey = key;
+    final gen = ++_notionGen;
+    // Called from initState and didUpdateWidget, which a build follows.
+    _notionLinks = const {};
+    // A source with no Notion page link reads nothing.
+    if (ids.isEmpty) return;
+    FirestoreService.instance
+        .resolveNotionPages(ids, held: widget.heldDocIds)
+        .then((links) {
+      if (!mounted || gen != _notionGen) return;
+      setState(() => _notionLinks = links);
+    }, onError: (Object e) {
+      // Deliberately nothing on screen (ADR-212 §3): a failed lookup leaves
+      // every link as written, and each still opens a working page in Notion,
+      // so the reader has nothing to act on. The links simply stay Notion's.
+      debugPrint('reader: Notion page links could not be looked up; they '
+          'open in Notion ($e)');
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _chunks = _initFrom(widget.chunks);
+    _lookUpNotionLinks();
     _scheduleAnchor();
     ReaderPrefs.current.addListener(_onPrefs);
     ReaderPrefs.ensureLoaded().then((_) {
@@ -336,6 +389,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   @override
   void didUpdateWidget(covariant ManuscriptPanel old) {
     super.didUpdateWidget(old);
+    _lookUpNotionLinks();
     if (_pendingResync) {
       _pendingResync = false;
       _rebuildControllers();
@@ -1765,7 +1819,11 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   /// [dropCap] — this is the first passage, whose first paragraph opens with
   /// the drop cap (`.ms-chunk:first-child … p:first-child::first-letter`).
   Widget _rendered(_EditChunk c, ReaderUi ui, {bool dropCap = false}) {
-    final html = _markShared(markSanitizedHtml(c.html.trim()));
+    // A Notion page link whose page is in the library opens it here
+    // (ADR-212): drawn only, so an edit shows, and a save stores, Notion's
+    // address — `c.html` is never touched.
+    final html = rewriteNotionLinks(
+        _markShared(markSanitizedHtml(c.html.trim())), _notionLinks);
     final type = _sheetType(context);
     if (html.isEmpty) {
       final (lead, rest) = dropCap ? _plainLead(c.text) : (null, c.text);
@@ -1795,6 +1853,9 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     // `.ms-body` — `"opsz" 18` for the body, its headings and its emphasis.
     return AppTheme.htmlOpticalSize(18, child: Html(
       data: html,
+      // Only while reading: editing is not reading, and nothing at rest
+      // here is a field the reader could be typing into.
+      onLinkTap: _editing ? null : _onLinkTap,
       // `.ms-body img` — framed, and a tap opens it full size.
       extensions: [
         ...AppTheme.htmlExtensions,
@@ -1815,6 +1876,25 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         ),
       )),
     ));
+  }
+
+  /// A manuscript link, tapped while reading. One the lookup redrew into the
+  /// Reader ([notionDocAttribute], ADR-212) opens that source here; any other
+  /// `http(s)` address opens outside the app (the reference's `target=
+  /// "_blank"`), Notion's own address included when its page did not resolve.
+  /// flutter_html draws a link as a text span, not an anchor, so there is no
+  /// modified-tap path to hand to a browser (web's `isPlainClick`).
+  void _onLinkTap(
+      String? url, Map<String, String> attributes, dom.Element? element) {
+    final into = attributes[notionDocAttribute];
+    if (into != null && into.isNotEmpty && widget.onOpenSource != null) {
+      widget.onOpenSource!(into);
+      return;
+    }
+    if (url == null) return;
+    final scheme = Uri.tryParse(url)?.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') return;
+    widget.onOpenLink?.call(url);
   }
 
   /// The first block of a passage's html when it is a `<p>` of plain text —
