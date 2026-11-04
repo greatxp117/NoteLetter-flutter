@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:provider/provider.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import '../../models/chunk.dart';
@@ -22,10 +23,12 @@ import '../../widgets/kit/kit.dart';
 import 'reader_ui.dart';
 import 'passage_boundary.dart';
 import 'passage_mark.dart';
+import 'passage_shelves.dart';
 import 'reader_prefs.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'dwell.dart';
 import '../../services/firestore_service.dart';
+import '../../state/tags_notifier.dart';
 import '../../theme/app_theme.dart';
 
 /// One editable passage. `chunkId == null` marks a passage created by a split
@@ -151,6 +154,17 @@ class ManuscriptPanel extends StatefulWidget {
 }
 
 class _ManuscriptPanelState extends State<ManuscriptPanel> {
+  /// Each passage's `tag_overrides` as this session's accepted writes left
+  /// it, over what the chunks read said ([_storedOverride]).
+  final Map<String, Map<String, dynamic>?> _overrides = {};
+
+  Map<String, dynamic>? _storedOverride(String chunkId) {
+    for (final c in widget.chunks) {
+      if (c.chunkId == chunkId) return c.tagOverrides;
+    }
+    return null;
+  }
+
   late List<_EditChunk> _chunks;
   final Map<int, TextEditingController> _controllers = {};
   bool _editing = false;
@@ -1248,6 +1262,25 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             // feature of the source. 4.2.0 amended this for the EXTENT alone,
             // which is why the gutter mark below is outside this gate.
             if (_editing) _chunkHead(ui, visible, i),
+            // The passage's shelves (§35, ADR-034; web `ChunkShelves`, drawn
+            // in its head): edit mode only, and only for a passage the server
+            // knows — a passage split off in this edit has no id to file yet.
+            if (_editing && !c.isNew && c.chunkId != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: PassageShelves(
+                  key: ValueKey('ms-shelves-${c.chunkId}'),
+                  docId: widget.doc.id,
+                  chunkId: c.chunkId!,
+                  docTagIds: widget.doc.tagIds,
+                  shelves: context.watch<TagsNotifier?>()?.tags ?? const [],
+                  tagOverrides: _overrides.containsKey(c.chunkId)
+                      ? _overrides[c.chunkId]
+                      : _storedOverride(c.chunkId!),
+                  onSaved: (next) =>
+                      setState(() => _overrides[c.chunkId!] = next),
+                ),
+              ),
             if (_editing) const SizedBox(height: 13),
             if (_editing && !c.atomic)
               TextField(
