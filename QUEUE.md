@@ -2569,7 +2569,7 @@ a new obligation on a finished screen is a new item.
 - notes: Xavier 2026-11-04, on the Library's cloud section: shelves on the rows, a row that opens its source, the new note icons, a white Notion mark in dark mode, Manage instead of Disconnect with the service's controls on a page of their own, and the unclear type control. Web RELEASED first. Also owed by this item: Settings' link to organized folders goes to the service's page, the connect page's fine print says Manage, and an expired row on the Library says Sign-in expired with Reconnect beside Manage. KitProviderLogo's Notion mark is black on a dark page today, so check every bare mark, not only the plates. Xavier approved the look 2026-11-04. Cloud brief: umbrella `.claude/cloud/README.md` lane F.
 
 ## F-161 · A sheet's controls come first; its way back follows the scroll (5.60.0, ADR-214)
-- status: open
+- status: in-progress
 - screen: reader-way-back
 - route: every page with a KitDSheet; the order on /sources, /search, /shelves/map
 - spec: spec/decisions/ADR-214-a-sheets-controls-come-first-and-its-way-back-follows-the-scroll.md; spec/features/sheet-controls-and-way-back.md; spec/component-kit.md; spec/screens/sources.md; spec/screens/search.md; spec/screens/library.md
@@ -2583,7 +2583,7 @@ a new obligation on a finished screen is a new item.
 - placed: after F-160
 
 ## F-162 · Letters sent counts the letters that were sent; Ask's Try again is text weight (5.60.1)
-- status: open
+- status: in-progress
 - screen: letters
 - route: /letters; /ask
 - spec: spec/screens/letters.md; spec/screens/ask.md

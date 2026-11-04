@@ -24,11 +24,12 @@ abstract final class UploadOrigin {
       : phone;
 }
 
-/// `purposeText`'s bound (api/newsletter.md, 5.48.0; web `MISSION_MAX`):
-/// `fn_newsletter_settings` keeps the first 1000 characters and drops the rest
-/// without a word — the one key it cuts rather than refuses — so every field
-/// that writes the mission (Letter settings' *Your librarian*, onboarding's
-/// mission box) stops there as the reader types (§6.9: no counter). Not
+/// `purposeText`'s bound (api/newsletter.md, 5.48.0; web `MISSION_MAX`).
+/// Since 5.61.0 `fn_newsletter_settings` refuses a longer one with a 400, as it
+/// refuses every other key out of bounds (until then it kept the first 1000
+/// characters without a word), so every field that writes the mission (Letter
+/// settings' *Your librarian*, onboarding's mission box) stops there as the
+/// reader types (§6.9: no counter) and never sends what would be refused. Not
 /// Suggest shelves' `purposeMax`, which is `fn_suggest_tags`' own 2000.
 const missionMax = 1000;
 

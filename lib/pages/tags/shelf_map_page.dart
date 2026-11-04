@@ -23,11 +23,12 @@ import 'shelf_parts.dart';
 /// * **Frame** the D frame ([KitDPage]): the crumb *All shelves*, folio
 ///   `Shelf map · {N} shelves`, *The Shelf Map*, the standfirst. No action,
 ///   no settings.
-/// * **Sheet** *The shelf map*: Figures *On the map* (the graph's own counts),
-///   *Go to a shelf* (every shelf in tree order; choosing one selects and
-///   centres it on the map already drawn, and never leaves the page), *Also*:
-///   *All shelves*. On a phone it is the running head (the map glyph, the
-///   chosen shelf's title, `{N} shelves`), and choosing a shelf folds it.
+/// * **Sheet** *The shelf map*: *Go to a shelf* (every shelf in tree order;
+///   choosing one selects and centres it on the map already drawn, and never
+///   leaves the page), then Figures *On the map* (the graph's own counts), then
+///   *Also*: *All shelves* (5.60.0, ADR-214: what picks leads). On a phone it
+///   is the running head (the map glyph, the chosen shelf's title, `{N}
+///   shelves`), and choosing a shelf folds it.
 /// * **Column** one §24 [KitRelationshipMap] filling it: at least 560 tall or
 ///   the window less 120 (a phone: 70% of the window, at least 440).
 ///
@@ -157,19 +158,10 @@ class _ShelfMapPageState extends State<ShelfMapPage> {
     final sheet = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        KitFigures(
-          label: 'On the map',
-          rows: known
-              ? [
-                  ('Shelves', kitThousands(c.shelves)),
-                  ('Volumes', kitThousands(c.volumes)),
-                  ('Links', kitThousands(c.links)),
-                  if (c.unshelved > 0) ('Unshelved', kitThousands(c.unshelved)),
-                ]
-              : const [('Shelves', '—'), ('Volumes', '—'), ('Links', '—')],
-        ),
         if (known && flat.isNotEmpty) ...[
-          const KitDLabel('Go to a shelf'),
+          // Kit §29 (5.60.0, ADR-214): what picks what the page shows
+          // comes before the figures about it.
+          const KitDLabel('Go to a shelf', first: true),
           KitShelfRows(
             children: [
               for (final (s, depth) in flat)
@@ -190,6 +182,17 @@ class _ShelfMapPageState extends State<ShelfMapPage> {
             ],
           ),
         ],
+        KitFigures(
+          label: 'On the map',
+          rows: known
+              ? [
+                  ('Shelves', kitThousands(c.shelves)),
+                  ('Volumes', kitThousands(c.volumes)),
+                  ('Links', kitThousands(c.links)),
+                  if (c.unshelved > 0) ('Unshelved', kitThousands(c.unshelved)),
+                ]
+              : const [('Shelves', '—'), ('Volumes', '—'), ('Links', '—')],
+        ),
         KitSheetAlso(
           children: [
             Builder(

@@ -4717,6 +4717,85 @@ void main() {
         reason: 'a fresh visit did not read the stored mission back');
   });
 
+  // F-162 (5.60.1): *Letters sent* is the daily letters whose status is
+  // `sent`, measured against the emulator's own records; and a refused Ask
+  // turn offers Try again at text weight. The refusal is stood in at the
+  // transport (the shim answers Ask), every other request goes for real.
+  testWidgets(
+      'Letters sent counts sent letters; a refused Ask turn offers Try again '
+      'at text weight (F-162)', (tester) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final rows = await FirebaseFirestore.instance
+        .collection('newsletters')
+        .where('user_id', isEqualTo: uid)
+        .get();
+    final daily = rows.docs.where((d) => d.data()['kind'] != 'scripture');
+    final sent = daily.where((d) => d.data()['status'] == 'sent').length;
+
+    final router = await pumpApp(tester);
+    router.go('/letters');
+    await pumpFor(tester, total: const Duration(seconds: 6));
+    final delivery = tester.widget<KitFigures>(find.byWidgetPredicate(
+        (w) => w is KitFigures && w.label == 'Delivery'));
+    final figure =
+        delivery.rows.firstWhere((r) => r.$1 == 'Letters sent').$2;
+    expect(figure.replaceAll('+', ''), '$sent',
+        reason: 'the figure is the sent letters, not every row '
+            '(${daily.length} daily rows)');
+
+    ApiService.instance.httpClientAdapter = _Refuse('/fn_ask_turn');
+    try {
+      router.go('/ask');
+      await pumpFor(tester, total: const Duration(seconds: 4));
+      await tester.enterText(
+          find.byKey(const ValueKey('ask-field')), 'What about bread?');
+      await pumpFor(tester, total: const Duration(milliseconds: 500));
+      await tester.tap(find.byKey(const ValueKey('ask-send')));
+      await pumpFor(tester, total: const Duration(seconds: 3));
+      expect(find.widgetWithText(KitHxLink, 'Try again'), findsOneWidget);
+      expect(find.widgetWithText(KitButton, 'Try again'), findsNothing,
+          reason: 'never a second filled brick over the send');
+    } finally {
+      ApiService.instance.resetTestSeams();
+    }
+  });
+
+  // F-161 (5.60.0, ADR-214): past the crumb, the sheet carries the way back.
+  // A device is a phone, so the sheet is the running head and the row heads
+  // its dropped sheet. Needs tool/seed_long_doc.py (a page long enough to
+  // scroll the crumb away).
+  testWidgets(
+      'scrolled past the crumb, the sheet opens on the way back and a tap goes '
+      "where the crumb goes; the Library's sheet leads with Order (F-161)",
+      (tester) async {
+    final router = await pumpApp(tester);
+    router.go('/reader/device-run-long-doc?from=%2Fsources');
+    await pumpFor(tester, total: const Duration(seconds: 6));
+    final row = find.byKey(const ValueKey('d-sheet-back'));
+    expect(row, findsNothing, reason: 'a page at its top has one way back');
+    // A real drag, twice: the crumb leaves the screen.
+    for (var i = 0; i < 2; i++) {
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
+      await pumpFor(tester, total: const Duration(milliseconds: 750));
+    }
+    final peek = find.byKey(const ValueKey('d-peek'));
+    expect(peek, findsOneWidget, reason: 'a phone runs the sheet as its head');
+    await tester.tap(peek);
+    await pumpFor(tester, total: const Duration(milliseconds: 1200));
+    expect(row, findsOneWidget, reason: 'the dropped sheet leads with the way back');
+    final back = find.descendant(of: row, matching: find.text('LIBRARY'));
+    expect(back, findsOneWidget);
+    await tester.tap(back);
+    await pumpFor(tester, total: const Duration(seconds: 4));
+    expect(router.state.uri.path, '/sources');
+
+    // The Library's sheet: Order first, then Kind, then Shelf.
+    await tester.tap(find.byKey(const ValueKey('d-peek')));
+    await pumpFor(tester, total: const Duration(milliseconds: 1200));
+    double y(String t) => tester.getTopLeft(find.text(t).first).dy;
+    expect(y('ORDER'), lessThan(y('KIND')));
+  });
+
   // F-160 (5.59.0, ADR-213): a connected service's own page. Google Drive is
   // in the seed, with `seed-import-job-1` complete → seed-doc-pdf-complete.
   // Disconnect is last: it removes the seed's integration for the rest of
@@ -4809,6 +4888,35 @@ class _NotionWorkspace implements HttpClientAdapter {
     }
     return ResponseBody.fromString(
         jsonEncode({'items': _items, 'nextPageToken': null}), 200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType]
+        });
+  }
+
+  @override
+  void close({bool force = false}) => _real.close(force: force);
+}
+
+/// Refuses every request to [path] with the backend's 500 envelope and sends
+/// the rest for real (F-162: a refused Ask turn on a device).
+class _Refuse implements HttpClientAdapter {
+  final String path;
+  final HttpClientAdapter _real = IOHttpClientAdapter();
+  _Refuse(this.path);
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    if (!options.uri.path.endsWith(path)) {
+      return _real.fetch(options, requestStream, cancelFuture);
+    }
+    return ResponseBody.fromString(
+        jsonEncode({
+          'error': 'Ask failed. Contact support with your request ID.',
+          'error_code': 'INTERNAL',
+          'request_id': 'device-run',
+        }),
+        500,
         headers: {
           Headers.contentTypeHeader: [Headers.jsonContentType]
         });

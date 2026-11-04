@@ -7,6 +7,14 @@
 #                           start the functions shim (NL_DEV_FAKES=1) on 5599
 #   tool/emu_alt.sh down    stop all of it
 #   tool/emu_alt.sh env     print the exports a batch needs (`eval` them)
+#   tool/emu_alt.sh heap    print the JAVA_TOOL_OPTIONS `up` starts the emulators with
+#
+# Heap: the Firestore emulator's JVM ran out of heap after ~200 frames'
+# listeners and then wrote plausible WRONG frames (TODO L182, L337, L2647), and
+# lanes set JAVA_TOOL_OPTIONS=-Xmx5g by hand. `up` now does: it APPENDS
+# -Xmx${NL_EMU_HEAP:-5g} to whatever JAVA_TOOL_OPTIONS already holds (a cloud
+# VM's carries its proxy and truststore there, and replacing it cuts the
+# emulator's downloads off), and leaves a value that already names -Xmx alone.
 #
 # Ports: firestore 8580 · auth 9599 · storage 9699 · pubsub 8585 · hub 4412 ·
 # logging 4512 · shim 5599. The burn-down's EMU lock is the caller's to take
@@ -24,6 +32,13 @@ FN="$WS/NoteLetter-Firebase-Functions"
 PY="$FN/functions/venv/bin/python"
 OUT="$REPO/.dart_tool/emu_alt"
 mkdir -p "$OUT"
+
+java_opts() {
+  case " ${JAVA_TOOL_OPTIONS:-} " in
+    *" -Xmx"*) printf '%s\n' "$JAVA_TOOL_OPTIONS" ;;
+    *) printf '%s\n' "${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Xmx${NL_EMU_HEAP:-5g}" ;;
+  esac
+}
 
 exports() {
   cat <<'EOF'
@@ -71,6 +86,9 @@ json.dump({
 }, open(out, "w"), indent=2)
 EOF
   eval "$(exports)"
+  JAVA_TOOL_OPTIONS="$(java_opts)"
+  export JAVA_TOOL_OPTIONS
+  echo "emulator heap: $JAVA_TOOL_OPTIONS" | sed 's/-D[^ ]*//g; s/  */ /g'
   cd "$FN"
   nohup firebase emulators:start --project noteletter-7a111 \
     --config "$OUT/firebase.alt.json" --only auth,firestore,storage,pubsub \
@@ -103,5 +121,6 @@ case "${1:-}" in
   up) up ;;
   down) down ;;
   env) exports ;;
-  *) echo "usage: tool/emu_alt.sh up|down|env" >&2; exit 2 ;;
+  heap) java_opts ;;
+  *) echo "usage: tool/emu_alt.sh up|down|env|heap" >&2; exit 2 ;;
 esac

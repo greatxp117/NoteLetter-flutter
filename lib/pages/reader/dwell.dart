@@ -5,6 +5,9 @@
 /// watches visibility cannot be.
 library;
 
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
+
 /// Words per minute. **Normative** (ADR-020 §4) and shared with the reader's
 /// reading-time row: a client must not carry two opinions about how fast people
 /// read.
@@ -38,21 +41,51 @@ Duration dwellFor(int wordCount) {
 int wordsIn(String text) =>
     text.trim().isEmpty ? 0 : text.trim().split(RegExp(r'\s+')).length;
 
+/// The indexer's word rule, for a passage's HTML (4.108.0, ADR-144;
+/// data-model.md `word_count`; web `shared/indexWords.js`, word for word in
+/// effect): every text node counted on its own and summed — BeautifulSoup's
+/// `get_text(separator="\n", strip=True).split()`, `chunker.index_word_count`.
+/// A table counts its cells' words and an image none (its alt is an attribute,
+/// not text), and two cells or two blocks never run together into one word.
+/// Parsed inert, so nothing in it loads.
+int indexWords(String html) {
+  if (html.trim().isEmpty) return 0;
+  var n = 0;
+  void walk(dom.Node node) {
+    if (node is dom.Text) {
+      final s = node.text.trim();
+      if (s.isNotEmpty) n += s.split(RegExp(r'\s+')).length;
+    }
+    for (final c in node.nodes) {
+      walk(c);
+    }
+  }
+
+  walk(html_parser.parseFragment(html));
+  return n;
+}
+
 /// The words a passage is measured in — for the dwell clock above, and for
 /// every count the manuscript prints beside it, so the label and the clock
 /// never disagree.
 ///
-/// **The passage's own stored `text`** (`screens/reader.md` §Reading state,
-/// ADR-039 §3: "`word_count` is the chunk's own, from `chunk.text` when not
-/// stored" — chunks store no `word_count`). That text is INV-11's derivation
-/// of the html: blocks joined by newlines, `[Image: alt]` markers, tables
-/// linearized. A count taken from the html instead is a different number on
-/// every passage holding a table or an image — stripping tags leaves out the
-/// markers, and the web reference's `textContent` also glues adjacent cells
-/// and blocks into one word (`QuarterInvoice total`).
+/// **The indexer's rule over the passage's HTML** ([indexWords]; 4.108.0,
+/// ADR-144; web `indexWords(c.html)`), so a passage and its document are
+/// counted the same way. Never its stored `text`: that is INV-11's
+/// linearization, with `[Image: alt]` markers and ` | ` between table cells,
+/// so a table passage read high and every pipe was a word (TODO L265). The
+/// stored text is the count only for a passage with no HTML (the pre-1.1
+/// shape), as data-model.md says.
 ///
 /// [editedText] stands in once a passage is edited: its new words have no
-/// stored text yet. Editing is not reading, so no dwell runs meanwhile; only
-/// the labels read it.
-int passageWords({required String storedText, String? editedText}) =>
-    wordsIn(editedText ?? storedText);
+/// HTML yet. Editing is not reading, so no dwell runs meanwhile; only the
+/// labels read it.
+int passageWords({
+  String? html,
+  required String storedText,
+  String? editedText,
+}) {
+  if (editedText != null) return wordsIn(editedText);
+  if (html != null && html.trim().isNotEmpty) return indexWords(html);
+  return wordsIn(storedText);
+}

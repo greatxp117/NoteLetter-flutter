@@ -70,16 +70,23 @@ String lettersFolio({
   return ['Letters', count, ?when].join(' · ');
 }
 
-/// *Letters sent* in the Delivery figures: the folio's count by the same
-/// rules — the dash, or a floor.
+/// *Letters sent* in the Delivery figures (5.60.1; web `sentFigure`): the
+/// daily letters the mail provider accepted — `status == 'sent'` (INV-23,
+/// never that they arrived) — not the folio's count of rows. A failed send, a
+/// Send now that found nothing new (`empty`) and a build still in flight
+/// (`generating`) are rows in the archive and were never sent, and an unknown
+/// status claims nothing. The folio's window rules: the dash while the read is
+/// out or refused, a floor once the window is full. [statuses] are the daily
+/// rows' statuses, readings letter excluded.
 @visibleForTesting
 String lettersSentFigure({
   required bool measured,
-  required int daily,
+  required Iterable<String> statuses,
   required int window,
 }) {
   if (!measured) return '—';
-  return window >= lettersArchiveLimit ? '$daily+' : '$daily';
+  final sent = statuses.where((s) => s == 'sent').length;
+  return window >= lettersArchiveLimit ? '$sent+' : '$sent';
 }
 
 /// `{Daily | Weekdays | Weekly} at {h:mm AM}` from the settings read; null
@@ -495,7 +502,7 @@ class _LettersPageState extends State<LettersPage> {
                   'Letters sent',
                   lettersSentFigure(
                     measured: measured,
-                    daily: daily.length,
+                    statuses: [for (final n in daily) n.status],
                     window: window,
                   ),
                 ),

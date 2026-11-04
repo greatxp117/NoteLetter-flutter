@@ -1,8 +1,10 @@
 import 'dart:math' as math;
+import 'dart:async' show Timer;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart' show Icons;
-import 'package:flutter/rendering.dart' show RenderProxyBox;
+import 'package:flutter/rendering.dart'
+    show BoxHitTestEntry, BoxHitTestResult, RenderConstrainedBox, RenderProxyBox;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -264,6 +266,10 @@ class KitMasthead extends StatelessWidget {
   /// own field — Search; web `.dp.dp-f .dp-tools { flex: 1 1 640px }`).
   final bool growTools;
 
+  /// The crumb's key, for the sheet's way back (§29, 5.60.0, ADR-214): the
+  /// page watches where the crumb is in its own scroller. Web's `crumbRef`.
+  final GlobalKey? crumbKey;
+
   const KitMasthead({
     super.key,
     required this.folio,
@@ -275,6 +281,7 @@ class KitMasthead extends StatelessWidget {
     this.titleWidget,
     this.byline,
     this.crumbStacks = false,
+    this.crumbKey,
     this.growTools = false,
   });
 
@@ -349,10 +356,13 @@ class KitMasthead extends StatelessWidget {
                   Flexible(child: folioText),
                 ],
               );
+        final keyedLead = back != null && crumbKey != null
+            ? KeyedSubtree(key: crumbKey, child: lead)
+            : lead;
         Widget rail;
         final tl = tools;
         if (tl == null) {
-          rail = lead;
+          rail = keyedLead;
         } else if (cw >= 960) {
           // Web: the folio (or crumb) is `flex: 0 0 auto` up to `100% -
           // 364px` — its own width, never a share of the line — and the
@@ -364,7 +374,7 @@ class KitMasthead extends StatelessWidget {
             children: [
               ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: math.max(0, cw - 364)),
-                child: lead,
+                child: keyedLead,
               ),
               const SizedBox(width: 24),
               Expanded(
@@ -385,7 +395,7 @@ class KitMasthead extends StatelessWidget {
           rail = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              lead,
+              keyedLead,
               const SizedBox(height: 14),
               Align(
                 alignment: Alignment.centerLeft,
@@ -1810,13 +1820,26 @@ class KitSheetCard extends StatelessWidget {
   final double? maxHeight;
   final bool narrow;
 
+  /// What stands above the body and never scrolls with it: the way back
+  /// ([KitSheetBack], §29, 5.60.0). Pinned by being outside the body's
+  /// scroller, which on web took a sticky `top`.
+  final Widget? head;
+
   const KitSheetCard({
     super.key,
     required this.label,
     required this.child,
     this.maxHeight,
     this.narrow = false,
+    this.head,
   });
+
+  Widget _scrolling(Widget body) => maxHeight == null
+      ? body
+      : KitScrollView.secondary(
+          reason: 'the sheet scrolls inside itself (§29)',
+          child: body,
+        );
 
   @override
   Widget build(BuildContext context) {
@@ -1840,12 +1863,115 @@ class KitSheetCard extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: AppRadius.xlR,
-          child: maxHeight == null
-              ? body
-              : KitScrollView.secondary(
-                  reason: 'the sheet scrolls inside itself (§29)',
-                  child: body,
+          child: head == null
+              ? _scrolling(body)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    head!,
+                    Flexible(child: _scrolling(body)),
+                  ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── §29 + §39 · the sheet's way back (5.60.0, ADR-214) ───────────────────────
+
+/// The page's own back control at the head of the sheet, while the masthead's
+/// crumb is off the screen (web `SheetBack`). [KitDPage] draws it, so no page
+/// names it. It is mounted only while [on] and for a beat after, so a page at
+/// its top draws one back control, and the row folds rather than jumps; while
+/// folding it answers nothing. The same label, the same tap, and a sub-shelf's
+/// whole trail; no separator after the last link. [dock]: the phone's dropped
+/// sheet, whose sides are 20 rather than 24.
+class KitSheetBack extends StatefulWidget {
+  final bool on;
+  final KitDBackControl back;
+  final bool dock;
+
+  /// How long the row stays while it folds (web `BACK_FOLD_MS`).
+  static const fold = Duration(milliseconds: 240);
+
+  const KitSheetBack({
+    super.key,
+    required this.on,
+    required this.back,
+    this.dock = false,
+  });
+
+  @override
+  State<KitSheetBack> createState() => _KitSheetBackState();
+}
+
+class _KitSheetBackState extends State<KitSheetBack> {
+  late bool _here = widget.on;
+  Timer? _timer;
+
+  @override
+  void didUpdateWidget(KitSheetBack old) {
+    super.didUpdateWidget(old);
+    if (widget.on == old.on) return;
+    _timer?.cancel();
+    if (widget.on) {
+      _here = true;
+    } else {
+      _timer = Timer(KitSheetBack.fold, () {
+        if (mounted) setState(() => _here = false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.on && !_here) return const SizedBox.shrink();
+    final t = Tokens.of(context);
+    final b = widget.back;
+    final side = widget.dock ? 20.0 : 24.0;
+    return ClipRect(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: widget.on ? 1 : 0),
+        duration: KitD.dur(context, AppMotion.durBase),
+        curve: AppMotion.easeQuill,
+        builder: (context, v, child) =>
+            Align(alignment: Alignment.topCenter, heightFactor: v, child: child),
+        child: IgnorePointer(
+          ignoring: !widget.on,
+          child: ExcludeSemantics(
+            excluding: !widget.on,
+            child: ExcludeFocus(
+              excluding: !widget.on,
+              child: Container(
+                key: const ValueKey('d-sheet-back'),
+                width: double.infinity,
+                padding: EdgeInsets.fromLTRB(side - 8, 0, side, 0),
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  border: Border(bottom: BorderSide(color: t.rule)),
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  // The control's 44px hit area IS the row's height: its 14
+                  // above and below is the row's own padding (web `padding:
+                  // 14px 24px` around a 16px line).
+                  child: KitDBackControl(
+                    b.label,
+                    onTap: b.onTap,
+                    trail: b.trail,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -1861,10 +1987,18 @@ class KitRunningHead extends StatefulWidget {
   final KitDSheet sheet;
   final double maxBodyHeight;
 
+  /// The page's back control, heading the dropped sheet under the line while
+  /// [backOn] (§29 + §39, 5.60.0) — never on the line itself, which is one
+  /// button already.
+  final KitDBackControl? back;
+  final bool backOn;
+
   const KitRunningHead({
     super.key,
     required this.sheet,
     required this.maxBodyHeight,
+    this.back,
+    this.backOn = false,
   });
 
   @override
@@ -1992,17 +2126,33 @@ class _KitRunningHeadState extends State<KitRunningHead> {
                         decoration: BoxDecoration(
                           border: Border(top: BorderSide(color: t.rule)),
                         ),
-                        child: KitScrollView.secondary(
-                          reason: 'the dropped sheet scrolls inside (§30)',
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                            child: KitSheetScope(
-                              lines: true,
-                              dock: true,
-                              onPick: widget.sheet.foldOnPick ? _fold : null,
-                              child: widget.sheet.body,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (widget.back != null)
+                              KitSheetBack(
+                                  on: widget.backOn,
+                                  back: widget.back!,
+                                  dock: true),
+                            Flexible(
+                              child: KitScrollView.secondary(
+                                reason: 'the dropped sheet scrolls inside (§30)',
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                                  child: KitSheetScope(
+                                    lines: true,
+                                    dock: true,
+                                    onPick: widget.sheet.foldOnPick
+                                        ? _fold
+                                        : null,
+                                    child: widget.sheet.body,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ),
@@ -2140,7 +2290,38 @@ class _KitDPageState extends State<KitDPage> {
   final GlobalKey _gear = GlobalKey(debugLabel: 'd-gear');
   final GlobalKey _stack = GlobalKey(debugLabel: 'd-page');
   final GlobalKey _grid = GlobalKey(debugLabel: 'd-grid');
+  final GlobalKey _crumb = GlobalKey(debugLabel: 'd-crumb');
   bool _open = false;
+
+  /// The masthead's crumb is off the screen (§29 + §39, 5.60.0, ADR-214; web
+  /// `useCrumbGone`): read from where the crumb stands in the page's own
+  /// scroller, so it holds at any depth and through a layout change, and on a
+  /// phone that scroller already starts under the running head. Watched only
+  /// with a back control AND a sheet to carry it.
+  bool _crumbGone = false;
+  ScrollController? _watched;
+
+  bool get _watch => widget.back != null && widget.sheet != null;
+
+  void _rewatch() {
+    final next = _watch ? _sc : null;
+    if (identical(next, _watched)) return;
+    _watched?.removeListener(_onCrumb);
+    _watched = next;
+    _watched?.addListener(_onCrumb);
+    if (next == null && _crumbGone) _crumbGone = false;
+  }
+
+  void _onCrumb() {
+    if (!mounted || !_watch || !_sc.hasClients) return;
+    final box = _crumb.currentContext?.findRenderObject();
+    final vp = _sc.position.context.storageContext.findRenderObject();
+    if (box is! RenderBox || vp is! RenderBox) return;
+    if (!box.attached || !vp.attached || !box.hasSize) return;
+    final top = box.localToGlobal(Offset.zero, ancestor: vp).dy;
+    final gone = top + box.size.height <= 0 || top >= vp.size.height;
+    if (gone != _crumbGone) setState(() => _crumbGone = gone);
+  }
 
   void _setOpen(bool v) {
     if (v == _open) return;
@@ -2181,6 +2362,12 @@ class _KitDPageState extends State<KitDPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _rewatch();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     widget.sections?.attach(_sc, still: KitD.still(context));
@@ -2198,10 +2385,12 @@ class _KitDPageState extends State<KitDPage> {
       old.sections?.detach(_sc);
       widget.sections?.attach(_sc, still: KitD.still(context));
     }
+    _rewatch();
   }
 
   @override
   void dispose() {
+    _watched?.removeListener(_onCrumb);
     widget.sections?.detach(_sc);
     final tools = KitPageTools.instance..clear(this);
     if (tools.scrim.value?.$1 == _close || tools.scrim.value?.$1 == _closePanel) {
@@ -2361,7 +2550,12 @@ class _KitDPageState extends State<KitDPage> {
             byline: widget.byline,
             crumbStacks: widget.crumbStacks,
             growTools: widget.field != null,
+            crumbKey: _crumb,
           );
+          // The way back at the sheet's head, while the crumb is off the
+          // screen (§29 + §39). A stacked sheet scrolls away with the crumb,
+          // so it carries none.
+          final way = widget.back;
           final Widget main = widget.dock == null
               ? widget.child
               : _DockColumn(
@@ -2394,7 +2588,7 @@ class _KitDPageState extends State<KitDPage> {
               key: _grid,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
+                _StickyCell(
                   width: sheetW,
                   child: _Sticky(
                     controller: _sc,
@@ -2403,6 +2597,9 @@ class _KitDPageState extends State<KitDPage> {
                     child: KitSheetCard(
                       label: sheet.label,
                       maxHeight: math.max(240, c.maxHeight - 48),
+                      head: way == null
+                          ? null
+                          : KitSheetBack(on: _crumbGone, back: way),
                       child: KitSheetScope(child: sheet.body),
                     ),
                   ),
@@ -2447,6 +2644,8 @@ class _KitDPageState extends State<KitDPage> {
                   child: KitRunningHead(
                     sheet: sheet,
                     maxBodyHeight: math.max(160, c.maxHeight - 70),
+                    back: way,
+                    backOn: _crumbGone,
                   ),
                 ),
               if (widget.panel != null)
@@ -2664,6 +2863,42 @@ class _RenderHoldReveal extends RenderProxyBox {
   }) {
     if (descendant != null) return;
     super.showOnScreen(rect: rect, duration: duration, curve: curve);
+  }
+}
+
+/// The sheet's grid cell: [width] wide, as tall as the sheet. The stuck
+/// sheet is translated down inside the grid, past the bottom of this cell, and
+/// a box only answers a tap inside its own size — so a plain `SizedBox` here
+/// left every control on a stuck sheet dead once the page had scrolled further
+/// than the sheet is tall (found by F-161: the way back, which exists only
+/// once the page has scrolled, could not be pressed). It tests its child
+/// wherever the child is drawn; the grid's own size still bounds it.
+class _StickyCell extends SingleChildRenderObjectWidget {
+  final double width;
+  const _StickyCell({required this.width, super.child});
+
+  BoxConstraints get _c => BoxConstraints.tightFor(width: width);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderStickyCell(_c);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderStickyCell r) {
+    r.additionalConstraints = _c;
+  }
+}
+
+class _RenderStickyCell extends RenderConstrainedBox {
+  _RenderStickyCell(BoxConstraints c) : super(additionalConstraints: c);
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (hitTestChildren(result, position: position)) {
+      result.add(BoxHitTestEntry(this, position));
+      return true;
+    }
+    return false;
   }
 }
 

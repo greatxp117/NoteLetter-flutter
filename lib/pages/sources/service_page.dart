@@ -280,6 +280,9 @@ class _BringIn extends StatefulWidget {
 
 class _BringInState extends State<_BringIn> {
   bool _reconnecting = false;
+
+  /// The last import's 202, in the sum the server counted (ADR-103 §5).
+  String? _notice;
   String? _reconnectFail;
 
   Future<void> _reconnect() async {
@@ -351,7 +354,16 @@ class _BringInState extends State<_BringIn> {
                   '${widget.name} until you say so.',
           padding: const EdgeInsets.only(bottom: 10),
         ),
-        if (browsing && !needsReconnect) const _PickerPanel(),
+        if (browsing && !needsReconnect)
+          _PickerPanel(onQueued: () {
+            final k = cloud.kickoff;
+            if (k == null) return;
+            setState(() => _notice = cloudQueuedNotice(
+                k.queuedFolders, k.queuedFiles, widget.name));
+          }),
+        // What the import queued, said here, where it was asked for.
+        if (_notice != null)
+          KitProcNote(_notice!, padding: const EdgeInsets.only(top: 10)),
         if (cloud.reviewOutcome != null)
           ReviewOutcomeNotes(outcome: cloud.reviewOutcome!),
         ImportReviewQueue(
@@ -597,7 +609,10 @@ class _Connection extends StatelessWidget {
 /// `Import N items` (the accent primary, disabled at zero — `!canConfirm`)
 /// beside a quiet Cancel.
 class _PickerPanel extends StatefulWidget {
-  const _PickerPanel();
+  /// The 202 answered: the host says what was queued, in its own section.
+  final VoidCallback onQueued;
+
+  const _PickerPanel({required this.onQueued});
 
   @override
   State<_PickerPanel> createState() => _PickerPanelState();
@@ -623,10 +638,12 @@ class _PickerPanelState extends State<_PickerPanel> {
     final (msg, isErr) = await cloud.importSelection();
     if (!mounted) return;
     setState(() => _saving = false);
-    // A refusal is drawn in the picker (importError); only the 202's count is
-    // a toast, because the picker it would sit in has closed.
+    // A refusal is drawn in the picker (importError). The 202's count is
+    // §Bring in's notice, under the picker that has closed (web
+    // `CloudImportPanel`'s `notice`; a toast until F-2): a toast was gone
+    // before it was read, and said it somewhere else.
     if (isErr) return;
-    AppToast.show(context, msg, type: ToastType.success);
+    widget.onQueued();
   }
 
   @override

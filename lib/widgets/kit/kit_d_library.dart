@@ -1135,11 +1135,15 @@ class KitLibOrder extends StatelessWidget {
   final String value;
   final ValueChanged<String> onChanged;
 
+  /// Leads the sheet (5.60.0, ADR-214: the switch first, the lists after).
+  final bool first;
+
   const KitLibOrder({
     super.key,
     required this.options,
     required this.value,
     required this.onChanged,
+    this.first = false,
   });
 
   @override
@@ -1148,7 +1152,7 @@ class KitLibOrder extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        KitDLabel('Order', top: dock ? 16 : 22),
+        KitDLabel('Order', first: first, top: dock ? 16 : 22),
         KitSlideSwitch<String>(
           label: 'Order by',
           fill: true,

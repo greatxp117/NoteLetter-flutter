@@ -74,21 +74,49 @@ void main() {
     expect(wordsIn('one two   three\nfour'), 4);
   });
 
-  // F-55. The unit is the passage's STORED text (reader.md §Reading state,
-  // ADR-039 §3), never a count taken from the html. The seed's table passage
-  // is the case: its html counts 5 words with tags as breaks and 2 through the
-  // web reference's textContent (`QuarterInvoice total` / `Q2$1,200`), its
-  // stored text 8.
+  // F-55 counted a passage from its STORED text; TODO L265 (round 2) found
+  // that wrong once 4.108.0 (ADR-144) made the indexer's rule canonical: the
+  // stored text is INV-11's linearization, ` | ` between cells and
+  // `[Image: alt]` markers, so every pipe was a word. A passage is counted
+  // from its HTML by the indexer's rule (web `indexWords(c.html)`): a table
+  // counts its cells' words, an image none, two cells never one word.
+  // Mutants run against it: counting the stored text again; counting the
+  // HTML with its tags stripped and its cells glued (`textContent`). Both red.
   const tableHtml = '<table><tr><td>Quarter</td><td>Invoice total</td></tr>'
       '<tr><td>Q2</td><td>\$1,200</td></tr></table>';
-  const tableText = 'Table of tax invoice totals for the budget.';
+  const tableText = '| Quarter | Invoice total |\n| Q2 | \$1,200 |';
 
-  test('a passage is counted from its stored text, not its html', () {
-    expect(passageWords(storedText: tableText), 8);
-    expect(passageWords(storedText: tableText, editedText: 'two words'), 2,
-        reason: 'an edited passage has no stored text for its new words');
-    expect(dwellFor(passageWords(storedText: tableText)),
-        dwellFor(wordsIn(tableText)));
+  test('a passage is counted from its html by the indexer\'s rule', () {
+    expect(indexWords(tableHtml), 5,
+        reason: 'Quarter · Invoice · total · Q2 · \$1,200');
+    expect(passageWords(html: tableHtml, storedText: tableText), 5,
+        reason: 'the pipes in the stored text are not words');
+    expect(indexWords('<p>An image</p><img alt="A long description">'), 2,
+        reason: 'an alt is an attribute, not text');
+    expect(indexWords('<p>one</p><p>two</p>'), 2,
+        reason: 'two blocks never run together');
+    expect(passageWords(storedText: 'three words here'), 3,
+        reason: 'a pre-1.1 passage has no html: its text is the count');
+    expect(
+        passageWords(
+            html: tableHtml, storedText: tableText, editedText: 'two words'),
+        2,
+        reason: 'an edited passage has no html for its new words yet');
+    expect(dwellFor(passageWords(html: tableHtml, storedText: tableText)),
+        dwellFor(5));
+  });
+
+  // L265: save's preflight is the endpoint's own test — text or an image.
+  // Mutant: `table` and `hr` back in as content — red.
+  test('a passage with no text and no image is empty, a table or rule '
+      'included', () {
+    expect(passageHtmlHasContent('<p>words</p>'), isTrue);
+    expect(passageHtmlHasContent('<img src="x.png">'), isTrue);
+    expect(passageHtmlHasContent('<table><tr><td>Q2</td></tr></table>'), isTrue,
+        reason: 'a table with text has text');
+    expect(passageHtmlHasContent('<table><tr><td></td></tr></table>'), isFalse);
+    expect(passageHtmlHasContent('<hr>'), isFalse);
+    expect(passageHtmlHasContent('<p>&nbsp;</p>'), isFalse);
   });
 
   // 4.109.1: one passage of one word reads as the reference's `counted()`

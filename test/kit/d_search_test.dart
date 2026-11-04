@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +14,7 @@ import 'package:flutter_app/models/tag.dart';
 import 'package:flutter_app/pages/search_page.dart';
 import 'package:flutter_app/services/firestore_service.dart';
 import 'package:flutter_app/shared/local_flags.dart';
+import 'package:flutter_app/state/ai_settings_notifier.dart';
 import 'package:flutter_app/state/documents_notifier.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/state/tags_notifier.dart';
@@ -164,6 +167,7 @@ Future<void> _pump(
   _Reads reads, {
   Size size = _wide,
   Brightness brightness = Brightness.light,
+  AiSettingsNotifier? ai,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -177,6 +181,7 @@ Future<void> _pump(
         ChangeNotifierProvider<SearchNotifier>.value(value: search),
         ChangeNotifierProvider(create: (_) => DocumentsNotifier()),
         ChangeNotifierProvider(create: (_) => TagsNotifier()),
+        if (ai != null) ChangeNotifierProvider<AiSettingsNotifier>.value(value: ai),
       ],
       child: MaterialApp(
         theme: brightness == Brightness.dark ? AppTheme.dark : AppTheme.light,
@@ -383,8 +388,43 @@ void main() {
     expect(find.text('One passage, ranked by meaning.'), findsOneWidget);
   });
 
+  // Kit §29 (5.60.0, ADR-214; web search-cohesive.test.js): the switches
+  // lead and the list of kinds follows, so no control stands under nine rows.
+  // Mutant: Kind moved back above Read as — the first case red (with AI off
+  // Kind stands alone either way).
+  group('the sheet leads with its switches', () {
+    List<String> order(WidgetTester tester) {
+      final labels = ['READ AS', 'BREADTH', 'KIND']
+          .where((l) => find.text(l).evaluate().isNotEmpty)
+          .toList();
+      labels.sort((a, b) => tester
+          .getTopLeft(find.text(a))
+          .dy
+          .compareTo(tester.getTopLeft(find.text(b)).dy));
+      return labels;
+    }
+
+    testWidgets('Read as, then Breadth while Cohesive, then Kind',
+        (tester) async {
+      await _pump(tester, _Search(), _Reads(docs: const []));
+      expect(order(tester), ['READ AS', 'KIND']);
+      await tester.tap(find.text('Cohesive'));
+      await _frames(tester);
+      expect(order(tester), ['READ AS', 'BREADTH', 'KIND']);
+    });
+
+    testWidgets('with generative AI off there is only Kind', (tester) async {
+      final ctl = StreamController<Map<String, dynamic>>();
+      addTearDown(ctl.close);
+      final ai = AiSettingsNotifier(subscribe: () => ctl.stream)..start();
+      ctl.add({'generativeAI': false});
+      await _pump(tester, _Search(), _Reads(docs: const []), ai: ai);
+      expect(order(tester), ['KIND']);
+    });
+  });
+
   group('Filters', () {
-    testWidgets('Kind, then Read as over its note; Breadth only while '
+    testWidgets('Kind, and Read as over its note; Breadth only while '
         'Cohesive', (tester) async {
       await _pump(tester, _Search(), _Reads(docs: const []));
       expect(find.text('KIND'), findsOneWidget);

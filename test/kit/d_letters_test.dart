@@ -108,7 +108,7 @@ void main() {
         ),
         'Letters · — letters · Daily at 8:00 AM',
       );
-      expect(lettersSentFigure(measured: false, daily: 4, window: 4), '—');
+      expect(lettersSentFigure(measured: false, statuses: const ['sent'], window: 4), '—');
     });
 
     test('counted once read, agreeing in number', () {
@@ -120,7 +120,9 @@ void main() {
         lettersFolio(measured: true, daily: 1, window: 1),
         'Letters · 1 letter',
       );
-      expect(lettersSentFigure(measured: true, daily: 5, window: 6), '5');
+      expect(lettersSentFigure(
+              measured: true, statuses: List.filled(5, 'sent'), window: 6),
+          '5');
     });
 
     test('a full window is a floor, never a total', () {
@@ -129,7 +131,51 @@ void main() {
         lettersFolio(measured: true, daily: 27, window: 30),
         'Letters · 27+ letters',
       );
-      expect(lettersSentFigure(measured: true, daily: 27, window: 30), '27+');
+      expect(lettersSentFigure(
+              measured: true, statuses: List.filled(27, 'sent'), window: 30),
+          '27+');
+    });
+
+    // 5.60.1 (web letters-sent-figure.test.js, case for case): *Letters
+    // sent* counts the letters that were sent. Mutants run against it: the
+    // figure back to every row; the filter reading `status != 'error'`; the
+    // floor dropped at a full window. Each turns a case red.
+    test('a failed, an empty and a generating record are rows, not letters '
+        'sent', () {
+      const daily = ['generating', 'sent', 'error', 'empty', 'sent'];
+      expect(lettersFolio(measured: true, daily: daily.length, window: 6),
+          'Letters · 5 letters');
+      expect(lettersSentFigure(measured: true, statuses: daily, window: 6), '2');
+    });
+
+    test('an unknown status is not counted as sent', () {
+      expect(
+          lettersSentFigure(
+              measured: true, statuses: const ['sent', 'queued_for_review'],
+              window: 2),
+          '1');
+    });
+
+    test('is 0, measured, when nothing has been sent', () {
+      expect(
+          lettersSentFigure(
+              measured: true, statuses: const ['error', 'empty'], window: 2),
+          '0');
+    });
+
+    test('is a floor once the window is full, never a total', () {
+      final statuses = [
+        for (var i = 0; i < 30; i++) i % 3 == 0 ? 'error' : 'sent',
+      ];
+      expect(
+          lettersSentFigure(measured: true, statuses: statuses, window: 30),
+          '20+');
+    });
+
+    test('is the dash while the archive read is refused', () {
+      expect(
+          lettersSentFigure(measured: false, statuses: const ['sent'], window: 1),
+          '—');
     });
 
     test('{when} only while delivery is on and read', () {
