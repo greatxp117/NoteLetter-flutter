@@ -8,6 +8,7 @@
 // notifier is the real one; only the transport is canned, so what Bring in
 // SENDS is asserted, not assumed. Since 5.52.0 the page has its own address,
 // Notion's offer arrives ticked, and nothing offers File under.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -65,13 +66,37 @@ const _items = [
 /// that counts what it was asked for, and a sync write that answers the
 /// integration. Records every request.
 class _Backend implements HttpClientAdapter {
-  _Backend({this.answer, this.listing = _items, this.listingError, this.more});
+  _Backend(
+      {this.answer,
+      this.listing = _items,
+      this.listingError,
+      this.more,
+      this.pages,
+      this.gate,
+      this.importReply});
 
   final Map<String, dynamic>? answer;
   final List<Map<String, dynamic>> listing;
   final List<Map<String, dynamic>>? more;
   final String? listingError;
+
+  /// A listing by token (5.56.0): `(items, nextPageToken)` for the page asked
+  /// with [token] (null for the first) — overrides [listing] and [more].
+  final (List<Map<String, dynamic>>, String?) Function(String? token)? pages;
+
+  /// Awaited before the listing answers the page asked with that token.
+  final Future<void>? Function(String? token)? gate;
+
+  /// The i-th import request's answer (0-based), or null for the default.
+  final (int, Object)? Function(int i, Map body)? importReply;
   final sent = <RequestOptions>[];
+
+  /// The tokens the listing was asked with, in order (null = the first page).
+  List<String?> get listTokens => [
+        for (final o in sent)
+          if (o.path.endsWith('/fn_list_cloud_files'))
+            o.queryParameters['pageToken'] as String?
+      ];
 
   List<Map<String, dynamic>> bodies(String fn) => [
         for (final o in sent)
@@ -85,6 +110,11 @@ class _Backend implements HttpClientAdapter {
         return (200, answer ?? const {});
       case 'fn_list_cloud_files':
         if (listingError != null) return (400, {'error': listingError});
+        if (pages != null) {
+          final (items, next) =
+              pages!(o.queryParameters['pageToken'] as String?);
+          return (200, {'items': items, 'nextPageToken': next});
+        }
         if (o.queryParameters['pageToken'] == 't2') {
           return (200, {'items': more ?? const [], 'nextPageToken': null});
         }
@@ -94,8 +124,12 @@ class _Backend implements HttpClientAdapter {
         });
       case 'fn_import_from_cloud':
         final b = o.data as Map;
+        final i = bodies('fn_import_from_cloud').length - 1;
+        final custom = importReply?.call(i, b);
+        if (custom != null) return custom;
+        // A later batch carries no `folder_ids` (5.56.0): it queued none.
         return (202, {
-          'queued_folders': (b['folder_ids'] as List).length,
+          'queued_folders': ((b['folder_ids'] as List?) ?? const []).length,
           'queued_files': (b['file_ids'] as List).length,
         });
       case 'fn_sync_settings':
@@ -114,6 +148,9 @@ class _Backend implements HttpClientAdapter {
   Future<ResponseBody> fetch(RequestOptions options,
       Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     sent.add(options);
+    if (options.path.endsWith('/fn_list_cloud_files')) {
+      await gate?.call(options.queryParameters['pageToken'] as String?);
+    }
     final (status, body) = _reply(options);
     return ResponseBody.fromString(jsonEncode(body), status, headers: {
       Headers.contentTypeHeader: [Headers.jsonContentType]
@@ -532,43 +569,190 @@ void main() {
       await tester.pump(const Duration(seconds: 61));
     });
 
-    testWidgets('ticks what Load more brings too', (tester) async {
-      ApiService.instance.httpClientAdapter = _Backend(
+    testWidgets('lists Notion\'s offer to its end on its own, ticking every '
+        'page (5.56.0, ADR-208)', (tester) async {
+      final backend = _Backend(
           answer: {..._granted, 'provider': 'notion'},
-          listing: [_page('np-1', 'One')],
-          more: [_page('np-2', 'Two')]);
+          pages: (token) => switch (token) {
+                null => ([_page('np-1', 'One')], 't2'),
+                't2' => ([_page('np-2', 'Two')], 't3'),
+                _ => ([_page('np-3', 'Three')], null),
+              });
+      ApiService.instance.httpClientAdapter = backend;
       _claimReturn('notion');
       await pumpConnectApp(tester, SourcesStubService(),
           cloud: _Cloud(const [_notion]));
       await _settle(tester);
-      expect(_ticked(tester, 'One'), isTrue);
-      await _tap(tester, find.widgetWithText(KitHxLink, 'Load more'));
-      expect(find.text('Two'), findsOneWidget);
-      expect(_ticked(tester, 'Two'), isTrue);
+      expect(backend.listTokens, [null, 't2', 't3']);
+      expect(_ticked(tester, 'Three'), isTrue);
+      expect(find.text('Bring in 3 items'), findsOneWidget);
+      expect(find.widgetWithText(KitHxLink, 'Load more'), findsNothing);
+    });
+
+    testWidgets('holds Bring in while Notion\'s offer is still being listed',
+        (tester) async {
+      final release = Completer<void>();
+      ApiService.instance.httpClientAdapter = _Backend(
+          answer: {..._granted, 'provider': 'notion'},
+          pages: (token) => token == null
+              ? ([_page('np-1', 'One')], 't2')
+              : ([_page('np-2', 'Two')], null),
+          gate: (token) => token == 't2' ? release.future : null);
+      _claimReturn('notion');
+      await pumpConnectApp(tester, SourcesStubService(),
+          cloud: _Cloud(const [_notion]));
+      await _settle(tester);
+      final held = find.widgetWithText(KitButton, 'Listing what Notion shared…');
+      expect(held, findsOneWidget);
+      expect(tester.widget<KitButton>(held).onPressed, isNull);
+      // The section head draws its meta in caps.
+      expect(find.text('1 ITEM SO FAR'), findsOneWidget);
+      release.complete();
+      await _settle(tester);
       expect(find.text('Bring in 2 items'), findsOneWidget);
     });
 
-    testWidgets('stops at the import\'s caps and says so; a reader who '
-        'unticked has room and is told nothing', (tester) async {
+    testWidgets('follows at most 20 listing pages a run; Load more continues',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 8000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      var n = 0;
+      final backend = _Backend(
+          answer: {..._granted, 'provider': 'notion'},
+          pages: (token) {
+            n += 1;
+            return ([_page('np-$n', 'Page $n')], 't${n + 1}');
+          });
+      ApiService.instance.httpClientAdapter = backend;
+      _claimReturn('notion');
+      await pumpConnectApp(tester, SourcesStubService(),
+          cloud: _Cloud(const [_notion]));
+      for (var i = 0; i < 6; i++) {
+        await _settle(tester);
+      }
+      expect(n, 20);
+      expect(find.text('Bring in 20 items'), findsOneWidget);
+      await _tap(tester, find.widgetWithText(KitHxLink, 'Load more'));
+      for (var i = 0; i < 6; i++) {
+        await _settle(tester);
+      }
+      expect(n, 40);
+      expect(find.text('Bring in 40 items'), findsOneWidget);
+    });
+
+    testWidgets('a drive\'s listing is not followed', (tester) async {
+      final backend = _Backend(answer: _granted, more: const []);
+      ApiService.instance.httpClientAdapter = backend;
+      _claimReturn();
+      await pumpConnectApp(tester, SourcesStubService(),
+          cloud: _Cloud(const [_drive]));
+      await _settle(tester);
+      expect(backend.listTokens, [null]);
+      expect(find.widgetWithText(KitHxLink, 'Load more'), findsOneWidget);
+    });
+
+    testWidgets('ticks every page past 50 and says nothing about pages; Bring '
+        'in sends 50 then the rest', (tester) async {
+      tester.view.physicalSize = const Size(1200, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final backend = _Backend(
+          answer: {..._granted, 'provider': 'notion'},
+          listing: [for (var i = 0; i < 52; i++) _page('np-$i', 'Page $i')]);
+      ApiService.instance.httpClientAdapter = backend;
+      _claimReturn('notion');
+      final router = await pumpConnectApp(tester, SourcesStubService(),
+          cloud: _Cloud(const [_notion]));
+      await _settle(tester);
+      expect(find.text('Bring in 52 items'), findsOneWidget);
+      expect(_ticked(tester, 'Page 51'), isTrue);
+      expect(find.textContaining('pages are ticked'), findsNothing);
+      await _tap(tester, find.text('Bring in 52 items'));
+      await _settle(tester);   // two round trips, one after the other
+      expect(backend.bodies('fn_import_from_cloud'), [
+        {
+          'provider': 'notion',
+          'folder_ids': <String>[],
+          'file_ids': [for (var i = 0; i < 50; i++) 'np-$i'],
+        },
+        {
+          'provider': 'notion',
+          'file_ids': ['np-50', 'np-51'],
+        },
+      ]);
+      expect(routerPath(router), '/sources');
+      expect(find.text('Queued 0 folders and 52 files from Notion.'),
+          findsOneWidget);
+      await tester.pump(const Duration(seconds: 61));
+    });
+
+    testWidgets('a refused batch stays on the page with the rest ticked; Bring '
+        'in again sends them, and the notice says the sums', (tester) async {
+      tester.view.physicalSize = const Size(1200, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final backend = _Backend(
+          answer: {..._granted, 'provider': 'notion'},
+          listing: [for (var i = 0; i < 60; i++) _page('np-$i', 'Page $i')],
+          importReply: (i, b) => i == 1
+              ? (
+                  403,
+                  {
+                    'error': 'Your free plan imports 60 documents a month.',
+                    'error_code': 'PLAN_LIMIT'
+                  }
+                )
+              : null);
+      ApiService.instance.httpClientAdapter = backend;
+      _claimReturn('notion');
+      final router = await pumpConnectApp(tester, SourcesStubService(),
+          cloud: _Cloud(const [_notion]));
+      await _settle(tester);
+      await _tap(tester, find.text('Bring in 60 items'));
+      await _settle(tester);
+      expect(
+          find.text('Queued 50 of 60 pages. The other 10 were not sent — Your '
+              'free plan imports 60 documents a month.'),
+          findsOneWidget);
+      expect(routerPath(router), '/connect/notion');
+      expect(_ticked(tester, 'Page 0'), isFalse);
+      expect(_ticked(tester, 'Page 49'), isFalse);
+      expect(_ticked(tester, 'Page 50'), isTrue);
+      expect(_ticked(tester, 'Page 59'), isTrue);
+      await _tap(tester, find.text('Bring in 10 items'));
+      expect(backend.bodies('fn_import_from_cloud').last, {
+        'provider': 'notion',
+        'folder_ids': <String>[],
+        'file_ids': [for (var i = 50; i < 60; i++) 'np-$i'],
+      });
+      expect(routerPath(router), '/sources');
+      expect(find.text('Queued 0 folders and 60 files from Notion.'),
+          findsOneWidget);
+      await tester.pump(const Duration(seconds: 61));
+    });
+
+    testWidgets('Not now after a refused batch still says what was queued',
+        (tester) async {
       tester.view.physicalSize = const Size(1200, 4000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
       ApiService.instance.httpClientAdapter = _Backend(
           answer: {..._granted, 'provider': 'notion'},
-          listing: [for (var i = 0; i < 52; i++) _page('np-$i', 'Page $i')]);
+          listing: [for (var i = 0; i < 60; i++) _page('np-$i', 'Page $i')],
+          importReply: (i, b) =>
+              i == 1 ? (403, {'error': 'Refused.', 'error_code': 'PLAN_LIMIT'}) : null);
       _claimReturn('notion');
-      await pumpConnectApp(tester, SourcesStubService(),
+      final router = await pumpConnectApp(tester, SourcesStubService(),
           cloud: _Cloud(const [_notion]));
       await _settle(tester);
-      expect(find.text('Bring in 50 items'), findsOneWidget);
-      expect(_ticked(tester, 'Page 49'), isTrue);
-      expect(_ticked(tester, 'Page 50'), isFalse);
-      expect(_ticked(tester, 'Page 51'), isFalse);
-      const line = 'The first 50 pages are ticked — one import takes 50 at a '
-          'time. Bring these in, then choose the rest from the Library.';
-      expect(find.text(line), findsOneWidget);
-      await _tap(tester, find.text('Page 0'));
-      expect(find.text(line), findsNothing);
+      await _tap(tester, find.text('Bring in 60 items'));
+      await _settle(tester);
+      await _tap(tester, find.text('Not now'));
+      expect(routerPath(router), '/sources');
+      expect(find.text('Queued 0 folders and 50 files from Notion.'),
+          findsOneWidget);
+      await tester.pump(const Duration(seconds: 61));
     });
 
     test('counts each cap by its own kind, and never ticks a refused item',
@@ -588,7 +772,9 @@ void main() {
       final more = tickOffer(got, pages,
           {for (final d in folders) d.id: true, for (final p in pages) p.id: false},
           'notion');
-      expect(more.length, 23, reason: 'pages count against the file cap');
+      expect(more.length, 23,
+          reason: 'pages have no cap (5.56.0); they never count against the '
+              'databases\'');
       // A drive file the upload rule refuses is never ticked.
       final xlsx = f('x', 'file',
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

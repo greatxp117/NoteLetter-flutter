@@ -12,9 +12,27 @@ import '../services/analytics.dart';
 import '../services/error_text.dart';
 import '../shared/cloud_return.dart';
 
-/// Import caps enforced by the picker (mirror `fn_import_from_cloud`).
-const int kMaxImportFolders = 20;
-const int kMaxImportFiles = 50;
+/// The import's folder cap, enforced by the picker (`fn_import_from_cloud`'s
+/// own, and the sync scope's — every folder request replaces it). Files have
+/// none since 5.56.0 (ADR-208): the import sends them 50 to a request
+/// ([Api.importFromCloud]). Until then the 51st tick was refused with "import
+/// these first, then pick more", and the reader had to come back.
+const int kMaxImportFolders = kImportFolderCap;
+
+/// What a refusal after an accepted batch says (sources.md §Cloud import,
+/// Batches; web `partialImportSentence`): how far the import got, in the
+/// figures the 202s counted, then the server's own sentence. [noun] is the
+/// plural the surface uses for files (files, pages) and [folderNoun] the
+/// singular for folders (folder, database).
+String partialImportSentence(ImportPartial partial, int total, String sentence,
+    {String noun = 'files', String folderNoun = 'folder'}) {
+  final qf = partial.queuedFolders;
+  final q = partial.queuedFiles;
+  final rest = partial.unsent.length;
+  final folders = qf > 0 ? '$qf $folderNoun${qf == 1 ? '' : 's'} and ' : '';
+  return 'Queued $folders$q of $total $noun. The other $rest '
+      '${rest == 1 ? 'was' : 'were'} not sent — $sentence';
+}
 
 /// Sentinel for "the disconnect response carried no `revoked` key" — distinct
 /// from a JSON `null`, which is a claim (this provider has no revocation).
@@ -178,9 +196,22 @@ class CloudNotifier extends ChangeNotifier {
   List<ImportJob> jobsFor(String provider) =>
       _jobs.where((j) => j.provider == provider).toList();
 
+  /// The jobs subscription's limit (sources.md §Import job status, 5.56.0):
+  /// 50, widened while a kickoff is held to cover it — a batched import of 130
+  /// files is 130 rows, and a window of 50 counted 50 of them in the summary
+  /// and the completion notice. Web `importJobsWindow(kickoff)`.
+  int _jobsWindow = kImportJobsWindow;
+  int get jobsWindow => _jobsWindow;
+
   void start() {
-    _jobsSub ??= FirestoreService.instance
-        .subscribeCloudImportJobs()
+    if (_jobsSub == null) _subscribeJobs();
+    loadIntegrations();
+  }
+
+  void _subscribeJobs() {
+    _jobsSub?.cancel();
+    _jobsSub = FirestoreService.instance
+        .subscribeCloudImportJobs(limit: _jobsWindow)
         .listen((list) {
       _trackTransitions(list);
       _jobs = list;
@@ -194,7 +225,16 @@ class CloudNotifier extends ChangeNotifier {
       _jobsError = describeSdkError(e);
       _notify();
     });
-    loadIntegrations();
+  }
+
+  /// Re-open the subscription at the window [_kickoff] needs, when it moved.
+  /// Only a running subscription is re-opened: a notifier that was never
+  /// started reads nothing.
+  void _widenWindow() {
+    final w = importJobsWindow(_kickoff?.queuedFiles);
+    if (w == _jobsWindow) return;
+    _jobsWindow = w;
+    if (_jobsSub != null) _subscribeJobs();
   }
 
   // ── Progress section (screens/sources.md §Cloud import) ───────────────────
@@ -290,13 +330,31 @@ class CloudNotifier extends ChangeNotifier {
   int? _sessionStartAt;
   bool _sawWorking = false;
 
-  /// [queuedFolders] is the figure the 202 MEASURED, never the request's
-  /// length — a kickoff's count is counted, not assumed (ADR-103).
-  void _beginSession(int queuedFolders) {
-    final at = DateTime.now().millisecondsSinceEpoch;
+  /// [queuedFolders] / [queuedFiles] are the figures the 202s MEASURED, never
+  /// the request's length — a kickoff's count is counted, not assumed
+  /// (ADR-103).
+  ///
+  /// A kickoff a refused batch left behind ([partial], 5.56.0) is JOINED by
+  /// the next import from the same provider — the confirm sending the rest —
+  /// so the reader gets one import: one set of rows since its start, one
+  /// summary, one completion notice over the sums (web `joinKickoff`). The
+  /// joined session keeps its start and is re-armed, so its notice fires when
+  /// the whole import settles even if the first part already had.
+  void _beginSession(String provider, int queuedFolders,
+      {int queuedFiles = 0, bool partial = false}) {
+    final prev = _kickoff;
+    final joins = prev != null && prev.partial && prev.provider == provider;
+    final at = joins ? prev.at : DateTime.now().millisecondsSinceEpoch;
     _sessionStartAt = at;
     _sawWorking = false;
-    _kickoff = ImportKickoff(at: at, queuedFolders: queuedFolders);
+    _kickoff = ImportKickoff(
+      at: at,
+      provider: provider,
+      queuedFolders: queuedFolders + (joins ? prev.queuedFolders : 0),
+      queuedFiles: queuedFiles + (joins ? prev.queuedFiles : 0),
+      partial: partial,
+    );
+    _widenWindow();
     _kickoffSettled = false;
     _settleTimer?.cancel();
     _settleTimer = Timer(kDiscoveryWindow, () {
@@ -589,19 +647,22 @@ class CloudNotifier extends ChangeNotifier {
     return null;
   }
 
+  /// Files have no cap (5.56.0, ADR-208): a selection of any size is sent in
+  /// batches. The set keeps tick order, which is the order they go in.
   String? toggleFile(String id) {
     if (_selectedFiles.contains(id)) {
       _selectedFiles.remove(id);
     } else {
-      if (_selectedFiles.length >= kMaxImportFiles) {
-        return '$kMaxImportFiles-file limit reached — import these first, '
-            'then pick more.';
-      }
       _selectedFiles.add(id);
     }
     _notify();
     return null;
   }
+
+  /// Files the 202s have accepted while a batched picker import runs —
+  /// measured, never a timer. Null when the import is one request.
+  int? _importSent;
+  int? get importSent => _importSent;
 
   /// Kick off the import of the current selection. Returns (message, isError).
   /// No `tag_ids` (5.52.0, ADR-203): what an import creates is shelved by
@@ -617,31 +678,62 @@ class CloudNotifier extends ChangeNotifier {
     // Neither are the folder or file ids, which are the reader's own tree.
     Analytics.track('capture_started', {'surface': 'cloud'});
     _importError = null;
+    final fileIds = _selectedFiles.toList();
+    _importSent = fileIds.length > kImportFileBatch ? 0 : null;
     _notify();
     try {
       final data = await Api.instance.importFromCloud(
         provider,
         folderIds: _selectedFolders.toList(),
-        fileIds: _selectedFiles.toList(),
+        fileIds: fileIds,
         folderNames: {
           for (final id in _selectedFolders)
             if (_selectedFolderNames[id] case final n?) id: n,
         },
+        onProgress: (sent, _) {
+          _importSent = sent;
+          _notify();
+        },
       );
       Analytics.track('capture_completed', {'surface': 'cloud'});
+      _importSent = null;
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
       final n = (data['queued_files'] as num?)?.toInt() ?? 0;
-      _beginSession(f);
+      _beginSession(provider, f, queuedFiles: n);
+      final k = _kickoff!;
       closePicker();
-      return ('Queued $f folder(s) and $n file(s).', false);
+      return (
+        'Queued ${k.queuedFolders} folder(s) and ${k.queuedFiles} file(s).',
+        false
+      );
+    } on ImportPartialException catch (e) {
+      // A refusal after an accepted batch (5.56.0, ADR-208): what the earlier
+      // 202s queued IS queued, so it is this session's kickoff. Keep exactly
+      // the unsent files ticked, so the confirm sends the rest; the folders
+      // went with the first request.
+      _importSent = null;
+      _beginSession(provider, e.partial.queuedFolders,
+          queuedFiles: e.partial.queuedFiles, partial: true);
+      _selectedFiles
+        ..clear()
+        ..addAll(e.partial.unsent);
+      _selectedFolders.clear();
+      _selectedFolderNames.clear();
+      _importError =
+          partialImportSentence(e.partial, fileIds.length, e.message);
+      _notify();
+      return (_importError!, true);
     } on UnauthorizedException {
+      _importSent = null;
       await AuthService.instance.signOut();
       return ('Session expired.', true);
     } on ApiException catch (e) {
+      _importSent = null;
       _importError = e.message;
       _notify();
       return (e.message, true);
     } catch (_) {
+      _importSent = null;
       _importError = 'Import failed. Please try again.';
       _notify();
       return (_importError!, true);
@@ -683,13 +775,26 @@ class CloudNotifier extends ChangeNotifier {
   /// model. Answers what the 202 COUNTED (ADR-103 §5), and a refused sync
   /// write's sentence, which is said, never swallowed: the import has already
   /// happened. A refused import answers [error] and nothing else.
-  Future<({int folders, int files, String? syncRefusal, String? error})>
-      bringIn(
+  ///
+  /// More than 50 files go 50 to a request, the folders in the first (5.56.0,
+  /// ADR-208); [onProgress] (sent, total) after each 202. A refusal after an
+  /// accepted batch answers [error] — the server's sentence — AND [partial]:
+  /// what the earlier batches queued IS queued, and is this session's
+  /// kickoff, which the rest joins when Bring in sends it.
+  Future<
+      ({
+        int folders,
+        int files,
+        String? syncRefusal,
+        String? error,
+        ImportPartial? partial
+      })> bringIn(
     String provider, {
     required List<String> folderIds,
     required List<String> fileIds,
     Map<String, String>? folderNames,
     bool keepInSync = false,
+    void Function(int sent, int total)? onProgress,
   }) async {
     Analytics.track('capture_started', {'surface': 'cloud'});
     final int f;
@@ -700,30 +805,61 @@ class CloudNotifier extends ChangeNotifier {
         folderIds: folderIds,
         fileIds: fileIds,
         folderNames: folderNames,
+        onProgress: onProgress,
       );
       f = (data['queued_folders'] as num?)?.toInt() ?? 0;
       n = (data['queued_files'] as num?)?.toInt() ?? 0;
+    } on ImportPartialException catch (e) {
+      _beginSession(provider, e.partial.queuedFolders,
+          queuedFiles: e.partial.queuedFiles, partial: true);
+      _notify();
+      return (
+        folders: e.partial.queuedFolders,
+        files: e.partial.queuedFiles,
+        syncRefusal: null,
+        error: e.message,
+        partial: e.partial
+      );
     } on UnauthorizedException {
       await AuthService.instance.signOut();
-      return (folders: 0, files: 0, syncRefusal: null, error: 'Session expired.');
+      return (
+        folders: 0,
+        files: 0,
+        syncRefusal: null,
+        error: 'Session expired.',
+        partial: null
+      );
     } on ApiException catch (e) {
-      return (folders: 0, files: 0, syncRefusal: null, error: e.message);
+      return (
+        folders: 0,
+        files: 0,
+        syncRefusal: null,
+        error: e.message,
+        partial: null
+      );
     } catch (_) {
       return (
         folders: 0,
         files: 0,
         syncRefusal: null,
-        error: 'Import failed. Please try again.'
+        error: 'Import failed. Please try again.',
+        partial: null
       );
     }
     Analytics.track('capture_completed', {'surface': 'cloud'});
     // A kickoff made here: the progress section and the completion notice
     // follow it as they follow the picker's.
-    _beginSession(f);
+    _beginSession(provider, f, queuedFiles: n);
     _notify();
     final refused =
         keepInSync ? await syncSettings(provider, autoSyncEnabled: true) : null;
-    return (folders: f, files: n, syncRefusal: refused, error: null);
+    return (
+      folders: f,
+      files: n,
+      syncRefusal: refused,
+      error: null,
+      partial: null
+    );
   }
 
   Future<String?> retryJob(String jobId) async {
@@ -746,7 +882,7 @@ class CloudNotifier extends ChangeNotifier {
     try {
       final data = await Api.instance.requestCloudSync(provider);
       final f = (data['queued_folders'] as num?)?.toInt() ?? 0;
-      _beginSession(f);
+      _beginSession(provider, f);
       return ('Checking $f folder(s)…', SyncNowResult.queued);
     } on ApiException catch (e) {
       if (e.statusCode == 429) {
@@ -845,12 +981,23 @@ class CloudNotifier extends ChangeNotifier {
   }
 }
 
-/// A kickoff made on this device: when, and how many folders the 202 said it
-/// queued (a kickoff is only "still discovering" when it queued folders).
+/// A kickoff made on this device: when, from which provider, and how many
+/// folders and files the 202s said it queued (a kickoff is only "still
+/// discovering" when it queued folders; its files size the jobs window).
+/// [partial]: a refused batch stopped it short, so the rest joins it.
 class ImportKickoff {
   final int at;
+  final String provider;
   final int queuedFolders;
-  const ImportKickoff({required this.at, required this.queuedFolders});
+  final int queuedFiles;
+  final bool partial;
+  const ImportKickoff({
+    required this.at,
+    required this.queuedFolders,
+    this.provider = '',
+    this.queuedFiles = 0,
+    this.partial = false,
+  });
 }
 
 /// What a triage batch answered beyond the rows (4.69.0, ADR-103 §4).

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/cloud_file.dart';
 import '../../models/cloud_integration.dart';
+import '../../services/api.dart' show ImportPartial, kImportFileBatch;
 import '../../shared/cloud_providers.dart';
 import '../../shared/cloud_return.dart';
 import '../../shared/dates.dart';
@@ -189,61 +190,52 @@ NoticeCopy noticeCopy(
   }
 }
 
+/// How many listing pages one run of Notion's offer follows on its own
+/// (5.56.0, ADR-208; web `NOTION_FOLLOW_PAGES`): 20 × 50 = 1,000 items. A
+/// bound, so a pathological workspace or a cursor that never ends cannot list
+/// forever; past it, Load more continues.
+const int kNotionFollowPages = 20;
+
 /// Notion's offer arrives ticked (5.52.0, ADR-203; web `tickOffer`): the
 /// reader chose these pages on Notion's permission screen seconds ago, so
 /// asking again is a second picker for one decision. A drive's root listing is
 /// everything the reader owns — nothing they chose — so nothing is ticked
-/// there (the caller asks only for Notion). Ticks [got] after [picked] up to
-/// the import's caps, counting what is already ticked by its kind ([folderById],
-/// every row listed so far; an id it does not name counts as a file); an item
-/// the import would refuse is never ticked. Returns a new list, in tick order.
+/// there (the caller asks only for Notion). Ticks [got] after [picked]: every
+/// file, and folders up to the cap, counting what is already ticked by its
+/// kind ([folderById], every row listed so far); an item the import would
+/// refuse is never ticked. Returns a new list, in tick order.
 List<String> tickOffer(List<String> picked, Iterable<CloudFile> got,
     Map<String, bool> folderById, String provider) {
   final n = [...picked];
   var folders = 0;
-  var files = 0;
   for (final id in n) {
-    if (folderById[id] == true) {
-      folders += 1;
-    } else {
-      files += 1;
-    }
+    if (folderById[id] == true) folders += 1;
   }
   for (final i in got) {
     if (n.contains(i.id) || cloudFileRefusal(provider, i) != null) continue;
-    if (i.isFolder) {
-      if (folders < kMaxImportFolders) {
-        n.add(i.id);
-        folders += 1;
-      }
-    } else if (files < kMaxImportFiles) {
+    if (!i.isFolder) {
       n.add(i.id);
-      files += 1;
+    } else if (folders < kMaxImportFolders) {
+      n.add(i.id);
+      folders += 1;
     }
   }
   return n;
 }
 
-/// The line under a ticked offer when a cap left listed items unticked
-/// (web `capLines`). Only when the cap is what stopped it: a reader who
-/// unticked some has room, and is told nothing.
+/// The line under a ticked offer when the folder cap left listed folders
+/// unticked (web `capLines`). Only when the cap is what stopped it: a reader
+/// who unticked some has room, and is told nothing. Files have no line since
+/// 5.56.0 — every one is ticked and Bring in sends them all.
 List<String> capLines(
     List<CloudFile> rows, Iterable<String> picked, String provider) {
   final on = picked.toSet();
-  final tickable =
-      rows.where((i) => cloudFileRefusal(provider, i) == null).toList();
-  final files = tickable.where((i) => !i.isFolder).toList();
-  final folders = tickable.where((i) => i.isFolder).toList();
-  final nf = files.where((i) => on.contains(i.id)).length;
+  final folders = rows
+      .where((i) => i.isFolder && cloudFileRefusal(provider, i) == null)
+      .toList();
   final nd = folders.where((i) => on.contains(i.id)).length;
-  final notion = provider == 'notion';
-  final one = notion ? 'pages' : 'files';
-  final many = notion ? 'databases' : 'folders';
+  final many = provider == 'notion' ? 'databases' : 'folders';
   return [
-    if (nf >= kMaxImportFiles && files.length > nf)
-      'The first $kMaxImportFiles $one are ticked — one import takes '
-          '$kMaxImportFiles at a time. Bring these in, then choose the rest '
-          'from the Library.',
     if (nd >= kMaxImportFolders && folders.length > nd)
       'The first $kMaxImportFolders $many are ticked — one import takes '
           '$kMaxImportFolders at a time. Bring these in, then choose the rest '
@@ -826,6 +818,15 @@ class _ManifestState extends State<_Manifest> {
   bool _busy = false;
   String? _err;
 
+  /// Files the 202s have accepted while a batched Bring in runs (measured);
+  /// null when it is one request.
+  int? _sent;
+
+  /// What refused batches already queued (5.56.0): Bring in again sends the
+  /// rest, and the Library's notice says the sums, as one import.
+  int _queuedFolders = 0;
+  int _queuedFiles = 0;
+
   /// Only the latest listing may land (web `seq`).
   int _seq = 0;
 
@@ -844,39 +845,58 @@ class _ManifestState extends State<_Manifest> {
     _fetch(token);
   }
 
+  /// One run of the listing from [token]. Notion's runs follow the listing's
+  /// own `nextPageToken`, up to [kNotionFollowPages] pages (5.56.0, ADR-208):
+  /// its offer is the reader's selection, and one shown 50 at a time behind
+  /// Load more was the cap under another name. A drive's listing is one page
+  /// a run. [_loading] stays true for the whole run — it is what holds Bring
+  /// in while Notion's offer is still arriving.
   Future<void> _fetch(String? token) async {
     final s = ++_seq;
-    final res = await context
-        .read<CloudNotifier>()
-        .listOffer(widget.provider, pageToken: token);
-    if (!mounted || s != _seq) return;
-    final listing = res.listing;
-    setState(() {
-      _loading = false;
+    final notion = widget.provider == 'notion';
+    var next = token;
+    var pages = 0;
+    while (true) {
+      final res = await context
+          .read<CloudNotifier>()
+          .listOffer(widget.provider, pageToken: next);
+      if (!mounted || s != _seq) return;
+      final listing = res.listing;
       if (listing == null) {
-        _listErr = res.error;
+        // A later page that failed keeps the token it was asked with, so Try
+        // again and Load more continue from it.
+        setState(() {
+          _loading = false;
+          _listErr = res.error;
+        });
         return;
       }
-      final got = listing.items;
-      _items = token != null && _items != null ? [..._items!, ...got] : got;
-      _pageToken = listing.nextPageToken;
-      // Notion's offer arrives ticked, page by page, up to the caps (5.52.0,
-      // ADR-203); a first page starts the ticks afresh.
-      if (widget.provider == 'notion') {
-        final next = tickOffer(token != null ? _picked : const [], got,
-            {for (final i in _items!) i.id: i.isFolder}, widget.provider);
-        _picked
-          ..clear()
-          ..addAll(next);
+      final fresh = next == null;
+      setState(() {
+        final got = listing.items;
+        _items = !fresh && _items != null ? [..._items!, ...got] : got;
+        _pageToken = listing.nextPageToken;
+        // Notion's offer arrives ticked, page by page (5.52.0, ADR-203); a
+        // first page starts the ticks afresh.
+        if (notion) {
+          final ticked = tickOffer(fresh ? const [] : _picked, got,
+              {for (final i in _items!) i.id: i.isFolder}, widget.provider);
+          _picked
+            ..clear()
+            ..addAll(ticked);
+        }
+      });
+      // A first page with nothing and no more to ask for: Nothing to Bring In.
+      if (fresh && listing.items.isEmpty && listing.nextPageToken == null) {
+        setState(() => _loading = false);
+        widget.onEmpty();
+        return;
       }
-    });
-    // A first page with nothing and no more to ask for: Nothing to Bring In.
-    if (listing != null &&
-        token == null &&
-        listing.items.isEmpty &&
-        listing.nextPageToken == null) {
-      widget.onEmpty();
+      next = listing.nextPageToken;
+      pages += 1;
+      if (!(notion && next != null && pages < kNotionFollowPages)) break;
     }
+    setState(() => _loading = false);
   }
 
   List<CloudFile> get _rows => _items ?? const [];
@@ -887,32 +907,54 @@ class _ManifestState extends State<_Manifest> {
       ];
 
   void _toggle(CloudFile item) {
-    // The endpoint's caps (≤20 folders, ≤50 files): over them it refuses
-    // rather than truncating, so the page refuses the tick instead.
+    // The endpoint's folder cap (≤20): over it it refuses rather than
+    // truncating, so the page refuses the tick instead. Files are uncapped —
+    // Bring in sends them in batches (5.56.0, ADR-208).
     final folder = item.isFolder;
-    final cap = folder ? kMaxImportFolders : kMaxImportFiles;
-    final same = _sel.where((i) => i.isFolder == folder).length;
+    final folders = _sel.where((i) => i.isFolder).length;
     setState(() {
       if (_picked.contains(item.id)) {
         _picked.remove(item.id);
-      } else if (same < cap) {
+      } else if (!folder || folders < kMaxImportFolders) {
         _picked.add(item.id);
       }
     });
+  }
+
+  /// The Library's notice for everything queued — this press's 202s plus any
+  /// a refused batch queued before it (web `leave`).
+  void _leave(int qf, int qx, [String extra = '']) {
+    final f = _queuedFolders + qf;
+    final x = _queuedFiles + qx;
+    widget.onLeave('Queued $f folder${f == 1 ? '' : 's'} and $x '
+        'file${x == 1 ? '' : 's'} from ${widget.name}.$extra');
+  }
+
+  /// Not now after a refused batch still says what was queued.
+  void _notNow() {
+    if (_queuedFolders > 0 || _queuedFiles > 0) {
+      _leave(0, 0);
+    } else {
+      widget.onLeave(null);
+    }
   }
 
   Future<void> _bringIn() async {
     final sel = _sel;
     final folders = sel.where((i) => i.isFolder).toList();
     final files = sel.where((i) => !i.isFolder).toList();
+    final fileIds = [for (final f in files) f.id];
     setState(() {
       _busy = true;
       _err = null;
+      _sent = fileIds.length > kImportFileBatch ? 0 : null;
     });
     final res = await context.read<CloudNotifier>().bringIn(
           widget.provider,
           folderIds: [for (final f in folders) f.id],
-          fileIds: [for (final f in files) f.id],
+          // More than 50 files go 50 to a request, the folders in the first
+          // (5.56.0, ADR-208; Api.importFromCloud).
+          fileIds: fileIds,
           folderNames: {
             for (final f in folders)
               if (f.name.isNotEmpty)
@@ -924,25 +966,42 @@ class _ManifestState extends State<_Manifest> {
           keepInSync: _sync &&
               folders.isNotEmpty &&
               !(widget.integration?.autoSyncEnabled ?? false),
+          onProgress: (sent, _) {
+            if (mounted) setState(() => _sent = sent);
+          },
         );
     if (!mounted) return;
     if (res.error != null) {
       // §18: the failure slot is required — the server's sentence, verbatim.
+      final ImportPartial? partial = res.partial;
       setState(() {
         _busy = false;
-        _err = res.error;
+        _sent = null;
+        if (partial != null) {
+          // What the earlier batches queued IS queued: kept for the Library's
+          // notice, unticked here; the unsent stay ticked so Bring in sends
+          // them.
+          _queuedFolders += partial.queuedFolders;
+          _queuedFiles += partial.queuedFiles;
+          _picked
+            ..clear()
+            ..addAll(partial.unsent);
+          _err = partialImportSentence(partial, fileIds.length, res.error!,
+              noun: widget.provider == 'notion' ? 'pages' : 'files',
+              folderNoun: widget.provider == 'notion' ? 'database' : 'folder');
+        } else {
+          _err = res.error;
+        }
       });
       return;
     }
     // ADR-103 §5: the figures are the ones the 202 COUNTED.
-    final qf = res.folders;
-    final qx = res.files;
-    var note = 'Queued $qf folder${qf == 1 ? '' : 's'} and $qx '
-        'file${qx == 1 ? '' : 's'} from ${widget.name}.';
-    if (res.syncRefusal != null) {
-      note += ' Keep in sync was not turned on — ${res.syncRefusal}';
-    }
-    widget.onLeave(note);
+    _leave(
+        res.folders,
+        res.files,
+        res.syncRefusal != null
+            ? ' Keep in sync was not turned on — ${res.syncRefusal}'
+            : '');
   }
 
   @override
@@ -964,6 +1023,9 @@ class _ManifestState extends State<_Manifest> {
         if (k.isNotEmpty) cloudTypeLabel(k),
     ];
     final capped = notion ? capLines(rows, _picked, widget.provider) : const <String>[];
+    // Notion's offer is still being listed (5.56.0): Bring in is held, so a
+    // press cannot leave the rest of what the reader shared behind.
+    final following = notion && _loading;
     final n = sel.length;
     final fine = KitText.note(context, color: t.fgSubtle)
         .copyWith(height: 19 / 12.5);
@@ -1029,7 +1091,13 @@ class _ManifestState extends State<_Manifest> {
               children: [
                 KitFailureInline(
                     'What $name offers could not be listed — $_listErr'),
-                KitHxLink('Try again', onTap: _loading ? null : () => _load()),
+                // A later page that failed keeps its token: Try again
+                // continues from it, and keeps what the reader unticked.
+                KitHxLink('Try again',
+                    onTap: _loading
+                        ? null
+                        : () => _load(
+                            (_items?.isNotEmpty ?? false) ? _pageToken : null)),
               ],
             ),
           ),
@@ -1139,19 +1207,24 @@ class _ManifestState extends State<_Manifest> {
             children: [
               KitButton(
                 _busy
-                    ? 'Bringing in…'
-                    : n > 0
-                        ? 'Bring in ${kitCounted(n, 'item')}'
-                        : 'Nothing selected',
+                    ? (_sent != null
+                        ? 'Bringing in… $_sent of $fileSel '
+                            '${notion ? 'pages' : 'files'}'
+                        : 'Bringing in…')
+                    : following
+                        ? 'Listing what Notion shared…'
+                        : n > 0
+                            ? 'Bring in ${kitCounted(n, 'item')}'
+                            : 'Nothing selected',
                 center: true,
-                onPressed: n == 0 || _busy ? null : _bringIn,
+                onPressed: n == 0 || _busy || following ? null : _bringIn,
               ),
               const SizedBox(height: 8),
               KitButton(
                 'Not now',
                 variant: KitButtonVariant.ghost,
                 center: true,
-                onPressed: _busy ? null : () => widget.onLeave(null),
+                onPressed: _busy ? null : _notNow,
               ),
             ],
           ),

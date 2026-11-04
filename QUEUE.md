@@ -2515,7 +2515,7 @@ a new obligation on a finished screen is a new item.
 - placed: after F-152
 
 ## F-157 · Cloud import batches: no 50-file cap, Notion's offer listed to its end (5.56.0, ADR-208)
-- status: open
+- status: blocked: device proof owed: at 19:13 swap was 22.9 of 23.5 GB used and load ~12 with the main session's backend work running, so no simulator build; the code is in (flutter analyze clean, contract+kit 2380 pass with pin excluded by policy; cloud_import_batches_test 12 new; oauth_return_test 7 new replacing the 2 cap tests) — run the device_test line and shoot oauth-granted-notion-ticked once the machine has headroom
 - screen: sources
 - route: /sources
 - spec: spec/decisions/ADR-208-an-import-is-not-one-request.md (new); spec/features/cloud-import-batches.md (new); spec/screens/sources.md §Cloud import; spec/screens/sources.md §The OAuth return; spec/screens/sources.md §Import job status; spec/api/cloud-storage.md

@@ -668,8 +668,12 @@ class _SourcesPageState extends State<SourcesPage> {
           summary: _progressSummary(cloud),
           discoveringFiles: cloud.awaitingFirstJob,
         ),
+        // The window's real size: 50, or what a kickoff widened it to
+        // (5.56.0, ADR-208).
         _ImportHistory(
-            jobs: cloud.historyJobs, windowFull: cloud.jobs.length >= 50),
+            jobs: cloud.historyJobs,
+            window: cloud.jobsWindow,
+            windowFull: cloud.jobs.length >= cloud.jobsWindow),
         // The reference's OrganizationPanel: the suggestions FIRST, then each
         // provider's organized folders (F-90 (6)).
         const _OrganizationSection(),
@@ -1031,13 +1035,14 @@ class _PickerPanelState extends State<_PickerPanel> {
 
     return CloudPickerPanel(
       children: [
-        // The caps are `fn_import_from_cloud`'s own (≤20 folders, ≤50 files)
-        // and the picker is what enforces them.
+        // The folder cap is `fn_import_from_cloud`'s own (≤20) and the picker
+        // enforces it; files are uncapped — the import sends them 50 to a
+        // request (5.56.0, ADR-208).
         CloudPickerCrumbs(
           labels: [for (final c in crumbs) c.label],
           onJump: cloud.jumpToCrumb,
           counter: '${cloud.selectedFolders.length}/$kMaxImportFolders folders · '
-              '${cloud.selectedFiles.length}/$kMaxImportFiles files',
+              '${kitCounted(cloud.selectedFiles.length, 'file')}',
         ),
         if (error != null)
           Padding(
@@ -1071,8 +1076,13 @@ class _PickerPanelState extends State<_PickerPanel> {
           CloudPickerLoadMore(
               loading: cloud.loadingMore, onTap: cloud.loadMore),
         CloudPickerFoot(
+          // A batched import counts what the 202s accepted (measured, never
+          // a timer); one request says only that it is queuing.
           confirmLabel: _saving
-              ? 'Queuing…'
+              ? (cloud.importSent != null
+                  ? 'Queuing… ${cloud.importSent} of '
+                      '${kitCounted(cloud.selectedFiles.length, 'file')}'
+                  : 'Queuing…')
               : 'Import $total item${total == 1 ? '' : 's'}',
           onConfirm: total == 0 ? null : () => _confirm(cloud),
           onCancel: cloud.closePicker,
@@ -1304,7 +1314,9 @@ TextStyle _procNote(BuildContext context) =>
 class _ImportHistory extends StatefulWidget {
   final List<ImportJob> jobs;
   final bool windowFull;
-  const _ImportHistory({required this.jobs, required this.windowFull});
+  final int window;
+  const _ImportHistory(
+      {required this.jobs, required this.windowFull, this.window = 50});
 
   @override
   State<_ImportHistory> createState() => _ImportHistoryState();
@@ -1377,7 +1389,7 @@ class _ImportHistoryState extends State<_ImportHistory> {
             _procList(e.value),
           ],
           if (widget.windowFull)
-            const KitProcNote('Showing the most recent 50 import jobs.'),
+            KitProcNote('Showing the most recent ${widget.window} import jobs.'),
         ],
       ],
     );

@@ -269,7 +269,8 @@ void main() {
       await openPicker(tester, drive, 'google_drive');
 
       expect(find.text('Root'), findsOneWidget);
-      expect(find.text('0/20 folders · 0/50 files'), findsOneWidget);
+      // Files are uncapped since 5.56.0 (ADR-208): a count, not a fraction.
+      expect(find.text('0/20 folders · 0 files'), findsOneWidget);
       expect(find.textContaining('Import from'), findsNothing,
           reason: 'no title row — Cancel is the way out');
       expect(find.byTooltip('Close'), findsNothing);
@@ -280,7 +281,7 @@ void main() {
       await tester.ensureVisible(find.byType(KitCheckbox));
       await tester.tap(find.byType(KitCheckbox));
       await tester.pump();
-      expect(find.text('0/20 folders · 1/50 files'), findsOneWidget);
+      expect(find.text('0/20 folders · 1 file'), findsOneWidget);
       expect(
           tester
               .widget<KitButton>(find.widgetWithText(KitButton, 'Import 1 item'))

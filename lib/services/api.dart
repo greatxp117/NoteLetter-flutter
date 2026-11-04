@@ -32,6 +32,58 @@ abstract final class UploadOrigin {
 /// Suggest shelves' `purposeMax`, which is `fn_suggest_tags`' own 2000.
 const missionMax = 1000;
 
+/// `fn_import_from_cloud`'s caps are PER REQUEST (cloud-storage.md
+/// §Validation): ≤20 `folder_ids` and ≤50 `file_ids`, and over either is a
+/// 400, never a truncation. The folder cap is also the reader's — every
+/// request naming folders replaces `sync_config.folder_ids`, so folders are
+/// never split — but the file cap is not (5.56.0, ADR-208): [Api.importFromCloud]
+/// sends more files as batches. Web `IMPORT_FOLDER_CAP` / `IMPORT_FILE_BATCH`.
+const int kImportFolderCap = 20;
+const int kImportFileBatch = 50;
+
+/// The jobs window (screens/sources.md §Import job status): the 50 newest,
+/// and while a kickoff is held, wide enough to hold all of it plus the
+/// window's ordinary reach — `max(50, queued_files + 50)`, at most 500 (the
+/// held-jobs query's bound). A 130-file import otherwise showed 50 rows,
+/// "… of 50 imported", and a completion notice that counted 50 (5.56.0,
+/// ADR-208). Web `IMPORT_JOBS_WINDOW` / `importJobsWindow`.
+const int kImportJobsWindow = 50;
+int importJobsWindow(int? queuedFiles) {
+  final w = (queuedFiles ?? 0) + kImportJobsWindow;
+  if (w < kImportJobsWindow) return kImportJobsWindow;
+  return w > 500 ? 500 : w;
+}
+
+/// How far a batched import got before a refusal (5.56.0, ADR-208): the
+/// 202s' sums, and which files went and which did not. Web `e.partial`.
+class ImportPartial {
+  final int queuedFolders;
+  final int queuedFiles;
+  final List<String> sent;
+  final List<String> unsent;
+  const ImportPartial({
+    required this.queuedFolders,
+    required this.queuedFiles,
+    required this.sent,
+    required this.unsent,
+  });
+}
+
+/// A refusal AFTER an accepted batch: what the earlier 202s queued IS queued,
+/// so the caller must say so and keep the rest. It is the refusal itself (an
+/// [ApiException] with its status, code and sentence), so a site that does
+/// not know about batches still renders the server's words. A refusal of the
+/// FIRST request is thrown as it comes — nothing was queued.
+class ImportPartialException extends ApiException {
+  final ImportPartial partial;
+  ImportPartialException(ApiException cause, this.partial)
+      : super(cause.statusCode, cause.message,
+            errorCode: cause.errorCode,
+            requestId: cause.requestId,
+            serverSentence: cause.serverSentence,
+            retryAfterS: cause.retryAfterS);
+}
+
 /// Canonical request-builder layer — the Flutter mirror of the web reference
 /// `src/api.js` and iOS `Networking/`. One thin method per contracted endpoint
 /// that builds the exact `{endpoint, method, body}` the contract fixtures pin
@@ -656,6 +708,22 @@ class Api {
   /// [tagIds] (5.46.0, ADR-201): sent only when non-empty. The endpoint still
   /// accepts it, and since 5.52.0 (ADR-203) no caller passes it — there is
   /// no *File under* — so it is booked to retire with the endpoint's.
+  /// Queue folder/file imports (web `importFromCloud`).
+  ///
+  /// More than [kImportFileBatch] files go as consecutive requests
+  /// (screens/sources.md §Cloud import, Batches): in the order given, ONE AT
+  /// A TIME — the first refusal must stop the rest, and the plan gate
+  /// (INV-28) must see them one after another. The first request carries the
+  /// folders, their names and the settings with the first batch; a later one
+  /// carries `provider` and its `file_ids` only (and `tag_ids`, which rides
+  /// every job). 50 or fewer files is one request, byte-for-byte what it
+  /// always was.
+  ///
+  /// Answers the 202s' SUMS (ADR-103 §5). [onProgress] (sent, total) after
+  /// each 202 when there is more than one request. A refusal of the first
+  /// request is thrown as it comes; one after an accepted request is an
+  /// [ImportPartialException]. A 500 may have queued part of its own request
+  /// (no ids come back), so that whole request is unsent.
   Future<Map<String, dynamic>> importFromCloud(
     String provider, {
     List<String>? folderIds,
@@ -664,23 +732,70 @@ class Api {
     List<String>? excludePatterns,
     Map<String, String>? folderNames,
     List<String>? tagIds,
-  }) {
-    final body = <String, dynamic>{
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final files = fileIds ?? const <String>[];
+    final first = <String, dynamic>{
       'provider': provider,
       'folder_ids': folderIds ?? const [],
-      'file_ids': fileIds ?? const [],
+      'file_ids': files.take(kImportFileBatch).toList(),
     };
-    if (includeTypes != null) body['include_types'] = includeTypes;
-    if (excludePatterns != null) body['exclude_patterns'] = excludePatterns;
+    if (includeTypes != null) first['include_types'] = includeTypes;
+    if (excludePatterns != null) first['exclude_patterns'] = excludePatterns;
     if (folderNames != null && folderNames.isNotEmpty) {
-      body['folder_names'] = folderNames;
+      first['folder_names'] = folderNames;
     }
     // `tag_ids` (5.46.0, ADR-201): shelves applied to every document this
     // import creates instead of the ones indexing would choose. Absent (not
     // `[]`) when none is given — the only case since 5.52.0 (ADR-203), when
     // File under left both surfaces. Mirrors web, which keeps it the same.
-    if (tagIds != null && tagIds.isNotEmpty) body['tag_ids'] = tagIds;
-    return _http.post('/fn_import_from_cloud', data: body);
+    // Per job, so on every batch.
+    final tags = tagIds != null && tagIds.isNotEmpty ? tagIds : null;
+    if (tags != null) first['tag_ids'] = tags;
+
+    final bodies = <Map<String, dynamic>>[first];
+    for (var i = kImportFileBatch; i < files.length; i += kImportFileBatch) {
+      final end = i + kImportFileBatch < files.length ? i + kImportFileBatch : files.length;
+      bodies.add({
+        'provider': provider,
+        'file_ids': files.sublist(i, end),
+        if (tags != null) 'tag_ids': tags,
+      });
+    }
+
+    // One request answers exactly what the endpoint answered, as it always
+    // did; several answer the sums.
+    if (bodies.length == 1) {
+      return _http.post('/fn_import_from_cloud', data: first);
+    }
+    var queuedFolders = 0;
+    var queuedFiles = 0;
+    var sent = 0;
+    for (var b = 0; b < bodies.length; b++) {
+      final Map<String, dynamic> res;
+      try {
+        res = await _http.post('/fn_import_from_cloud', data: bodies[b]);
+      } catch (e) {
+        if (b == 0) rethrow;
+        final cause = e is ApiException
+            ? e
+            : const ApiException(0, 'Import failed. Please try again.');
+        throw ImportPartialException(
+          cause,
+          ImportPartial(
+            queuedFolders: queuedFolders,
+            queuedFiles: queuedFiles,
+            sent: files.sublist(0, sent),
+            unsent: files.sublist(sent),
+          ),
+        );
+      }
+      queuedFolders += (res['queued_folders'] as num?)?.toInt() ?? 0;
+      queuedFiles += (res['queued_files'] as num?)?.toInt() ?? 0;
+      sent += (bodies[b]['file_ids'] as List).length;
+      onProgress?.call(sent, files.length);
+    }
+    return {'queued_folders': queuedFolders, 'queued_files': queuedFiles};
   }
 
   Future<Map<String, dynamic>> retryImportJob(String jobId) => withCooldown(
