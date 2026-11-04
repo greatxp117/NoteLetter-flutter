@@ -2581,3 +2581,16 @@ a new obligation on a finished screen is a new item.
 - extra_gates: flutter test test/contract
 - notes: Xavier 2026-11-04: 'In the side panels, all sort/filter options should be near the top. Also, if there is a back button, when the page is scrolled it should be at the top of the side panel, so the user doesn't have to scroll up to get to it.' He approved the look on web the same day. Web is the reference: Sheet.jsx useCrumbGone (the masthead crumb outside the page's primary scroller) and SheetBack; Page.jsx hands the sheet its back, so no page names it. Order: the Library KitLibOrder, then Kind, then Shelf; Search Read as, Breadth, then Kind; the map Go to a shelf, then On the map, then Also (and its header comment at shelf_map_page.dart). The row is drawn only while the crumb is off screen, so a page at its top has one back control; it carries a sub-shelf's whole trail (KitDBackControl's trail); it stays pinned when the sheet scrolls inside itself, and on web that needed a sticky offset, which a Flutter layout that pins it above the scrolling body does not. On a phone it heads the running head's dropped sheet, never the line. A stacked (static) sheet draws no row. Web's real-gesture proof is npm run gate:sheet-back.
 - placed: after F-160
+
+## F-162 · Letters sent counts the letters that were sent; Ask's Try again is text weight (5.60.1)
+- status: open
+- screen: letters
+- route: /letters; /ask
+- spec: spec/screens/letters.md; spec/screens/ask.md
+- web: src/pages/LettersView.jsx; src/pages/AskView.jsx
+- flutter: lib/pages/letters_page.dart; lib/pages/chat_page.dart; lib/services/api.dart
+- folds: 5.60.1
+- device_test: tool/device_test.sh "Letters sent counts sent letters; a refused Ask turn offers Try again at text weight (F-162)"
+- shots: letters; ask-refused
+- extra_gates: flutter test test/contract
+- notes: 5.60.1 is web's cloud lane W, taken as 5.59.1 on the lane. Web's tests are the acceptance list: letters-sent-figure.test.js, ask-refused-turn.test.js. Also correct the stale comment above missionMax in lib/services/api.dart: since 5.61.0 the endpoint refuses past the bound (fn_newsletter_settings).
