@@ -437,6 +437,15 @@ void main() {
           expect(find.byType(KitAskCitation), findsNWidgets(5));
           expect(find.byType(KitFileBadge), findsNWidgets(5));
           expect(find.text('Open'), findsNWidgets(5));
+          // L5035: *Open* opens the source, so it wears the book, as Open
+          // source does everywhere (search.md §Action glyphs, 4.105.1); the
+          // eye means *Open in context*. Mutant: the eye back — red.
+          for (final e in find
+              .widgetWithText(KitPassageAction, 'Open')
+              .evaluate()) {
+            expect((e.widget as KitPassageAction).icon,
+                const KitPassageAction.openSource(onTap: _noop).icon);
+          }
           expect(find.text('example.com'), findsNWidgets(5));
           final idx = tester.widget<Text>(find.descendant(
               of: find.byType(KitAskCitation).first,
@@ -782,3 +791,5 @@ void main() {
     });
   });
 }
+
+void _noop() {}

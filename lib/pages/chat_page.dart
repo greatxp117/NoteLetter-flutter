@@ -542,8 +542,10 @@ class _ChatPageState extends State<ChatPage> {
         KitSourceLink(
           docId: c.documentId!,
           query: query,
+          // *Open* opens the source, so it wears Open source's book (L5035;
+          // search.md §Action glyphs): the eye is *Open in context*'s.
           builder: (context, open) => KitPassageAction(
-            icon: Icons.visibility_outlined,
+            icon: const KitPassageAction.openSource(onTap: _noOp).icon,
             label: 'Open',
             onTap: open,
           ),
@@ -602,3 +604,6 @@ String _entryTime(int? ms) {
   ];
   return '${months[d.month - 1]} ${d.day}';
 }
+
+/// The const constructor's tap, never called: only its glyph is read.
+void _noOp() {}
