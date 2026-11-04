@@ -63,6 +63,19 @@ class _EditChunk {
 /// fallback). Editing writes through `fn_update_content` — text passages are
 /// editable/splittable/mergeable/deletable; passages containing atomic blocks
 /// (image/table/…) are read-only but removable. Per reader.md / INV-04.
+/// [_ManuscriptPanelState.htmlHasContent]'s rule, where a test can reach it:
+/// derived text, or an `<img>` (api/documents.md; web `htmlHasContent`).
+@visibleForTesting
+bool passageHtmlHasContent(String html) {
+  final text = html
+      .replaceAll(RegExp(r'<[^>]*>'), ' ')
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (text.isNotEmpty) return true;
+  return RegExp(r'<img\b', caseSensitive: false).hasMatch(html);
+}
+
 class ManuscriptPanel extends StatefulWidget {
   final String docId;
 
@@ -494,15 +507,16 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
   /// Does this fragment carry anything `fn_update_content` will accept?
   ///
-  /// Mirrors the endpoint's own test — derived text, or an `<img>` — so the
-  /// editor refuses a passage for the same reason the server would, before a
-  /// request is built. `img`, `table` and `hr` are content with no text of
-  /// their own; `hr` is here because it is the slide/page-break unit (ADR-063),
-  /// not decoration.
-  static bool _htmlHasContent(String html) {
-    if (_stripTags(html).isNotEmpty) return true;
-    return RegExp(r'<(img|table|hr)\b', caseSensitive: false).hasMatch(html);
-  }
+  /// The endpoint's own test, and only it (api/documents.md: "`html`
+  /// sanitizes to no text and no `<img>`"; web `htmlHasContent`): derived
+  /// text, or an `<img>`. So the editor refuses a passage for the reason the
+  /// server would, before a request is built. A table with no text in its
+  /// cells, or an `hr` alone, is refused there, so it is refused here too:
+  /// until TODO L265 this called them content and sent a save the server
+  /// would refuse whole. (Serializing a passage still KEEPS an `hr` or a
+  /// table block with no text of its own: that is what a block is, not
+  /// whether the passage is empty.)
+  static bool htmlHasContent(String html) => passageHtmlHasContent(html);
 
   /// `fn_update_content`'s passage ceiling (ADR-056).
   static const int _maxPassages = 200;
@@ -510,6 +524,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   /// One count for the header, the per-passage label and the dwell clock —
   /// the stored text at rest, the live text once a passage is edited.
   int _words(_EditChunk c) => passageWords(
+      html: c.html,
       storedText: c.storedText,
       editedText: c.dirty || c.isNew ? c.text : null);
 
@@ -934,7 +949,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     // passages fails on account of passage 137 and nothing else is written.
     // Checking here names the passage by its 1-BASED POSITION ON SCREEN, which
     // is the number the endpoint uses and the only one the reader can see.
-    final emptyAt = visibleNow.indexWhere((c) => !_htmlHasContent(c.html));
+    final emptyAt = visibleNow.indexWhere((c) => !htmlHasContent(c.html));
     if (emptyAt > -1) {
       setState(() => _error =
           'Passage ${emptyAt + 1} is empty. Delete it with its 🗑 button, '
