@@ -1667,13 +1667,27 @@ class _SegMultiD extends StatelessWidget {
                 borderRadius: AppRadius.controlR(24),
                 boxShadow: on ? AppShadows.s1 : null,
               ),
-              child: Text(
-                s.label,
+              child: s.busy
+                  ? Row(mainAxisSize: MainAxisSize.min, children: [
+                      KitBusyMark(size: 12, color: on ? t.fg : t.fgMuted),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          s.label,
                 maxLines: 1,
                 softWrap: false,
                 overflow: TextOverflow.fade,
                 style: _style(on ? t.fg : t.fgMuted),
-              ),
+                        ),
+                      ),
+                    ])
+                  : Text(
+                      s.label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.fade,
+                style: _style(on ? t.fg : t.fgMuted),
+                    ),
             ),
           ),
         ),

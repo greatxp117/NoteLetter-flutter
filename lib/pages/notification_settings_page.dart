@@ -93,7 +93,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   final _labelCtrl = TextEditingController();
   bool _busy = false;
 
-  /// The channel whose switch has a write in flight (§6.1 Busy).
+  /// `{channel}:{control}` with a write in flight (§6.1 Busy): `enabled`, or a
+  /// level. One control marks, and every channel's controls wait.
   String? _patching;
 
   /// §14.2 — the rejection beside the control that refused it, verbatim.
@@ -213,8 +214,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   Future<void> _patch(
     NotificationChannel c,
     Map<String, dynamic> partial,
+    String what,
   ) async {
-    setState(() => _patching = c.id);
+    setState(() => _patching = '${c.id}:$what');
     try {
       await Api.instance.updateNotificationChannel(c.id, partial);
       if (mounted && _error != null) setState(() => _error = null);
@@ -432,12 +434,16 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             below: KitSegmentedMulti(
               groupLabel: 'Levels',
               expand: true,
-              segments: [for (final l in _levels) KitSegment(_levelLabel[l]!)],
+              segments: [
+                for (final l in _levels)
+                  KitSegment(_levelLabel[l]!,
+                      busy: _patching == '${c.id}:$l'),
+              ],
               selected: {
                 for (var i = 0; i < _levels.length; i++)
                   if (c.levels.contains(_levels[i])) i,
               },
-              onToggle: (i) {
+              onToggle: _patching != null ? null : (i) {
                 final next = {...c.levels};
                 next.contains(_levels[i])
                     ? next.remove(_levels[i])
@@ -448,15 +454,15 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   );
                   return;
                 }
-                _patch(c, {'levels': next.toList()});
+                _patch(c, {'levels': next.toList()}, _levels[i]);
               },
             ),
             trailing: [
               KitSwitch(
                 value: c.enabled,
                 tooltip: c.enabled ? 'Enabled' : 'Paused',
-              busy: _patching == c.id,
-              onChanged: _patching != null ? null : (v) => _patch(c, {'enabled': v}),
+              busy: _patching == '${c.id}:enabled',
+              onChanged: _patching != null ? null : (v) => _patch(c, {'enabled': v}, 'enabled'),
               ),
               KitIconButton(
                 Icons.delete_outline,
