@@ -8,8 +8,8 @@ Flutter client. Part of the multi-repo workspace — read the umbrella
 run; `test/contract/pin_check_test.dart` parses this exact line and fails while
 it differs from `../NoteLetter-contracts/VERSION`).
 
-Current since F-18 (2026-10-13): the pin moves with each version's Flutter
-tandem, as web's does (`spec/clients/flutter.md` §Pin). [`QUEUE.md`](QUEUE.md)
+Since F-18 the pin moves with each version's Flutter tandem
+(`spec/clients/flutter.md` §Pin). [`QUEUE.md`](QUEUE.md)
 is the work queue; `/flutter-next` works it, `/parity flutter` refreshes it;
 never narrate here.
 Debug builds **refuse prod** — run through `tool/dev.sh`. Bundle id
@@ -74,7 +74,8 @@ proportions hold:
 - touch copy: speed read hints only *Hold to pause & rest*; the drop zone
   says *tap*; §27 draws no ⌘K or `A` hint
 - device capabilities web lacks: Sources' *Add an image set* row, §15.1's
-  *Share original* (F-124), the camera roll's row, flow and panel (F-146)
+  *Share original* (F-124), the camera roll's row, flow and panel (F-146);
+  lacks web's Library file drop (needs `web`/`desktop_drop`)
 
 ## Rules that are easy to break here
 
