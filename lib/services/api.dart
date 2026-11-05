@@ -276,8 +276,10 @@ class Api {
           Map<String, dynamic> partial) =>
       _http.put('/fn_scripture_newsletter_settings', data: partial);
 
-  Future<Map<String, dynamic>> getScriptureNewsletterSettings() =>
-      _http.get('/fn_scripture_newsletter_settings');
+  // No GET builder: `fn_scripture_newsletter_settings` answers GET with a
+  // deliberate 410 (api/scripture.md; fixture `settings-get-gone`), and the
+  // settings are read through the SDK ([FirestoreService]
+  // `getScriptureNewsletterSettings`). One stood here, unused, until round 3.
 
   /// Per-chunk shelf overrides (2.35.0, ADR-034).
   ///

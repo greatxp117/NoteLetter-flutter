@@ -469,10 +469,9 @@ Future<dynamic> _invokeMethodAware(
         _maps(b['units']),
         _maps(b['assessments']),
       );
+    // PUT only: its GET is a 410 (`settings-get-gone`), skipped above as a
+    // read, and this client has no GET builder to drive (round 3).
     case 'fn_scripture_newsletter_settings':
-      if (method == 'GET') {
-        return Api.instance.getScriptureNewsletterSettings();
-      }
       return Api.instance.updateScriptureNewsletterSettings(b);
     // `b` is the body merged with the query, so the DELETE's threadId — which
     // rides the QUERY STRING, because a DELETE body is not reliably carried —
