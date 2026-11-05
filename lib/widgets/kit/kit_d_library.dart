@@ -20,7 +20,6 @@ import 'package:flutter/widgets.dart';
 
 import '../../theme/app_motion.dart';
 import '../../theme/app_radius.dart';
-import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
@@ -30,7 +29,7 @@ import 'kit_d_home.dart' show KitHxLink;
 import 'kit_d_parts.dart';
 import 'kit_d_shelf.dart' show KitShelfRow, KitShelfRows;
 import 'kit_provider_logo.dart';
-import 'kit_shell.dart' show KitGlyph, KitQuill;
+import 'kit_shell.dart' show KitGlyph;
 import 'kit_wait.dart' show kitWaitLabel;
 
 // ── The cloud notices (`.lx-notices`, `.lx-notice`) ─────────────────────────
@@ -1627,105 +1626,3 @@ class KitRefusedNotices extends StatelessWidget {
   }
 }
 
-// ── The Library's drop veil (`.lx-veil`) ────────────────────────────────────
-
-/// What a file dragged over the Library says (`screens/sources.md`
-/// §Composition, Frame; web `.lx-veil`): `--bg` at 82% over the page, a 2px
-/// dashed `--accent` outline 14 inside, and a `--surface` card on `--shadow-3`
-/// a third of the way down — the quill, *Drop to add to your library* (serif
-/// 600 24, `--fg`) and *Each file is read, indexed, and shelved as it
-/// arrives.* (serif italic 15, `--fg-lede`). It takes no pointer: the drop is
-/// the page's.
-class KitDropVeil extends StatelessWidget {
-  const KitDropVeil({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    return IgnorePointer(
-      child: ExcludeSemantics(
-        child: LayoutBuilder(
-          builder: (context, c) => CustomPaint(
-            key: const ValueKey('lx-veil'),
-            foregroundPainter: _DashedInset(t.accent),
-            child: ColoredBox(
-              color: t.bg.withValues(alpha: 0.82),
-              child: Padding(
-                padding: EdgeInsets.only(
-                    top: c.maxHeight.isFinite ? c.maxHeight * 0.34 : 240),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Container(
-                    constraints: BoxConstraints(
-                        maxWidth: math.max(0, c.maxWidth - 64)),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 34, vertical: 26),
-                    decoration: BoxDecoration(
-                      color: t.surface,
-                      borderRadius: AppRadius.xlR,
-                      boxShadow: AppShadows.s3,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        KitQuill(size: 26, color: t.accent),
-                        const SizedBox(height: 8),
-                        Text('Drop to add to your library',
-                            textAlign: TextAlign.center,
-                            style: AppTheme.serif(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w600,
-                                color: t.fg)),
-                        const SizedBox(height: 8),
-                        Text(
-                            'Each file is read, indexed, and shelved as it '
-                            'arrives.',
-                            textAlign: TextAlign.center,
-                            style: AppTheme.serif(
-                                fontSize: 15,
-                                fontStyle: FontStyle.italic,
-                                color: t.fgLede)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// `outline: 2px dashed var(--accent); outline-offset: -14px`.
-class _DashedInset extends CustomPainter {
-  final Color color;
-  _DashedInset(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = Rect.fromLTWH(14, 14, size.width - 28, size.height - 28);
-    if (r.width <= 0 || r.height <= 0) return;
-    final p = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-    const dash = 6.0, gap = 4.0;
-    void line(Offset a, Offset b) {
-      final len = (b - a).distance;
-      final d = (b - a) / len;
-      for (var x = 0.0; x < len; x += dash + gap) {
-        canvas.drawLine(a + d * x, a + d * math.min(x + dash, len), p);
-      }
-    }
-
-    line(r.topLeft, r.topRight);
-    line(r.topRight, r.bottomRight);
-    line(r.bottomRight, r.bottomLeft);
-    line(r.bottomLeft, r.topLeft);
-  }
-
-  @override
-  bool shouldRepaint(_DashedInset old) => old.color != color;
-}

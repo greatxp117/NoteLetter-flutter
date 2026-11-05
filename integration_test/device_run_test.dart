@@ -4292,6 +4292,123 @@ void main() {
   // provider's code exchange), the return page, the listing (the shim's Drive
   // fake), and the import. Since 5.52.0 (ADR-203, F-156) the return opens its
   // own route over Sources, and nothing offers File under.
+  // Round 3 (web's `subscribeNewsletters` and optimistic row, 4.76.0, ADR-110).
+  // Until then the archive was read once, so a letter being built kept showing
+  // what it showed until the page was opened again. Widget tests feed a stream;
+  // only here does the record come from the real backend through the real SDK.
+  testWidgets(
+      "Send now: the build lands in the archive on its own, then becomes the "
+      "letter, with no re-read", (tester) async {
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    final router = await pumpApp(tester);
+    router.go('/letters');
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(KitLetterArchiveRow).evaluate().isNotEmpty) break;
+    }
+    await pumpFor(tester, total: const Duration(seconds: 1));
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    Future<List<String>> building() async {
+      final r = await rest.post(':runQuery', data: {
+        'structuredQuery': {
+          'from': [
+            {'collectionId': 'newsletters'}
+          ],
+          'where': {
+            'compositeFilter': {
+              'op': 'AND',
+              'filters': [
+                {
+                  'fieldFilter': {
+                    'field': {'fieldPath': 'user_id'},
+                    'op': 'EQUAL',
+                    'value': {'stringValue': uid},
+                  }
+                },
+                {
+                  'fieldFilter': {
+                    'field': {'fieldPath': 'status'},
+                    'op': 'EQUAL',
+                    'value': {'stringValue': 'generating'},
+                  }
+                },
+              ],
+            }
+          },
+        }
+      });
+      return [
+        for (final row in r.data as List)
+          if (row['document'] != null)
+            (row['document']['name'] as String).split('/').last,
+      ];
+    }
+
+    final before = await building();
+    // Another test's send may hold the 60s cooldown; the button says so.
+    final send = find.descendant(
+        of: find.byType(KitTabBar), matching: find.text('Send now'));
+    for (var i = 0; i < 70 && send.evaluate().isEmpty; i++) {
+      await pumpFor(tester, total: const Duration(seconds: 1));
+    }
+    expect(send, findsOneWidget, reason: 'Send now never came free');
+
+    await tester.tap(find.byKey(const ValueKey('d-tab-action')));
+    await pumpFor(tester, total: const Duration(seconds: 3));
+
+    // The record is written before the 202, so by now the live archive has it:
+    // one row for it, and no optimistic row beside it.
+    final made = (await building()).where((id) => !before.contains(id)).toList();
+    expect(made, hasLength(1), reason: 'Send now wrote no generating record');
+    final row = find.byKey(ValueKey('d-lrow-${made.single}'), skipOffstage: false);
+    expect(row, findsOneWidget,
+        reason: 'the build did not land on its own; the archive was not live');
+    final pending = find.byWidgetPredicate(
+        (w) =>
+            w is KitLetterArchiveRow &&
+            (w.key as ValueKey<String>?)?.value.startsWith('d-lrow-pending-') == true,
+        skipOffstage: false);
+    expect(pending, findsNothing,
+        reason: 'a Sending row stood beside the record it was waiting for');
+    expect(
+        find.text('Gathering the best passages from your library…',
+            skipOffstage: false),
+        findsOneWidget,
+        reason: 'a building letter says it is being built');
+    debugPrint('DEVICE-RUN round 3: ${made.single} landed live, generating');
+
+    // The worker finishes (no Cloud Tasks emulator, so it is written here), and
+    // the row becomes the letter with nothing asked of the page.
+    final patched = await rest.patch('/newsletters/${made.single}',
+        queryParameters: {
+          'updateMask.fieldPaths': ['status', 'html_body', 'text_body']
+        },
+        data: {
+          'fields': {
+            'status': {'stringValue': 'sent'},
+            'html_body': {'stringValue': '<p>A letter that landed.</p>'},
+            'text_body': {'stringValue': 'A letter that landed.'},
+          }
+        });
+    expect(patched.statusCode, 200);
+    await pumpFor(tester, total: const Duration(seconds: 3));
+    expect(
+        find.text('Gathering the best passages from your library…',
+            skipOffstage: false),
+        findsNothing,
+        reason: 'the row kept saying it was building after the letter landed');
+    expect(row, findsOneWidget);
+    debugPrint('DEVICE-RUN round 3: ${made.single} became the letter, no re-read');
+  });
+
   testWidgets(
       'the OAuth return: an app session comes back, is claimed, and the page '
       'brings in the import (F-151)', (tester) async {

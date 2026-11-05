@@ -4,7 +4,6 @@
 # refuses to boot (lib/main.dart); this script is the convenience half of that
 # guard, and the identity check is what makes "the emulator" mean OURS.
 #
-#   tool/dev.sh chrome            fast iteration; a different renderer from the phone
 #   tool/dev.sh ios               the iPhone 17 Pro simulator (NL_SIM_NAME to change)
 #   tool/dev.sh ios --release     extra args are passed to flutter run
 set -e
@@ -13,9 +12,8 @@ set -e
 target="${1:-}"
 [ -n "$target" ] && shift || true
 case "$target" in
-  chrome) device="chrome" ;;
   ios)    device="$(emu_sim_udid)"; xcrun simctl boot "$device" 2>/dev/null || true ;;
-  *) echo "usage: tool/dev.sh chrome|ios [flutter run args]" >&2; exit 2 ;;
+  *) echo "usage: tool/dev.sh ios [flutter run args]" >&2; exit 2 ;;
 esac
 
 emu_assert_ours

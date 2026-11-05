@@ -49,7 +49,7 @@ asserts; a notifier building its own is untested.
 ## Build & run
 
 ```bash
-tool/dev.sh chrome|ios                        # emulator only, proven ours
+tool/dev.sh ios                               # emulator only, proven ours
 flutter analyze --no-fatal-infos --no-fatal-warnings
 flutter test test/contract test/kit           # pin included since F-18
 tool/shots_batch.sh <list> && tool/web_frames.sh <screen>…
