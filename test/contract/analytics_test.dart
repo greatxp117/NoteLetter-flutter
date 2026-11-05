@@ -124,11 +124,10 @@ void main() {
       }
     });
 
-    test('the provider never rides on any other route', () {
-      expect(Analytics.screenName('/connect/:provider', provider: 'notion'),
-          'connect');
+    test('the provider rides on no route but the two that carry it', () {
       expect(Analytics.screenName('/reader/:docId', provider: 'notion'),
           'reader');
+      expect(Analytics.screenName('/connect', provider: 'notion'), 'connect');
     });
 
     test('two services are two screen views; two documents are one', () {
@@ -136,6 +135,32 @@ void main() {
           isNot(screenViewKey('/sources/:provider', 'dropbox')));
       expect(screenViewKey('/reader/:docId', 'a'),
           screenViewKey('/reader/:docId', 'b'));
+    });
+  });
+
+  // Round 3: the connect page sends web's `connect-{provider}` by the same
+  // closed-set rule; a segment naming no provider sends `connect`. Mutants
+  // run against it (each red): the pattern sending `connect` for every
+  // provider again; an unknown segment sent as `connect-{segment}`; the key
+  // not telling two providers' connect pages apart.
+  group('the connect page (5.52.0, ADR-203)', () {
+    test('sends the reference\'s token, `connect-{provider}`', () {
+      for (final p in cloudProviders.keys) {
+        expect(Analytics.screenName('/connect/:provider', provider: p),
+            'connect-$p');
+      }
+    });
+
+    test('a segment that names no provider sends `connect`', () {
+      expect(Analytics.screenName('/connect/:provider', provider: 'my-tax-file'),
+          'connect');
+      expect(Analytics.screenName('/connect/:provider'), 'connect');
+      expect(Analytics.screenName('/connect'), 'connect');
+    });
+
+    test('two providers\' connect pages are two screen views', () {
+      expect(screenViewKey('/connect/:provider', 'notion'),
+          isNot(screenViewKey('/connect/:provider', 'dropbox')));
     });
   });
 

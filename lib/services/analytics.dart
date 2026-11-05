@@ -104,8 +104,10 @@ const Map<String, String> screenNames = <String, String>{
   // Add a source (direction D) — the reference's `add` route token.
   '/sources/add': 'add',
   // The connect page (5.52.0, ADR-203). The reference's tokens are `connect`
-  // and `connect-{provider}`; keyed on the PATTERN, this client sends
-  // `connect` for both — the provider is a `:parameter` here, as an id is.
+  // and `connect-{provider}`. Since round 3 this client sends both, by the
+  // service page's rule ([providerStems]): `/connect/:provider` sends
+  // `connect-{provider}` for one of the four names we chose, and `connect` for
+  // a segment that names none (until round 3 it sent `connect` for both).
   '/connect': 'connect',
   '/connect/:provider': 'connect',
   // A service's own page (5.59.0, ADR-213). The value is the reference's stem:
@@ -229,15 +231,28 @@ class Analytics {
     f.catchError((_) {});
   }
 
+  /// The patterns whose token carries the provider, as the reference's do
+  /// (`service-{provider}`, `connect-{provider}`), and what each sends for a
+  /// segment that names none of the four: a service's page sends nothing (it
+  /// replaces itself with /sources, which reports), the connect page its bare
+  /// `connect`. Closed by [cloudProviders]: a provider is one of four names we
+  /// chose, never the reader's content, so whatever else sits in that segment
+  /// never reaches the property.
+  static const providerStems = <String, (String, String?)>{
+    '/sources/:provider': ('service', null),
+    '/connect/:provider': ('connect', 'connect'),
+  };
+
   /// The screen a route pattern reports, or null when it reports none.
   static String? screenName(String? pattern, {String? provider}) {
     if (pattern == null) return null;
     final token = screenNames[pattern];
     if (token == null) return 'unknown';
-    if (token == 'service') {
-      // Closed by [cloudProviders]: whatever else sits in that path segment is
-      // not sent, and the page replaces itself with /sources, which reports.
-      return cloudProviders.containsKey(provider) ? 'service-$provider' : null;
+    final stem = providerStems[pattern];
+    if (stem != null) {
+      return cloudProviders.containsKey(provider)
+          ? '${stem.$1}-$provider'
+          : stem.$2;
     }
     return token.isEmpty ? null : token;
   }
