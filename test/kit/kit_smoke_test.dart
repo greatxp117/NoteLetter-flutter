@@ -1791,18 +1791,23 @@ void main() {
       // not rewrite it to suit a renderer (ADR-087) — the reader would be
       // looking at something nobody was sent.
       expect(doc, contains(body));
-      // What we add: a viewport, so a 640px mail sheet fits a phone instead of
+      // What we add: a viewport, so a mail sheet fits a phone instead of
       // scrolling sideways, and the letter's own frozen ground behind it.
       expect(doc, contains('width=device-width'));
       expect(doc, contains('#FAFAF7'));
       // …and web's one host rule (`.letter-sheet [data-nl-letterhead] >
-      // table`): without it the 640px paper cannot shrink, and the page was
-      // scaled to fit — every face at ~0.63 of the reference's on a phone.
+      // table`): without it the 640px paper of a letter sent before 5.66.0
+      // cannot shrink, and the page was scaled to fit — every face at ~0.63
+      // of the reference's on a phone.
       final web = File('../NoteLetter-web/src/styles/app-kit.css')
           .readAsStringSync();
       expect(web, contains('.letter-sheet [data-nl-letterhead] > table { table-layout: fixed; }'),
           reason: "the reference's host rule moved — look again");
       expect(doc, contains('[data-nl-letterhead]>table{table-layout:fixed}'));
+      // Both hosts stop the paper where the letter does (ADR-235).
+      expect(web, contains('max-width: 680px !important'),
+          reason: "the reference's paper cap moved — look again");
+      expect(doc, contains('max-width:680px!important'));
       // …and no font, colour or metric of ours: every one of those is inline
       // in the letter and must win.
       expect(doc, isNot(contains('Source Serif')));

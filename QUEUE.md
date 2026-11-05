@@ -2594,3 +2594,16 @@ a new obligation on a finished screen is a new item.
 - shots: letters; ask-turn-failed
 - extra_gates: flutter test test/contract
 - notes: 5.60.1 is web's cloud lane W, taken as 5.59.1 on the lane. Web's tests are the acceptance list: letters-sent-figure.test.js, ask-refused-turn.test.js. Also correct the stale comment above missionMax in lib/services/api.dart: since 5.61.0 the endpoint refuses past the bound (fn_newsletter_settings).
+
+## F-170 · The letter's host holds the paper at 680 (5.66.0, ADR-235)
+- status: done 2026-11-04
+- screen: letters
+- route: /letters
+- spec: spec/api/newsletter.md; spec/screens/letters.md
+- web: src/styles/app-kit.css
+- flutter: lib/widgets/kit/kit_letter.dart; test/kit/kit_smoke_test.dart
+- folds: 5.66.0
+- device_test: none
+- shots: letter-reader
+- extra_gates: flutter test test/kit/kit_smoke_test.dart --plain-name "a letterheaded body is wrapped"
+- notes: The renderer moved, so every new letter reaches this host wider. The host's cap goes 640 to 680 and its prose stops describing a fixed sheet. A phone never reaches the cap, so the frame is about the letter, not the rule: re-seed with tool/seed_letters.py (the real renderer), then shoot and look at a passage's column at phone width. Number held for local work by TODO's round 3 line, so it is not max+1.
