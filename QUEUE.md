@@ -2620,3 +2620,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: python3 ../NoteLetter-contracts/harness/busy_mark_check.py --only flutter
 - notes: KitBusyMark is the one drawing, and every kit control that sends takes a `busy`. The pressed control draws it; its held siblings stay plain. Built with web in one run, and drawn in a widget-test image in both themes. It has not been seen on a simulator or a phone.
+
+## F-172 · Shelves at add: quick add, Add a source, the share sheet on both platforms (5.73.0, ADR-238)
+- status: open
+- screen: sources
+- route: /share
+- spec: spec/component-kit.md; spec/screens/share-sheet.md; spec/screens/sources.md; spec/features/shelves-at-add.md
+- web: src/shared/AddShelves.jsx; src/overlays/QuickAdd.jsx; src/api.js
+- flutter: lib/services/api.dart; lib/state/upload_notifier.dart; lib/widgets/quick_add.dart; lib/pages/add_source_page.dart; lib/pages/share_page.dart; ios/Share/UploadViewModel.swift; ios/Share/ShareView.swift
+- folds: 5.73.0
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Kit §20.3 over a local choice on quick add, Add a source and /share; the iOS extension reads tags over Firestore REST and holds the create form in SwiftUI. Nothing is written until the host adds; every add carries tagIds, with no key when none is chosen. See spec/features/shelves-at-add.md.
