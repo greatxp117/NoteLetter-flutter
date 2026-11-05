@@ -298,7 +298,7 @@ void main() {
       await tester.tap(field);
       await tester.pump();
       await tester.enterText(
-          field, [for (var i = 0; i < 51; i++) 'p$i'].join('\n'));
+          field, [for (var i = 0; i < 51; i++) 'p$i'].join(', '));
       // Leave the field — no done key, no Enter.
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pumpAndSettle();

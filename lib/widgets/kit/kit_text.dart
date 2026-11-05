@@ -123,6 +123,15 @@ class KitText {
 
   /// `.caps-label` — mono 11 / 500 / 0.08em caps. Stat labels, folio lines,
   /// group labels, timeline chips.
+  /// `.cfg-label .l`: a setting's name, mono 10 at .12em in `--fg-muted`.
+  static TextStyle cfgLabel(BuildContext context) => AppTheme.mono(
+      fontSize: 10, letterSpacing: 1.2, color: Tokens.of(context).fgMuted);
+
+  /// `.cfg-label .v`: what a setting means, beside its name, mono 11 in
+  /// `--accent-text`.
+  static TextStyle cfgValue(BuildContext context) =>
+      AppTheme.mono(fontSize: 11, color: Tokens.of(context).accentText);
+
   static TextStyle capsLabel(BuildContext context,
           {Color? color, double fontSize = 11, double letterSpacing = 0.08}) =>
       AppTheme.mono(

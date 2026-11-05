@@ -565,8 +565,12 @@ void main() {
           theme: AppTheme.light,
           home: Scaffold(
             body: SingleChildScrollView(
-              child: SyncSettingsPanel(
-                  providerId: i.provider, integration: i, embedded: true),
+              // As its one host draws it (`service_page.dart`).
+              child: KitCloudScope(
+                ruled: false,
+                child: SyncSettingsPanel(
+                    providerId: i.provider, integration: i, embedded: true),
+              ),
             ),
           ),
         ),
@@ -603,6 +607,51 @@ void main() {
           isSemantics(hasCheckedState: true, isChecked: true, label: 'PDF'));
       expect(tester.getSemantics(find.byType(KitTypeChoice).at(1)),
           isSemantics(hasCheckedState: true, isChecked: false, label: 'Word'));
+    });
+
+    // F-160's frame of this panel drew a card, sans labels, a pale chip and a
+    // white box inside the field's frame, with every test above green.
+    testWidgets("composes as web's: flat, mono labels, day pills, one line",
+        (tester) async {
+      await panel(
+          tester,
+          const CloudIntegration(
+              provider: 'google_drive', tokenValid: true, includeTypes: ['pdf']));
+      expect(
+          find.ancestor(
+              of: find.byType(KitTypeChoice).first,
+              matching: find.byType(KitCard)),
+          findsNothing,
+          reason: 'inside `.lx-cloud` the panel is not a card');
+      final label =
+          tester.widget<Text>(find.text('FILE TYPES A SYNC BRINGS IN'));
+      expect(label.style!.fontFamily, AppTheme.fontMono);
+      expect(label.style!.fontSize, 10);
+
+      BoxDecoration pill(int i) => tester
+          .widget<Container>(find
+              .descendant(
+                  of: find.byType(KitTypeChoice).at(i),
+                  matching: find.byType(Container))
+              .first)
+          .decoration! as BoxDecoration;
+      final t = Tokens.of(tester.element(find.byType(KitTypeChoice).first));
+      expect(pill(0).color, t.chrome, reason: 'on is the chrome, as web');
+      expect(pill(1).color, t.surface);
+      expect(find.byType(KitDayPill), findsNWidgets(3),
+          reason: 'Import, Ask over…, Always ask for the one ticked type');
+
+      expect(find.text('≤50, glob'), findsOneWidget);
+      final field = find.byWidgetPredicate(
+          (w) => w is TextField && w.decoration?.hintText == '*.tmp, draft-*');
+      expect(field, findsOneWidget);
+      expect(tester.widget<TextField>(field).maxLines, 1);
+      final deco = tester.widget<TextField>(field).decoration!;
+      expect(deco.filled, isFalse,
+          reason: "the theme's fill drew a white box inside the frame");
+      expect(deco.enabledBorder, InputBorder.none,
+          reason: "the theme's enabledBorder drew a second outline");
+      expect(deco.focusedBorder, InputBorder.none);
     });
 
     testWidgets('Notion says pages, in the plural, and its one choice explains '

@@ -1326,11 +1326,32 @@ class _KitFilterChipState extends State<KitFilterChip> {
   }
 }
 
-/// A sync's type choice (5.59.0, ADR-213; web `.sync-types .daypill`): a
-/// **tick and a checkbox** to assistive technology, not a lit pill — a filled
-/// pill beside an empty one did not say which of the two meant "comes in".
-/// 38 tall, `0 14px`, wrapping; the tick 13 with 6 after it, drawn only while
-/// ticked. Write before move: [checked] is what the server returned.
+/// Web's `.daypill`: 38 tall, `--r-sm`, a `--border` on `--surface` with
+/// `--fg-muted` words, and `--chrome` under `--paper-50` while on. A row of them
+/// is the §Sync control's *Ask before importing*.
+class KitDayPill extends StatelessWidget {
+  final String label;
+  final bool on;
+  final VoidCallback? onPressed;
+
+  const KitDayPill(this.label, {super.key, required this.on, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        selected: on,
+        enabled: onPressed != null,
+        label: label,
+        excludeSemantics: true,
+        onTap: onPressed,
+        child: _DayPillBox(label, on: on, onPressed: onPressed),
+      );
+}
+
+/// A sync's type choice (5.59.0, ADR-213; web `.sync-types .daypill`): the day
+/// pill with a **tick while on**, and a checkbox to assistive technology. A lit
+/// pill alone did not say which of two meant "comes in". Write before move:
+/// [checked] is what the server returned.
 class KitTypeChoice extends StatelessWidget {
   final String label;
   final bool checked;
@@ -1340,50 +1361,69 @@ class KitTypeChoice extends StatelessWidget {
       {super.key, required this.checked, this.onPressed});
 
   @override
+  Widget build(BuildContext context) => Semantics(
+        checked: checked,
+        enabled: onPressed != null,
+        label: label,
+        excludeSemantics: true,
+        onTap: onPressed,
+        child: _DayPillBox(label,
+            on: checked, tick: checked, onPressed: onPressed),
+      );
+}
+
+class _DayPillBox extends StatelessWidget {
+  final String label;
+  final bool on;
+  final bool tick;
+  final VoidCallback? onPressed;
+
+  const _DayPillBox(this.label,
+      {required this.on, this.tick = false, this.onPressed});
+
+  @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final disabled = onPressed == null;
-    final fg = checked ? t.accentChipFg : t.fgMuted;
-    return Semantics(
-      checked: checked,
-      enabled: !disabled,
-      label: label,
-      excludeSemantics: true,
-      onTap: onPressed,
-      child: MouseRegion(
-        cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onPressed,
-          child: Opacity(
-            opacity: disabled ? AppSpacing.heldOpacity : 1,
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: checked ? t.accentSoft : t.surface,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                    color: checked ? t.accentChipBorder : t.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (checked) ...[
-                    Icon(Icons.check, size: 13, color: fg),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(
-                    label,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: AppTheme.fontSans,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: fg,
-                    ),
-                  ),
+    // `--chrome` is the same dark ground in both themes, so its words are the
+    // chrome's own step and never a semantic that flips.
+    final fg = on ? t.chromeFg : t.fgMuted;
+    return MouseRegion(
+      cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: Opacity(
+          opacity: disabled ? AppSpacing.heldOpacity : 1,
+          child: Container(
+            height: 38,
+            constraints: const BoxConstraints(minWidth: 72),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: on ? t.chrome : t.surface,
+              borderRadius: AppRadius.smR,
+              border: Border.all(
+                  color: on ? const Color(0x00000000) : t.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (tick) ...[
+                  Icon(Icons.check, size: 13, color: fg),
+                  const SizedBox(width: 6),
                 ],
-              ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

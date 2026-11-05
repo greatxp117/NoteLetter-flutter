@@ -211,6 +211,17 @@ Future<void> _holdOne(WidgetTester tester, _Hold h) async {
       await tester.pump(const Duration(milliseconds: 200));
     }
   }
+  // Notion, for its own frames (F-160): the mono mark and the single-type sync
+  // control are Notion's alone. The reference's `seedNotionService`, row for
+  // row, so its rows point at the seed's documents and show real shelves. A
+  // batch lists these holds last: nothing removes them.
+  if (const {'service-notion', 'service-notion-types', 'library-services'}
+      .contains(h.state)) {
+    await _seedNotionService();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+  }
   router.go(route);
   for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 200));
@@ -763,11 +774,15 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           matching: find.byType(TextField));
       await tester.enterText(failField, 'Which of these recipes can use steak?');
       await settle();
+      // The shim runs with fakes and answers, so the refusal is stood in, as
+      // web's frame refuses it at the route. The next hold gets the real wire.
+      ApiService.instance.httpClientAdapter = _RefuseAskTurn();
       await tester.tap(find.byKey(const ValueKey('ask-send')));
       for (var i = 0; i < 200; i++) {
         await tester.pump(const Duration(milliseconds: 200));
         if (find.text('Try again').evaluate().isNotEmpty) break;
       }
+      ApiService.instance.resetTestSeams();
       await settle();
       // Say which branch this run took, the way the device run does: a frame
       // that is not the state its filename claims is false evidence, and the
@@ -1875,6 +1890,67 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // written: `old-notes.pdf` waits in Cloud imports; Import history, opened,
     // holds taxes.pdf imported, its duplicate (View · Import again) and
     // report.docx failed ("download failed: 503 from provider").
+    // A service's own page (F-160, 5.59.0, ADR-213): web's frames of the same
+    // names. `service-page` itself is the route alone.
+    case 'service-notion':
+      final shelves = find.byType(KitImportShelves);
+      for (var i = 0; i < 60 && shelves.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(shelves, findsWidgets, reason: 'no import row drew its shelves');
+      final history = find.byWidgetPredicate((w) =>
+          w is Text && (w.data ?? '').toUpperCase() == 'IMPORT HISTORY');
+      expect(history, findsWidgets);
+      await Scrollable.ensureVisible(tester.element(history.first));
+      await settle();
+      return;
+    case 'service-notion-types':
+      // A caps label is drawn upper-cased, so ask for the words in any case.
+      final types = find.byWidgetPredicate((w) =>
+          w is Text &&
+          (w.data ?? '').toLowerCase() == 'what a sync brings in');
+      for (var i = 0; i < 60 && types.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(types, findsWidgets, reason: "no type control on Notion's page");
+      await tester.ensureVisible(types.first);
+      await settle();
+      return;
+    case 'library-services':
+      final manage = find.widgetWithText(KitLibAct, 'Manage');
+      for (var i = 0; i < 60 && manage.evaluate().length < 2; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(manage.evaluate().length, greaterThanOrEqualTo(2),
+          reason: 'the two connected services did not both say Manage');
+      final rowEl = tester.element(manage.first);
+      await Scrollable.ensureVisible(rowEl, alignment: 0.2);
+      await settle();
+      return;
+    // F-161 (5.60.0, ADR-214). A phone's form, as web's: the page scrolls the
+    // crumb away, then the running head opens on the way back.
+    case 'reader-way-back':
+      final crumb = find.byType(KitDBackControl);
+      for (var i = 0; i < 60 && crumb.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(crumb, findsWidgets);
+      final pagePos = Scrollable.of(tester.element(crumb.first)).position;
+      pagePos.jumpTo(420.0.clamp(0.0, pagePos.maxScrollExtent));
+      await settle();
+      await tester.tap(find.byKey(const ValueKey('d-peek')));
+      await settle();
+      expect(find.byType(KitSheetBack), findsOneWidget,
+          reason: 'the sheet did not head with the way back');
+      return;
+    case 'sources-sheet':
+      final peek = find.byKey(const ValueKey('d-peek'));
+      for (var i = 0; i < 60 && peek.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await tester.tap(peek);
+      await settle();
+      return;
     case 'import-activity':
     case 'import-activity-failed':
       final failed = holdState == 'import-activity-failed';
@@ -1887,12 +1963,8 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       }
       expect(header, findsWidgets,
           reason: 'no $head section — the seed\'s import jobs did not load');
-      if (failed) {
-        final show = find.textContaining(RegExp(r'^Show \d+$'));
-        await tester.ensureVisible(show.first);
-        await settle();
-        await tester.tap(show.first);
-      }
+      // A service's Import history is open (5.59.0, ADR-213), so nothing
+      // presses Show any more.
       for (var i = 0; i < 60 && row.evaluate().isEmpty; i++) {
         await tester.pump(const Duration(milliseconds: 200));
       }
@@ -2252,4 +2324,100 @@ Future<void> _reachCamera(WidgetTester tester, String state) async {
       await tester.tap(settings);
   }
   await pumpFor(2500);
+}
+
+/// The reference's `seedNotionService` (`theme-shots.mjs`).
+Future<void> _seedNotionService() async {
+  final rest = Dio(BaseOptions(
+    baseUrl: 'http://${ApiService.emulatorHost}:${ApiService.firestorePort}'
+        '/v1/projects/${DefaultFirebaseOptions.currentPlatform.projectId}'
+        '/databases/(default)/documents',
+    headers: {'Authorization': 'Bearer owner'},
+  ));
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+  final now = {'timestampValue': DateTime.now().toUtc().toIso8601String()};
+  Map<String, dynamic> str(String v) => {'stringValue': v};
+  await rest.patch('/users/$uid/integrations/notion', data: {
+    'fields': {
+      'provider': str('notion'),
+      'provider_email': str('reader@noteletter.test'),
+      'status': str('connected'),
+      'token_valid': {'booleanValue': true},
+      'access_token': str('shot'),
+      'auto_sync_enabled': {'booleanValue': false},
+      'sync_frequency': str('daily'),
+      'sync_preferred_hour': {'integerValue': '3'},
+      'connected_at': now,
+      'sync_config': {
+        'mapValue': {
+          'fields': {
+            'folder_ids': {'arrayValue': {'values': <Object>[]}},
+            'include_types': {
+              'arrayValue': {
+                'values': [str('notion')]
+              }
+            },
+            'exclude_patterns': {'arrayValue': {'values': <Object>[]}},
+          },
+        },
+      },
+    },
+  });
+  const docs = [
+    'seed-doc-pdf-complete',
+    'seed-doc-article-complete',
+    'seed-doc-yt-complete',
+  ];
+  for (var i = 0; i < docs.length; i++) {
+    await rest.patch('/cloud_import_jobs/flutter-shot-notion-$i', data: {
+      'fields': {
+        'user_id': str(uid),
+        'provider': str('notion'),
+        'status': str('complete'),
+        'provider_file_name': str('Notion page ${i + 1}'),
+        'provider_file_id': str('p$i'),
+        'mime_type': str('application/x-notion-page'),
+        'document_id': str(docs[i]),
+        'created_at': now,
+      },
+    });
+  }
+  await rest.patch('/cloud_import_jobs/flutter-shot-notion-w', data: {
+    'fields': {
+      'user_id': str(uid),
+      'provider': str('notion'),
+      'status': str('downloading'),
+      'provider_file_name': str('Reading list'),
+      'provider_file_id': str('pw'),
+      'mime_type': str('application/x-notion-page'),
+      'created_at': now,
+    },
+  });
+}
+
+/// A refused Ask turn (`ask-turn-failed`), everything else on the real wire.
+class _RefuseAskTurn implements HttpClientAdapter {
+  final HttpClientAdapter _real = IOHttpClientAdapter();
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    if (!options.uri.path.endsWith('/fn_ask_turn')) {
+      return _real.fetch(options, requestStream, cancelFuture);
+    }
+    return ResponseBody.fromString(
+        jsonEncode({
+          'error': 'Unknown field(s): shelf. Accepted: limit, question, '
+              'sourceTypes, tagId, threadId.',
+          'error_code': 'UNKNOWN_KEYS',
+          'request_id': 'hold-ask-turn-failed',
+        }),
+        400,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType]
+        });
+  }
+
+  @override
+  void close({bool force = false}) => _real.close(force: force);
 }

@@ -135,7 +135,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   @override
   void initState() {
     super.initState();
-    _patternsController.text = widget.integration.excludePatterns.join('\n');
+    _patternsController.text = widget.integration.excludePatterns.join(', ');
     // Saved when the field lets go of focus — tapping away, tabbing out,
     // collapsing the panel. `onEditingComplete` never fires here: on a
     // multi-line field Enter inserts a newline, and Chrome has no done key,
@@ -148,7 +148,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   }
 
   List<String> _parsedPatterns() => _patternsController.text
-      .split('\n')
+      .split(',')
       .map((s) => s.trim())
       .where((s) => s.isNotEmpty)
       .toList();
@@ -158,7 +158,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   /// rendered.
   void _savePatterns() {
     final list = _parsedPatterns();
-    if (list.join('\n') == widget.integration.excludePatterns.join('\n')) {
+    if (list.join(', ') == widget.integration.excludePatterns.join(', ')) {
       return;
     }
     _save((c) => c.syncSettings(widget.providerId, excludePatterns: list),
@@ -166,7 +166,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
       // The revert goes to what the last READ stored (4.75.2): leaving the
       // refused text in the field reads as saved.
       _patternsController.text =
-          widget.integration.excludePatterns.join('\n');
+          widget.integration.excludePatterns.join(', ');
     });
   }
 
@@ -254,8 +254,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
     final i = widget.integration;
     final inert = i.autoSyncEnabled && i.folderIds.isEmpty;
 
-    return KitCard(
-      padding: const EdgeInsets.all(16),
+    return _SyncFrame(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -267,7 +266,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                 // The label keeps its width and the line takes the rest: an
                 // Expanded label left the line too little room and broke
                 // "1:00 AM" across two lines.
-                const Eyebrow('Auto-sync'),
+                Text('AUTO-SYNC', style: KitText.cfgLabel(context)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(lastSyncedLine(i.lastSyncAt),
@@ -506,8 +505,8 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                       container: true,
                       label: _typesCopy.label,
                       child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                        spacing: 5,
+                        runSpacing: 5,
                         children: [
                           for (final type in _types)
                             KitTypeChoice(
@@ -564,29 +563,37 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                         },
                       ),
 
-                    _Label('Exclude patterns — one glob per line, ≤50',
-                        note: 'saved when you leave the field'),
+                    _Label('Exclude patterns', note: '≤50, glob'),
+                    // One line, comma-separated, saved on blur or Enter (web's
+                    // input). Every border named: the theme's `enabledBorder`
+                    // and fill outlive `InputDecoration.collapsed`, and drew a
+                    // second field inside this frame.
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
+                          horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
-                        color: t.surfaceSunken,
-                        borderRadius: AppRadius.smR,
+                        color: t.bg,
+                        borderRadius: AppRadius.mdR,
                         border: Border.all(color: t.border),
                       ),
                       child: TextField(
                         controller: _patternsController,
                         focusNode: _patternsFocus,
-                        maxLines: 3,
-                        style: KitText.monoFigure(context, fontSize: 12),
+                        maxLines: 1,
+                        textInputAction: TextInputAction.done,
+                        style: KitText.small(context, color: t.fg),
                         decoration: InputDecoration(
-                          isDense: true,
-                          border: InputBorder.none,
+                          isCollapsed: true,
+                          filled: false,
                           contentPadding: EdgeInsets.zero,
-                          hintText: '*.tmp\ndrafts/**',
-                          hintStyle: KitText.monoFigure(context,
-                              fontSize: 12, color: t.fgSubtle),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          hintText: '*.tmp, draft-*',
+                          hintStyle:
+                              KitText.small(context, color: t.fgSubtle),
                         ),
+                        onSubmitted: (_) => _patternsFocus.unfocus(),
                         onTapOutside: (_) => _patternsFocus.unfocus(),
                       ),
                     ),
@@ -626,21 +633,41 @@ class _Label extends StatelessWidget {
 
   const _Label(this.text, {super.key, this.note});
 
+  // `.cfg-group`'s rule and air, then `.cfg-label`: the name at one end and
+  // the note at the other, the note dropping under it when they do not fit.
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 16, bottom: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Flexible(child: Eyebrow(text)),
-            if (note != null) ...[
-              const SizedBox(width: 8),
-              Flexible(child: Text(note!, style: KitText.meta(context))),
-            ],
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 18),
+      padding: const EdgeInsets.only(top: 18, bottom: 12),
+      decoration:
+          BoxDecoration(border: Border(top: BorderSide(color: t.rule))),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 4,
+        children: [
+          Text(text.toUpperCase(), style: KitText.cfgLabel(context)),
+          if (note != null)
+            Text(note!, style: KitText.cfgValue(context)),
+        ],
+      ),
+    );
+  }
+}
+
+/// The panel's frame: flat inside web's `.lx-cloud` (a service's page, under
+/// `.dp-svc .sync-panel`), a card anywhere else.
+class _SyncFrame extends StatelessWidget {
+  final Widget child;
+  const _SyncFrame({required this.child});
+
+  @override
+  Widget build(BuildContext context) => KitCloudScope.maybeOf(context) != null
+      ? Padding(padding: const EdgeInsets.only(top: 6), child: child)
+      : KitCard(padding: const EdgeInsets.all(16), child: child);
 }
 
 /// The preferred-hour picker. 0–23, rendered as a clock hour.
@@ -721,20 +748,25 @@ class _RuleRow extends StatelessWidget {
         children: [
           ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 88),
-              child: Eyebrow(cloudTypeLabel(type).toUpperCase())),
-          KitSegmented(
-            groupLabel: cloudTypeLabel(type),
-            segments: const [
-              KitSegment('Import'),
-              KitSegment('Ask over…'),
-              KitSegment('Always ask'),
-            ],
-            selected: selected,
-            onChanged: (i) => onChanged(switch (i) {
-              0 => null,
-              1 => ReviewRule.overMb(mb),
-              _ => const ReviewRule.always(),
-            }),
+              child: Text(cloudTypeLabel(type).toUpperCase(),
+                  style: KitText.cfgLabel(context))),
+          Semantics(
+            container: true,
+            label: cloudTypeLabel(type),
+            child: Wrap(
+              spacing: 5,
+              runSpacing: 5,
+              children: [
+                KitDayPill('Import',
+                    on: selected == 0, onPressed: () => onChanged(null)),
+                KitDayPill('Ask over…',
+                    on: selected == 1,
+                    onPressed: () => onChanged(ReviewRule.overMb(mb))),
+                KitDayPill('Always ask',
+                    on: selected == 2,
+                    onPressed: () => onChanged(const ReviewRule.always())),
+              ],
+            ),
           ),
           if (selected == 1)
             KitStepper(
