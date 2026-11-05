@@ -38,22 +38,31 @@ void main() {
     test('names the passages, and the shelves it comes off', () {
       expect(
           deleteSourceBody(_doc(tags: ['t1', 't2']), 12, _shelves),
-          'Its 12 passages, its original file and its reading history are '
-          'deleted for good, and it comes off Finance and Tax records.$_kept');
+          'Its 12 passages and its original file are deleted for good, and it '
+          'comes off Finance and Tax records.$_kept');
     });
 
     test('singular at 1, grouped past 999, and three shelves in a list', () {
       expect(deleteSourceBody(_doc(), 1, _shelves),
-          startsWith('Its 1 passage, its original file'));
-      expect(deleteSourceBody(_doc(), 1234, _shelves), startsWith('Its 1,234 passages,'));
+          startsWith('Its 1 passage and its original file'));
+      expect(deleteSourceBody(_doc(), 1234, _shelves), startsWith('Its 1,234 passages and'));
       expect(deleteSourceBody(_doc(tags: ['t1', 't2', 't3']), 2, _shelves),
           contains('it comes off Finance, Tax records and Home.'));
+    });
+
+    // fn_delete_document leaves the source's read_events: append-only, never
+    // pruned (data-model.md). A confirmation says only what the delete does.
+    test('makes no claim about reading history, in any form of the body', () {
+      for (final n in const [0, 1, 12]) {
+        expect(deleteSourceBody(_doc(tags: ['t1']), n, _shelves),
+            isNot(contains('history')));
+      }
     });
 
     test('at 0 it begins at the original file; no shelves, no clause', () {
       expect(
           deleteSourceBody(_doc(), 0, _shelves),
-          'Its original file and its reading history are deleted for good.'
+          'Its original file is deleted for good.'
           '$_kept');
     });
 

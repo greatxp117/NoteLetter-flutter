@@ -101,9 +101,9 @@ String deleteSourceBody(Document doc, int passages, List<Tag> shelves) {
       if (shelves.where((s) => s.id == id).firstOrNull case final s?) s.title,
   ];
   final lost = passages > 0
-      ? 'Its ${_grouped(passages)} ${passages == 1 ? 'passage' : 'passages'}, its original '
-          'file and its reading history are deleted for good'
-      : 'Its original file and its reading history are deleted for good';
+      ? 'Its ${_grouped(passages)} ${passages == 1 ? 'passage' : 'passages'} and its '
+          'original file are deleted for good'
+      : 'Its original file is deleted for good';
   final off = names.isEmpty ? '' : ', and it comes off ${_andList(names)}';
   return '$lost$off. Letters you have already received keep their passages, '
       'and your shelves and other sources stay as they are. A study program '
