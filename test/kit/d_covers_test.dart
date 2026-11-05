@@ -231,6 +231,27 @@ void main() {
       expect(find.byType(KitCover), findsNWidgets(kitKnownTypes.length + 2));
     });
 
+    // §33 (Xavier, 2026-11-05): .94 is the smallest dim that clears 4.5:1 on
+    // every cloth. At .88 and .85 five pairs on Slate and Sand were under it.
+    testWidgets('the eyebrow and a flat caption are paper at .94', (tester) async {
+      Future<Text> printed(String type, String text) async {
+        await tester.pumpWidget(MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: Center(
+                child: SizedBox(width: 200, child: KitCover(doc: _doc(type)))),
+          ),
+        ));
+        return tester.widget<Text>(find.text(text));
+      }
+
+      final (_, label) = kitCoverOf('epub');
+      final eyebrow = await printed('epub', label.toUpperCase());
+      expect(eyebrow.style!.color!.a, closeTo(.94, .001));
+      final caption = await printed('pptx', 'UMBERTO ECO');
+      expect(caption.style!.color!.a, closeTo(.94, .001));
+    });
+
     testWidgets('the strip draws one row of as many as fit, in both themes',
         (tester) async {
       final items = [

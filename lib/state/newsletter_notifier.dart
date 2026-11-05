@@ -21,6 +21,14 @@ import '../services/error_text.dart';
 /// re-read: until round 3 the archive was read once, and a letter being built
 /// kept showing what it showed until the page was opened again.
 class NewsletterNotifier extends ChangeNotifier {
+  NewsletterNotifier({String? Function()? uid}) : _uidOf = uid;
+
+  final String? Function()? _uidOf;
+
+  /// The account the archive and its pending sends belong to. This notifier is
+  /// process-wide and outlives a sign-out.
+  String? _bound;
+
   List<Newsletter> _all = [];
   bool _isLoading = false;
   bool _isSending = false;
@@ -60,10 +68,21 @@ class NewsletterNotifier extends ChangeNotifier {
   /// refused. A refused subscription is re-opened by the next call (a §14
   /// block's Try again).
   Future<void> load({int limit = 30}) {
-    if (_sub != null && _limit == limit && _error == null) {
+    final of = _uidOf;
+    final uid = of != null ? of() : FirestoreService.instance.signedInUid;
+    final sameAccount = uid == _bound;
+    if (_sub != null && _limit == limit && _error == null && sameAccount) {
       return Future.value();
     }
     _sub?.cancel();
+    if (!sameAccount) {
+      // Another reader's letters are not this reader's, and a pending send's
+      // Try again would mail this one.
+      _bound = uid;
+      _all = [];
+      _pending.clear();
+      _loaded = false;
+    }
     _limit = limit;
     _isLoading = true;
     _error = null;
@@ -108,18 +127,25 @@ class NewsletterNotifier extends ChangeNotifier {
   List<PendingSend> get staleSends =>
       List.unmodifiable(_pending.where((p) => p.stale));
 
+  /// The records known now. Taken BEFORE the request that may build a letter
+  /// (web's closure over `archive`): the record is written before the 202, so
+  /// the live archive can bring it ahead of the reply.
+  Set<String> get knownLetterIds => {for (final n in _all) n.id};
+
   /// A build was accepted (Send now, or the send a switch-on queued): a
-  /// pending row stands until the subscription brings its record.
-  void pushPending({DateTime? now}) {
+  /// pending row stands until the subscription brings a record outside
+  /// [knownIds], which may already have happened.
+  void pushPending(Set<String> knownIds, {DateTime? now}) {
     final at = now ?? DateTime.now();
     _pending.insert(
       0,
       PendingSend(
         id: 'pending-${at.microsecondsSinceEpoch}',
         startedAt: at,
-        knownIds: {for (final n in _all) n.id},
+        knownIds: knownIds,
       ),
     );
+    _reconcile(_all);
     notifyListeners();
   }
 

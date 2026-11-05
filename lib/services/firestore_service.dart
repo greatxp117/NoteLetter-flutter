@@ -106,6 +106,10 @@ class FirestoreService {
 
   String? get _uid => currentUid;
 
+  /// The signed-in account, for a notifier that holds its rows across a
+  /// sign-out and must not hand one reader's to the next.
+  String? get signedInUid => currentUid;
+
   /// Realtime document list, newest first. Strips `embedding` if present.
   /// The newest [documentWindow] (2,000 since 5.58.0, ADR-211; it was 200):
   /// a count over it is the library's only while it is not full.

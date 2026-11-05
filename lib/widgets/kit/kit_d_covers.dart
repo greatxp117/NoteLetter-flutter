@@ -576,9 +576,10 @@ List<Widget> _parts(_F f, String k) {
 
 // ── The printed words ────────────────────────────────────────────────────────
 
-/// `.cv-eb` — mono caps .56em, 0.2em tracking, opacity .88, one line.
+/// `.cv-eb` — mono caps .56em, 0.2em tracking, opacity .94 (§33: the smallest
+/// dim that clears 4.5:1 on every cloth), one line.
 Widget _eyebrow(_F f,
-    {Color color = _paper, double opacity = 0.88, IconData? icon}) {
+    {Color color = _paper, double opacity = 0.94, IconData? icon}) {
   final size = 0.56 * f.em;
   final c = _a(color, color.a * opacity);
   final text = Text(
@@ -643,7 +644,7 @@ Widget _authorSerif(_F f, String s,
       align: align,
     );
 
-/// `.cv-a` set in mono — `.cv-flat .cv-a` (.54em, .1em, caps, opacity .85)
+/// `.cv-a` set in mono — `.cv-flat .cv-a` (.54em, .1em, caps, opacity .94, §33)
 /// and the note's and broadside's variants.
 Widget _authorMono(
   _F f,
@@ -652,7 +653,7 @@ Widget _authorMono(
   double tracking = 0.1,
   bool caps = true,
   Color color = _paper,
-  double opacity = 0.85,
+  double opacity = 0.94,
 }) =>
     _oneLine(
       caps ? s.toUpperCase() : s,

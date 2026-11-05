@@ -83,6 +83,28 @@ void main() {
     expect(n.refused.single.reason, contains('Source code files aren’t supported'));
   });
 
+  // A folder dragged in beside files: the browser hands it as a File whose read
+  // rejects. Until 5.68.0 one rejection dropped the whole drop, with no sentence.
+  test('a file that could not be read is said; the others are filed', () {
+    final n = _Recording();
+    intakeDroppedFiles(n, [
+      _file('Essay.pdf'),
+      const DroppedFile(name: 'Notes.pdf', size: 12),
+    ]);
+    expect(n.added, ['Essay.pdf']);
+    expect(n.refused.single.name, 'Notes.pdf');
+    expect(n.refused.single.reason, droppedFileUnreadable);
+  });
+
+  test('a folder is refused by the same rule a picked file is', () {
+    final n = _Recording();
+    intakeDroppedFiles(n, [const DroppedFile(name: 'Photos', size: 0)]);
+    expect(n.added, isEmpty);
+    expect(n.refused.single.name, 'Photos');
+    expect(n.refused.single.reason, isNot(droppedFileUnreadable),
+        reason: "the upload rule answers first, in web's words");
+  });
+
   testWidgets('the Library draws the veil over the page and files the drop',
       (tester) async {
     final upload = _Recording();

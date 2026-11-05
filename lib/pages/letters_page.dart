@@ -250,6 +250,7 @@ class _LettersPageState extends State<LettersPage> {
       _sendMessage = null;
       _sendError = null;
     });
+    final known = notifier.knownLetterIds;
     final error = await notifier.requestNewsletter();
     if (!mounted) return;
     if (error != null) {
@@ -273,7 +274,7 @@ class _LettersPageState extends State<LettersPage> {
     // written BEFORE it is queued (4.76.0), and the live archive brings it
     // (round 3; INV-02 — nothing here polls a function). Until it lands the
     // archive leads with a *Sending…* row (web `pushPending`).
-    notifier.pushPending();
+    notifier.pushPending(known);
   }
 
   /// Trying again is a fresh send, so the send that never started goes first.
@@ -291,6 +292,7 @@ class _LettersPageState extends State<LettersPage> {
       _scheduleOutcome = null;
       _scheduleError = null;
     });
+    final known = context.read<NewsletterNotifier>().knownLetterIds;
     // Write BEFORE the switch moves (ADR-022). An optimistic toggle that
     // silently reverts on reload is indistinguishable from one that worked.
     final error = await settings.setScheduledDelivery(
@@ -314,7 +316,7 @@ class _LettersPageState extends State<LettersPage> {
     final queued =
         (settings.lastActivation?['activationSend'] as Map?)?['queued'] == true;
     if (error == null && next && queued) {
-      context.read<NewsletterNotifier>().pushPending();
+      context.read<NewsletterNotifier>().pushPending(known);
     }
   }
 
@@ -611,7 +613,7 @@ class _LettersPageState extends State<LettersPage> {
 
           KitSectionHead(
             'Sent',
-            meta: measured ? kitCounted(daily.length, 'letter') : null,
+            meta: measured ? kitCounted(shown.length, 'letter') : null,
           ),
           ..._sent(context, letters, groups),
 

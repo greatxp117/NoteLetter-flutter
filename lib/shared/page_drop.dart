@@ -12,14 +12,19 @@ import 'page_drop_stub.dart'
 /// picker are the way in, so [attachPageDrop] is a no-op there. Xavier
 /// 2026-11-05, which took `web` as a direct dependency.
 
-/// One dropped file, read whole: a browser hands a drop no path.
+/// What a dropped file the browser would not read is told. A folder never
+/// gets here: the upload rule answers for it first, as it does on web.
+const droppedFileUnreadable = 'This file could not be read. Try adding it again.';
+
+/// One dropped file, read whole: a browser hands a drop no path. [bytes] is
+/// null for a file the browser would not read, so one bad entry is said by name
+/// and the rest of the drop is still filed.
 class DroppedFile {
   final String name;
   final int size;
-  final Uint8List bytes;
+  final Uint8List? bytes;
 
-  const DroppedFile(
-      {required this.name, required this.size, required this.bytes});
+  const DroppedFile({required this.name, required this.size, this.bytes});
 }
 
 /// Whether a drag over the page is a drag of FILES, and where it is (web's
@@ -81,6 +86,11 @@ void intakeDroppedFiles(UploadNotifier notifier, List<DroppedFile> files) {
       notifier.refuse(f.name, refused);
       continue;
     }
-    notifier.addFile(f.name, f.size, f.bytes, mimeType);
+    final bytes = f.bytes;
+    if (bytes == null) {
+      notifier.refuse(f.name, droppedFileUnreadable);
+      continue;
+    }
+    notifier.addFile(f.name, f.size, bytes, mimeType);
   }
 }

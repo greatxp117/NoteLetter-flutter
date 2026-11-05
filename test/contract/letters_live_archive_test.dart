@@ -8,7 +8,10 @@
 // subscribing (each case times out waiting for a snapshot that never comes);
 // Send now pushing no pending row; the pending row kept after its
 // record lands; the stale send drawn as a row instead of §14.1; the pending
-// row counted in the folio.
+// row counted in the folio; the known records taken after the request (a
+// snapshot that beats the reply leaves a row that never leaves, and whose Try
+// again mails a second letter); a pending send surviving into another account
+// (Try again mails the wrong reader); *Sent* not counting the row.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,6 +19,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/models/newsletter.dart';
 import 'package:flutter_app/models/newsletter_settings.dart';
+import 'package:flutter_app/services/firestore_service.dart';
+import 'package:flutter_app/state/newsletter_notifier.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
 import 'letters_harness.dart';
@@ -97,6 +102,74 @@ void main() {
     await lettersFrames(tester);
     expect(_pendingRow(), findsNothing);
     expect(_row('n2'), findsOneWidget);
+  }, timeout: _t);
+
+  // `_start_manual_letter` writes the record BEFORE the 202 (4.76.0), so the
+  // live archive can bring it before the request answers.
+  testWidgets(
+      'a record that beats the reply leaves no row, no second letter on Try again',
+      (tester) async {
+    final live = StreamController<List<Newsletter>>();
+    addTearDown(live.close);
+    final reply = Completer<String?>();
+    final sender = LettersSender(answer: () => reply.future);
+    await pumpLetters(tester, LettersReads(live: live),
+        settings: LettersSettings(_on), letters: sender);
+    live.add([_sent('n1')]);
+    await lettersFrames(tester);
+    await tester.tap(find.byType(KitActionButton));
+    await lettersFrames(tester);
+    // The record lands while the request is still out…
+    live.add([_building('n2'), _sent('n1')]);
+    await lettersFrames(tester);
+    // …and only then does the reply arrive.
+    reply.complete(null);
+    await lettersFrames(tester);
+    expect(_pendingRow(), findsNothing);
+    expect(sender.pendingSends, isEmpty);
+    sender.age(now: DateTime.now().add(const Duration(minutes: 6)));
+    await lettersFrames(tester);
+    expect(find.text('The letter did not start.'), findsNothing,
+        reason: 'a letter that exists never reads as one that did not start');
+  }, timeout: _t);
+
+  testWidgets('*Sent* counts the row on its way, as web does; the folio does not',
+      (tester) async {
+    final live = StreamController<List<Newsletter>>();
+    addTearDown(live.close);
+    await pumpLetters(tester, LettersReads(live: live),
+        settings: LettersSettings(_on), letters: LettersSender());
+    live.add([_sent('n1')]);
+    await lettersFrames(tester);
+    await tester.tap(find.byType(KitActionButton));
+    await lettersFrames(tester);
+    final sent = find.byWidgetPredicate(
+        (w) => w is KitSectionHead && w.title == 'Sent');
+    expect(tester.widget<KitSectionHead>(sent).meta, '2 letters');
+  }, timeout: _t);
+
+  test('a pending send belongs to its account: another reader starts clean',
+      () async {
+    final live = StreamController<List<Newsletter>>.broadcast();
+    addTearDown(live.close);
+    FirestoreService.instance = LettersReads(live: live);
+    addTearDown(FirestoreService.resetInstance);
+    var uid = 'reader-a';
+    final letters = NewsletterNotifier(uid: () => uid);
+    addTearDown(letters.dispose);
+    unawaited(letters.load());
+    live.add([_sent('n1')]);
+    await Future<void>.delayed(Duration.zero);
+    letters.pushPending(letters.knownLetterIds);
+    expect(letters.pendingSends, hasLength(1));
+
+    uid = 'reader-b';
+    unawaited(letters.load());
+    expect(letters.pendingSends, isEmpty,
+        reason: "Try again on A's row would mail B");
+    expect(letters.staleSends, isEmpty);
+    expect(letters.history, isEmpty, reason: "A's letters are not B's");
+    expect(letters.loaded, isFalse, reason: 'B has not been read yet');
   }, timeout: _t);
 
   testWidgets(

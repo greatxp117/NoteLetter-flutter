@@ -24,22 +24,33 @@ VoidCallback attach(PageDropController controller) {
     if (isFiles(e)) e.preventDefault();
   }).toJS;
   final drop = ((web.Event e) {
+    if (!isFiles(e)) {
+      controller.drop(const []);
+      return;
+    }
+    // Before anything else: `dragover` was cancelled for this drag, so a drop
+    // with no file in it would otherwise navigate the tab away.
+    e.preventDefault();
     final list = (e as web.DragEvent).dataTransfer?.files;
     if (list == null || list.length == 0) {
       controller.drop(const []);
       return;
     }
-    e.preventDefault();
     final files = [
       for (var i = 0; i < list.length; i++) ?list.item(i),
     ];
     // The bytes are read before anything is filed: a drop hands a File, and
-    // the upload sends bytes, as a web pick does (`withData: kIsWeb`).
+    // the upload sends bytes, as a web pick does (`withData: kIsWeb`). Read one
+    // by one, so an entry that will not read (a folder) costs only itself.
     Future.wait(files.map((f) async {
-      final buf = await f.arrayBuffer().toDart;
-      return DroppedFile(
-          name: f.name, size: f.size, bytes: buf.toDart.asUint8List());
-    })).then(controller.drop, onError: (_) => controller.drop(const []));
+      try {
+        final buf = await f.arrayBuffer().toDart;
+        return DroppedFile(
+            name: f.name, size: f.size, bytes: buf.toDart.asUint8List());
+      } catch (_) {
+        return DroppedFile(name: f.name, size: f.size);
+      }
+    })).then(controller.drop);
   }).toJS;
 
   final doc = web.document;
