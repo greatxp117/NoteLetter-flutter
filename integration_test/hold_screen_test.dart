@@ -47,6 +47,7 @@ import 'package:flutter_app/pages/chat_page.dart';
 import 'package:flutter_app/pages/tags/shelf_sheet.dart';
 import 'package:flutter_app/state/auth_notifier.dart';
 import 'package:flutter_app/state/chat_notifier.dart';
+import 'package:flutter_app/state/newsletter_notifier.dart';
 import 'package:flutter_app/pages/onboarding/wizard.dart';
 import 'package:flutter_app/pages/reader/history_panel.dart';
 import 'package:flutter_app/pages/reader/listen_panel.dart';
@@ -1785,6 +1786,35 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
           findsOneWidget,
           reason: 'setup did not reach its letter step');
       return;
+    // letters-sending / letters-send-stale (round 3): a send on its way draws a
+    // row at the head of the archive, and one that waited five minutes is §14.1.
+    // No record lands, so the row stands for the frame. Web holds the same two
+    // (`theme-shots.mjs`), its answer scripted so nothing is written.
+    case 'letters-sending':
+    case 'letters-send-stale':
+      final rows = find.byType(KitLetterArchiveRow, skipOffstage: false);
+      for (var i = 0; i < 60 && rows.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      final letters = tester.element(find.byType(KitDPage)).read<NewsletterNotifier>();
+      letters.pushPending(letters.knownLetterIds);
+      if (holdState == 'letters-send-stale') {
+        letters.age(now: DateTime.now().add(const Duration(minutes: 6)));
+      }
+      await settle();
+      // Both states stand under *Sent*, far below the masthead on a phone, as
+      // web's frame scrolls there (`scrollUnderChrome(page, '.dp-sent')`).
+      final sent = find.text('Sent', skipOffstage: false);
+      expect(sent, findsWidgets, reason: 'Letters drew no Sent section');
+      await Scrollable.ensureVisible(tester.element(sent.first),
+          alignment: 0.1, duration: Duration.zero);
+      await settle();
+      expect(
+          find.text(holdState == 'letters-send-stale'
+              ? 'The letter did not start.'
+              : 'Gathering the best passages from your library…'),
+          findsOneWidget,
+          reason: 'the state this frame exists for is not on the screen');
     // 3 · letters-unpin-held: the pinned source's Unpin while its write is in
     // flight — the write held open by an adapter that never answers, as web
     // routes it; [leaveState] gives the real one back.

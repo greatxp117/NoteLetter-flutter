@@ -188,6 +188,11 @@ void main() {
     await lettersFrames(tester);
     expect(_pendingRow(), findsNothing);
     expect(find.text('The letter did not start.'), findsOneWidget);
+    // A month under the failure keeps its margin (web's `.hx-sh+.dp-lgroup`
+    // zeroes it only straight under the section head).
+    final month = tester.widget<KitLetterMonthHead>(
+        find.byType(KitLetterMonthHead, skipOffstage: false).first);
+    expect(month.first, isFalse);
     final retry = find.descendant(
         of: find.byType(KitFailureBlock), matching: find.text('Try again'));
     await tester.ensureVisible(retry);

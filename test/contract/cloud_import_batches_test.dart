@@ -233,7 +233,7 @@ void main() {
         'partial', () async {
       final e = _Endpoint(replies: {
         0: (_) => _refused(409,
-            'Reconnect google_drive first — its sign-in has expired.', 'REQUEST_ERROR'),
+            'Reconnect Google Drive first — its sign-in has expired.', 'REQUEST_ERROR'),
       });
       ApiService.instance.httpClientAdapter = e;
       Object? err;

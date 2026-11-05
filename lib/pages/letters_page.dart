@@ -689,7 +689,9 @@ class _LettersPageState extends State<LettersPage> {
                 groups[i].label,
                 key: ValueKey('d-lmonth-$i'),
                 count: kitCounted(groups[i].rows.length, 'letter'),
-                first: i == 0,
+                // Web's `.hx-sh+.dp-lgroup`: only a month straight under the
+                // section head loses its margin, never one under a failure.
+                first: i == 0 && stale.isEmpty,
               ),
               for (final (a, no) in groups[i].rows) _row(a, no),
             ],
