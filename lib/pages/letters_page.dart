@@ -438,7 +438,8 @@ class _LettersPageState extends State<LettersPage> {
             // web `IcoSend` is a right arrow, never a paper plane.
             icon: Icons.arrow_forward,
             onPressed: _sendNow,
-            disabled: sending || wait.left > 0,
+          disabled: sending || wait.left > 0,
+          busy: sending,
           )
         : KitPageAction(
             label: 'Add a delivery address',
@@ -480,6 +481,7 @@ class _LettersPageState extends State<LettersPage> {
           : 'Paused',
       value: cfg?.enabled,
       label: 'Scheduled delivery',
+      busy: _scheduleBusy,
       onChanged: _scheduleBusy || cfg == null
           ? null
           : (v) => _toggleSchedule(v),

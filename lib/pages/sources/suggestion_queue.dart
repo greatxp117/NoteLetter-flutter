@@ -44,6 +44,10 @@ class _SuggestionQueueState extends State<SuggestionQueue> {
   /// One resolve at a time, every control held while it runs — the
   /// reference's `busy`, which is the queue's and not a card's.
   bool _busy = false;
+
+  /// Which of the queue's actions [_busy] is, so only the one pressed draws
+  /// the mark (§6.1 Busy).
+  String? _resolving;
   String? _notice;
 
   void _toggle(String id) => setState(
@@ -51,10 +55,11 @@ class _SuggestionQueueState extends State<SuggestionQueue> {
 
   /// ≤20 ids a call, as the endpoint takes them. Approvals are followed to
   /// their outcome by [OrgNotifier.resolve].
-  Future<void> _resolve(List<String> ids, String action) async {
+  Future<void> _resolve(List<String> ids, String action, {String? card}) async {
     final org = context.read<OrgNotifier>();
     setState(() {
       _busy = true;
+      _resolving = card == null ? action : '$action:$card';
       _notice = null;
     });
     String? err;
@@ -108,12 +113,14 @@ class _SuggestionQueueState extends State<SuggestionQueue> {
               : Row(mainAxisSize: MainAxisSize.min, children: [
                   KitSettingLink('Approve $n',
                       icon: null,
+                      busy: _busy && _resolving == 'approve',
                       onTap: _busy
                           ? null
                           : () => _resolve([..._selected], 'approve')),
                   Text(' · ', style: KitText.small(context)),
                   KitSettingLink('Decline $n',
                       icon: null,
+                      busy: _busy && _resolving == 'decline',
                       onTap: _busy
                           ? null
                           : () => _resolve([..._selected], 'decline')),
@@ -132,8 +139,9 @@ class _SuggestionQueueState extends State<SuggestionQueue> {
             suggestion: pending[i],
             selected: _selected.contains(pending[i].id),
             busy: _busy,
+            resolving: _resolving,
             onToggle: () => _toggle(pending[i].id),
-            onResolve: (action) => _resolve([pending[i].id], action),
+            onResolve: (action) => _resolve([pending[i].id], action, card: pending[i].id),
           ),
         ],
         // §14.2 — a refusal (a 400 `UNKNOWN_KEYS`, a 404) under the list, in
@@ -204,6 +212,7 @@ class _SuggestionCard extends StatelessWidget {
   final OrganizationSuggestion suggestion;
   final bool selected;
   final bool busy;
+  final String? resolving;
   final VoidCallback onToggle;
   final ValueChanged<String> onResolve;
 
@@ -212,6 +221,7 @@ class _SuggestionCard extends StatelessWidget {
     required this.suggestion,
     required this.selected,
     required this.busy,
+    this.resolving,
     required this.onToggle,
     required this.onResolve,
   });
@@ -260,8 +270,10 @@ class _SuggestionCard extends StatelessWidget {
         // Pessimistic: the status transition arrives on the same
         // subscription, so nothing is rendered as done before it lands.
         KitButton.primary(busy ? 'Working…' : 'Approve',
+            busy: busy && resolving == 'approve:${s.id}',
             onPressed: busy ? null : () => onResolve('approve')),
       KitButton.ghost('Decline',
+          busy: busy && resolving == 'decline:${s.id}',
           onPressed: busy ? null : () => onResolve('decline')),
     ];
     return KitProcCard(

@@ -24,6 +24,7 @@ import 'kit_d_parts.dart';
 import 'kit_d_shelf.dart' show KitDNote;
 import 'kit_failure.dart' show KitFailureInline;
 import 'kit_letter.dart' show KitLetterBadge;
+import 'kit_busy_mark.dart';
 
 // ── Letters: the latest letter ──────────────────────────────────────────────
 
@@ -840,10 +841,12 @@ class KitUnpinButton extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.close, size: 13, color: fg),
-                    const SizedBox(width: 6),
-                    Text(
-                      busy ? 'Unpinning…' : 'Unpin',
+                    busy
+                          ? KitBusyMark(size: 13, color: fg)
+                          : Icon(Icons.close, size: 13, color: fg),
+                      const SizedBox(width: 6),
+                      Text(
+                        busy ? 'Unpinning…' : 'Unpin',
                       style: AppTheme.mono(
                         fontSize: 11,
                         letterSpacing: 0.04 * 11,

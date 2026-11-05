@@ -23,6 +23,7 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit_ground.dart';
 import '../widgets/kit/kit_shell.dart';
+import '../widgets/kit/kit_busy_mark.dart';
 
 /// The type roles of `signin.css`, resolved for the current theme.
 class SiteType {
@@ -192,11 +193,15 @@ class SiteTextButton extends StatelessWidget {
   final String label;
   final TextStyle style;
   final VoidCallback? onTap;
+
+  /// §6.1 Busy (ADR-237): this link's own request is in flight.
+  final bool busy;
   const SiteTextButton(
     this.label, {
     super.key,
     required this.style,
     required this.onTap,
+    this.busy = false,
   });
 
   @override
@@ -210,7 +215,15 @@ class SiteTextButton extends StatelessWidget {
         // §6.1 State — Held: the token (it was 0.6, as `.si-forgot`'s was).
         child: Opacity(
           opacity: onTap == null ? AppSpacing.heldOpacity : 1,
-          child: Text(label, style: style),
+          child: busy
+              ? Row(mainAxisSize: MainAxisSize.min, children: [
+                  KitBusyMark(
+                      size: style.fontSize ?? 13,
+                      color: style.color ?? Tokens.of(context).fg),
+                  const SizedBox(width: 6),
+                  Text(label, style: style),
+                ])
+              : Text(label, style: style),
         ),
       ),
     );
@@ -328,7 +341,11 @@ class _SiteFieldState extends State<SiteField> {
 class SiteSubmit extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
-  const SiteSubmit(this.label, {super.key, required this.onPressed});
+
+  /// §6.1 Busy (ADR-237): this button's own request is in flight.
+  final bool busy;
+  const SiteSubmit(this.label,
+      {super.key, required this.onPressed, this.busy = false});
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +370,16 @@ class SiteSubmit extends StatelessWidget {
             // `.si-submit { padding: 12px 16px }` (F-82 (2): was 13).
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             alignment: Alignment.center,
-            child: Text(label, style: SiteType(t).submit),
+            child: busy
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      KitBusyMark(size: 15, color: t.accentFg),
+                      const SizedBox(width: 8),
+                      Flexible(child: Text(label, style: SiteType(t).submit)),
+                    ],
+                  )
+                : Text(label, style: SiteType(t).submit),
           ),
         ),
       ),
@@ -366,11 +392,15 @@ class SiteGhost extends StatelessWidget {
   final String label;
   final Widget? leading;
   final VoidCallback? onPressed;
+
+  /// §6.1 Busy (ADR-237): the mark takes [leading]'s place.
+  final bool busy;
   const SiteGhost(
     this.label, {
     super.key,
     this.leading,
     required this.onPressed,
+    this.busy = false,
   });
 
   @override
@@ -395,7 +425,13 @@ class SiteGhost extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (leading != null) ...[leading!, const SizedBox(width: 9)],
+                if (busy) ...[
+                  KitBusyMark(size: 14.5, color: t.fg),
+                  const SizedBox(width: 9),
+                ] else if (leading != null) ...[
+                  leading!,
+                  const SizedBox(width: 9),
+                ],
                 Flexible(
                   child: Text(label,
                       style: SiteType(t).ghost,

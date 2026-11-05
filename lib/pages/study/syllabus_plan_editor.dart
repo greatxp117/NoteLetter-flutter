@@ -270,6 +270,7 @@ class _SyllabusPlanEditorState extends State<SyllabusPlanEditor> {
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
           KitButton.primary(busy ? 'Applying…' : 'Apply this plan',
+              busy: busy,
               onPressed: busy || pending.units.isEmpty
                   ? null
                   : () => widget.onApply(pending.units, pending.assessments)),

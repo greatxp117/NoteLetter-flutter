@@ -396,7 +396,8 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
       button: KitButton(
         _saving ? 'Saving…' : (_saved ? 'Saved' : 'Save settings'),
         key: const ValueKey('lset-save'),
-        icon: _saved && !_saving ? Icons.check : null,
+          icon: _saved && !_saving ? Icons.check : null,
+          busy: _saving,
         onPressed: _saving || settings.isSaving || !_populated ? null : _save,
       ),
       error: _saveError,
@@ -559,6 +560,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
             value: _enabled,
             // Write before the switch moves (ADR-022): `_enabled` changes
             // only when the call resolves.
+            busy: _scheduleBusy,
             onChanged: !_populated || _scheduleBusy ? null : _toggleSchedule,
           ),
           if (_schedMsg != null) KitDConfigSub(_schedMsg!),
@@ -755,6 +757,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
                   'shelves that answer them. It arrives beside the letter '
                   'above, at its own hour.',
               value: cfg.enabled,
+              busy: held && _rlField == 'enabled',
               // Writes before it moves (ADR-022): the notifier adopts the
               // value only once the PUT has answered.
               onChanged: held
@@ -786,6 +789,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
                   action: KitButton(
                     'Save',
                     variant: KitButtonVariant.secondary,
+                    busy: held && _rlField == 'deliveryTime',
                     onPressed: held
                         ? null
                         : () => _rlWrite(
@@ -827,7 +831,8 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
                 error: refused('emailEnabled'),
                 trailing: KitSwitch(
                   value: cfg.emailEnabled,
-                  tooltip: 'Email the readings letter',
+              tooltip: 'Email the readings letter',
+              busy: held && _rlField == 'emailEnabled',
                   onChanged: held
                       ? null
                       : (v) => _rlWrite(
@@ -858,6 +863,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
                   action: KitButton(
                     'Save',
                     variant: KitButtonVariant.secondary,
+                    busy: held && _rlField == 'emailAddress',
                     onPressed: held || !cfg.emailEnabled
                         ? null
                         : () => _rlWrite(

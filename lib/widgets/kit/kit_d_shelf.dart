@@ -423,8 +423,15 @@ class KitShelfLetter extends StatelessWidget {
   /// `muted`, `mixed`, `lead`, or null (inherit: `letter_mode: null`).
   final ValueChanged<String?> onMode;
 
+  /// §6.1 Busy: the write in flight is the inherit control's. The switch's is
+  /// [switchBusy]; §34's slide switch knows its own press.
+  final bool inheritBusy;
+  final bool switchBusy;
+
   const KitShelfLetter({
     super.key,
+    this.inheritBusy = false,
+    this.switchBusy = false,
     required this.mode,
     required this.onMode,
     this.inheritedFrom,
@@ -485,7 +492,8 @@ class KitShelfLetter extends StatelessWidget {
             KitSwitch(
               value: on,
               tooltip: 'Feed today’s letter',
-              onChanged: held ? null : (v) => onMode(v ? 'mixed' : 'muted'),
+            busy: switchBusy,
+            onChanged: held ? null : (v) => onMode(v ? 'mixed' : 'muted'),
             ),
           ],
         ),
@@ -520,6 +528,7 @@ class KitShelfLetter extends StatelessWidget {
           const SizedBox(height: 10),
           KitButton.ghost(
             'Use the parent’s setting',
+            busy: inheritBusy,
             onPressed: held ? null : () => onMode(null),
           ),
         ],

@@ -29,6 +29,7 @@ import 'kit_failure.dart' show KitFailureInline;
 import 'kit_shell.dart' show KitCardsGlyph, KitGlyph, KitQuill, KitUploadGlyph;
 import 'kit_text.dart' show KitText;
 import 'kit_source_link.dart';
+import 'kit_busy_mark.dart';
 
 // ── Small D type every listing uses ─────────────────────────────────────────
 
@@ -44,12 +45,16 @@ class KitHxLink extends StatelessWidget {
   /// in flight.
   final VoidCallback? onTap;
 
+  /// §6.1 Busy (ADR-237): this link's own request is in flight.
+  final bool busy;
+
   const KitHxLink(
     this.label, {
     super.key,
     this.icon,
     this.iconSize = 13,
     this.onTap,
+    this.busy = false,
   });
 
   @override
@@ -90,10 +95,13 @@ class KitHxLink extends StatelessWidget {
               builder: (context, c) => Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (icon != null) ...[
-                    KitGlyph(icon!, size: iconSize, color: fg),
-                    const SizedBox(width: 6),
-                  ],
+                  if (busy) ...[
+                  KitBusyMark(size: iconSize, color: fg),
+                  const SizedBox(width: 6),
+                ] else if (icon != null) ...[
+                  KitGlyph(icon!, size: iconSize, color: fg),
+                  const SizedBox(width: 6),
+                ],
                   if (c.maxWidth.isFinite) Flexible(child: text) else text,
                 ],
               ),

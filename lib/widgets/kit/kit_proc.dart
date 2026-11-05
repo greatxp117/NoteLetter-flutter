@@ -51,17 +51,7 @@ class KitProcPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (tone == KitProcTone.work && spin) ...[
-            // `.proc-spinner`: 11px, a 1.5px ring in the chip border with its
-            // head in accent text.
-            SizedBox(
-              width: 11,
-              height: 11,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                color: t.accentText,
-                backgroundColor: t.accentChipBorder,
-              ),
-            ),
+            KitBusyMark(size: 11, color: fg),
             const SizedBox(width: 7),
           ],
           if (tone == KitProcTone.fail) ...[

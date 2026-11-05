@@ -49,6 +49,8 @@ class _ShelfPageState extends State<ShelfPage> {
   bool _savingColor = false;
   String? _colorError;
   bool _savingLetter = false;
+  String? _writingColor;
+  String? _letterWriting;
   String? _letterError;
   String? _nameError;
   bool _moving = false;
@@ -147,6 +149,7 @@ class _ShelfPageState extends State<ShelfPage> {
     if (_savingColor || token == shelf.color) return;
     setState(() {
       _savingColor = true;
+      _writingColor = token;
       _colorError = null;
     });
     final err = await context.read<TagsNotifier>().updateTag(
@@ -174,6 +177,7 @@ class _ShelfPageState extends State<ShelfPage> {
     if (_savingLetter || mode == shelf.ownLetterMode) return;
     setState(() {
       _savingLetter = true;
+      _letterWriting = mode;
       _letterError = null;
     });
     final err = await context.read<TagsNotifier>().updateTag(
@@ -453,6 +457,7 @@ class _ShelfPageState extends State<ShelfPage> {
               _FoldingAlso(
                 _fillBusy ? 'Asking…' : 'Find sources for this shelf',
                 icon: Icons.search,
+                busy: _fillBusy,
                 onTap: _fillBusy ? null : () => _findSources(shelf),
               ),
             // Last, in `--critical-text`: it opens §Deleting a shelf's §18
@@ -583,6 +588,12 @@ class _ShelfPageState extends State<ShelfPage> {
           inheritedFrom: inheritedFrom,
           canInherit: shelf.ownLetterMode != null && parentId != null,
           held: _savingLetter,
+          inheritBusy: _savingLetter && _letterWriting == null,
+          // The switch writes `muted`, or `mixed` from off; §34's slide switch
+          // writes the rest and marks itself.
+          switchBusy: _savingLetter &&
+              _letterWriting != null &&
+              (_letterWriting == 'muted' || eff.mode == 'muted'),
           error: _letterError,
           onMode: (m) => _setLetterMode(shelf, m),
         ),
@@ -608,6 +619,7 @@ class _ShelfPageState extends State<ShelfPage> {
           child: ShelfSwatches(
             selected: shelf.color,
             enabled: !_savingColor,
+            busyToken: _savingColor ? _writingColor : null,
             showCurrent: true,
             onPick: (token) => _pickColour(shelf, token),
           ),
@@ -659,7 +671,8 @@ class _ShelfPageState extends State<ShelfPage> {
                 else ...[
                   KitButton.secondary(
                     _splitBusy ? 'Asking…' : 'Split this shelf',
-                    icon: Icons.call_split,
+                icon: Icons.call_split,
+                busy: _splitBusy,
                     onPressed: _splitBusy ? null : () => _requestSplit(shelf),
                   ),
                   const SizedBox(height: 8),
@@ -741,12 +754,14 @@ class _FoldingAlso extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final bool danger;
+  final bool busy;
 
   const _FoldingAlso(
     this.label, {
     required this.icon,
     required this.onTap,
     this.danger = false,
+    this.busy = false,
   });
 
   @override
@@ -754,6 +769,7 @@ class _FoldingAlso extends StatelessWidget {
     label,
     icon: icon,
     danger: danger,
+    busy: busy,
     onTap: onTap == null
         ? null
         : () {

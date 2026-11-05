@@ -220,6 +220,7 @@ class SuggestAsk extends StatelessWidget {
         const SizedBox(height: 14),
         Wrap(spacing: 8, runSpacing: 8, children: [
           KitButton.primary(busy ? 'Suggesting…' : 'Suggest shelves',
+              busy: busy,
               onPressed: s.field.text.trim().isEmpty || busy ? null : s.ask),
           ...actions,
         ]),
@@ -497,6 +498,7 @@ class _SuggestShelvesBodyState extends State<SuggestShelvesBody> {
                   _creating
                       ? 'Creating…'
                       : 'Create ${_counted(n, 'shelf', 'shelves')}',
+                    busy: _creating,
                   onPressed: n == 0 || _creating ? null : _create),
             _s.tags.isNotEmpty
                 ? KitButton.ghost('Change what I wrote',

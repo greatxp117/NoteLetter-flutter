@@ -169,6 +169,9 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   final Map<int, TextEditingController> _controllers = {};
   bool _editing = false;
   bool _saving = false;
+
+  /// Which of the two Save controls [_saving] is (§6.1 Busy).
+  String? _savePressed;
   String? _error;
 
   /// The anchored passage's element, for [Scrollable.ensureVisible]. One key,
@@ -940,9 +943,15 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                       borderRadius: AppRadius.smR,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Text(marking ? 'Marking…' : 'Mark as read',
-                            style: KitText.small(context,
-                                color: t.fgSubtle, height: 16)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (marking) ...[
+                            KitBusyMark(size: 12, color: t.fgSubtle),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(marking ? 'Marking…' : 'Mark as read',
+                              style: KitText.small(context,
+                                  color: t.fgSubtle, height: 16)),
+                        ]),
                       ),
                     ),
                   ),
@@ -1208,7 +1217,14 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         ],
         _editing
             ? KitButton.secondary('Done & save',
-                icon: Icons.check, onPressed: _saving ? null : _save)
+                icon: Icons.check,
+                busy: _saving && _savePressed == 'done',
+                onPressed: _saving
+                    ? null
+                    : () {
+                        _savePressed = 'done';
+                        _save();
+                      })
             : KitButton.ghost('Edit text',
                 icon: Icons.edit_outlined,
                 onPressed: () => setState(() => _editing = true)),
@@ -1464,21 +1480,20 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
                   style: KitText.fine(context, color: ui.muted)),
             ]),
             Row(mainAxisSize: MainAxisSize.min, children: [
-            TextButton.icon(
+            KitButton.ghost('Discard',
+              icon: Icons.undo,
               onPressed: _saving ? null : _discard,
-              icon: const Icon(Icons.undo, size: 14),
-              label: const Text('Discard'),
             ),
             const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.check, size: 14),
-              label: const Text('Save & re-index'),
+            KitButton.primary('Save & re-index',
+              icon: Icons.check,
+              busy: _saving && _savePressed == 'dock',
+              onPressed: _saving
+                  ? null
+                  : () {
+                      _savePressed = 'dock';
+                      _save();
+                    },
             ),
             ]),
           ]),

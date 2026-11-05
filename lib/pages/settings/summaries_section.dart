@@ -259,6 +259,7 @@ class _SummariesSectionState extends State<SummariesSection> {
           children: [
             KitButton.primary(
               _busy ? 'Saving…' : 'Save style',
+              busy: _busy,
               onPressed: (_busy || !dirty) ? null : () => _put(composed),
             ),
             if (_draftChoices != null)
@@ -324,6 +325,7 @@ class _SummariesSectionState extends State<SummariesSection> {
           children: [
             KitButton.primary(
               _busy ? 'Saving…' : 'Save style',
+              busy: _busy,
               onPressed: (_busy || !textDirty || sendable == null)
                   ? null
                   : () => _put(sendable),

@@ -514,12 +514,14 @@ class _ProgramCard extends StatelessWidget {
       switchControl: KitSwitch(
         value: on,
         tooltip: on ? 'Pause this program' : studyActivationHint,
+        busy: busy == 'toggle',
         onChanged: busy != null ? null : (_) => onToggle(),
       ),
       actions: [
         KitButton(
           busy == 'study' ? 'Requesting…' : 'Study now',
           wait: busy == 'study' ? 0 : wait.left,
+          busy: busy == 'study',
           onPressed: busy != null ? null : onStudy,
         ),
         KitButton(

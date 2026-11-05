@@ -46,6 +46,7 @@ class SourceFreshness extends StatefulWidget {
 class _SourceFreshnessState extends State<SourceFreshness> {
   Map<String, dynamic>? _freshness;
   bool _updating = false;
+  bool _asking = false;
   bool _queued = false;
   String? _error;
 
@@ -93,6 +94,7 @@ class _SourceFreshnessState extends State<SourceFreshness> {
       confirmLabel: SupersessionConfirm.updateConfirmLabel,
       study: SupersessionConfirm.updateStudy,
       editedBy: SupersessionConfirm.updateEditedBy(_freshness?['provider'] as String?),
+      onAsking: (a) => setState(() => _asking = a),
       action: () async {
         try {
           await Api.instance.updateFromSource(widget.docId);
@@ -192,7 +194,8 @@ class _SourceFreshnessState extends State<SourceFreshness> {
             _updating ? 'Queuing…' : 'Update from source',
             icon: null,
             wait: _updating ? 0 : wait.left,
-            onTap: _updating ? null : _update,
+                  busy: _updating && !_asking,
+                  onTap: _updating ? null : _update,
           ),
         ],
       ]),

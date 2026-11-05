@@ -10,6 +10,7 @@ import '../../theme/tokens.dart';
 import '../../shared/cooldown.dart' show waitSuffix;
 import 'kit_failure.dart';
 import 'kit_wait.dart' show KitWaitNote;
+import 'kit_busy_mark.dart';
 
 /// §10 — the composer dock: a persistent input anchored to the bottom of a
 /// scrolling pane.
@@ -265,14 +266,7 @@ class _SendControl extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: busy
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(t.accentFg),
-                      ),
-                    )
+                  ? KitBusyMark(size: 16, color: t.accentFg)
                   // `IcoSend` is a right arrow (`M5 12h14M13 5l7 7-7 7`).
                   : Icon(Icons.arrow_forward, size: 17, color: t.accentFg),
             ),

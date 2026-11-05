@@ -12,6 +12,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_d_parts.dart';
 import 'kit_ground.dart';
+import 'kit_busy_mark.dart';
 
 // ── The camera roll in direction D (5.43.0, ADR-198; F-146) ─────────────────
 //
@@ -1004,12 +1005,18 @@ class KitFlowButton extends StatelessWidget {
   final VoidCallback? onTap;
   final _FlowButtonRole _role;
 
-  const KitFlowButton.primary(this.label, {super.key, this.icon, this.onTap})
+  /// §6.1 Busy (ADR-237): this control's own request is in flight.
+  final bool busy;
+
+  const KitFlowButton.primary(this.label,
+      {super.key, this.icon, this.onTap, this.busy = false})
     : _role = _FlowButtonRole.primary;
-  const KitFlowButton.ghost(this.label, {super.key, this.icon, this.onTap})
+  const KitFlowButton.ghost(this.label,
+      {super.key, this.icon, this.onTap, this.busy = false})
     : _role = _FlowButtonRole.ghost;
   const KitFlowButton.link(this.label, {super.key, this.onTap})
     : icon = null,
+      busy = false,
       _role = _FlowButtonRole.link;
 
   @override
@@ -1042,10 +1049,13 @@ class KitFlowButton extends StatelessWidget {
             mainAxisSize: link ? MainAxisSize.min : MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) ...[
-                Icon(icon, size: primary ? 16 : 14, color: fg),
-                const SizedBox(width: AppSpacing.s2),
-              ],
+              if (busy) ...[
+                  KitBusyMark(size: primary ? 16 : 14, color: fg),
+                  const SizedBox(width: AppSpacing.s2),
+                ] else if (icon != null) ...[
+                  Icon(icon, size: primary ? 16 : 14, color: fg),
+                  const SizedBox(width: AppSpacing.s2),
+                ],
               Flexible(
                 child: Text(
                   label,

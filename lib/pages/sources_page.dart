@@ -742,13 +742,14 @@ class _ServiceRowState extends State<_ServiceRow> {
           ? KitLibActs(children: [
               if (expired)
                 KitLibAct(_connecting ? 'Reconnecting…' : 'Reconnect',
-                    strong: true,
+                strong: true,
+                busy: _connecting,
                     onTap: _connecting ? null : () => _connect(again: true)),
               KitLibAct('Manage',
                   onTap: () => context.go('/sources/${widget.providerId}')),
             ])
           : KitLibAct(_connecting ? 'Connecting…' : 'Connect',
-              strong: true, onTap: _connecting ? null : _connect),
+          strong: true, busy: _connecting, onTap: _connecting ? null : _connect),
       failure:
           _connectFail == null ? null : KitFailureInline(_connectFail!, dense: true),
     );

@@ -12,6 +12,7 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/kit/kit_failure.dart';
 import 'site_sheet.dart';
+import '../widgets/kit/kit_busy_mark.dart';
 
 /// Which face of the modal is up — its own tab switch moves between them.
 enum AuthMode { signin, signup }
@@ -72,6 +73,9 @@ class _AuthModalState extends State<AuthModal> {
   String _said = '';
   bool _loading = false;
 
+  /// Which control [_loading] is, so only the one pressed draws the mark.
+  String? _pressed;
+
   // The letter opt-in — stashed locally and replayed through
   // fn_newsletter_settings once signed in (PendingLetterSetup).
   bool _wantLetter = true;
@@ -125,13 +129,18 @@ class _AuthModalState extends State<AuthModal> {
     }
   }
 
-  Future<void> _submit() => _run(
+  Future<void> _submit() => _runAs('email',
     () => _signup
         ? AuthService.instance.signUp(_email.text, _pass.text)
         : AuthService.instance.signIn(_email.text, _pass.text),
   );
 
-  Future<void> _google() => _run(AuthService.instance.signInWithGoogle);
+  Future<void> _google() => _runAs('google', AuthService.instance.signInWithGoogle);
+
+  Future<void> _runAs(String control, Future<void> Function() call) {
+    _pressed = control;
+    return _run(call);
+  }
 
   Future<void> _forgot() async {
     setState(() {
@@ -144,6 +153,7 @@ class _AuthModalState extends State<AuthModal> {
       return;
     }
     const said = 'If that address has an account, a reset link is on its way.';
+    _pressed = 'forgot';
     setState(() => _loading = true);
     try {
       await AuthService.instance.sendPasswordReset(email);
@@ -234,7 +244,9 @@ class _AuthModalState extends State<AuthModal> {
                 style: type.sub,
               ),
               const SizedBox(height: 24),
-              _GoogleRow(onPressed: _loading ? null : _google),
+              _GoogleRow(
+                  busy: _loading && _pressed == 'google',
+                  onPressed: _loading ? null : _google),
               const SizedBox(height: 20),
               const SiteOr(word: 'or by email'),
               const SizedBox(height: 16),
@@ -290,6 +302,7 @@ class _AuthModalState extends State<AuthModal> {
                     : _signup
                     ? 'Create my library'
                     : 'Open the library',
+                busy: _loading && _pressed == 'email',
                 onPressed: _loading ? null : _submit,
               ),
               if (!_signup) ...[
@@ -298,6 +311,7 @@ class _AuthModalState extends State<AuthModal> {
                   child: SiteTextButton(
                     'Forgot password?',
                     style: type.forgot,
+                    busy: _loading && _pressed == 'forgot',
                     onTap: _loading ? null : _forgot,
                   ),
                 ),
@@ -528,7 +542,8 @@ class _Tabs extends StatelessWidget {
 
 class _GoogleRow extends StatelessWidget {
   final VoidCallback? onPressed;
-  const _GoogleRow({required this.onPressed});
+  final bool busy;
+  const _GoogleRow({required this.onPressed, this.busy = false});
 
   @override
   Widget build(BuildContext context) {
@@ -549,7 +564,9 @@ class _GoogleRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                const GoogleMark(size: 16),
+                busy
+                    ? KitBusyMark(size: 16, color: t.fg)
+                    : const GoogleMark(size: 16),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -802,7 +819,8 @@ class _LetterOptIn extends StatelessWidget {
 class _Submit extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
-  const _Submit({required this.label, required this.onPressed});
+  final bool busy;
+  const _Submit({required this.label, required this.onPressed, this.busy = false});
 
   @override
   Widget build(BuildContext context) {
@@ -821,6 +839,10 @@ class _Submit extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                if (busy) ...[
+                  KitBusyMark(size: 14, color: t.bg),
+                  const SizedBox(width: 8),
+                ],
                 Text(
                   label,
                   style: TextStyle(

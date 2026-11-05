@@ -448,6 +448,7 @@ class _GenerativeAISection extends StatelessWidget {
                 key: SettingsPage.aiSwitchKey,
                 value: genAI == GenAI.on,
                 tooltip: 'Generative AI',
+                busy: ai.aiBusy,
                 onChanged: ai.aiBusy ? null : (v) => ai.setGenerativeAI(v),
               ),
           ],

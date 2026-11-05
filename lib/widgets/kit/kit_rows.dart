@@ -18,6 +18,7 @@ import 'kit_source_link.dart';
 import 'kit_text.dart';
 import 'kit_wait.dart';
 import 'kit_provider_logo.dart';
+import 'kit_busy_mark.dart';
 
 part 'kit_shelf.dart';
 
@@ -897,8 +898,16 @@ class KitSettingLink extends StatefulWidget {
   /// carries ` · m:ss`; zero is the link as it always was.
   final int wait;
 
+  /// §6.1 Busy (ADR-237): this link's own request is in flight. Held, with the
+  /// busy mark before its label.
+  final bool busy;
+
   const KitSettingLink(this.label,
-      {super.key, this.onTap, this.icon = Icons.chevron_right, this.wait = 0});
+      {super.key,
+      this.onTap,
+      this.icon = Icons.chevron_right,
+      this.wait = 0,
+      this.busy = false});
 
   @override
   State<KitSettingLink> createState() => _KitSettingLinkState();
@@ -915,7 +924,7 @@ class _KitSettingLinkState extends State<KitSettingLink> {
     // and no hover (`.set-link:disabled`). It had been the quiet text tier, a
     // colour change no other control used. Still underlined, because it is
     // still the control that acts at zero.
-    final held = widget.wait > 0 || widget.onTap == null;
+    final held = widget.wait > 0 || widget.onTap == null || widget.busy;
     final onTap = held ? null : widget.onTap;
     final color = _hover && !held ? t.accentText : t.fgMuted;
     return MouseRegion(
@@ -928,8 +937,12 @@ class _KitSettingLinkState extends State<KitSettingLink> {
           opacity: held ? AppSpacing.heldOpacity : 1,
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              kitWaitLabel(widget.label, widget.wait,
+              children: [
+                if (widget.busy) ...[
+                  KitBusyMark(size: 13.5, color: color),
+                  const SizedBox(width: 5),
+                ],
+                kitWaitLabel(widget.label, widget.wait,
                   style: TextStyle(
                     fontFamily: AppTheme.fontSans,
                     fontSize: 13.5,

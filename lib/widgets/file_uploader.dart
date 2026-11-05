@@ -429,7 +429,8 @@ class _LinkRow extends StatelessWidget {
             listenable: controller,
             builder: (context, _) => KitButton.secondary(
               submitting ? 'Adding…' : 'Add link',
-              icon: Icons.link,
+                icon: Icons.link,
+                busy: submitting,
               // Disabled on an empty field, as the reference's is.
               onPressed: submitting || controller.text.trim().isEmpty
                   ? null

@@ -257,6 +257,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
   /// cooldown and cap copy is user-facing.
   String? _error;
   bool _busy = false;
+  bool _asking = false;
   bool _dismissing = false;
 
   /// No confirmation on one row — the reader has just read it, and nothing is
@@ -446,7 +447,8 @@ class _ProcessingRowState extends State<ProcessingRow> {
         force: force,
         copy: act == _Act.addAnyway,
         studyCheck: widget.studyCheck,
-        editCheck: widget.editCheck);
+        editCheck: widget.editCheck,
+        onAsking: (a) => setState(() => _asking = a));
     if (!mounted) return;
     // On 200 **no optimistic state is needed**: the document flips to `queued`
     // under the existing subscription and the row returns to its normal
@@ -586,6 +588,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
                   KitButton.primary(_label(primary),
                       icon: _glyph(primary.$2),
                       wait: _busy || primary.$2 == _Act.addFromPhone ? 0 : wait.left,
+                      busy: _busy && !_asking,
                       onPressed:
                           _busy ? null : () => _runPrimary(primary.$2)),
                 KitButton.ghost('Remove',
@@ -594,6 +597,7 @@ class _ProcessingRowState extends State<ProcessingRow> {
                         : () => confirmRemove(context, doc)),
                 if (widget.dismissible)
                   KitButton.ghost(_dismissing ? 'Dismissing…' : 'Dismiss',
+                      busy: _dismissing,
                       onPressed: _busy || _dismissing ? null : _dismiss),
                 source,
               ],
@@ -667,11 +671,13 @@ extension on _ProcessingRowState {
               strong: true,
               icon: _glyph(primary.$2),
               wait: _busy || primary.$2 == _Act.addFromPhone ? 0 : wait.left,
+              busy: _busy && !_asking,
               onTap: _busy ? null : () => _runPrimary(primary.$2)),
         KitLibAct('Remove',
             onTap: _busy || _dismissing ? null : () => confirmRemove(context, doc)),
         if (widget.dismissible)
           KitLibAct(_dismissing ? 'Dismissing…' : 'Dismiss',
+              busy: _dismissing,
               onTap: _busy || _dismissing ? null : _dismiss),
         source,
       ]);
@@ -902,11 +908,13 @@ Future<SupersessionResult> runSourcePrimary(
   bool copy = false,
   Future<bool?> Function(String docId)? studyCheck,
   Future<bool?> Function(String docId)? editCheck,
+  ValueChanged<bool>? onAsking,
 }) {
   final activity = context.read<ActivityNotifier>();
   final title = doc.title.isEmpty ? 'Untitled' : doc.title;
   return SupersessionConfirm.run(
     context,
+    onAsking: onAsking,
     docId: doc.id,
     title: copy
         ? 'Add “$title” anyway?'

@@ -31,6 +31,7 @@ import 'kit_d_shelf.dart' show KitShelfRow, KitShelfRows;
 import 'kit_provider_logo.dart';
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_wait.dart' show kitWaitLabel;
+import 'kit_busy_mark.dart';
 
 // ── The cloud notices (`.lx-notices`, `.lx-notice`) ─────────────────────────
 
@@ -166,6 +167,9 @@ class KitLibAct extends StatelessWidget {
   final bool strong;
   final int wait;
 
+  /// §6.1 Busy (ADR-237): this control's own request is in flight.
+  final bool busy;
+
   const KitLibAct(
     this.label, {
     super.key,
@@ -173,12 +177,13 @@ class KitLibAct extends StatelessWidget {
     this.icon,
     this.strong = false,
     this.wait = 0,
+    this.busy = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final held = onTap == null || wait > 0;
+    final held = onTap == null || wait > 0 || busy;
     return Opacity(
       opacity: held ? AppSpacing.heldOpacity : 1,
       child: KitDTap(
@@ -220,10 +225,13 @@ class KitLibAct extends StatelessWidget {
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (icon != null) ...[
-                      KitGlyph(icon!, size: 13, color: fg),
-                      const SizedBox(width: 5),
-                    ],
+                    if (busy) ...[
+                        KitBusyMark(size: 13, color: fg),
+                        const SizedBox(width: 5),
+                      ] else if (icon != null) ...[
+                        KitGlyph(icon!, size: 13, color: fg),
+                        const SizedBox(width: 5),
+                      ],
                     c.maxWidth.isFinite ? Flexible(child: text) : text,
                   ],
                 );
@@ -1529,16 +1537,22 @@ class KitLibLinkField extends StatelessWidget {
                           ? Border.all(color: t.accent, width: 2)
                           : null,
                     ),
-                    child: Text(
-                      submitting ? 'Adding…' : 'Add link',
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontSans,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: t.secondaryFg,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (submitting) ...[
+                        KitBusyMark(size: 12.5, color: t.secondaryFg),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        submitting ? 'Adding…' : 'Add link',
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontFamily: AppTheme.fontSans,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: t.secondaryFg,
+                        ),
                       ),
-                    ),
+                    ]),
                   ),
                 ),
               ),

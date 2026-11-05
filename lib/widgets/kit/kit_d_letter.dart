@@ -555,6 +555,10 @@ class _KitLetterQuickState extends State<KitLetterQuick> {
     }
   }
 
+  /// The pressed control of [_busy]'s group: the switch, or a §34 switch, which
+  /// knows its own press.
+  bool _switchPressed = false;
+
   Future<void> _put(Map<String, dynamic> patch) async {
     setState(() {
       _busy = true;
@@ -562,6 +566,7 @@ class _KitLetterQuickState extends State<KitLetterQuick> {
       _said = null;
     });
     final r = await widget.write(patch);
+    _switchPressed = false;
     if (!mounted) return;
     setState(() {
       if (r.error != null) {
@@ -606,17 +611,21 @@ class _KitLetterQuickState extends State<KitLetterQuick> {
             title: 'Scheduled delivery',
             line: enabled ? '$freq at ${kitClock(time) ?? time}' : 'Paused',
             value: enabled,
+            busy: _busy && _switchPressed,
             onChanged: _busy
                 ? null
-                : (_) => _put(
-                    enabled
-                        ? {'enabled': false}
-                        : {
-                            'enabled': true,
-                            'deliveryTime': time,
-                            'timezone': _tz,
-                          },
-                  ),
+                : (_) {
+                    _switchPressed = true;
+                    _put(
+                      enabled
+                          ? {'enabled': false}
+                          : {
+                              'enabled': true,
+                              'deliveryTime': time,
+                              'timezone': _tz,
+                            },
+                    );
+                  },
           ),
           if (!enabled && _said == null) KitDNote(activationHint),
           if (_said != null) KitDNote(_said!),
@@ -688,6 +697,9 @@ class KitLetterSwitchRow extends StatelessWidget {
   /// The switch's accessible name; the [title] when absent.
   final String? label;
 
+  /// §6.1 Busy: this switch's own write is in flight.
+  final bool busy;
+
   const KitLetterSwitchRow({
     super.key,
     required this.title,
@@ -695,6 +707,7 @@ class KitLetterSwitchRow extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.label,
+    this.busy = false,
   });
 
   @override
@@ -733,6 +746,7 @@ class KitLetterSwitchRow extends StatelessWidget {
           if (value != null) ...[
             const SizedBox(width: 16),
             KitSwitch(
+              busy: busy,
               value: value!,
               tooltip: label ?? title,
               onChanged: onChanged,

@@ -116,6 +116,7 @@ class _RegenerateControlState extends State<_RegenerateControl> {
               KitButton.secondary(
                 _busy ? 'Regenerating…' : 'Regenerate summary',
                 wait: _busy ? 0 : wait.left,
+                busy: _busy,
                 onPressed: _busy ? null : _regenerate,
               ),
               // 4.3.1: regenerate applies the CURRENT prompt, so a reader

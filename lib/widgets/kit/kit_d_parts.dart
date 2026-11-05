@@ -16,6 +16,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_source_link.dart';
+import 'kit_busy_mark.dart';
 
 // ── Direction D's small shared parts (component-kit §31–§39) ────────────────
 //
@@ -592,7 +593,9 @@ enum KitSlideVariant { plain, view, priority }
 /// first paint and not under reduced motion. **It moves only when [value]
 /// moves**: pressing the chosen option does nothing, and a caller that persists
 /// the choice awaits its write before changing [value] (write before you move).
-/// [held]: the whole control at `--held-opacity`, no pointer events.
+/// [held]: the whole control at `--held-opacity`, no pointer events, and the
+/// option that was pressed draws the busy mark (§6.1 Busy): every press comes
+/// through here, so the switch knows which.
 class KitSlideSwitch<T> extends StatefulWidget {
   final List<KitSlideOption<T>> options;
   final T value;
@@ -651,6 +654,28 @@ class _KitSlideSwitchState<T> extends State<KitSlideSwitch<T>> {
   Rect? _box;
   bool _live = false;
 
+  /// The option pressed, for as long as the press held the switch. A press
+  /// that held nothing (a local choice) leaves nothing behind.
+  T? _pressed;
+  bool _hasPressed = false;
+
+  void _press(T value) {
+    setState(() {
+      _pressed = value;
+      _hasPressed = true;
+    });
+    widget.onChanged(value);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !widget.held) setState(() => _hasPressed = false);
+    });
+  }
+
+  @override
+  void didUpdateWidget(KitSlideSwitch<T> old) {
+    super.didUpdateWidget(old);
+    if (old.held && !widget.held) _hasPressed = false;
+  }
+
   GlobalKey _keyOf(int i) => _keys.putIfAbsent(i, () => GlobalKey());
 
   void _measure() {
@@ -691,7 +716,7 @@ class _KitSlideSwitchState<T> extends State<KitSlideSwitch<T>> {
         label: o.label,
         selected: on,
         enabled: !o.disabled,
-        onTap: on ? () {} : () => widget.onChanged(o.value),
+        onTap: on ? () {} : () => _press(o.value),
         builder: (context, hover, focus) {
           final fg = on ? t.solidFg : (hover ? t.fg : t.fgMuted);
           return AnimatedContainer(
@@ -717,7 +742,10 @@ class _KitSlideSwitchState<T> extends State<KitSlideSwitch<T>> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (o.icon != null) ...[
+                  if (widget.held && _hasPressed && _pressed == o.value) ...[
+                    KitBusyMark(size: 13, color: fg),
+                    SizedBox(width: view ? 6 : 4),
+                  ] else if (o.icon != null) ...[
                     KitGlyph(o.icon!, size: 14, color: fg),
                     SizedBox(width: view ? 6 : 4),
                   ],

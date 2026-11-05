@@ -42,6 +42,9 @@ class KitConfigToggle extends StatelessWidget {
   final bool value;
   final ValueChanged<bool>? onChanged;
 
+  /// §6.1 Busy (ADR-237): this switch's own write is in flight.
+  final bool busy;
+
   const KitConfigToggle({
     super.key,
     required this.icon,
@@ -49,6 +52,7 @@ class KitConfigToggle extends StatelessWidget {
     required this.description,
     required this.value,
     this.onChanged,
+    this.busy = false,
   });
 
   @override
@@ -103,7 +107,7 @@ class KitConfigToggle extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 11),
-              KitSwitch(value: value, onChanged: onChanged),
+              KitSwitch(value: value, busy: busy, onChanged: onChanged),
             ],
           ),
         ),

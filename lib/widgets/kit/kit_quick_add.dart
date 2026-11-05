@@ -9,6 +9,7 @@ import 'kit_controls.dart' show KitFileBadge, KitBadgeSize;
 import 'kit_d_parts.dart' show KitD, KitDTap;
 import 'kit_provider_logo.dart';
 import 'kit_shell.dart' show KitGlyph;
+import 'kit_busy_mark.dart';
 
 // ── Quick add's own parts (F-152) ───────────────────────────────────────────
 //
@@ -442,7 +443,9 @@ class KitQaChip extends StatelessWidget {
                   borderRadius: AppRadius.xsR,
                   border: Border.all(color: t.border),
                 ),
-                child: KitProviderLogo(provider: provider, size: 15),
+                child: busy
+                      ? KitBusyMark(size: 14, color: t.fgMuted)
+                      : KitProviderLogo(provider: provider, size: 15),
               ),
               const SizedBox(width: 9),
               Text(

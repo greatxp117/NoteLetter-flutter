@@ -723,6 +723,7 @@ class _NoticeColumnState extends State<_NoticeColumn> {
         KitButton(
           _busy ? 'Connecting…' : widget.primary!,
           center: !wide,
+          busy: _busy,
           onPressed: _busy || widget.onPrimary == null ? null : _primary,
         ),
       KitButton(
@@ -1097,6 +1098,7 @@ class _ManifestState extends State<_Manifest> {
                 // A later page that failed keeps its token: Try again
                 // continues from it, and keeps what the reader unticked.
                 KitHxLink('Try again',
+                    busy: _loading,
                     onTap: _loading
                         ? null
                         : () => _load(
@@ -1129,6 +1131,7 @@ class _ManifestState extends State<_Manifest> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: KitHxLink(_loading ? 'Loading…' : 'Load more',
+                    busy: _loading,
                   onTap: _loading ? null : () => _load(_pageToken)),
             ),
           ),
@@ -1219,8 +1222,9 @@ class _ManifestState extends State<_Manifest> {
                         : n > 0
                             ? 'Bring in ${kitCounted(n, 'item')}'
                             : 'Nothing selected',
-                center: true,
-                onPressed: n == 0 || _busy || following ? null : _bringIn,
+              center: true,
+              busy: _busy,
+              onPressed: n == 0 || _busy || following ? null : _bringIn,
               ),
               const SizedBox(height: 8),
               KitButton(

@@ -11,6 +11,7 @@ import 'kit_d_pages.dart' show KitDGroupHead;
 import 'kit_d_parts.dart' show KitDScope;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
+import 'kit_busy_mark.dart';
 
 /// The long form's pieces — the program editor's (web `ProgramEditor.jsx`,
 /// `app-study.css` §editor), named here so the screen composes them rather than
@@ -352,8 +353,11 @@ class KitChoiceChip extends StatelessWidget {
   final bool on;
   final VoidCallback? onPressed;
 
+  /// §6.1 Busy (ADR-237): this chip's own write is in flight.
+  final bool busy;
+
   const KitChoiceChip(this.label,
-      {super.key, required this.on, this.onPressed});
+      {super.key, required this.on, this.onPressed, this.busy = false});
 
   @override
   Widget build(BuildContext context) {
@@ -377,7 +381,10 @@ class KitChoiceChip extends StatelessWidget {
                   color: on ? t.accentChipBorder : t.borderStrong),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              if (on) ...[
+              if (busy) ...[
+                KitBusyMark(size: 12, color: fg),
+                const SizedBox(width: 5),
+              ] else if (on) ...[
                 KitGlyph(Icons.check, size: 11, color: fg),
                 const SizedBox(width: 4),
               ],

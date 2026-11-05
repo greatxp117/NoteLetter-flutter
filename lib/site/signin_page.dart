@@ -66,6 +66,9 @@ class _SignInPageState extends State<SignInPage> {
   String _said = '';
   bool _loading = false;
 
+  /// Which control [_loading] is, so only the one pressed draws the mark.
+  String? _pressed;
+
   @override
   void dispose() {
     _email.dispose();
@@ -89,9 +92,14 @@ class _SignInPageState extends State<SignInPage> {
   }
 
   Future<void> _signIn() =>
-      _run(() => AuthService.instance.signIn(_email.text, _pass.text));
+      _runAs('email',() => AuthService.instance.signIn(_email.text, _pass.text));
 
-  Future<void> _google() => _run(AuthService.instance.signInWithGoogle);
+  Future<void> _google() => _runAs('google', AuthService.instance.signInWithGoogle);
+
+  Future<void> _runAs(String control, Future<void> Function() call) {
+    _pressed = control;
+    return _run(call);
+  }
 
   Future<void> _forgot() async {
     setState(() {
@@ -103,6 +111,7 @@ class _SignInPageState extends State<SignInPage> {
       setState(() => _error = humanizeAuthCode('missing-email'));
       return;
     }
+    _pressed = 'forgot';
     setState(() => _loading = true);
     try {
       await AuthService.instance.sendPasswordReset(email);
@@ -137,6 +146,7 @@ class _SignInPageState extends State<SignInPage> {
       error: _error,
       said: _said,
       loading: _loading,
+      pressed: _pressed,
       onSignIn: _signIn,
       onGoogle: _google,
       onForgot: _forgot,
@@ -305,6 +315,7 @@ class _FormPanel extends StatelessWidget {
   final String error;
   final String said;
   final bool loading;
+  final String? pressed;
   final VoidCallback onSignIn;
   final VoidCallback onGoogle;
   final VoidCallback onForgot;
@@ -317,6 +328,7 @@ class _FormPanel extends StatelessWidget {
     required this.error,
     required this.said,
     required this.loading,
+    this.pressed,
     required this.onSignIn,
     required this.onGoogle,
     required this.onForgot,
@@ -389,6 +401,7 @@ class _FormPanel extends StatelessWidget {
                   trailing: SiteTextButton(
                     'Forgot it?',
                     style: type.forgot,
+                    busy: loading && pressed == 'forgot',
                     onTap: loading ? null : onForgot,
                   ),
                 ),
@@ -406,6 +419,7 @@ class _FormPanel extends StatelessWidget {
                 const SizedBox(height: 20),
                 SiteSubmit(
                   loading ? 'Please wait…' : 'Sign in',
+                  busy: loading && pressed == 'email',
                   onPressed: loading ? null : onSignIn,
                 ),
               ],
@@ -419,6 +433,7 @@ class _FormPanel extends StatelessWidget {
           SiteGhost(
             'Continue with Google',
             leading: const GoogleMark(),
+            busy: loading && pressed == 'google',
             onPressed: loading ? null : onGoogle,
           ),
         ),

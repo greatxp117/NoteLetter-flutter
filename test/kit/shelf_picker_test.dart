@@ -272,7 +272,9 @@ void main() {
       await tester.pump();
       expect(handed, isEmpty);
       pending.complete({'tagId': 't9'});
-      await tester.pumpAndSettle();
+      await tester.pump();
+      // The busy mark turns for as long as the sheet is held, so this never settles.
+      await tester.pump(const Duration(milliseconds: 400));
       expect(handed, ['t9']);
       expect(closed, isTrue);
     });

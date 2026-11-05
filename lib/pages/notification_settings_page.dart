@@ -93,6 +93,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   final _labelCtrl = TextEditingController();
   bool _busy = false;
 
+  /// The channel whose switch has a write in flight (§6.1 Busy).
+  String? _patching;
+
   /// §14.2 — the rejection beside the control that refused it, verbatim.
   String? _error;
 
@@ -211,11 +214,14 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     NotificationChannel c,
     Map<String, dynamic> partial,
   ) async {
+    setState(() => _patching = c.id);
     try {
       await Api.instance.updateNotificationChannel(c.id, partial);
       if (mounted && _error != null) setState(() => _error = null);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _patching = null);
     }
   }
 
@@ -449,7 +455,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               KitSwitch(
                 value: c.enabled,
                 tooltip: c.enabled ? 'Enabled' : 'Paused',
-                onChanged: (v) => _patch(c, {'enabled': v}),
+              busy: _patching == c.id,
+              onChanged: _patching != null ? null : (v) => _patch(c, {'enabled': v}),
               ),
               KitIconButton(
                 Icons.delete_outline,
@@ -536,6 +543,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 _busy ? 'Adding…' : 'Add channel',
                 key: NotificationSettingsPage.addKey,
                 icon: _busy ? null : Icons.add,
+                busy: _busy,
                 onPressed: _busy ? null : _add,
               ),
               // §14.2 takes no icon: the line is the rejection.

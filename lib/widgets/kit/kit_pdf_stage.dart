@@ -9,6 +9,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
 import 'kit_text.dart';
+import 'kit_busy_mark.dart';
 
 /// An open PDF, as the stage needs it: how many pages, how big each is, and
 /// each page drawn at a given pixel width. An interface so the stage can be
@@ -136,10 +137,7 @@ class _KitPdfStageState extends State<KitPdfStage> {
           height: 160,
           color: t.surfaceSunken,
           alignment: Alignment.center,
-          child: const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2)),
+          child: KitBusyMark(size: 22, color: Tokens.of(context).fgMuted),
         );
       }
       // Web's page is 520 wide on a desk and the full stage on a phone.

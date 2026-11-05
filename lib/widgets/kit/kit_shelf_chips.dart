@@ -14,6 +14,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_d_parts.dart' show KitDScope, KitShelfTag;
 import 'kit_failure.dart';
+import 'kit_busy_mark.dart';
 
 /// One chip in a §20 row: the shelf, and whether the item has it only because
 /// its document does (the muted weight).
@@ -79,6 +80,10 @@ class KitShelfChipEditor extends StatefulWidget {
 
 class _KitShelfChipEditorState extends State<KitShelfChipEditor>
     with _PickerAnchor<KitShelfChipEditor> {
+  /// Which control [KitShelfChipEditor.busy] is (§6.1 Busy): a shelf's `×`, or
+  /// `add`. Read only while busy, so a press that held nothing is never drawn.
+  String? _pressed;
+
   final _plusFocus = FocusNode(debugLabel: 'KitShelfChipEditor.add');
 
   @override
@@ -153,8 +158,13 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
             child: _RoundTap(
               size: 16,
               enabled: !widget.busy,
-              onTap: () => widget.onRemove(c.shelf.id),
-              child: Icon(Icons.close, size: 10, color: t.fgSubtle),
+              onTap: () {
+                _pressed = c.shelf.id;
+                widget.onRemove(c.shelf.id);
+              },
+              child: widget.busy && _pressed == c.shelf.id
+                  ? KitBusyMark(size: 10, color: t.fgSubtle)
+                  : Icon(Icons.close, size: 10, color: t.fgSubtle),
             ),
           ),
         ],
@@ -180,8 +190,13 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
             child: _RoundTap(
               size: 20,
               enabled: !widget.busy,
-              onTap: () => widget.onRemove(c.shelf.id),
-              child: Icon(Icons.close, size: 12, color: t.fgSubtle),
+              onTap: () {
+                _pressed = c.shelf.id;
+                widget.onRemove(c.shelf.id);
+              },
+              child: widget.busy && _pressed == c.shelf.id
+                  ? KitBusyMark(size: 12, color: t.fgSubtle)
+                  : Icon(Icons.close, size: 12, color: t.fgSubtle),
             ),
           ),
         ],
@@ -199,6 +214,7 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
         allShelves: widget.allShelves,
         onPick: (id) {
           _close();
+          _pressed = 'add';
           widget.onAdd(id);
         },
         onCreate: (name) {
@@ -222,7 +238,9 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.add, size: d ? 14 : 11, color: d ? t.fgLede : t.fgSubtle),
+                widget.busy && _pressed == 'add'
+                    ? KitBusyMark(size: d ? 14 : 11, color: d ? t.fgLede : t.fgSubtle)
+                    : Icon(Icons.add, size: d ? 14 : 11, color: d ? t.fgLede : t.fgSubtle),
                 SizedBox(width: d ? 6 : 4),
                 Text('Shelf', style: d ? _tagStyleD(t) : _chipStyle(t.fgSubtle)),
               ],

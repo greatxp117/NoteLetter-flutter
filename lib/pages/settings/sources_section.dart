@@ -77,6 +77,11 @@ class _SourcesSectionState extends State<SourcesSection> {
   ];
 
   String? _busy;
+
+  /// Which capability [_busy] `settings` is writing, so only that switch draws
+  /// the mark (§6.1 Busy).
+  String? _writingFlag;
+  String? _flagProvider;
   String? _error;
   double? _dragThreshold; // the drag in flight; the stored value otherwise
   bool _scrolled = false;
@@ -127,6 +132,7 @@ class _SourcesSectionState extends State<SourcesSection> {
     if (!mounted) return;
     setState(() {
       _busy = null;
+      _writingFlag = null;
       _error = err;
     });
   }
@@ -261,11 +267,16 @@ class _SourcesSectionState extends State<SourcesSection> {
                         flags: settings!.configFor(p),
                         capabilities: _capabilities,
                         enabled: _busy == null,
-                        onChanged: (flag, v) => _save({
+                        writing: _busy == 'settings' && _flagProvider == p ? _writingFlag : null,
+                        onChanged: (flag, v) {
+                          _writingFlag = flag;
+                          _flagProvider = p;
+                          _save({
                           'providers': {
                             p: {'enabled': true, flag: v},
-                          },
-                        }),
+                            },
+                          });
+                        },
                       )
                     : null,
                 trailing: [
@@ -280,6 +291,7 @@ class _SourcesSectionState extends State<SourcesSection> {
                   else
                     KitSettingLink(
                       'Enable organizing',
+                      busy: _busy == p,
                       onTap: _busy != null ? null : () => _enable(p),
                     ),
                 ],
@@ -303,6 +315,7 @@ class _Capabilities extends StatelessWidget {
   final List<(String, String, String)> capabilities;
   final bool enabled;
   final void Function(String flag, bool value) onChanged;
+  final String? writing;
 
   const _Capabilities({
     required this.provider,
@@ -311,6 +324,7 @@ class _Capabilities extends StatelessWidget {
     required this.capabilities,
     required this.enabled,
     required this.onChanged,
+    this.writing,
   });
 
   bool _value(String flag) {
@@ -324,7 +338,6 @@ class _Capabilities extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -351,11 +364,11 @@ class _Capabilities extends StatelessWidget {
                 ),
                 Semantics(
                   label: '$name: $label',
-                  child: Switch(
-                    value: _value(flag),
-                    activeThumbColor: t.accent,
-                    onChanged: enabled ? (v) => onChanged(flag, v) : null,
-                  ),
+                  child: KitSwitch(
+              value: _value(flag),
+              busy: writing == flag,
+              onChanged: enabled ? (v) => onChanged(flag, v) : null,
+            ),
                 ),
               ],
             ),

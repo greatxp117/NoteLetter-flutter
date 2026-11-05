@@ -494,6 +494,7 @@ class _RowRetry extends StatefulWidget {
 
 class _RowRetryState extends State<_RowRetry> {
   bool _busy = false;
+  bool _asking = false;
   String? _error;
 
   Future<void> _retry(Document doc) async {
@@ -502,7 +503,8 @@ class _RowRetryState extends State<_RowRetry> {
       _busy = true;
       _error = null;
     });
-    final res = await runSourcePrimary(context, doc, force: false);
+    final res = await runSourcePrimary(context, doc,
+        force: false, onAsking: (a) => setState(() => _asking = a));
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -526,8 +528,9 @@ class _RowRetryState extends State<_RowRetry> {
               if (doc != null)
                 KitButton.primary('Retry',
                     icon: Icons.refresh,
-                    wait: _busy ? 0 : wait.left,
-                    onPressed: _busy ? null : () => _retry(doc)),
+                  wait: _busy ? 0 : wait.left,
+                  busy: _busy && !_asking,
+                  onPressed: _busy ? null : () => _retry(doc)),
               if (slot != null) ...[
                 if (doc != null) const SizedBox(height: 6),
                 slot,

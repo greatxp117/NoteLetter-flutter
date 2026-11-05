@@ -84,7 +84,9 @@ void main() {
       expect(find.text('Creating…'), findsOneWidget);
       expect(got, isNull);
       pending.complete({'tagId': 't1'});
-      await tester.pumpAndSettle();
+      await tester.pump();
+      // The busy mark turns for as long as the sheet is held, so this never settles.
+      await tester.pump(const Duration(milliseconds: 400));
       expect(got?.tagId, 't1');
       expect(got?.backfill, isTrue);
       expect(sentDesc, 'Baking and starters');
@@ -196,7 +198,9 @@ void main() {
     await tester.pump();
     // The scrim, while the call is in flight, does nothing.
     await tester.tapAt(const Offset(5, 1390));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    // The busy mark turns for as long as the sheet is held, so this never settles.
+    await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Fill Bread'), findsOneWidget);
     filing.complete({'filed': 2});
     await tester.pumpAndSettle();
@@ -276,7 +280,9 @@ void main() {
           answer: {'filed': 2, 'skipped': {'deleted': [], 'not_ready': []}},
           onDone: () => done++);
       await tester.tap(find.text('File 2 sources'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      // The busy mark turns for as long as the sheet is held, so this never settles.
+      await tester.pump(const Duration(milliseconds: 400));
       expect(sent, [
         ['d1', 'd2']
       ]);

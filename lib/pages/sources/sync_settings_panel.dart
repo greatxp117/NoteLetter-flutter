@@ -125,6 +125,11 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
   final _patternsController = TextEditingController();
   final _patternsFocus = FocusNode();
   bool _saving = false;
+
+  /// Which control [_saving] is, so only the one pressed draws the mark
+  /// (§6.1 Busy). The whole panel is held either way.
+  String? _pressed;
+  bool _pressedIs(String key) => _saving && _pressed == key;
   late bool _open = widget.embedded;
 
   /// §14.2 — the last refusal, inline in the panel (spec: "400s show the
@@ -199,6 +204,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
     if (!mounted) return;
     setState(() {
       _saving = false;
+      _pressed = null;
       // A 400 is a validation message written for a person — shown as it
       // came, inline, beside the controls it is about.
       _error = err;
@@ -219,6 +225,7 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
     if (!mounted) return err;
     setState(() {
       _saving = false;
+      _pressed = null;
       if (err == null) _picking = false;
     });
     return err;
@@ -334,10 +341,14 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                           const SizedBox(width: 10),
                           KitSwitch(
                             value: i.autoSyncEnabled,
-                            tooltip: 'Sync new files automatically',
-                            onChanged: (v) => _save((c) => c.syncSettings(
-                                widget.providerId,
-                                autoSyncEnabled: v)),
+                        tooltip: 'Sync new files automatically',
+                        busy: _pressedIs('auto'),
+                        onChanged: (v) {
+                          _pressed = 'auto';
+                          _save((c) => c.syncSettings(
+                              widget.providerId,
+                              autoSyncEnabled: v));
+                        },
                           ),
                         ],
                       ),
@@ -366,10 +377,14 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                           const SizedBox(width: 10),
                           KitSwitch(
                             value: i.autoUpdate,
-                            tooltip: 'Update changed files automatically',
-                            onChanged: (v) => _save((c) => c.syncSettings(
-                                widget.providerId,
-                                autoUpdate: v)),
+                        tooltip: 'Update changed files automatically',
+                        busy: _pressedIs('update'),
+                        onChanged: (v) {
+                          _pressed = 'update';
+                          _save((c) => c.syncSettings(
+                              widget.providerId,
+                              autoUpdate: v));
+                        },
                           ),
                         ],
                       ),
@@ -386,15 +401,19 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                     KitSegmented(
                       groupLabel: 'Frequency',
                       segments: [
-                        for (final f in _frequencies) KitSegment(_title(f)),
+                        for (final f in _frequencies)
+                          KitSegment(_title(f), busy: _pressedIs('freq:$f')),
                       ],
                       // An unknown stored value selects NOTHING. `.clamp`
                       // turned -1 into 0 and drew "Hourly" — a claim about a
                       // schedule the server does not have.
                       selected: _frequencies.indexOf(i.syncFrequency),
-                      onChanged: (n) => _save((c) => c.syncSettings(
+                      onChanged: (n) {
+                      _pressed = 'freq:${_frequencies[n]}';
+                      _save((c) => c.syncSettings(
                           widget.providerId,
-                          syncFrequency: _frequencies[n])),
+                          syncFrequency: _frequencies[n]));
+                    },
                     ),
 
                     // Daily and weekly only: the orchestrator ignores the
@@ -408,9 +427,16 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                         _HourField(
                           hour: i.syncPreferredHour ?? _defaultHour,
                           label: _localClock,
-                          onChanged: (v) => _save((c) => c.syncSettings(
-                              widget.providerId, syncPreferredHour: v)),
+                          onChanged: (v) {
+                            _pressed = 'hour';
+                            _save((c) => c.syncSettings(
+                                widget.providerId, syncPreferredHour: v));
+                          },
                         ),
+                        if (_pressedIs('hour')) ...[
+                          const SizedBox(width: 8),
+                          KitBusyMark(size: 13, color: t.fgMuted),
+                        ],
                         const SizedBox(width: 10),
                         // Rendered in the reader's time, stored and sent as
                         // the plain UTC hour the orchestrator compares
@@ -455,7 +481,11 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                                   // "Remove folder {name or id}" (5.9.0).
                                   removeLabel:
                                       'Remove folder ${i.folderNames[id] ?? id}',
-                                  onRemove: () => _removeFolder(id),
+                                  removeBusy: _pressedIs('folder:$id'),
+                                  onRemove: () {
+                                    _pressed = 'folder:$id';
+                                    _removeFolder(id);
+                                  },
                                 ),
                               ),
                           ],
@@ -515,10 +545,12 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                                   ? 'Notion pages'
                                   : cloudTypeLabel(type),
                               checked: i.includeTypes.contains(type),
+                              busy: _pressedIs('type:$type'),
                               onPressed: _saving
                                   ? null
                                   : () {
-                                      final next = {...i.includeTypes};
+                                  _pressed = 'type:$type';
+                                  final next = {...i.includeTypes};
                                       i.includeTypes.contains(type)
                                           ? next.remove(type)
                                           : next.add(type);
@@ -548,7 +580,12 @@ class _SyncSettingsPanelState extends State<SyncSettingsPanel> {
                       _RuleRow(
                         type: type,
                         rule: i.reviewRules[type],
+                        busyChoice: !_saving || !(_pressed?.startsWith('rule:$type:') ?? false)
+                            ? null
+                            : int.parse(_pressed!.split(':').last),
                         onChanged: (next) {
+                          _pressed = 'rule:$type:'
+                              '${next == null ? 0 : (next.isAlways ? 2 : 1)}';
                           // `review_rules` REPLACES, it does not merge — so
                           // the whole desired map goes every time.
                           final map = {
@@ -728,10 +765,15 @@ class _RuleRow extends StatelessWidget {
   /// rule rather than a third mode.
   final ValueChanged<ReviewRule?> onChanged;
 
+  /// §6.1 Busy: which position's own write is in flight (0 Import, 1 Ask over,
+  /// 2 Always ask).
+  final int? busyChoice;
+
   const _RuleRow({
     required this.type,
     required this.rule,
     required this.onChanged,
+    this.busyChoice,
   });
 
   @override
@@ -758,12 +800,16 @@ class _RuleRow extends StatelessWidget {
               runSpacing: 5,
               children: [
                 KitDayPill('Import',
-                    on: selected == 0, onPressed: () => onChanged(null)),
+                  on: selected == 0,
+                  busy: busyChoice == 0,
+                  onPressed: () => onChanged(null)),
                 KitDayPill('Ask over…',
-                    on: selected == 1,
+                  on: selected == 1,
+                  busy: busyChoice == 1,
                     onPressed: () => onChanged(ReviewRule.overMb(mb))),
                 KitDayPill('Always ask',
-                    on: selected == 2,
+                  on: selected == 2,
+                  busy: busyChoice == 2,
                     onPressed: () => onChanged(const ReviewRule.always())),
               ],
             ),

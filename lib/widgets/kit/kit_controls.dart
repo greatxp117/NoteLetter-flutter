@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart'
     show
         Checkbox,
-        CircularProgressIndicator,
+        
         DropdownButton,
         DropdownButtonHideUnderline,
         DropdownMenuItem,
@@ -21,6 +21,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'kit_busy_mark.dart';
 import 'kit_d_parts.dart' show KitDScope;
 import 'kit_d_settings.dart' show KitDSetScope;
 import 'kit_shell.dart' show KitGlyph;
@@ -88,6 +89,11 @@ class KitButton extends StatefulWidget {
   /// default) is a button that has never waited, drawn exactly as before.
   final int wait;
 
+  /// §6.1 **Busy** (ADR-237): this button's own request is in flight. It is
+  /// held, whatever [onPressed] says, and the busy mark takes the leading
+  /// glyph's place. A sibling held by the same request stays false.
+  final bool busy;
+
   const KitButton(
     this.label, {
     super.key,
@@ -98,6 +104,7 @@ class KitButton extends StatefulWidget {
     this.center = false,
     this.autofocus = false,
     this.wait = 0,
+    this.busy = false,
   });
 
   const KitButton.primary(this.label,
@@ -106,7 +113,8 @@ class KitButton extends StatefulWidget {
       this.onPressed,
       this.iconTrailing = false,
       this.autofocus = false,
-      this.wait = 0})
+      this.wait = 0,
+      this.busy = false})
       : variant = KitButtonVariant.primary,
         center = false;
   const KitButton.secondary(this.label,
@@ -114,7 +122,8 @@ class KitButton extends StatefulWidget {
       this.icon,
       this.onPressed,
       this.autofocus = false,
-      this.wait = 0})
+      this.wait = 0,
+      this.busy = false})
       : variant = KitButtonVariant.secondary,
         iconTrailing = false,
         center = false;
@@ -123,12 +132,13 @@ class KitButton extends StatefulWidget {
       this.icon,
       this.onPressed,
       this.autofocus = false,
-      this.wait = 0})
+      this.wait = 0,
+      this.busy = false})
       : variant = KitButtonVariant.danger,
         iconTrailing = false,
         center = false;
   const KitButton.dangerText(this.label,
-      {super.key, this.icon, this.onPressed, this.autofocus = false})
+      {super.key, this.icon, this.onPressed, this.autofocus = false, this.busy = false})
       : variant = KitButtonVariant.dangerText,
         iconTrailing = false,
         center = false,
@@ -138,7 +148,8 @@ class KitButton extends StatefulWidget {
       this.icon,
       this.onPressed,
       this.autofocus = false,
-      this.wait = 0})
+      this.wait = 0,
+      this.busy = false})
       : variant = KitButtonVariant.ghost,
         iconTrailing = false,
         center = false;
@@ -161,8 +172,8 @@ class _KitButtonState extends State<KitButton> {
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final waiting = widget.wait > 0;
-    final disabled = widget.onPressed == null || waiting;
-    final onPressed = waiting ? null : widget.onPressed;
+    final disabled = widget.onPressed == null || waiting || widget.busy;
+    final onPressed = waiting || widget.busy ? null : widget.onPressed;
 
     late final Color bg;
     late final Color fg;
@@ -224,7 +235,10 @@ class _KitButtonState extends State<KitButton> {
                   ? MainAxisAlignment.center
                   : MainAxisAlignment.start,
               children: [
-                if (glyph != null && !widget.iconTrailing) ...[
+                if (widget.busy) ...[
+                  KitBusyMark(size: quiet ? 13 : 14, color: fg),
+                  SizedBox(width: quiet ? 7 : AppSpacing.s2),
+                ] else if (glyph != null && !widget.iconTrailing) ...[
                   glyph,
                   SizedBox(width: quiet ? 7 : AppSpacing.s2),
                 ],
@@ -368,6 +382,9 @@ class KitTag extends StatelessWidget {
   /// set that cannot shrink right now passes null rather than a dead `×`.
   final VoidCallback? onRemove;
 
+  /// §6.1 Busy: the `×` was pressed and its write is in flight.
+  final bool removeBusy;
+
   /// What the `×` does, for a screen reader — the glyph alone says nothing
   /// about WHICH member it removes.
   final String? removeLabel;
@@ -385,6 +402,7 @@ class KitTag extends StatelessWidget {
     this.colorToken,
     this.onTap,
     this.onRemove,
+    this.removeBusy = false,
     this.removeLabel,
     this.clip = false,
   });
@@ -464,7 +482,9 @@ class KitTag extends StatelessWidget {
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: onRemove,
-                  child: Icon(Icons.close, size: 12, color: fg),
+                  child: removeBusy
+                      ? KitBusyMark(size: 12, color: fg)
+                      : Icon(Icons.close, size: 12, color: fg),
                 ),
               ),
             ),
@@ -706,8 +726,12 @@ class KitIconButton extends StatefulWidget {
   final String? tooltip;
   final Color? color;
 
+  /// §6.1 Busy (ADR-237): its own request is in flight, and the mark replaces
+  /// the glyph.
+  final bool busy;
+
   const KitIconButton(this.icon,
-      {super.key, this.onPressed, this.tooltip, this.color});
+      {super.key, this.onPressed, this.tooltip, this.color, this.busy = false});
 
   @override
   State<KitIconButton> createState() => _KitIconButtonState();
@@ -740,7 +764,9 @@ class _KitIconButtonState extends State<KitIconButton> {
             color: _hover ? t.hover : const Color(0x00000000),
             borderRadius: AppRadius.controlR(_size),
           ),
-          child: Icon(
+          child: widget.busy
+              ? KitBusyMark(size: 15, color: widget.color ?? t.fgMuted)
+              : Icon(
             widget.icon,
             size: 17,
             color: widget.color ?? (_hover ? t.fg : t.fgMuted),
@@ -1334,7 +1360,11 @@ class KitDayPill extends StatelessWidget {
   final bool on;
   final VoidCallback? onPressed;
 
-  const KitDayPill(this.label, {super.key, required this.on, this.onPressed});
+  /// §6.1 Busy: this pill's own write is in flight.
+  final bool busy;
+
+  const KitDayPill(this.label,
+      {super.key, required this.on, this.onPressed, this.busy = false});
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -1344,7 +1374,7 @@ class KitDayPill extends StatelessWidget {
         label: label,
         excludeSemantics: true,
         onTap: onPressed,
-        child: _DayPillBox(label, on: on, onPressed: onPressed),
+        child: _DayPillBox(label, on: on, busy: busy, onPressed: onPressed),
       );
 }
 
@@ -1357,8 +1387,11 @@ class KitTypeChoice extends StatelessWidget {
   final bool checked;
   final VoidCallback? onPressed;
 
+  /// §6.1 Busy: this pill's own write is in flight.
+  final bool busy;
+
   const KitTypeChoice(this.label,
-      {super.key, required this.checked, this.onPressed});
+      {super.key, required this.checked, this.onPressed, this.busy = false});
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -1368,7 +1401,7 @@ class KitTypeChoice extends StatelessWidget {
         excludeSemantics: true,
         onTap: onPressed,
         child: _DayPillBox(label,
-            on: checked, tick: checked, onPressed: onPressed),
+            on: checked, tick: checked, busy: busy, onPressed: onPressed),
       );
 }
 
@@ -1376,10 +1409,11 @@ class _DayPillBox extends StatelessWidget {
   final String label;
   final bool on;
   final bool tick;
+  final bool busy;
   final VoidCallback? onPressed;
 
   const _DayPillBox(this.label,
-      {required this.on, this.tick = false, this.onPressed});
+      {required this.on, this.tick = false, this.busy = false, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -1409,10 +1443,13 @@ class _DayPillBox extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (tick) ...[
-                  Icon(Icons.check, size: 13, color: fg),
-                  const SizedBox(width: 6),
-                ],
+                if (busy) ...[
+                KitBusyMark(size: 13, color: fg),
+                const SizedBox(width: 6),
+              ] else if (tick) ...[
+                Icon(Icons.check, size: 13, color: fg),
+                const SizedBox(width: 6),
+              ],
                 Text(
                   label,
                   maxLines: 1,
@@ -1443,9 +1480,15 @@ class KitSegment {
   /// the segment's accessible name, never drawn.
   final bool iconOnly;
 
-  const KitSegment(this.label, {this.icon}) : iconOnly = false;
+  /// §6.1 Busy: this segment's own write is in flight.
+  final bool busy;
 
-  const KitSegment.icon(IconData this.icon, this.label) : iconOnly = true;
+  const KitSegment(this.label, {this.icon, this.busy = false})
+      : iconOnly = false;
+
+  const KitSegment.icon(IconData this.icon, this.label)
+      : iconOnly = true,
+        busy = false;
 }
 
 /// §6.8 — the segmented control: letter tabs, summary style, sort order.
@@ -1808,7 +1851,10 @@ Widget _segTrackBody(
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (s.icon != null) ...[
+              if (s.busy) ...[
+                KitBusyMark(size: 13, color: on ? t.fg : t.fgMuted),
+                const SizedBox(width: 7),
+              ] else if (s.icon != null) ...[
                 Icon(s.icon, size: 14, color: on ? t.fg : t.fgMuted),
                 const SizedBox(width: 7),
               ],
@@ -1983,11 +2029,16 @@ class KitSwitch extends StatelessWidget {
   final ValueChanged<bool>? onChanged;
   final String? tooltip;
 
+  /// §6.1 Busy: this switch's own write is in flight. The mark sits on the
+  /// knob: a switch writes before it moves, so the knob is what has not moved.
+  final bool busy;
+
   const KitSwitch({
     super.key,
     required this.value,
     this.onChanged,
     this.tooltip,
+    this.busy = false,
   });
 
   static const double _w = 38;
@@ -2000,7 +2051,7 @@ class KitSwitch extends StatelessWidget {
     // §6.1 Held (ruled 2026-10-13): no handler — its write in flight, or
     // nothing it may change — is the whole switch at the token
     // (`.switch.is-busy`). It drew exactly as a live switch until then.
-    final held = onChanged == null;
+    final held = onChanged == null || busy;
     return Semantics(
       toggled: value,
       label: tooltip,
@@ -2032,8 +2083,9 @@ class KitSwitch extends StatelessWidget {
                     left: value ? _w - _knob - 4 : 2,
                     child: Container(
                       width: _knob,
-                      height: _knob,
-                      decoration: const BoxDecoration(
+                  height: _knob,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
                         // literal-ok: a switch knob is white on both of its
                         // grounds — the accent fill when on, --surface-sunken
                         // when off — which is the control's convention, not a
@@ -2042,6 +2094,11 @@ class KitSwitch extends StatelessWidget {
                         shape: BoxShape.circle,
                         boxShadow: AppShadows.s1,
                       ),
+                  // The knob is a literal white in both themes, so the mark on
+                  // it is a raw dark step in both (`.switch i .busy-mark`).
+                  child: busy
+                      ? const KitBusyMark(size: 11, color: AppColors.mutedForeground) // pair-ok: the knob is white in both themes
+                      : null,
                     ),
                   ),
                 ],
@@ -2738,6 +2795,9 @@ class KitSwatch extends StatelessWidget {
   final bool readOnly;
   final String? tooltip;
 
+  /// §6.1 Busy (ADR-237): this swatch's own write is in flight.
+  final bool busy;
+
   const KitSwatch({
     super.key,
     required this.color,
@@ -2746,6 +2806,7 @@ class KitSwatch extends StatelessWidget {
     this.onTap,
     this.readOnly = false,
     this.tooltip,
+    this.busy = false,
   });
 
   static const double _size = 24;
@@ -2792,6 +2853,9 @@ class KitSwatch extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: t.border),
                 ),
+                child: busy
+                    ? Center(child: KitBusyMark(size: 12, color: t.surface))
+                    : null,
               ),
             ),
           ),

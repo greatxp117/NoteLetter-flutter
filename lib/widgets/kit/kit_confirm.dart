@@ -202,11 +202,11 @@ class _KitConfirmState extends State<KitConfirm> {
           if (widget.danger)
             KitButton.danger(
                 _busy ? (widget.busyLabel ?? 'Working…') : widget.confirmLabel,
-                wait: held, onPressed: _busy ? null : _run)
+                wait: held, busy: _busy, onPressed: _busy ? null : _run)
           else
             KitButton.primary(
                 _busy ? (widget.busyLabel ?? 'Working…') : widget.confirmLabel,
-                wait: held, onPressed: _busy ? null : _run),
+                wait: held, busy: _busy, onPressed: _busy ? null : _run),
         ],
       ),
     );

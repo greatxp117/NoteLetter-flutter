@@ -604,6 +604,7 @@ class _ReaderPageState extends State<ReaderPage> {
         KitAlsoButton(
           _reorganizing ? 'Asking…' : 'Reorganize',
           icon: Icons.title,
+          busy: _reorganizing,
           onTap: _reorganizing ? null : () => _requestReorganize(doc),
         ),
       // reader.md §Supersession confirm (4.6.0, ADR-042).
@@ -704,6 +705,7 @@ class _ReaderPageState extends State<ReaderPage> {
               ? 'You finished this on ${readerDate(doc.finishedAt!)}.'
               : 'Reaching the end marks this for you — this is for when you '
                     'got there another way.',
+          busy: _finishBusy,
           onPressed: _finishBusy ? null : () => _setFinished(!finished),
           error: _finishError,
         ),

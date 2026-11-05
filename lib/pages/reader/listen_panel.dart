@@ -282,15 +282,11 @@ class _ListenPanelState extends State<ListenPanel> {
           KitQuill.icon,
           'No narration yet.',
           'Generate an audio reading of this source.',
-          action: FilledButton.icon(
+          action: KitButton.primary(
+            _generating ? 'Generating…' : 'Generate audio',
+            icon: Icons.auto_awesome,
+            busy: _generating,
             onPressed: _generating ? null : _generate,
-            icon: _generating
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.auto_awesome, size: 16),
-            label: Text(_generating ? 'Generating…' : 'Generate audio'),
           ),
         ),
         if (_error != null)

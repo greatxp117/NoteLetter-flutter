@@ -41,6 +41,9 @@ class ShelfSwatches extends StatelessWidget {
   final bool enabled;
   final ValueChanged<String> onPick;
 
+  /// §6.1 Busy: the swatch whose write is in flight.
+  final String? busyToken;
+
   /// Draw a stored colour outside the twenty as one more, read-only swatch.
   final bool showCurrent;
 
@@ -48,6 +51,7 @@ class ShelfSwatches extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onPick,
+    this.busyToken,
     this.enabled = true,
     this.showCurrent = false,
   });
@@ -68,6 +72,7 @@ class ShelfSwatches extends StatelessWidget {
             color: entry.value,
             label: AppColors.shelfColorLabels[entry.key] ?? entry.key,
             selected: current == entry.key,
+            busy: busyToken == entry.key,
             onTap: enabled ? () => onPick(entry.key) : null,
           ),
         if (showCurrent && !AppColors.shelfColors.containsKey(current))

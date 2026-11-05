@@ -25,6 +25,7 @@ class UpdateFromSourceBar extends StatefulWidget {
 
 class _UpdateFromSourceBarState extends State<UpdateFromSourceBar> {
   bool _updating = false;
+  bool _asking = false;
   bool _queued = false;
   String? _error;
 
@@ -43,6 +44,7 @@ class _UpdateFromSourceBarState extends State<UpdateFromSourceBar> {
       confirmLabel: SupersessionConfirm.updateConfirmLabel,
       study: SupersessionConfirm.updateStudy,
       editedBy: SupersessionConfirm.updateEditedBy(_provider),
+      onAsking: (a) => setState(() => _asking = a),
       action: () async {
         try {
           await Api.instance.updateFromSource(widget.docId);
@@ -103,6 +105,7 @@ class _UpdateFromSourceBarState extends State<UpdateFromSourceBar> {
                     KitButton.secondary(
                       _updating ? 'Queuing…' : 'Update from $name',
                       wait: _updating ? 0 : wait.left,
+                      busy: _updating && !_asking,
                       onPressed: _updating ? null : _update,
                     ),
                   ],

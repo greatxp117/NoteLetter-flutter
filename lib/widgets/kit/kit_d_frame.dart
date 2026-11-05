@@ -20,6 +20,7 @@ import 'kit_d_parts.dart';
 import 'kit_frame.dart' show KitScrollView;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
+import 'kit_busy_mark.dart';
 
 // ── Direction D's frame (component-kit §26–§30) ─────────────────────────────
 //
@@ -48,12 +49,16 @@ class KitPageAction {
   final VoidCallback onPressed;
   final bool disabled;
 
+  /// §6.1 Busy (ADR-237): this action's own request is in flight.
+  final bool busy;
+
   const KitPageAction({
     required this.label,
     String? short,
     this.icon = Icons.add,
     required this.onPressed,
     this.disabled = false,
+    this.busy = false,
   }) : short = short ?? label;
 }
 
@@ -669,7 +674,9 @@ class KitActionButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              KitGlyph(action.icon, size: 15, color: t.accentFg),
+              action.busy
+                  ? KitBusyMark(size: 15, color: t.accentFg)
+                  : KitGlyph(action.icon, size: 15, color: t.accentFg),
               const SizedBox(width: 8),
               Text(
                 action.label,
@@ -1760,12 +1767,17 @@ class KitAlsoButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool danger;
 
+  /// §6.1 Busy (ADR-237): its own request is in flight, and the mark takes the
+  /// icon's place. The caller holds it, as it does for any other reason.
+  final bool busy;
+
   const KitAlsoButton(
     this.label, {
     super.key,
     this.icon,
     this.onTap,
     this.danger = false,
+    this.busy = false,
   });
 
   @override
@@ -1784,7 +1796,13 @@ class KitAlsoButton extends StatelessWidget {
           ),
           child: Row(
             children: [
-              if (icon != null) ...[
+              if (busy) ...[
+                KitBusyMark(
+                  size: 15,
+                  color: danger ? t.criticalText : t.fgMuted,
+                ),
+                const SizedBox(width: 10),
+              ] else if (icon != null) ...[
                 KitGlyph(
                   icon!,
                   size: 15,

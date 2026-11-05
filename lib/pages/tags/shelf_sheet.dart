@@ -475,6 +475,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
           children: [
             KitButton.primary(
               _busy ? 'Creating…' : widget.submitLabel,
+              busy: _busy,
               onPressed: _name.text.trim().isEmpty || _busy ? null : _submit,
             ),
             if (widget.onCancel != null)
@@ -682,6 +683,7 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
             _applying
                 ? 'Filing…'
                 : 'File $n ${n == 1 ? 'source' : 'sources'}',
+            busy: _applying,
             onPressed: n == 0 || _applying ? null : _file,
           ),
           KitButton.ghost('Not now',

@@ -2607,3 +2607,16 @@ a new obligation on a finished screen is a new item.
 - shots: letter-reader
 - extra_gates: flutter test test/kit/kit_smoke_test.dart --plain-name "a letterheaded body is wrapped"
 - notes: The renderer moved, so every new letter reaches this host wider. The host's cap goes 640 to 680 and its prose stops describing a fixed sheet. A phone never reaches the cap, so the frame is about the letter, not the rule: re-seed with tool/seed_letters.py (the real renderer), then shoot and look at a passage's column at phone width. Number held for local work by TODO's round 3 line, so it is not max+1.
+
+## F-171 · A control whose request is in flight says it is working (5.72.0, ADR-237)
+- status: done 2026-11-05
+- screen: all
+- route: /letters
+- spec: spec/component-kit.md
+- web: src/shared/BusyMark.jsx
+- flutter: lib/widgets/kit/kit_busy_mark.dart; test/kit/busy_mark_test.dart
+- folds: 5.72.0
+- device_test: none
+- shots: none
+- extra_gates: python3 ../NoteLetter-contracts/harness/busy_mark_check.py --only flutter
+- notes: KitBusyMark is the one drawing, and every kit control that sends takes a `busy`. The pressed control draws it; its held siblings stay plain. Built with web in one run, and drawn in a widget-test image in both themes. It has not been seen on a simulator or a phone.

@@ -359,7 +359,7 @@ void main() {
           'split');
 
       // A switch writes the provider ON with its flag, as the reference does.
-      final readmes = find.byType(Switch).first;
+      final readmes = find.byType(KitSwitch).first;
       await tester.ensureVisible(readmes);
       await tester.tap(readmes);
       await tester.pump();

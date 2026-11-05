@@ -41,7 +41,12 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
 
   /// Rescan all ([folderId] null) or one folder: one path, so both say a
   /// refusal in the same slot and a cooldown in the same calm one.
+  /// The folder a scan in flight was asked of; null for Rescan all. A folder's
+  /// own control draws the mark then, and Rescan all stays plain.
+  String? _scanningFolder;
+
   Future<void> _rescan({String? folderId}) async {
+    _scanningFolder = folderId;
     final org = context.read<OrgNotifier>();
     setState(() => _failure = null);
     final err = await org.scan(widget.provider, folderId: folderId);
@@ -121,6 +126,7 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
                     builder: (context, wait) => KitSettingLink(
                       scanning ? 'Scanning…' : 'Rescan all',
                       icon: null,
+                      busy: scanning && _scanningFolder == null,
                       wait: scanning ? 0 : wait.left,
                       onTap: scanning ? null : () => _rescan(),
                     ),
@@ -160,6 +166,7 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
         _FolderList(
             provider: provider,
             scanning: scanning,
+            scanningFolder: _scanningFolder,
             onRescan: (folderId) => _rescan(folderId: folderId)),
       ],
     );
@@ -169,9 +176,13 @@ class _OrganizedFoldersPanelState extends State<OrganizedFoldersPanel> {
 class _FolderList extends StatelessWidget {
   final String provider;
   final bool scanning;
+  final String? scanningFolder;
   final void Function(String folderId) onRescan;
   const _FolderList(
-      {required this.provider, required this.scanning, required this.onRescan});
+      {required this.provider,
+      required this.scanning,
+      this.scanningFolder,
+      required this.onRescan});
 
   @override
   Widget build(BuildContext context) {
@@ -202,6 +213,7 @@ class _FolderList extends StatelessWidget {
               _FolderRow(
                   folder: folders[i],
                   scanning: scanning,
+                  scanningFolder: scanningFolder,
                   onRescan: () => onRescan(folders[i].id)),
             ],
           ],
@@ -217,12 +229,16 @@ class _FolderRow extends StatefulWidget {
   /// A scan of this provider is in flight (Rescan all's or a folder's): the
   /// row's rescan is held for it, as every rescan control is on the reference.
   final bool scanning;
+  final String? scanningFolder;
 
   /// The panel's rescan of this folder — its refusal is said in the panel's
   /// §14.2 slot under the header, never on the row or in a toast.
   final VoidCallback onRescan;
   const _FolderRow(
-      {required this.folder, this.scanning = false, required this.onRescan});
+      {required this.folder,
+      this.scanning = false,
+      this.scanningFolder,
+      required this.onRescan});
 
   @override
   State<_FolderRow> createState() => _FolderRowState();
@@ -317,7 +333,8 @@ class _FolderRowState extends State<_FolderRow> {
                 setState(() => _editing = true);
               }),
               KitSettingLink('Regenerate',
-                  icon: null,
+                      icon: null,
+                      busy: _busy,
                   onTap: _busy ? null : () => _saveCharter(regenerate: true)),
             ],
           ],
@@ -356,6 +373,7 @@ class _FolderRowState extends State<_FolderRow> {
                   opacity: held ? AppSpacing.heldOpacity : 1,
                   child: KitIconButton(
                     Icons.refresh,
+                    busy: widget.scanning && widget.scanningFolder == widget.folder.id,
                     tooltip: 'Rescan this folder${waitSuffix(wait.left)}',
                     onPressed: held ? null : widget.onRescan,
                   ),

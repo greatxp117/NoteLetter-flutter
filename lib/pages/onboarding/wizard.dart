@@ -799,6 +799,7 @@ class _Footer extends StatelessWidget {
                   : 'Open your library',
               icon: Icons.arrow_forward,
               iconTrailing: true,
+              busy: saving,
               onPressed: saving ? null : onFinish,
             )
           else

@@ -22,6 +22,7 @@ import 'kit_d_parts.dart';
 import 'kit_program_card.dart' show KitStudyChip, KitStudyMeter;
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_text.dart';
+import 'kit_busy_mark.dart';
 
 /// Web's own breakpoint for the player and the history rows (`max-width:
 /// 900px` in `app-study.css`).
@@ -840,7 +841,7 @@ class KitStudyQuestionCard extends StatelessWidget {
                           fill: g.busy ? t.accentSoft : t.surface,
                           edge: g.busy ? t.accentChipBorder : null,
                           child: g.busy
-                              ? _Dots(color: t.seal)
+                              ? KitBusyMark(size: 16, color: t.accentText)
                               : Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -1022,67 +1023,6 @@ class KitStudyQuestionCard extends StatelessWidget {
       ),
     );
   }
-}
-
-/// `.st-dots` — three 4px dots in the seal, pulsing while a grade is written
-/// (still under reduced motion).
-class _Dots extends StatefulWidget {
-  final Color color;
-  const _Dots({required this.color});
-
-  @override
-  State<_Dots> createState() => _DotsState();
-}
-
-class _DotsState extends State<_Dots> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (KitD.still(context)) {
-      _c.stop();
-    } else if (!_c.isAnimating) {
-      _c.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _c,
-    builder: (context, _) => Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < 3; i++) ...[
-          if (i > 0) const SizedBox(width: 4),
-          Opacity(
-            opacity: () {
-              if (!_c.isAnimating) return 0.35;
-              final p = ((_c.value - i * 0.16) % 1.0);
-              return 0.35 + 0.65 * (p < 0.5 ? p * 2 : (1 - p) * 2);
-            }(),
-            child: Container(
-              width: 4,
-              height: 4,
-              decoration: BoxDecoration(
-                color: widget.color,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ],
-      ],
-    ),
-  );
 }
 
 /// `h:mm AM` — a session's time under its date (web `toLocaleTimeString`

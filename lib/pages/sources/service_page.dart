@@ -337,6 +337,7 @@ class _BringInState extends State<_BringIn> {
             action: KitSettingLink(
               _reconnecting ? 'Reconnecting…' : 'Reconnect',
               icon: null,
+              busy: _reconnecting,
               onTap: _reconnecting ? null : _reconnect,
             ),
           ),
@@ -437,7 +438,8 @@ class _SyncSectionState extends State<_SyncSection> {
           actions: [
             KitSettingLink(
               _syncing ? 'Syncing…' : 'Sync now',
-              icon: null,
+                icon: null,
+                busy: _syncing,
               wait: _syncing ? 0 : wait.left,
               onTap: needsReconnect || _syncing || noFolders ? null : _syncNow,
             ),

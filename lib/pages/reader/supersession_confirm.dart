@@ -135,6 +135,7 @@ class SupersessionConfirm {
     String? waitKey,
     bool study = true,
     String? editedBy,
+    ValueChanged<bool>? onAsking,
   }) async {
     // An operation that keeps the study schedule does not ask about it
     // (Update from source since 5.12.0, ADR-172).
@@ -152,6 +153,9 @@ class SupersessionConfirm {
     if (!context.mounted) {
       return const SupersessionResult(SupersessionOutcome.kept);
     }
+    // §6.1 Busy: behind its open confirm nothing has been sent, so the control
+    // that opened it draws no mark until the confirm's own button does.
+    onAsking?.call(true);
     final ok = await KitConfirm.show(
       context,
       danger: true,
@@ -179,6 +183,7 @@ class SupersessionConfirm {
       onConfirm: action,
       waitKey: waitKey,
     );
+    if (context.mounted) onAsking?.call(false);
     return SupersessionResult(
         ok == true ? SupersessionOutcome.done : SupersessionOutcome.kept);
   }

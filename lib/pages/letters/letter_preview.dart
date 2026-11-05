@@ -145,6 +145,7 @@ class _LetterPreviewPaneState extends State<LetterPreviewPane> {
                 // web `IcoSend`: a right arrow, never a paper plane.
                 icon: Icons.arrow_forward,
                 wait: widget.sending ? 0 : wait.left,
+                busy: widget.sending,
                 onPressed: widget.onSend,
               ),
             ],

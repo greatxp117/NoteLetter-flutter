@@ -319,6 +319,7 @@ class _ImportJobRowState extends State<ImportJobRow> {
 
   /// Update from source on a kept refresh row (4.96.0, ADR-129).
   bool _updating = false;
+  bool _asking = false;
   String? _updateError;
 
   String get _retryKey => WaitKey.importJobRetry(widget.job.id);
@@ -361,6 +362,7 @@ class _ImportJobRowState extends State<ImportJobRow> {
       editedBy: SupersessionConfirm.updateEditedBy(widget.job.provider),
       action: () => cloud.updateFromSource(docId),
       waitKey: _updateKey,
+      onAsking: (a) => setState(() => _asking = a),
     );
     if (!mounted) return;
     setState(() {
@@ -439,13 +441,15 @@ class _ImportJobRowState extends State<ImportJobRow> {
                       ? 'Import again'
                       : 'Retry',
               icon: null,
-              wait: _busy ? 0 : retryWait.left,
+                  busy: _busy,
+                  wait: _busy ? 0 : retryWait.left,
               onTap: _busy ? null : _retry),
         // A kept refresh: no Retry — it would mint a second document — and
         // the sentence names this control.
         if (job.canUpdateFromSource)
           KitSettingLink(_updating ? 'Queuing…' : 'Update from source',
               icon: null,
+              busy: _updating && !_asking,
               wait: _updating ? 0 : updateWait.left,
               onTap: _updating ? null : _update),
       ],

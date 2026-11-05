@@ -254,6 +254,7 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
                   const SizedBox(width: AppSpacing.s2),
                   KitButton.primary(
                     _saving ? 'Splitting…' : 'Create $kept shelves',
+                    busy: _saving,
                     onPressed: (_saving || kept < 2) ? null : _apply,
                   ),
                 ],

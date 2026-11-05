@@ -111,7 +111,11 @@ class _FolderContentsState extends State<FolderContents> {
     final children = <Widget>[];
 
     if (_busy) {
-      children.add(Text('Counting…', style: note(12)));
+      children.add(Row(mainAxisSize: MainAxisSize.min, children: [
+        KitBusyMark(size: 12, color: Tokens.of(context).fgMuted),
+        const SizedBox(width: 6),
+        Text('Counting…', style: note(12)),
+      ]));
     } else if (_error != null) {
       children
         ..add(KitFailureInline(_error!, dense: true))

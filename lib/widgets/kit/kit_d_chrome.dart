@@ -11,6 +11,7 @@ import '../../theme/tokens.dart';
 import 'kit_d_frame.dart';
 import 'kit_d_parts.dart';
 import 'kit_shell.dart';
+import 'kit_busy_mark.dart';
 
 // ── Direction D's app chrome (component-kit §1.2 compact rail, §30) ─────────
 //
@@ -391,11 +392,13 @@ class _CentreAction extends StatelessWidget {
                       color: hover ? t.accentHover : t.accent,
                       borderRadius: AppRadius.controlR(32),
                     ),
-                    child: KitGlyph(
-                      a?.icon ?? Icons.add,
-                      size: 20,
-                      color: t.accentFg,
-                    ),
+                    child: a?.busy == true
+                        ? KitBusyMark(size: 18, color: t.accentFg)
+                        : KitGlyph(
+                            a?.icon ?? Icons.add,
+                            size: 20,
+                            color: t.accentFg,
+                          ),
                   ),
                   const SizedBox(height: 2),
                   Text(

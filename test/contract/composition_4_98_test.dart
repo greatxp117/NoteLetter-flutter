@@ -116,7 +116,7 @@ void main() {
       expect(
           find.descendant(
               of: find.byType(KitProcPill),
-              matching: find.byType(CircularProgressIndicator)),
+              matching: find.byType(KitBusyMark)),
           findsOneWidget);
     });
 

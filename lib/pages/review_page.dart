@@ -487,13 +487,16 @@ class _TaskReviewRowState extends State<TaskReviewRow> {
           // again (api/tasks.md).
           if (t.applyError != null)
             KitButton.ghost(_busy == 'retry' ? 'Starting…' : 'Run again',
+                busy: _busy == 'retry',
                 onPressed: busy ? null : () => _act('retry')),
         ] else
           KitButton.primary(_busy == 'retry' ? 'Starting…' : 'Try again',
+              busy: _busy == 'retry',
               icon: Icons.refresh,
               onPressed: busy ? null : () => _act('retry')),
         if (t.status == 'awaiting_review' || t.status == 'failed')
           KitButton.ghost(_busy == 'dismiss' ? 'Dismissing…' : 'Dismiss',
+              busy: _busy == 'dismiss',
               onPressed: busy ? null : () => _act('dismiss')),
       ],
     );

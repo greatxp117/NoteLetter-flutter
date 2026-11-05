@@ -200,6 +200,9 @@ class ReadingsQuick extends StatefulWidget {
 }
 
 class _ReadingsQuickState extends State<ReadingsQuick> {
+  /// The switch's own write, as against the hour's (§6.1 Busy).
+  bool _switchPressed = false;
+
   final TextEditingController _time = TextEditingController();
   final FocusNode _focus = FocusNode();
   bool _editing = false;
@@ -280,6 +283,7 @@ class _ReadingsQuickState extends State<ReadingsQuick> {
     final on = cfg.enabled;
     final time = cfg.deliveryTime.isEmpty ? '06:30' : cfg.deliveryTime;
     final busy = n.isSaving;
+    if (!busy) _switchPressed = false;
     return Column(
       key: const ValueKey('d-lq-rl'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -291,9 +295,13 @@ class _ReadingsQuickState extends State<ReadingsQuick> {
           line: on ? 'Arrives at ${kitClock(time) ?? time}' : 'Off',
           value: on,
           label: 'The readings letter',
+        busy: busy && _switchPressed,
           onChanged: busy
               ? null
-              : (_) => on ? n.save(cfg.copyWith(enabled: false)) : n.turnOn(),
+              : (_) {
+                  _switchPressed = true;
+                  on ? n.save(cfg.copyWith(enabled: false)) : n.turnOn();
+                },
         ),
         if (on) ...[
           const SizedBox(height: 12),
@@ -361,6 +369,7 @@ class _OptIn extends StatelessWidget {
           const SizedBox(height: AppSpacing.s4),
           KitButton(
             busy ? 'Turning on…' : 'Turn on the readings letter',
+          busy: busy,
             onPressed: busy ? null : () => onTurnOn(),
           ),
           if (error != null) ...[

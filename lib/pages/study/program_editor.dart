@@ -404,6 +404,7 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
                 _busy
                     ? 'Saving…'
                     : (existing ? 'Save changes' : 'Create program'),
+                  busy: _busy,
                 onPressed: canSave ? _save : null,
               ),
               KitButton.ghost('Cancel', onPressed: _back),
@@ -687,9 +688,13 @@ class _SourceKindPanelState extends State<SourceKindPanel> {
     super.dispose();
   }
 
+  /// The chip whose write [_busy] is (§6.1 Busy).
+  String? _writing;
+
   Future<void> _write(String docId, Map<String, dynamic> entry) async {
     setState(() {
       _busy = docId;
+      _writing = entry['kind'] as String?;
       _error = null;
     });
     try {
@@ -742,7 +747,7 @@ class _SourceKindPanelState extends State<SourceKindPanel> {
               final d = widget.docs.where((x) => x.id == id).firstOrNull;
               final kind = p.storedKindFor(id);
               final pos = p.positionFor(id);
-              final held = _busy == id;
+              final held = _busy != null;
               return KitFormRow(
                 kind: d == null ? null : kitDocKind(d.type),
                 title: d?.title ?? 'Untitled',
@@ -759,10 +764,12 @@ class _SourceKindPanelState extends State<SourceKindPanel> {
                 trailing: [
                   KitChoiceChip('My notes',
                       on: kind == 'notes',
+                      busy: _busy == id && _writing == 'notes',
                       onPressed:
                           held ? null : () => _write(id, {'kind': 'notes'})),
                   KitChoiceChip('A reading',
                       on: kind == 'reading',
+                      busy: _busy == id && _writing == 'reading',
                       onPressed:
                           held ? null : () => _write(id, {'kind': 'reading'})),
                   if (kind == 'reading')
@@ -939,6 +946,7 @@ class _UnitPanelState extends State<UnitPanel> {
                         onPressed:
                             _busy ? null : () => setState(() => _asking = true)),
                     KitButton.ghost('Not yet',
+                        busy: _busy,
                         onPressed: _busy ? null : () => _dismiss(suggestion)),
                   ]),
                 ],
@@ -1009,6 +1017,7 @@ class _UnitPanelState extends State<UnitPanel> {
                     leading: [
                       KitButton.primary(
                           _busy ? 'Starting…' : 'Start unit ${unitNo + 1}',
+                          busy: _busy,
                           onPressed: _busy ? null : _advance),
                       KitButton.ghost('Cancel',
                           onPressed: _busy
@@ -1161,6 +1170,7 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
               KitButton.ghost('Replace',
                   onPressed: () => setState(() => _attaching = true)),
               KitButton.ghost(_busy == 'detach' ? 'Detaching…' : 'Detach',
+                  busy: _busy == 'detach',
                   onPressed: _busy != null ? null : _detach),
             ],
           ),
@@ -1203,6 +1213,7 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
                       leading: [
                         KitButton.primary(
                           _busy == 'suggest' ? 'Reading it…' : 'Read the syllabus',
+                  busy: _busy == 'suggest',
                           onPressed: (_docId == null || _busy != null)
                               ? null
                               : _suggest,

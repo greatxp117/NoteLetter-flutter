@@ -312,6 +312,7 @@ class _ShelfReshelveReviewState extends State<ShelfReshelveReview> {
             _applying
                 ? 'Filing…'
                 : 'File $pending ${pending == 1 ? 'source' : 'sources'}',
+            busy: _applying,
             onPressed: pending == 0 || _applying ? null : _file,
           ),
           KitButton.ghost('Not now',

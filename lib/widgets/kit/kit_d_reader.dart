@@ -258,6 +258,7 @@ class KitReaderFinish extends StatelessWidget {
   final String note;
   final VoidCallback? onPressed;
   final String? error;
+  final bool busy;
 
   const KitReaderFinish({
     super.key,
@@ -265,6 +266,7 @@ class KitReaderFinish extends StatelessWidget {
     required this.note,
     this.onPressed,
     this.error,
+    this.busy = false,
   });
 
   @override
@@ -279,6 +281,7 @@ class KitReaderFinish extends StatelessWidget {
             label,
             variant: KitButtonVariant.secondary,
             center: true,
+            busy: busy,
             onPressed: onPressed,
           ),
           const SizedBox(height: 8),

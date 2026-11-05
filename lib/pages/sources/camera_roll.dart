@@ -834,6 +834,7 @@ class _CameraRollFlowState extends State<CameraRollFlow> {
         KitFlowButton.primary(
           CameraRollCopy.fileIt,
           icon: Icons.check,
+          busy: _filing != null,
           onTap: busy ? null : () => _file(service, a),
         ),
         KitFlowGhosts(
@@ -841,6 +842,7 @@ class _CameraRollFlowState extends State<CameraRollFlow> {
             if (waiting.length > 1)
               KitFlowButton.ghost(
                 CameraRollCopy.fileAll(waiting.length),
+                busy: _filingAll,
                 onTap: busy ? null : () => _fileAll(service),
               ),
             KitFlowButton.ghost(

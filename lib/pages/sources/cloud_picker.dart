@@ -190,6 +190,7 @@ class CloudPickerLoadMore extends StatelessWidget {
       child: KitSettingLink(
         loading ? 'Loading…' : 'Load more…',
         icon: null,
+        busy: loading,
         onTap: loading ? null : onTap,
       ),
     ),
@@ -226,7 +227,8 @@ class CloudPickerFoot extends StatelessWidget {
           ? WrapAlignment.end
           : WrapAlignment.start,
       children: [
-        KitButton.primary(confirmLabel, onPressed: busy ? null : onConfirm),
+        KitButton.primary(confirmLabel,
+            busy: busy, onPressed: busy ? null : onConfirm),
         KitButton.ghost('Cancel', onPressed: busy ? null : onCancel),
       ],
     ),

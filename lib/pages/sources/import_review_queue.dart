@@ -105,10 +105,15 @@ class _ImportReviewQueueState extends State<ImportReviewQueue> {
   String? _error;
   bool _busy = false;
 
-  Future<void> _run(List<String> ids, String action) async {
+  /// Which control [_busy] is, so only the one pressed draws the mark (§6.1
+  /// Busy): `all`, or `{action}:{job id}` for a row's.
+  String? _pressed;
+
+  Future<void> _run(List<String> ids, String action, {bool all = false}) async {
     if (ids.isEmpty || _busy) return;
     setState(() {
       _busy = true;
+      _pressed = all ? 'all' : '$action:${ids.first}';
       _error = null;
     });
     final err = await context.read<CloudNotifier>().reviewJobs(ids, action,
@@ -139,7 +144,8 @@ class _ImportReviewQueueState extends State<ImportReviewQueue> {
           runSpacing: 8,
           children: [
             KitButton.primary('Import all',
-                onPressed: _busy ? null : () => _run(ids, 'approve')),
+                busy: _busy && _pressed == 'all',
+                onPressed: _busy ? null : () => _run(ids, 'approve', all: true)),
             // §18 on **"Dismiss all" only**, and the asymmetry is the decision
             // rather than an omission: a reader dismissing one row has just
             // read that row, while this control acts on files that may be
@@ -181,6 +187,7 @@ class _ImportReviewQueueState extends State<ImportReviewQueue> {
                   job: j,
                   rules: widget.rulesFor(j.provider),
                   onRun: _run,
+                  pressed: _busy ? _pressed : null,
                   nameProvider: widget.eyebrow != null),
           ],
         ),
@@ -206,11 +213,13 @@ class _HeldRow extends StatelessWidget {
   final Map<String, ReviewRule> rules;
   final Future<void> Function(List<String> ids, String action) onRun;
   final bool nameProvider;
+  final String? pressed;
 
   const _HeldRow(
       {required this.job,
       required this.rules,
       required this.onRun,
+      this.pressed,
       this.nameProvider = false});
 
   /// "PDF · 42 MB — over your 5 MB review size" / "PPTX — you asked about
@@ -252,9 +261,11 @@ class _HeldRow extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           KitButton.ghost('Import',
+              busy: pressed == 'approve:${job.id}',
               onPressed: () => onRun([job.id], 'approve')),
           const SizedBox(width: 4),
           KitButton.ghost('Dismiss',
+              busy: pressed == 'dismiss:${job.id}',
               onPressed: () => onRun([job.id], 'dismiss')),
         ],
       ),

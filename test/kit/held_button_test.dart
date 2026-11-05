@@ -93,7 +93,7 @@ void main() {
               .ancestor(
                   of: find.byWidgetPredicate((w) =>
                       (w is Icon && w.icon == Icons.arrow_forward) ||
-                      w is CircularProgressIndicator),
+                      w is KitBusyMark),
                   matching: find.byType(Opacity))
               .first)
           .opacity;

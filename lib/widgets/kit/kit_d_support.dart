@@ -17,6 +17,7 @@ import 'kit_d_parts.dart';
 import 'kit_failure.dart' show KitFailureInline;
 import 'kit_text.dart';
 import 'kit_wait.dart' show KitWaitNote;
+import 'kit_busy_mark.dart';
 
 // ── §31 numbered sections (Letter settings) ─────────────────────────────────
 
@@ -404,7 +405,9 @@ class _KitDComposerState extends State<KitDComposer> {
             border: focus ? Border.all(color: t.fg, width: 2) : null,
           ),
           // `IcoSend` is a right arrow (`M5 12h14M13 5l7 7-7 7`).
-          child: Icon(Icons.arrow_forward, size: 17, color: t.accentFg),
+          child: widget.busy
+              ? KitBusyMark(size: 16, color: t.accentFg)
+              : Icon(Icons.arrow_forward, size: 17, color: t.accentFg),
         ),
       ),
     );
