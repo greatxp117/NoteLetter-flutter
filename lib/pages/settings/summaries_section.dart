@@ -294,8 +294,15 @@ class _SummariesSectionState extends State<SummariesSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 4),
+        // Kit §6.9's sentence face (web `.ss-input.sf-desc`, 5.63.x), as
+        // Letter settings' Your librarian is: a style is a sentence, never the
+        // mono data face it took by default here. Held while Save is out
+        // (§6.1, write before you move).
         KitTextField(
+          key: const ValueKey('summary-style-field'),
           controller: _textCtrl,
+          face: KitFieldFace.sans,
+          enabled: !_busy,
           minLines: 3,
           maxLines: 6,
           onChanged: (v) => setState(() => _draftText = v),

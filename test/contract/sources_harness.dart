@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/shared/document_window.dart';
+import 'package:flutter_app/shared/page_drop.dart';
 import 'package:flutter_app/models/activity_item.dart';
 import 'package:flutter_app/models/chunk.dart';
 import 'package:flutter_app/models/cloud_folder.dart';
@@ -249,7 +250,8 @@ Future<void> pumpSources(WidgetTester tester, SourcesStubService service,
     CloudNotifier? cloud,
     List<Tag> shelves = const [],
     UploadNotifier? upload,
-    bool dark = false}) async {
+    bool dark = false,
+    PageDropController? drop}) async {
   FirestoreService.instance = service;
   // The harness that swaps the singleton puts it back. Leaving that to each
   // caller is what `test_isolation_test` refuses, and it was right to: this
@@ -269,7 +271,7 @@ Future<void> pumpSources(WidgetTester tester, SourcesStubService service,
     ],
     child: MaterialApp(
       theme: dark ? AppTheme.dark : AppTheme.light,
-      home: const Scaffold(body: SourcesPage()),
+      home: Scaffold(body: SourcesPage(drop: drop)),
     ),
   ));
   await tester.pump();   // lets the post-frame `start()` calls run

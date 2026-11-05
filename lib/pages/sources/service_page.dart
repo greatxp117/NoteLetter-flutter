@@ -11,8 +11,6 @@ import '../../state/cloud_notifier.dart';
 import '../../state/documents_notifier.dart';
 import '../../state/org_notifier.dart';
 import '../../state/tags_notifier.dart';
-import '../../theme/app_radius.dart';
-import '../../theme/tokens.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import 'cloud_imports.dart';
@@ -332,7 +330,7 @@ class _BringInState extends State<_BringIn> {
           ],
         ),
         if (needsReconnect) ...[
-          _Banner(
+          KitReconnectBanner(
             icon: Icons.link_off,
             text: '${widget.name} needs to be reconnected — its sign-in '
                 'has expired.${i.statusReason != null ? '\n${i.statusReason}' : ''}',
@@ -796,47 +794,3 @@ class _FileRow extends StatelessWidget {
     );
   }
 }
-
-// ── Shared banner ────────────────────────────────────────────────────────────
-
-/// The warning banner — a connection that needs reauthorising (an OAuth
-/// return is the notices strip's since direction D). Always `--critical` at a token alpha: this is the one shape
-/// on the screen that exists to interrupt, and a second, quieter tone would
-/// make the reader classify it before reading it.
-class _Banner extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Widget? action;
-
-  const _Banner({
-    required this.icon,
-    required this.text,
-    this.action,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // The banner's own tint is the ground its sentence lands on, which is
-    // the pair --critical does not clear (4.35.0, ADR-072).
-    final color = Tokens.of(context).criticalText;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: AppRadius.mdR,
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text, style: KitText.meta(context))),
-          if (action != null) action!,
-        ],
-      ),
-    );
-  }
-}
-

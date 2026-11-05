@@ -125,7 +125,9 @@ void attachAnalytics(GoRouter router) {
 /// another reports. Every other parameter stays out: two documents are one
 /// `reader`, and an id must not decide what is measured.
 String? screenViewKey(String? pattern, String? provider) =>
-    pattern == '/sources/:provider' ? '$pattern=$provider' : pattern;
+    Analytics.providerStems.containsKey(pattern)
+        ? '$pattern=$provider'
+        : pattern;
 
 /// **The route table itself**, separated from [createRouter] so INV-22's gate
 /// can walk it.

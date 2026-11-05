@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import '../shared/cloud_providers.dart';
 import '../shared/cloud_return.dart';
 import '../shared/document_window.dart';
 import '../shared/local_flags.dart';
+import '../shared/page_drop.dart';
 import '../shared/shelf_tree.dart';
 import '../state/camera_sweep_host.dart';
 import '../state/cloud_notifier.dart';
@@ -88,9 +90,14 @@ class SourcesPage extends StatefulWidget {
   /// setup, which is what that screen's switch began.
   final bool openCameraRoll;
 
+  /// The page-wide file drop's state. Null: a web build makes its own and
+  /// listens to the browser; a device build has none. A test hands one in.
+  final PageDropController? drop;
+
   const SourcesPage({
     super.key,
     this.openCameraRoll = false,
+    @visibleForTesting this.drop,
   });
 
   @override
@@ -122,6 +129,13 @@ class _SourcesPageState extends State<SourcesPage> {
   /// The camera roll's settings panel, opened by its row's *Settings*.
   bool _cameraPanel = false;
 
+  // ── The page-wide file drop (sources.md §Composition, Frame) ─────────────
+  // Web's whole Library takes a drop and draws its veil. A web build listens
+  // to the browser's own drag events; a device build has the drop zone and
+  // the picker, and no drop (lib/shared/page_drop.dart).
+  PageDropController? _drop;
+  VoidCallback? _detachDrop;
+
   // ── Just catalogued (§Document processing: held briefly as Done) ──────────
   final Map<String, Timer> _justDone = {};
   Map<String, DocumentStatus> _prev = {};
@@ -129,6 +143,12 @@ class _SourcesPageState extends State<SourcesPage> {
   @override
   void initState() {
     super.initState();
+    _drop = widget.drop ?? (kIsWeb ? PageDropController() : null);
+    _drop?.onFiles =
+        (files) => intakeDroppedFiles(context.read<UploadNotifier>(), files);
+    if (widget.drop == null && _drop != null) {
+      _detachDrop = attachPageDrop(_drop!);
+    }
     LocalFlags.ensureLoaded();
     ReaderPrefs.ensureLoaded();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -167,6 +187,8 @@ class _SourcesPageState extends State<SourcesPage> {
 
   @override
   void dispose() {
+    _detachDrop?.call();
+    if (widget.drop == null) _drop?.dispose();
     _cloud?.completionMessage.removeListener(_onSessionComplete);
     _docs?.removeListener(_onDocs);
     ConnectHandoff.pending.removeListener(_onHandoff);
@@ -477,7 +499,7 @@ class _SourcesPageState extends State<SourcesPage> {
             ? ofAll
             : '${items.length} of $ofAll';
 
-    return KitDPage(
+    final page = KitDPage(
       folio: folio,
       title: 'The Library',
       stand: stand,
@@ -594,6 +616,20 @@ class _SourcesPageState extends State<SourcesPage> {
           );
         },
       ),
+    );
+    final drop = _drop;
+    if (drop == null) return page;
+    // The veil over the whole page while files are dragged over it; it takes
+    // no pointer, so the page under it is the drop target it says it is.
+    return ListenableBuilder(
+      listenable: drop,
+      builder: (context, child) => Stack(
+        children: [
+          child!,
+          if (drop.over) const Positioned.fill(child: KitDropVeil()),
+        ],
+      ),
+      child: page,
     );
   }
 

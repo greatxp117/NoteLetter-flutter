@@ -12,6 +12,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart';
+import 'kit_text.dart' show KitText;
 
 /// Required parts, **in this order** — a leading glyph at `--seal` · a sans
 /// line of copy naming the condition and the figure it was measured from ·
@@ -127,6 +128,50 @@ class KitNotice extends StatelessWidget {
         Expanded(child: copy),
         if (action != null) ...[const SizedBox(width: AppSpacing.s2), action],
       ],
+    );
+  }
+}
+
+/// A connection that needs reauthorising (`screens/sources.md` §Trust &
+/// feedback; web `.import-reconnect`): the glyph, the sentence in the meta
+/// role, and its action trailing. Always `--critical-text` at a token alpha:
+/// this is the one shape on a service's page that exists to interrupt, and a
+/// second, quieter tone would make the reader classify it before reading it.
+/// The banner's own tint is the ground its sentence lands on, which is the
+/// pair `--critical` does not clear (4.35.0, ADR-072). Moved here from the
+/// service page in round 3, unchanged: a page drew its own shape.
+class KitReconnectBanner extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Widget? action;
+
+  const KitReconnectBanner({
+    super.key,
+    required this.icon,
+    required this.text,
+    this.action,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Tokens.of(context).criticalText;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: AppRadius.mdR,
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: KitText.meta(context))),
+          if (action != null) action!,
+        ],
+      ),
     );
   }
 }
