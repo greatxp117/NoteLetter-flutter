@@ -10,6 +10,7 @@ import 'package:flutter_app/pages/sources/sync_settings_panel.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
 import 'package:flutter_app/state/org_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
+import 'package:flutter_app/theme/tokens.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
 import 'sources_harness.dart';
@@ -227,6 +228,19 @@ void main() {
               'Google Drive needs to be reconnected — its sign-in has expired.'),
           findsOneWidget);
       expect(find.textContaining('Google revoked the token.'), findsOneWidget);
+      // The kit's banner, not a shape the page draws (round 3, item 7), in
+      // the tint it always had: --critical-text at .10 under a .28 rule.
+      // Mutant: the page's own banner back — red.
+      final banner = find.byType(KitReconnectBanner);
+      expect(banner, findsOneWidget);
+      final box = tester
+          .widget<Container>(
+              find.descendant(of: banner, matching: find.byType(Container)).first)
+          .decoration as BoxDecoration;
+      final t = Tokens.of(tester.element(banner));
+      expect(box.color, t.criticalText.withValues(alpha: 0.10));
+      expect((box.border as Border).top.color,
+          t.criticalText.withValues(alpha: 0.28));
       expect(_link('Reconnect'), findsOneWidget);
       expect(_inCard(_link('Reconnect')), findsNothing);
       expect(tester.widget<KitSettingLink>(_link('Browse files…')).onTap,
