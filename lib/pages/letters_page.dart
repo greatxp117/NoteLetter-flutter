@@ -98,6 +98,19 @@ String? lettersWhen(NewsletterSettings? s) {
   return '${_cadence[s.frequency] ?? 'Daily'} at ${kitClock(time) ?? time}';
 }
 
+/// A send on its way as the row it will become (web's optimistic row): a
+/// manual letter, `generating`, dated when it was queued, saying what a
+/// letter being built says. It has no body, so it opens nothing.
+@visibleForTesting
+Newsletter pendingLetter(PendingSend p) => Newsletter(
+      id: p.id,
+      userId: '',
+      generatedAt: p.startedAt.millisecondsSinceEpoch,
+      trigger: 'manual',
+      status: 'generating',
+      textBody: lettersBuildingLede,
+    );
+
 /// One month of the archive.
 class LettersMonth {
   final String label;
@@ -209,8 +222,24 @@ class _LettersPageState extends State<LettersPage> {
     });
   }
 
+  /// Ticks [NewsletterNotifier.age] every 15s while a send is waiting (web
+  /// LettersView's effect): a send that waited five minutes becomes §14.1.
+  /// Owned by the page, so it stops with it.
+  Timer? _ager;
+
+  void _syncAger(NewsletterNotifier letters) {
+    final waiting = letters.pendingSends.isNotEmpty;
+    if (waiting && _ager == null) {
+      _ager = Timer.periodic(const Duration(seconds: 15), (_) => letters.age());
+    } else if (!waiting && _ager != null) {
+      _ager!.cancel();
+      _ager = null;
+    }
+  }
+
   @override
   void dispose() {
+    _ager?.cancel();
     _sec.dispose();
     super.dispose();
   }
@@ -241,9 +270,16 @@ class _LettersPageState extends State<LettersPage> {
           'with it; the letter’s row shows what happened to it.',
     );
     // The build is asynchronous and always writes a record (2.2.0, ADR-011),
-    // written BEFORE it is queued (4.76.0): re-reading finds it building.
-    // Nothing here polls a function (INV-02).
-    await notifier.load(limit: lettersArchiveLimit);
+    // written BEFORE it is queued (4.76.0), and the live archive brings it
+    // (round 3; INV-02 — nothing here polls a function). Until it lands the
+    // archive leads with a *Sending…* row (web `pushPending`).
+    notifier.pushPending();
+  }
+
+  /// Trying again is a fresh send, so the send that never started goes first.
+  Future<void> _retrySend(String id) async {
+    context.read<NewsletterNotifier>().dropPending(id);
+    await _sendNow();
   }
 
   Future<void> _toggleSchedule(bool next) async {
@@ -273,9 +309,12 @@ class _LettersPageState extends State<LettersPage> {
           : null;
     });
     // The activation send's letter is found the way Send now's is: its
-    // record lands in the archive, building (4.76.0).
-    if (error == null && next) {
-      await context.read<NewsletterNotifier>().load(limit: lettersArchiveLimit);
+    // record lands in the archive, building (4.76.0), and until it does a
+    // *Sending…* row stands for it (web `pushPending` on `activationSend`).
+    final queued =
+        (settings.lastActivation?['activationSend'] as Map?)?['queued'] == true;
+    if (error == null && next && queued) {
+      context.read<NewsletterNotifier>().pushPending();
     }
   }
 
@@ -341,6 +380,7 @@ class _LettersPageState extends State<LettersPage> {
     final letters = context.watch<NewsletterNotifier>();
     final settings = context.watch<SettingsNotifier>();
     final rl = context.watch<ScriptureLetterNotifier>();
+    _syncAger(letters);
     final cfg = settings.newsletter;
 
     final daily = letters.history;
@@ -350,7 +390,15 @@ class _LettersPageState extends State<LettersPage> {
     final window = daily.length + readingsRows.length;
     final when = lettersWhen(cfg);
     final rlShown = rl.settings != null && rl.error == null;
-    final groups = measured ? lettersByMonth(daily) : const <LettersMonth>[];
+    // A send on its way leads the archive as its own row until its record
+    // lands (web `displayArchive`); one that waited five minutes leaves the
+    // list and is §14.1 above it. The folio and *Letters sent* count the
+    // archive, never these.
+    final shown = [
+      for (final p in letters.pendingSends) pendingLetter(p),
+      ...daily,
+    ];
+    final groups = measured ? lettersByMonth(shown) : const <LettersMonth>[];
 
     // The sheet's Contents: only the sections the page draws.
     final secs = [
@@ -609,8 +657,26 @@ class _LettersPageState extends State<LettersPage> {
         ),
       ];
     }
-    if (groups.isEmpty) return const [KitDNone('No letters sent yet.')];
+    final stale = [
+      for (final p in letters.staleSends)
+        KitFailureBlock(
+          key: ValueKey('d-lstale-${p.id}'),
+          // No server sentence to quote: the 202 was the last thing anyone
+          // said, and the failure IS the silence after it (web, verbatim).
+          sentence: 'The letter did not start.',
+          detail: 'Nothing arrived in five minutes. The build was accepted, '
+              'but no letter was ever recorded.',
+          retryLabel: 'Try again',
+          onRetry: () => _retrySend(p.id),
+        ),
+    ];
+    if (groups.isEmpty) {
+      return stale.isNotEmpty
+          ? stale
+          : const [KitDNone('No letters sent yet.')];
+    }
     return [
+      ...stale,
       for (var i = 0; i < groups.length; i++)
         KeyedSubtree(
           key: _sec.keyOf('m$i'),

@@ -581,6 +581,22 @@ class FirestoreService {
   /// reason the web reference makes one — an inequality here would need its own
   /// index and would exclude the documents that have no `kind` at all, which is
   /// most of them.
+  /// The same window as [listAllNewsletters], live (round 3; web
+  /// `subscribeNewsletters`, INV-02's `user_id ==` filter): a Send now build
+  /// lands here on its own, `generating` and then `sent`.
+  Stream<List<Newsletter>> subscribeNewsletters({int limit = 30}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('newsletters')
+        .where('user_id', isEqualTo: uid)
+        .orderBy('generated_at', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => _rows('newsletters', snap.docs,
+            (d) => Newsletter.fromJson(d.id, d.data())));
+  }
+
   Future<List<Newsletter>> listAllNewsletters({int limit = 30}) async {
     final uid = _uid;
     if (uid == null) return const [];

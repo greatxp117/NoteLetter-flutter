@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../models/newsletter.dart';
 import '../services/api.dart';
@@ -9,15 +11,23 @@ import '../services/error_text.dart';
 /// "send now" via `fn_request_newsletter`. See spec/screens/letters.md.
 ///
 /// **One query, two kinds** (2.24.0, ADR-029 §3). The collection holds both
-/// letters and is read once, then split here — `kind != 'scripture'` for the
-/// daily list, never `kind == 'daily'`, because the field is absent on every
-/// pre-2.24.0 record and equality would drop a real reader's whole history.
+/// letters and is read as one window, then split here — `kind != 'scripture'`
+/// for the daily list, never `kind == 'daily'`, because the field is absent on
+/// every pre-2.24.0 record and equality would drop a real reader's whole
+/// history.
+///
+/// **A live subscription** (round 3; web `subscribeNewsletters`), so a Send now
+/// build lands on its own, first `generating` and then `sent`, with no
+/// re-read: until round 3 the archive was read once, and a letter being built
+/// kept showing what it showed until the page was opened again.
 class NewsletterNotifier extends ChangeNotifier {
   List<Newsletter> _all = [];
   bool _isLoading = false;
   bool _isSending = false;
   String? _error;
   bool _loaded = false;
+  StreamSubscription<List<Newsletter>>? _sub;
+  int? _limit;
 
   /// The daily letters — everything that is not a readings letter.
   List<Newsletter> get history =>
@@ -44,19 +54,105 @@ class NewsletterNotifier extends ChangeNotifier {
   String? get error => _error;
   bool get loaded => _loaded;
 
-  Future<void> load({int limit = 30}) async {
+  /// Starts the archive's subscription (the window of [limit] newest records),
+  /// or — already subscribed at that window — does nothing: the records arrive
+  /// on their own. Completes once the first snapshot has answered or been
+  /// refused. A refused subscription is re-opened by the next call (a §14
+  /// block's Try again).
+  Future<void> load({int limit = 30}) {
+    if (_sub != null && _limit == limit && _error == null) {
+      return Future.value();
+    }
+    _sub?.cancel();
+    _limit = limit;
     _isLoading = true;
     _error = null;
     notifyListeners();
-    try {
-      _all = await FirestoreService.instance.listAllNewsletters(limit: limit);
-      _loaded = true;
-    } catch (e) {
-      _error = describeSdkError(e);
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+    final first = Completer<void>();
+    _sub = FirestoreService.instance.subscribeNewsletters(limit: limit).listen(
+      (rows) {
+        _all = rows;
+        _loaded = true;
+        _error = null;
+        _isLoading = false;
+        _reconcile(rows);
+        notifyListeners();
+        if (!first.isCompleted) first.complete();
+      },
+      onError: (Object e) {
+        _error = describeSdkError(e);
+        _isLoading = false;
+        notifyListeners();
+        if (!first.isCompleted) first.complete();
+      },
+    );
+    return first.future;
+  }
+
+  // ── The optimistic "Sending…" row (web `pending`, 4.76.0, ADR-110) ─────────
+
+  /// How long a pending send may wait before it is read as a send that never
+  /// started: well past a healthy build and past `fn_build_newsletter`'s own
+  /// 300s timeout, so a row that reaches it waits on a worker that is gone.
+  static const sendTimeout = Duration(minutes: 5);
+
+  final List<PendingSend> _pending = [];
+
+  /// Sends on their way: drawn as a *Sending…* row at the head of the archive
+  /// until a record arrives that was not there when they were queued.
+  List<PendingSend> get pendingSends =>
+      List.unmodifiable(_pending.where((p) => !p.stale));
+
+  /// Sends that waited [sendTimeout] for a record that never came — §14.1's
+  /// *The letter did not start.*, never a row.
+  List<PendingSend> get staleSends =>
+      List.unmodifiable(_pending.where((p) => p.stale));
+
+  /// A build was accepted (Send now, or the send a switch-on queued): a
+  /// pending row stands until the subscription brings its record.
+  void pushPending({DateTime? now}) {
+    final at = now ?? DateTime.now();
+    _pending.insert(
+      0,
+      PendingSend(
+        id: 'pending-${at.microsecondsSinceEpoch}',
+        startedAt: at,
+        knownIds: {for (final n in _all) n.id},
+      ),
+    );
+    notifyListeners();
+  }
+
+  /// Marks every pending send older than [sendTimeout] stale. The page that
+  /// draws the sends ticks this every 15s while one waits (web's effect, which
+  /// lives in the view too), so no timer outlives the screen.
+  void age({DateTime? now}) {
+    final at = now ?? DateTime.now();
+    var moved = false;
+    for (final p in _pending) {
+      if (!p.stale && at.difference(p.startedAt) >= sendTimeout) {
+        p.stale = true;
+        moved = true;
+      }
     }
+    if (moved) notifyListeners();
+  }
+
+  /// Trying again is a fresh send, so the send that never started goes first.
+  void dropPending(String id) {
+    _pending.removeWhere((p) => p.id == id);
+    notifyListeners();
+  }
+
+  /// A pending send leaves the moment a record arrives that it had not seen.
+  void _reconcile(List<Newsletter> rows) {
+    _pending.removeWhere((p) => rows.any((r) => !p.knownIds.contains(r.id)));
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   /// "Send now" — 60s cooldown against double-taps is enforced server-side.
@@ -79,4 +175,19 @@ class NewsletterNotifier extends ChangeNotifier {
       notifyListeners();
     }
   }
+}
+
+/// One send on its way (web's optimistic row): queued at [startedAt], over the
+/// records known then.
+class PendingSend {
+  final String id;
+  final DateTime startedAt;
+  final Set<String> knownIds;
+  bool stale = false;
+
+  PendingSend({
+    required this.id,
+    required this.startedAt,
+    required this.knownIds,
+  });
 }

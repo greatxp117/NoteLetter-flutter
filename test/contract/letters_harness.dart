@@ -32,7 +32,12 @@ class LettersReads extends FirestoreService {
     this.hangLetters = false,
     this.failLetters = false,
     this.failReadings = false,
+    this.live,
   }) : super.stub();
+
+  /// The archive as a live subscription the test pushes to (round 3): each
+  /// `add` is a snapshot. Null answers [letters] once.
+  final StreamController<List<Newsletter>>? live;
 
   final List<Newsletter> letters;
   final List<Document> pinned;
@@ -43,6 +48,11 @@ class LettersReads extends FirestoreService {
 
   @override
   String? get currentUid => 'u1';
+
+  /// The live archive (round 3) answers what the one-shot read answers.
+  @override
+  Stream<List<Newsletter>> subscribeNewsletters({int limit = 30}) =>
+      live?.stream ?? Stream.fromFuture(listAllNewsletters(limit: limit));
 
   @override
   Future<List<Newsletter>> listAllNewsletters({int limit = 30}) async {
