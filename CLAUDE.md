@@ -74,8 +74,7 @@ proportions hold:
 - touch copy: speed read hints only *Hold to pause & rest*; the drop zone
   says *tap*; §27 draws no ⌘K or `A` hint
 - device capabilities web lacks: Sources' *Add an image set* row, §15.1's
-  *Share original* (F-124), the camera roll's row, flow and panel (F-146);
-  lacks web's Library file drop (needs `web`/`desktop_drop`)
+  *Share original* (F-124), the camera roll's row, flow and panel (F-146)
 
 ## Rules that are easy to break here
 
