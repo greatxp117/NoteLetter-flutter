@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -4796,6 +4797,359 @@ void main() {
     expect(y('ORDER'), lessThan(y('KIND')));
   });
 
+  // F-157 (5.56.0, ADR-208): an import is not one request. The provider is the
+  // external edge, and so is the import itself here: the point is what the
+  // client SENDS, 50 files to a request with the folders in the first. The
+  // connect, the claim and the route are real, as in F-156.
+  testWidgets(
+      'the import picker ticks past 50 files and Bring in on the connect page '
+      "sends 50 to a request, the folders in the first; Notion's offer lists "
+      'to its end with Bring in held (F-157)', (tester) async {
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final token = 'device-f157-${DateTime.now().millisecondsSinceEpoch}';
+    await rest.delete('/users/$uid/integrations/notion');
+    final now = DateTime.now().toUtc();
+    final parked = await rest.post('/oauth_claims',
+        queryParameters: {
+          'documentId': sha256.convert(utf8.encode(token)).toString()
+        },
+        data: {
+          'fields': {
+            'uid': {'stringValue': uid},
+            'provider': {'stringValue': 'notion'},
+            'purpose': {'stringValue': 'connect'},
+            'write': {'booleanValue': false},
+            'code': {'stringValue': 'device-code-f157'},
+            'created_at': {'timestampValue': now.toIso8601String()},
+            'expires_at': {
+              'timestampValue':
+                  now.add(const Duration(minutes: 10)).toIso8601String()
+            },
+          },
+        });
+    expect(parked.statusCode, 200, reason: 'park: ${parked.data}');
+    CloudReturn.session = (url) async =>
+        'noteletter://cloud-connect?cloud_connect=claim'
+        '&claim=$token&provider=notion';
+    final workspace = _BatchedWorkspace();
+    ApiService.instance.httpClientAdapter = workspace;
+    try {
+      final router = await pumpApp(tester);
+
+      // The picker: Drive's page, past the old cap of 50, nothing refused.
+      router.go('/sources/google_drive');
+      await pumpFor(tester, total: const Duration(seconds: 5));
+      await tester.tap(find.text('Browse files…'));
+      await pumpFor(tester, total: const Duration(seconds: 4));
+      for (final name in _BatchedWorkspace.driveNames) {
+        final row = find.text(name);
+        await tester.ensureVisible(row);
+        await tester.pump(const Duration(milliseconds: 60));
+        await tester.tap(row);
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      expect(find.text('0/20 folders · 51 files'), findsOneWidget);
+      expect(find.textContaining('limit reached'), findsNothing);
+      final send = find.text('Import 51 items');
+      await tester.ensureVisible(send);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(send);
+      await pumpFor(tester, total: const Duration(seconds: 4));
+      expect([for (final r in workspace.imports) (r['file_ids'] as List).length],
+          [50, 1]);
+      debugPrint('DEVICE-RUN F-157 picker: 51 files went as 50 + 1');
+      workspace.imports.clear();
+
+      // Notion's offer: its second page is held, and so is Bring in.
+      router.go('/sources');
+      await pumpFor(tester, total: const Duration(seconds: 5));
+      final notionRow = find.ancestor(
+          of: find.text('Notion'), matching: find.byType(KitServiceRow));
+      final connect =
+          find.descendant(of: notionRow, matching: find.text('Connect'));
+      await tester.ensureVisible(connect.first);
+      await tester.tap(connect.first);
+      await pumpFor(tester, total: const Duration(seconds: 8));
+      expect(router.state.uri.path, '/connect/notion');
+      // A phone folds the sheet that holds the button, so read it where it is.
+      final held = find.byWidgetPredicate((w) =>
+          w is KitButton && w.label == 'Listing what Notion shared…',
+          skipOffstage: false);
+      expect(held, findsOneWidget,
+          reason: 'Bring in says it is still listing');
+      expect(tester.widget<KitButton>(held).onPressed, isNull,
+          reason: 'Bring in is held until the listing ends');
+
+      workspace.secondPage.complete();
+      await pumpFor(tester, total: const Duration(seconds: 5));
+      // Bring in lives in the page's sheet, which a phone folds (F-156).
+      final sheetHead = find.byKey(const ValueKey('d-peek'));
+      if (sheetHead.evaluate().isNotEmpty) {
+        await tester.tap(sheetHead);
+        await pumpFor(tester, total: const Duration(milliseconds: 1200));
+      }
+      final bring = find.widgetWithText(KitButton, 'Bring in 67 items');
+      expect(bring, findsOneWidget, reason: 'the whole offer arrives ticked');
+      await tester.ensureVisible(bring);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(bring);
+      await pumpFor(tester, total: const Duration(seconds: 6));
+
+      expect(router.state.uri.path, '/sources');
+      final sent = workspace.imports;
+      expect(sent, hasLength(2), reason: '65 files are two requests');
+      expect(sent[0]['file_ids'], hasLength(50));
+      expect(sent[0]['folder_ids'], hasLength(2),
+          reason: 'the folders go in the first');
+      expect(sent[1]['file_ids'], hasLength(15));
+      expect(sent[1].containsKey('folder_ids'), isFalse,
+          reason: 'a later batch carries files alone');
+      expect(
+          {
+            for (final r in sent) ...(r['file_ids'] as List).cast<String>(),
+          }.length,
+          65,
+          reason: 'every file exactly once');
+      debugPrint('DEVICE-RUN F-157 connect: 2 folders + 65 files as 50 + 15');
+    } finally {
+      CloudReturn.session = null;
+      ApiService.instance.resetTestSeams();
+      await rest.delete('/users/$uid/integrations/notion');
+    }
+  });
+
+  // F-158 (5.57.0, ADR-209 + ADR-210): a re-ticked page is a skipped row that
+  // says why, and Notion's page says what a page keeps. The row comes from the
+  // emulator, read through the real jobs subscription.
+  testWidgets(
+      'a duplicate import row shows its sentence; the Notion picker shows the '
+      'note (F-158)', (tester) async {
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/projects/noteletter-7a111'
+          '/databases/(default)/documents',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    Map<String, dynamic> str(String v) => {'stringValue': v};
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final now = DateTime.now().toUtc().toIso8601String();
+    const sentence = 'This page is already in your library as “Commonplace '
+        'book”, so it was not read again.';
+    final wrote = await rest.patch('/users/$uid/integrations/notion', data: {
+      'fields': {
+        'provider': str('notion'),
+        'token_valid': {'booleanValue': true},
+        'provider_email': str('device@example.test'),
+      },
+    });
+    expect(wrote.statusCode, 200, reason: 'integration: ${wrote.data}');
+    final job = await rest.patch('/cloud_import_jobs/device-f158-dup', data: {
+      'fields': {
+        'user_id': str(uid),
+        'provider': str('notion'),
+        'provider_file_id': str('device-f158-page'),
+        'provider_file_name': str('Commonplace book'),
+        'provider_path': str(''),
+        'mime_type': str('application/x-notion-page'),
+        'status': str('skipped'),
+        'skip_reason': str('duplicate'),
+        'error_message': str(sentence),
+        'created_at': {'timestampValue': now},
+        'completed_at': {'timestampValue': now},
+      },
+    });
+    expect(job.statusCode, 200, reason: 'job: ${job.data}');
+    try {
+      final router = await pumpApp(tester);
+      router.go('/sources/notion');
+      await pumpFor(tester, total: const Duration(seconds: 6));
+      expect(router.state.uri.path, '/sources/notion');
+      expect(find.textContaining('Notion pages keep their headings'),
+          findsOneWidget,
+          reason: "Bring in's line on Notion says what a page keeps");
+      final said = find.text(sentence);
+      await tester.scrollUntilVisible(said.first, 300,
+          scrollable: find.byType(Scrollable).first);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(said, findsWidgets, reason: 'the row says why it was skipped');
+      expect(find.text('ALREADY IMPORTED'), findsWidgets);
+      debugPrint('DEVICE-RUN F-158 the row and the note both drew');
+    } finally {
+      await rest.delete('/cloud_import_jobs/device-f158-dup');
+      await rest.delete('/users/$uid/integrations/notion');
+    }
+  });
+
+  // F-159 (5.58.0, ADR-211 + ADR-212): a full window says it is a window, and a
+  // link to a Notion page in the library opens that source. 2,000 real rows,
+  // because the failure was printing a window as the library.
+  testWidgets(
+      'the Library and Home folios over a full documents window read 2,000+; a '
+      'Notion sub-page link in a page opens the sub-page in the Reader, and '
+      'Back names the parent (F-159)', (tester) async {
+    const port = String.fromEnvironment('EMULATOR_FIRESTORE_PORT',
+        defaultValue: '8080');
+    const root = 'projects/noteletter-7a111/databases/(default)/documents';
+    final rest = Dio(BaseOptions(
+      baseUrl: 'http://127.0.0.1:$port/v1/$root',
+      headers: {'Authorization': 'Bearer owner'},
+      validateStatus: (_) => true,
+    ));
+    final commit = 'http://127.0.0.1:$port/v1/$root:commit';
+    Map<String, dynamic> str(String v) => {'stringValue': v};
+    Map<String, dynamic> intv(int v) => {'integerValue': '$v'};
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final now = DateTime.now().toUtc();
+    final stamp = {'timestampValue': now.toIso8601String()};
+    final page = 'a' * 32;
+    final dashed = '${page.substring(0, 8)}-${page.substring(8, 12)}-'
+        '${page.substring(12, 16)}-${page.substring(16, 20)}-'
+        '${page.substring(20)}';
+    Map<String, dynamic> docFields(String title) => {
+          'user_id': str(uid),
+          'title': str(title),
+          'type': str('plain'),
+          'mime_type': str('text/plain'),
+          'status': str('complete'),
+          'created_at': stamp,
+          'processed_at': stamp,
+          'chunk_count': intv(1),
+          'word_count': intv(10),
+        };
+    Map<String, dynamic> chunkFields(String doc, String html, String text) => {
+          'user_id': str(uid),
+          'document_id': str(doc),
+          'chunk_index': intv(0),
+          'html': str(html),
+          'text': str(text),
+          'source_type': str('plain'),
+          'created_at': stamp,
+        };
+    final ids = [for (var i = 0; i < 2000; i++) 'dv-f159-$i'];
+    for (var i = 0; i < ids.length; i += 500) {
+      final r = await rest.post(commit, data: {
+        'writes': [
+          for (final id in ids.skip(i).take(500))
+            {
+              'update': {
+                'name': '$root/documents/$id',
+                'fields': docFields('Window row $id'),
+              },
+            },
+        ],
+      });
+      expect(r.statusCode, 200, reason: 'seed at $i: ${r.data}');
+    }
+    const parent = 'dv-f159-parent';
+    const child = 'dv-f159-child';
+    for (final (path, fields) in [
+      ('/documents/$parent', docFields('The parent page')),
+      ('/documents/$child', docFields('The sub-page')),
+      (
+        '/chunks/$parent-0',
+        chunkFields(
+            parent,
+            '<p>See <a href="https://www.notion.so/$page">The sub-page</a>.</p>',
+            'See The sub-page.'),
+      ),
+      (
+        '/chunks/$child-0',
+        chunkFields(child, '<p>The sub-page itself.</p>', 'The sub-page itself.'),
+      ),
+      (
+        '/cloud_import_jobs/dv-f159-job',
+        {
+          'user_id': str(uid),
+          'provider': str('notion'),
+          'provider_file_id': str(dashed),
+          'provider_file_name': str('The sub-page'),
+          'document_id': str(child),
+          'status': str('complete'),
+          'created_at': stamp,
+        },
+      ),
+    ]) {
+      final r = await rest.patch(path, data: {'fields': fields});
+      expect(r.statusCode, 200, reason: '$path: ${r.data}');
+    }
+    try {
+      final router = await pumpApp(tester);
+      router.go('/sources');
+      await pumpFor(tester, total: const Duration(seconds: 8));
+      // A folio is drawn in caps, so ask for the words in any case.
+      Finder saysAnyCase(String words) => find.byWidgetPredicate((w) =>
+          w is Text &&
+          (w.data ?? w.textSpan?.toPlainText() ?? '')
+              .toLowerCase()
+              .contains(words));
+      expect(saysAnyCase('2,000+ volumes'), findsWidgets,
+          reason: 'the Library names a full window as a floor');
+      router.go('/');
+      await pumpFor(tester, total: const Duration(seconds: 6));
+      expect(saysAnyCase('2,000+ sources'), findsWidgets,
+          reason: 'Home names it too');
+      expect(saysAnyCase('+ passages'), findsWidgets);
+      debugPrint('DEVICE-RUN F-159 both folios read a floor');
+
+      router.go('/reader/$parent?from=/sources');
+      await pumpFor(tester, total: const Duration(seconds: 8));
+      TapGestureRecognizer? hit;
+      for (final rt in tester.widgetList<RichText>(find.byType(RichText))) {
+        rt.text.visitChildren((span) {
+          if (span is TextSpan &&
+              span.text == 'The sub-page' &&
+              span.recognizer is TapGestureRecognizer) {
+            hit = span.recognizer! as TapGestureRecognizer;
+            return false;
+          }
+          return true;
+        });
+        if (hit != null) break;
+      }
+      expect(hit, isNotNull, reason: 'the link is drawn as a link');
+      hit!.onTap!();
+      await pumpFor(tester, total: const Duration(seconds: 6));
+      // A passage is drawn as rich text.
+      expect(find.textContaining('The sub-page itself', findRichText: true),
+          findsWidgets,
+          reason: "the sub-page's own passage, in the Reader");
+      expect(
+          find.byWidgetPredicate(
+              (w) => w is KitDBackControl && w.label == 'The parent page'),
+          findsOneWidget,
+          reason: 'Back names the parent');
+      debugPrint('DEVICE-RUN F-159 the link opened the sub-page, Back named it');
+    } finally {
+      for (var i = 0; i < ids.length; i += 500) {
+        await rest.post(commit, data: {
+          'writes': [
+            for (final id in ids.skip(i).take(500))
+              {'delete': '$root/documents/$id'},
+          ],
+        });
+      }
+      for (final path in [
+        '/documents/$parent',
+        '/documents/$child',
+        '/chunks/$parent-0',
+        '/chunks/$child-0',
+        '/cloud_import_jobs/dv-f159-job',
+      ]) {
+        await rest.delete(path);
+      }
+    }
+  });
+
   // F-160 (5.59.0, ADR-213): a connected service's own page. Google Drive is
   // in the seed, with `seed-import-job-1` complete → seed-doc-pdf-complete.
   // Disconnect is last: it removes the seed's integration for the rest of
@@ -4861,6 +5215,82 @@ void main() {
     expect(find.byType(KitLibNote), findsOneWidget,
         reason: 'the Library says what the provider answered');
   });
+}
+
+/// Drive's and Notion's listings and the import, stood in (F-157). Notion's
+/// second page waits on [secondPage], so a test can read the page while the
+/// offer is still being followed. Every import body is kept, and is answered
+/// with the server's own count of what it was sent.
+class _BatchedWorkspace implements HttpClientAdapter {
+  final HttpClientAdapter _real = IOHttpClientAdapter();
+  final Completer<void> secondPage = Completer<void>();
+  final List<Map<String, dynamic>> imports = [];
+
+  static final List<String> driveNames = [
+    for (var i = 0; i < 51; i++) 'drive-file-$i.pdf'
+  ];
+
+  ResponseBody _json(Object body, int status) =>
+      ResponseBody.fromString(jsonEncode(body), status, headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType]
+      });
+
+  Map<String, Object> _item(String id, String name, String type, String mime) =>
+      {'id': id, 'name': name, 'type': type, 'mime_type': mime, 'size': 0, 'modified_at': ''};
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    final path = options.uri.path;
+    if (path.endsWith('/fn_import_from_cloud')) {
+      final data = options.data;
+      final body = Map<String, dynamic>.from(
+          data is String ? jsonDecode(data) as Map : data as Map);
+      imports.add(body);
+      return _json({
+        'queued_folders': (body['folder_ids'] as List?)?.length ?? 0,
+        'queued_files': (body['file_ids'] as List?)?.length ?? 0,
+      }, 202);
+    }
+    if (path.endsWith('/fn_list_cloud_files')) {
+      final q = options.uri.queryParameters;
+      if (q['provider'] == 'google_drive') {
+        return _json({
+          'items': [
+            for (final n in driveNames)
+              _item('id-$n', n, 'file', 'application/pdf'),
+          ],
+          'nextPageToken': null,
+        }, 200);
+      }
+      if (q['provider'] == 'notion') {
+        if ((q['pageToken'] ?? q['page_token'] ?? '').isEmpty) {
+          return _json({
+            'items': [
+              for (var i = 0; i < 2; i++)
+                _item('dv-db-$i', 'Database $i', 'folder',
+                    'application/x-notion-database'),
+              for (var i = 0; i < 50; i++)
+                _item('dv-pg-$i', 'Page $i', 'file', 'application/x-notion-page'),
+            ],
+            'nextPageToken': 'second',
+          }, 200);
+        }
+        await secondPage.future;
+        return _json({
+          'items': [
+            for (var i = 50; i < 65; i++)
+              _item('dv-pg-$i', 'Page $i', 'file', 'application/x-notion-page'),
+          ],
+          'nextPageToken': null,
+        }, 200);
+      }
+    }
+    return _real.fetch(options, requestStream, cancelFuture);
+  }
+
+  @override
+  void close({bool force = false}) => _real.close(force: force);
 }
 
 /// Notion's root listing, stood in (F-156): the provider is the external edge,
