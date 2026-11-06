@@ -2622,7 +2622,7 @@ a new obligation on a finished screen is a new item.
 - notes: KitBusyMark is the one drawing, and every kit control that sends takes a `busy`. The pressed control draws it; its held siblings stay plain. Built with web in one run, and drawn in a widget-test image in both themes. It has not been seen on a simulator or a phone.
 
 ## F-172 · Shelves at add: quick add, Add a source, the share sheet on both platforms (5.73.0, ADR-238)
-- status: open
+- status: done 2026-11-05
 - screen: sources
 - route: /share
 - spec: spec/component-kit.md; spec/screens/share-sheet.md; spec/screens/sources.md; spec/features/shelves-at-add.md

@@ -25,12 +25,13 @@ import Foundation
 /// `client_timeout_check.py --target ios` compares the two both ways, because
 /// a hand-copied table is a table that drifts, and it is the recipes that move.
 enum EndpointBudgets {
-    /// Twenty-two, not Flutter's sixty: this client's surface is its own, and the
+    /// Twenty-three, not Flutter's sixty: this client's surface is its own, and the
     /// gate's UNCALLED direction is what keeps the table from quietly becoming
     /// a copy of another client's.
     static let deadlineSeconds: [String: Int] = [
         "fn_create_capture_session": 60,
         "fn_create_multi_image_session": 60,
+        "fn_create_tag": 60,
         "fn_create_upload_session": 60,
         "fn_delete_document": 60,
         "fn_generate_audio": 120,

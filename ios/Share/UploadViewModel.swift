@@ -42,17 +42,19 @@ final class UploadViewModel: ObservableObject {
     @Published var isUploading = false
     @Published var errorMessage: String?
 
-    func uploadSingleFile(_ item: UploadItem) async -> Bool {
+    /// [tagIds] on all three adds (5.73.0, ADR-238): the shelves as the row stood
+    /// when pressed, with no key at all when none is chosen.
+    func uploadSingleFile(_ item: UploadItem, tagIds: [String]) async -> Bool {
         isUploading = true
         errorMessage = nil
         defer { isUploading = false }
 
         do {
-            let response = try await APIClient.call("fn_create_upload_session", method: .post, body: [
+            let response = try await APIClient.call("fn_create_upload_session", method: .post, body: ShelfRead.adding(tagIds, to: [
                 "filename": item.filename,
                 "mimeType": item.mimeType,
                 "size": item.data.count
-            ])
+            ]))
             if Self.usesResumableSession(mimeType: item.mimeType) {
                 // No fallback to the single PUT if the session fails: that
                 // would hide a broken session path behind small uploads that
@@ -81,7 +83,7 @@ final class UploadViewModel: ObservableObject {
         }
     }
 
-    func uploadImageSet(_ items: [UploadItem], title: String?) async -> Bool {
+    func uploadImageSet(_ items: [UploadItem], title: String?, tagIds: [String]) async -> Bool {
         guard !items.isEmpty, items.count <= 20 else {
             errorMessage = "Select between 1 and 20 images."
             return false
@@ -97,7 +99,7 @@ final class UploadViewModel: ObservableObject {
             ]
             if let title, !title.isEmpty { body["title"] = title }
 
-            let response = try await APIClient.call("fn_create_multi_image_session", method: .post, body: body)
+            let response = try await APIClient.call("fn_create_multi_image_session", method: .post, body: ShelfRead.adding(tagIds, to: body))
             guard let (docId, uploadUrls) = Self.imageSetSession(from: response, count: items.count) else {
                 throw ApiError(message: "Unexpected response from upload session", status: nil, endpoint: "fn_create_multi_image_session", responseBody: response, errorCode: nil, requestId: nil)
             }
@@ -127,13 +129,13 @@ final class UploadViewModel: ObservableObject {
     /// playlist's `docIds` answer is said with its own measured count
     /// (`PlaylistAnswer`, 4.114.0) — a Bool threw that away, and every link
     /// read "Added link for processing." whatever the server had done.
-    func ingestUrl(_ url: String, type: String) async -> [String: Any]? {
+    func ingestUrl(_ url: String, type: String, tagIds: [String]) async -> [String: Any]? {
         isUploading = true
         errorMessage = nil
         defer { isUploading = false }
 
         do {
-            return try await APIClient.call("fn_ingest_url", method: .post, body: ["url": url, "type": type])
+            return try await APIClient.call("fn_ingest_url", method: .post, body: ShelfRead.adding(tagIds, to: ["url": url, "type": type]))
         } catch let error as ApiError {
             errorMessage = error.message
             return nil

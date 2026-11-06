@@ -1,7 +1,8 @@
 import Foundation
 import FirebaseAuth
 
-/// Where the share extension's Auth and `fn_*` traffic goes (F-122).
+/// Where the share extension's Auth, `fn_*` and Firestore traffic goes (F-122,
+/// F-172).
 ///
 /// The extension cannot be launched with dart-defines or an environment: the
 /// system starts it from another app's share sheet. So a DEBUG Flutter app
@@ -44,6 +45,7 @@ enum EmulatorConfig {
     static var host: String { (stored?["host"] as? String) ?? "localhost" }
     static var authPort: Int { (stored?["authPort"] as? Int) ?? 9599 }
     static var functionsPort: Int { (stored?["functionsPort"] as? Int) ?? 5599 }
+    static var firestorePort: Int { (stored?["firestorePort"] as? Int) ?? 8580 }
     static var usesFunctionsShim: Bool { (stored?["shim"] as? Bool) ?? true }
 
     /// The `fn_*` shim (`functions/dev_server.py`) serves `/fn_name` flat; the
@@ -51,6 +53,13 @@ enum EmulatorConfig {
     static var functionsBase: String {
         let root = "http://\(host):\(functionsPort)"
         return usesFunctionsShim ? root : "\(root)/noteletter-7a111/us-central1"
+    }
+
+    /// Firestore over REST (`ShelfStore`, 5.73.0, ADR-238): a RELEASE extension has
+    /// no [stored] to read, so it can only ever name the real one.
+    static var firestoreBase: String {
+        let root = routesToEmulator ? "http://\(host):\(firestorePort)" : "https://firestore.googleapis.com"
+        return "\(root)/v1/projects/noteletter-7a111/databases/(default)/documents"
     }
 
     /// Auth to the emulator. Call once, right after `FirebaseApp.configure()`

@@ -211,6 +211,76 @@ enum Theme {
     static let highlight = Color.token(light: PlatformColor(hex: "9D352D", alpha: 0.15), dark: PlatformColor(hex: "D9482F", alpha: 0.24))
 }
 
+/// The twenty shelf colours (`screens/library.md` §Shelf color): the same names
+/// and values as Flutter's `AppColors.shelfColors` / `shelfColorsDark` and web's
+/// `--shelf-{name}`. The stored value is the name, and what a name paints flips
+/// with the theme (4.117.0, ADR-154). Here because this file is where a colour
+/// literal may live.
+extension Theme {
+    /// In the spec's order: the first is the form's default.
+    static let shelfSwatches: [(id: String, label: String)] = [
+        ("sage-500", "Moss"),
+        ("sage-700", "Deep moss"),
+        ("olive-500", "Olive"),
+        ("teal-500", "Teal"),
+        ("teal-700", "Deep teal"),
+        ("indigo-500", "Cornflower"),
+        ("indigo-700", "Navy"),
+        ("plum-500", "Plum"),
+        ("plum-600", "Deep plum"),
+        ("rose-500", "Rose"),
+        ("rose-700", "Madder"),
+        ("brick-400", "Vermilion"),
+        ("brick-500", "Brick"),
+        ("brick-700", "Oxblood"),
+        ("ochre-500", "Ochre"),
+        ("ochre-700", "Umber"),
+        ("sand-500", "Sand"),
+        ("ink-300", "Slate"),
+        ("ink-400", "Deep slate"),
+        ("ink-500", "Graphite"),
+    ]
+
+    private static let shelfPairs: [String: (light: String, dark: String)] = [
+        "sage-500": ("6F8159", "A8BC8F"),
+        "sage-700": ("495936", "779158"),
+        "olive-500": ("74773A", "AEB16F"),
+        "teal-500": ("2E7774", "6DB0AB"),
+        "teal-700": ("1E5452", "4F9894"),
+        "indigo-500": ("4C5C9C", "8D9BD8"),
+        "indigo-700": ("2D3A6A", "7C8ACB"),
+        "plum-500": ("3F2C3E", "C9A6C6"),
+        "plum-600": ("2D1F2E", "A279A4"),
+        "rose-500": ("A65A6C", "D48F9F"),
+        "rose-700": ("7E3448", "C77A8E"),
+        "brick-400": ("D9482F", "EE7B62"),
+        "brick-500": ("9D352D", "CF7871"),
+        "brick-700": ("6E1F18", "CB584E"),
+        "ochre-500": ("A47A2C", "D3A85E"),
+        "ochre-700": ("7A5634", "B78F6A"),
+        "sand-500": ("9A8466", "C7B293"),
+        "ink-300": ("8A91A4", "B5BAC6"),
+        "ink-400": ("4E5566", "939BAD"),
+        "ink-500": ("2C3142", "737C98"),
+    ]
+
+    /// A `/tags.color` value. nil for anything unrecognised, so the caller falls
+    /// back to its own muted colour: never an error. A legacy 6-digit hex is
+    /// permanently valid, and paints the same in both themes.
+    static func shelfColor(_ value: String?) -> Color? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        if let pair = shelfPairs[value] {
+            return Color.token(light: PlatformColor(hex: pair.light), dark: PlatformColor(hex: pair.dark))
+        }
+        let hex = value.replacingOccurrences(of: "#", with: "")
+        guard hex.count == 6, hex.allSatisfy(\.isHexDigit) else { return nil }
+        return Color(PlatformColor(hex: hex))
+    }
+
+    /// `--hover-strong`: the active row of §20.1's list.
+    static let hoverStrong = Color.token(light: PlatformColor(hex: "14171F", alpha: 0.08), dark: PlatformColor(white: 1, alpha: 0.12))
+}
+
 /// `--shadow-1`, `--shadow-2` and `--letterpress` (`theme.css`). The shadows
 /// are cast in ink-700 at low alpha in **both** themes — warm-tinted, never
 /// black — and the letterpress edge is not redefined for dark either; both are
