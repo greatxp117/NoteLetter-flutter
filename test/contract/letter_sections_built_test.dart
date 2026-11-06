@@ -15,7 +15,10 @@
 //
 // Mutants run against it (each turns it red): the source pattern with
 // straight quotes (`Read "(.+)" in context`); passages read from `h3` for
-// `h2`; the reader-link test pointed at `/letters/`.
+// `h2`; the reader-link test pointed at `/letters/`; `kitLetterCardHeads` keeping
+// a passage's own h2.
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/models/newsletter.dart';
@@ -70,5 +73,35 @@ void main() {
     expect([for (final x in p.sections) (x.n, x.title, x.text, x.source, x.docId)],
         [for (final x in s) (x.n, x.title, x.text, x.source, x.docId)]);
     expect(p.count, chunkIds.length);
+  });
+  // A letter already sent holds a passage's own <h2> inside its card's block
+  // (the renderer steps them down only since 5.74.0; what was mailed stays).
+  group("a passage's own h2 in a letter already sent is not a card", () {
+    final at = letter.htmlBody.indexOf('<p>');
+    final sentBody = Map<String, dynamic>.from(body)
+      ..['html_body'] =
+          '${letter.htmlBody.substring(0, at)}<h2>Ingredients</h2>${letter.htmlBody.substring(at)}';
+    final sent = Newsletter.fromJson('sent', sentBody);
+
+    test('the fixture took the extra h2', () {
+      expect('<h2'.allMatches(sent.htmlBody).length,
+          '<h2'.allMatches(letter.htmlBody).length + 1);
+    });
+
+    test('the sections are the cards and only the cards', () {
+      final s = kitLetterSections(sent);
+      expect(s.map((x) => x.n).toList(),
+          List.generate(chunkIds.length, (i) => i + 1));
+      expect(s.map((x) => x.title), isNot(contains('Ingredients')));
+      expect(s.every((x) => x.docId != null), isTrue);
+    });
+
+    // A page's Contents is built from a key per heading, so the page's own
+    // script has to skip the same h2s. It runs in a web view; a device run owes
+    // the rest. Here the script is held to the rule it shares with web.
+    test('the letter page\'s own script skips them too', () {
+      final src = File('lib/widgets/kit/kit_letter.dart').readAsStringSync();
+      expect(src, contains('bodies.some(function(b){ return b.contains(h); })'));
+    });
   });
 }

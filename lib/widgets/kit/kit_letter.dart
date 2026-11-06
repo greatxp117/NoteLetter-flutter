@@ -232,11 +232,15 @@ class _KitLetterPaperState extends State<KitLetterPaper> {
   var scale = Math.min(1, dw / need);
   LetterHeight.postMessage(
     String(Math.ceil(document.body.scrollHeight * scale)));
-  // The passage headings (the <h2>s with text, as letterSections reads them),
+  // The passage headings (the card <h2>s with text, as letterSections reads
+  // them: a passage's own <h2> in a letter sent before 5.74.0 is not a card),
   // where each sits on the scaled page.
   if (typeof LetterHeads !== 'undefined') {
     var tops = [];
+    var bodies = [];
     document.querySelectorAll('h2').forEach(function(h){
+      if (bodies.some(function(b){ return b.contains(h); })) return;
+      if (h.nextElementSibling) bodies.push(h.nextElementSibling);
       if ((h.textContent || '').trim()) {
         tops.push(Math.round((h.getBoundingClientRect().top + window.scrollY) * scale));
       }

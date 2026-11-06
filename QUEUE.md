@@ -2633,3 +2633,29 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: Kit §20.3 over a local choice on quick add, Add a source and /share; the iOS extension reads tags over Firestore REST and holds the create form in SwiftUI. Nothing is written until the host adds; every add carries tagIds, with no key when none is chosen. See spec/features/shelves-at-add.md.
+
+## F-173 · A confirmation stands where web's does: 11vh from the top, 8vh at 680 wide or narrower (5.74.0)
+- status: done 2026-11-05
+- screen: summary-reset-confirm
+- route: /settings/summaries
+- spec: spec/component-kit.md §18
+- web: src/styles/app-responsive.css
+- flutter: lib/widgets/kit/kit_confirm.dart; test/kit/confirm_placement_test.dart
+- folds: 5.74.0
+- device_test: none
+- shots: summary-reset-confirm; reader-reprocess-confirm
+- extra_gates: none
+- notes: Material's AlertDialog stood halfway down; web's panel sits on §15's scrim padding since 4.56.0. Found twice (TODO's burn-down and F3's frames), and §18 said only 'centred', which both clients could claim. Widget test at 390, 680, 1024 and 320, red on three mutants. Frames re-shot on the next simulator run; the two pairs read STALE until then.
+
+## F-174 · A passage's own h2 in a letter already sent is not a card (5.74.0, ADR-087 addendum 1)
+- status: done 2026-11-05
+- screen: letters
+- route: /letters
+- spec: spec/api/newsletter.md §The letterhead
+- web: src/kit/d/letter.js
+- flutter: lib/widgets/kit/kit_d_letter.dart; lib/widgets/kit/kit_letter.dart; test/contract/letter_sections_built_test.dart
+- folds: 5.74.0
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: kitLetterSections and the letter page's own script took every h2 as a card, so a stored passage's heading read as one more passage with no source, on 4 of 44 real letters, and on Home could push a real one out of the first three. The renderer steps them down from 5.74.0; this reads what was already mailed. The script runs in a web view, so a device run owes it: its source is held to the rule by a string test.

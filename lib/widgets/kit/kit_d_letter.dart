@@ -93,6 +93,29 @@ String kitLetterExcerpt(String? s) {
 final RegExp _readerHref = RegExp(r'/reader/([^/?#]+)');
 final RegExp _inContext = RegExp(r'Read “(.+)” in context');
 
+/// The `<h2>`s that title a passage card (web `letterCardHeads`). A letter sent
+/// before 5.74.0 can hold a passage's own `<h2>` inside the block after its
+/// card's title (4 of 44 of Xavier's letters), and that one is not a card: it
+/// has no source and no place in the count.
+List<dom.Element> kitLetterCardHeads(dom.Document doc) {
+  final bodies = <dom.Element>[];
+  final out = <dom.Element>[];
+  bool inside(dom.Element e, dom.Element body) {
+    for (dom.Node? n = e; n != null; n = n.parentNode) {
+      if (identical(n, body)) return true;
+    }
+    return false;
+  }
+
+  for (final h in doc.querySelectorAll('h2')) {
+    if (bodies.any((b) => inside(h, b))) continue;
+    final next = h.nextElementSibling;
+    if (next != null) bodies.add(next);
+    out.add(h);
+  }
+  return out;
+}
+
 /// The passages of a letterheaded letter (web `letterSections`). Each passage
 /// card in `html_body` is an `<h2>` (its title), the passage block after it,
 /// and the *Read “…” in context →* link back to the reader (INV-21) — the only
@@ -105,7 +128,7 @@ List<KitLetterSection> kitLetterSections(Newsletter? letter) {
   if (!html.contains('data-nl-letterhead')) return const [];
   final doc = html_parser.parse(html);
   final out = <KitLetterSection>[];
-  final heads = doc.querySelectorAll('h2');
+  final heads = kitLetterCardHeads(doc);
   for (var i = 0; i < heads.length; i++) {
     final h = heads[i];
     final title = h.text.trim();

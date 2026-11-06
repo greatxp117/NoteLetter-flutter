@@ -14,8 +14,9 @@ import 'kit_wait.dart';
 /// holds something they are about to lose, and it is the one overlay that
 /// **cannot be dismissed by looking away while it is working**.
 ///
-/// **Required parts** — a scrim that cancels on press · a centred panel
-/// announcing itself as an alert dialog · a title naming the OBJECT, not the
+/// **Required parts** — a scrim that cancels on press · a panel across the
+/// middle, 11vh from the top (8vh at 680 wide or narrower), announcing itself as
+/// an alert dialog · a title naming the OBJECT, not the
 /// verb · a body naming **what is lost and what is not** · a **§14.2 failure
 /// slot inside the panel** · an action pair, the safe choice first and labelled
 /// with the alternative it takes.
@@ -125,6 +126,14 @@ class KitConfirm extends StatefulWidget {
   State<KitConfirm> createState() => _KitConfirmState();
 }
 
+/// §18's placement: §15's scrim padding, which is web's `.qs-backdrop`.
+EdgeInsets _placement(Size size) {
+  final phone = size.width <= 680;
+  final side = phone ? 12.0 : 20.0;
+  return EdgeInsets.fromLTRB(
+      side, size.height * (phone ? 0.08 : 0.11), side, side);
+}
+
 class _KitConfirmState extends State<KitConfirm> {
   bool _busy = false;
   String? _error;
@@ -168,6 +177,12 @@ class _KitConfirmState extends State<KitConfirm> {
       // gesture either.
       canPop: !_busy,
       child: AlertDialog(
+        // Where web's stands (§18, `.qs-backdrop`), not Material's halfway down.
+        alignment: Alignment.topCenter,
+        insetPadding: _placement(MediaQuery.sizeOf(context)),
+        // Standing higher leaves less height, and a long body or a refusal
+        // in the slot must still reach the actions, which stay in view.
+        scrollable: true,
         backgroundColor: t.surface,
         shape: RoundedRectangleBorder(
           borderRadius: AppRadius.xlR,
