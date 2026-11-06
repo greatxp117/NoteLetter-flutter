@@ -1,7 +1,7 @@
 # Flutter work queue
 
-folded-through: 4.52.1
-pin-holds-at: 4.4.0
+folded-through: 5.80.0
+pin-holds-at: 5.24.0
 retired-shots: shelf-backfill-review   # 4.102.0 (ADR-136): the in-sheet review is a stored task now; its pair is web's review-backfill on /review
 retired-paths: lib/pages/library/document_detail_sheet.dart; lib/widgets/kit/kit_section_rail.dart; lib/pages/search/result_card.dart; lib/pages/search/reading_pane.dart; lib/pages/sources/file_under.dart   # F-99 (2026-10-13): the library row's Priority & tags sheet; a finished source's priority is the reader's (sources.md §Per-source affordances). F-142 (2026-10-30): §19's section rail retired with direction D — the source page's sheet carries Contents (kit §29) F-143 (2026-10-30): Search in direction D reads a result in place among its neighbours (search.md §Composition), so the result card and the reading pane retired with web's ResultCard + ReadingPane (ResultD, lib/pages/search/result_d.dart). F-156 (2026-11-03): File under left the return page and the import picker (5.52.0, ADR-203) — an import is shelved by indexing (INV-12).
 retired-web-paths: src/pages/sources/ShelfView.jsx; src/styles/app-sources-shelf.css; src/pages/letters/LetterBarActions.jsx   # direction D (web redesign-d 2026-10-30): W1 deleted the spine view (the Library is List / Grid); W4 deleted the letter bar's actions (a68efb7)
@@ -2659,3 +2659,172 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: kitLetterSections and the letter page's own script took every h2 as a card, so a stored passage's heading read as one more passage with no source, on 4 of 44 real letters, and on Home could push a real one out of the first three. The renderer steps them down from 5.74.0; this reads what was already mailed. The script runs in a web view, so a device run owes it: its source is held to the rule by a string test.
+
+## F-180 · Ledger: seven tandems that landed with no queue item to fold them (lane F4 audit, 5.25.0 to 5.80.0)
+- status: done 2026-11-06
+- screen: none
+- route: none
+- spec: CHANGELOG.md
+- web: src/api.js
+- flutter: lib/state/upload_notifier.dart; lib/pages/tags/shelf_page.dart; lib/pages/chat_page.dart; test/contract/letter_sections_built_test.dart; lib/services/analytics.dart; lib/pages/reader/delete_source.dart; lib/widgets/kit/kit_d_covers.dart
+- folds: 5.32.0; 5.37.1; 5.63.0; 5.63.1; 5.63.2; 5.68.0; 5.69.0
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: A record, not work: lane F4 (2026-11-06) walked every CHANGELOG Flutter tandem from 5.25.0 to 5.80.0 and opened the code for each. These seven are built, but no item folds them (F-135's folds say none; the rest landed in lanes with no item), so folded-through could not pass them truthfully. Evidence, read at a0404c7: 5.32.0 F-135 b61126a, upload_notifier.dart social_video hosts = web api.js; 5.37.1 a41364d, shelf_page.dart _notFound draws KitFailureBlock *This shelf could not be read.*, test/kit/shelf_read_failure_test.dart; 5.63.0 308ad07 chat_page.dart Open wears openSource's book, 9028f52 letter_sections_built_test.dart; 5.63.1 0526ad2 analytics.dart service-{provider}; 5.63.2 66a5ff7 delete_source.dart deleteSourceBody, web's words; 5.68.0 d0e3994/436fb4e kit_d_covers.dart dim 0.94; 5.69.0 a9fc5a3 the Library file drop and the `web` dependency gone. Full table: .claude/cloud/reports/f4.md (umbrella).
+
+## F-181 · fn_list_cloud_files: its query is built in api.dart, not at four call sites
+- status: open
+- screen: none
+- route: none
+- spec: spec/api/cloud-storage.md §fn_list_cloud_files
+- web: src/api.js
+- flutter: lib/services/api.dart; lib/state/cloud_notifier.dart; lib/pages/sources/sync_folder_picker.dart; test/contract/api_requests_test.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: `Api.listCloudFiles` (api.dart:714) takes a ready-made `params` map; the keys are assembled at cloud_notifier.dart:583, :604, :756 and sync_folder_picker.dart:121. Web builds them in the builder (api.js:2258-2261). The keys are right today, but CLAUDE.md's rule is that every request is built in api.dart, because that is what api_requests_test asserts: a misspelt key at a call site would pass the suite and the picker would quietly list the provider's root. Move the keys into named parameters; the request suite then reads them.
+
+## F-182 · A document status this build does not know stays in progress, never Failed
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/data-model.md §documents
+- web: src/pages/sources/proc.jsx
+- flutter: lib/models/document.dart; lib/pages/sources/browse_section.dart; lib/state/review_inbox.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: `DocumentStatus.fromString` (document.dart:11-26) maps a missing or unknown status to `error`. Web fails only a literal `error` or `skipped` (proc.jsx:70) and draws anything else as in progress; data-model.md's status is an open vocabulary (web CLAUDE.md: open vocabularies stay open). A phone user would see such a source as Failed with Retry (browse_section.dart:354), counted in For your review (review_inbox.dart:24), and the retry refused with a 409. Latent: today's backend writes only known values. Add an unknown case that reads as in progress, with a test red on the old default.
+
+## F-183 · Dead code: kit_capture.dart (owed since 5.43.0), KitRailShelfRow, ActivityItem.typeLabel, importFromCloud's tag_ids
+- status: open
+- screen: none
+- route: none
+- spec: spec/component-kit.md; spec/api/cloud-storage.md
+- web: src/api.js
+- flutter: lib/widgets/kit/kit_capture.dart; lib/widgets/kit/kit.dart; lib/widgets/kit/kit_shell.dart; lib/models/activity_item.dart; lib/services/api.dart
+- folds: 5.43.0
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: (1) 5.43.0's Flutter tandem deletes lib/widgets/kit/kit_capture.dart with kit §23 (CHANGELOG.md:1806 says deleted). F-146 is done, but the file is there, exported at kit.dart:21, and nothing uses KitCaptureCard or KitCaptureRail. (2) KitRailShelfRow (kit_shell.dart:910) lost its last caller when direction D retired the rail's shelf tree (web AppShell.jsx:73-75). (3) ActivityItem.typeLabel (activity_item.dart:94) ends `default: return type`, the shape CLAUDE.md forbids; nothing calls it. (4) `Api.importFromCloud` still takes `tagIds` and would send `tag_ids` (api.dart:733-787), which the server refuses with 400 UNKNOWN_KEYS since 5.62.0 (cloud-storage.md:265); its comment says the endpoint still accepts it. No caller passes it. Web tandem: the same dead parameter at api.js:2300 (not edited here). No user sees any of this; it is what the next reader trusts.
+
+## F-184 · Listen plays the user's own recording: an uploaded audio or video file is never offered narration
+- status: open
+- screen: reader
+- route: /reader/:id
+- spec: spec/screens/reader.md §Listen
+- web: src/pages/reader/ListenPanel.jsx
+- flutter: lib/pages/reader/listen_panel.dart; lib/services/api.dart
+- folds: none
+- device_test: an uploaded recording plays itself in Listen and is never offered narration
+- shots: none
+- extra_gates: none
+- notes: Bug. listen_panel.dart:66-67 and :113-121 take the source audio from `source_audio_url` alone. An uploaded recording (type `audio`, ADR-046) or video (`video`, ADR-049) has that field null BY DESIGN; its URL is minted per request by fn_get_raw_document_url. Web tests type-or-field and fetches it (ListenPanel.jsx:29-79), drawing *Loading the recording…* (:166). Flutter draws *No narration yet.* and Generate audio (:278-290): the phone user is offered a synthesized voice reading the transcript of their own recording, which reader.md forbids ("never offer TTS for a document that has its own audio"). Api.getRawDocumentUrl exists (api.dart:417).
+
+## F-185 · Original shows the extraction beside the file: the captured page, the embed or poster, the text as read
+- status: open
+- screen: reader
+- route: /reader/:id
+- spec: spec/screens/reader.md §Original; spec/component-kit.md §15.1
+- web: src/pages/reader/OriginalPanel.jsx
+- flutter: lib/pages/reader/original_panel.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Gap. original_panel.dart:136-184 and :243-272 draw the stored file, or a button for a link, under the line *NoteLetter keeps the original alongside the text it extracted.* (:178), and then never shows that text. Web's panel (OriginalPanel.jsx:249-397) also draws what was extracted: *The page as we captured it* / *The document as we read it* / *The article it resolved to*, a YouTube/Instagram/TikTok embed or the provider's poster (embedFor, :86-110), and the raw extraction. component-kit §15.1 rule 3: the extraction belongs to the panel that composes the renderer, which is why the reader shows both. Port the parts a phone can draw; an embed is a web view, so decide it inside the item and record any deviation in CLAUDE.md. The intro copy differs too.
+
+## F-186 · Three sentences in web's words: the sign-in link, the import status, an apostrophe
+- status: open
+- screen: sources
+- route: /sources
+- spec: spec/screens/sources.md
+- web: src/pages/sources/intake.jsx; src/overlays/QuickAdd.jsx; src/pages/sources/OAuthReturn.jsx; src/pages/sources/CloudImportPanel.jsx; src/pages/reader/ManuscriptPanel.jsx
+- flutter: lib/state/cloud_notifier.dart; lib/state/org_notifier.dart; lib/pages/sources/cloud_imports.dart; lib/pages/reader/manuscript_panel.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: (1) When connect returns no sign-in link, Flutter says *No authorization URL returned.* (cloud_notifier.dart:449, org_notifier.dart:186), developer wording on the Library rows, quick add and the connect page. Web and sources.md:876-878: *The sign-in link did not come back. Try connecting again.* (2) An import-status read that fails draws only the raw error (cloud_imports.dart:105-116); web says *Import status could not be read — {detail}* (CloudImportPanel.jsx:793-794). (3) manuscript_panel.dart:1199 writes "it's" with a straight apostrophe; web's is curly (ManuscriptPanel.jsx:1051).
+
+## F-187 · Read the syllabus says it is reading in the background, and where the plan will be
+- status: open
+- screen: study
+- route: /study
+- spec: spec/screens/study.md
+- web: src/pages/study/ProgramEditor.jsx
+- flutter: lib/pages/study/program_editor.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Gap. On fn_request_task's 202, study.md:110-112 has the picker close and the client say *Reading the syllabus for “{program}” in the background* / *You'll find it in For your review.* Web announces it (ProgramEditor.jsx:353-356). Flutter's `_suggest` (program_editor.dart:1065-1090) closes the picker and says nothing, so the phone user cannot tell the request was taken. Every other background-task request in Flutter shows its toast (tags/shelf_page.dart:301, :322, :347; tags/suggest_shelves.dart:368-386).
+
+## F-188 · Activity: a refused read is the failure alone, not the failure over the feed it could not refresh
+- status: open
+- screen: activity
+- route: /activity
+- spec: spec/screens/activity.md; spec/invariants.md §INV-24
+- web: src/pages/ActivityView.jsx
+- flutter: lib/pages/activity_page.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Bug, low. activity_page.dart:217-225 draws §14.1 *Your activity could not be loaded.* above rows that loaded earlier, and :237-296 keeps drawing them (its comment calls this C1). The folio meanwhile reads *— events* (:143-147), so the masthead says unmeasured while day sections below give exact counts. Web draws the failure block alone (ActivityView.jsx:385-390); activity.md's Refused state is §14.1 *in the column*, and INV-24 puts it in the region the collection would have filled. C1 is recorded nowhere in CLAUDE.md, so it is drift, not a deviation: follow web, or record it there by ruling.
+
+## F-189 · The readings letter: the opt-in card in web's order, with its caption, and a save that says Saved.
+- status: open
+- screen: letter-settings
+- route: /letters/settings
+- spec: spec/screens/letters.md §The readings letter; spec/screens/letters.md §Letter settings
+- web: src/pages/letters/ReadingsLetter.jsx; src/pages/LetterSettings.jsx; src/styles/app-scripture.css
+- flutter: lib/pages/letters/readings_letter.dart; lib/pages/letter_settings_page.dart; lib/state/scripture_letter_notifier.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: (1) Composition. Web's Off card (ReadingsLetter.jsx:69-99, phone stacking app-scripture.css:67-71, :171) puts Turn on under the paragraph, then the small-caps caption *What it carries* over the three readings, Gospel first, on a sunken panel. Flutter (readings_letter.dart:340-377) puts the button last, has no caption (it survives as the comment at :359) and draws the readings as plain eyebrows on an ordinary card. letters.md:29 and :367-369. (2) Gap. Web's readings save ends on *Saved.* (ReadingsLetter.jsx:252-258, set from LetterSettings.jsx:172, :204); Flutter's foot (letter_settings_page.dart:887-891) has only *Saving…* or its default line, and the notifier keeps no saved state, so a save that landed looks like one that never started. letters.md §Letter settings names no such state; web is the reference.
+
+## F-190 · Onboarding: In your library stands over what it counts, and an upload row says web's words
+- status: open
+- screen: onboarding
+- route: /onboarding
+- spec: spec/screens/onboarding.md
+- web: src/pages/onboarding/steps.jsx
+- flutter: lib/pages/onboarding/steps.dart; lib/widgets/file_uploader.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Composition. Web (steps.jsx:131-160) draws the label *In your library* with *{indexed} indexed · {total} total* and the rows under it. Flutter (steps.dart:133-151) draws the uploader first and the label after it, so on a first run the count stands below the uploads it counts, and on a replay with an existing library it stands over nothing. A finished upload reads *Queued for processing* with a remove ✕ (file_uploader.dart:280-288, :471-485); web says *added — indexing continues in the background*, with Uploading / Added / Failed. onboarding.md:25 and :49-54.
+
+## F-191 · Two pages compose their own parts: the connect page's Keep in sync row and type sizes, History's Activity tag
+- status: open
+- screen: none
+- route: none
+- spec: spec/component-kit.md; spec/screens/reader.md §History
+- web: src/pages/sources/OAuthReturn.jsx; src/pages/reader/HistoryPanel.jsx
+- flutter: lib/pages/sources/oauth_return.dart; lib/pages/reader/history_panel.dart
+- folds: none
+- device_test: none
+- shots: none
+- extra_gates: none
+- notes: Composition (ADR-041: a client composes from a named kit, never inline). oauth_return.dart builds its Keep in sync row in the page (:1158-1186) and hard-codes font sizes 13.5 and 14.5 (:1176, :1353), beside 14 EdgeInsets and 3 copyWith; history_panel.dart:319-333 builds the History *Activity* tag pill itself (reader.md:870-877). Move each into the kit role web's CSS names, so no pixel moves. The other high EdgeInsets counts (service_page, manuscript_panel, sync_settings_panel, 16 each) were found to be spacing inside kit roles or one-off paddings handed to a kit part, and are not booked.
+
+## F-192 · Plate I's later cuts (the port TODO and ADR-178 call F-129): web's 5.25.2 to 5.26.2 film in place of 5.25.1's
+- status: blocked: HELD until Xavier approves the film (TODO "Flutter F-129: HELD"); its partial port is a stash on the Mac
+- screen: landing-actual
+- route: /landing
+- spec: spec/decisions/ADR-178-the-landing-hero-is-a-film.md
+- web: src/pages/landing/Reel.jsx; src/pages/landing/reelScore.js; src/pages/landing/handwriting.js
+- flutter: lib/site/landing_reel.dart; lib/site/reel_score.dart
+- folds: 5.25.2; 5.25.3; 5.25.4; 5.25.5; 5.25.6; 5.25.7; 5.25.8; 5.25.9; 5.26.2
+- device_test: none
+- shots: landing-actual
+- extra_gates: none
+- notes: F-129 was named in the CHANGELOG, ADR-178 and TODO but never had a block here, so the one thing holding the pin was invisible to the queue. The phone DOES draw the film: a signed-out user is sent to /landing (router.dart:80, :141), whose hero is Plate I (landing_page.dart:869). It plays 5.25.1's five-chapter cut, opening on "Everything / you kept." (reel_score.dart:137-143), plus F-128's titles (5e29c03). Web's is 5.26.2's (e0997dc). Missing, one beat each: the film-only hero (reelScore.js:11), Psych 101 (:361), the handwritten note (handwriting.js:4), "you saved it for nothing" (:18), typed titles, "the video … watch later" (:89), the heap (:14), the envelope (:232), the split-flap board (:9). 5.25.2's F-128 part landed. Port after approval, against web's frames; the stash predates 5.25.5.
