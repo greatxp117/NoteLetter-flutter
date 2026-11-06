@@ -2637,7 +2637,7 @@ a new obligation on a finished screen is a new item.
 ## F-173 · A confirmation stands where web's does: 11vh from the top, 8vh at 680 wide or narrower (5.74.0)
 - status: done 2026-11-05
 - screen: summary-reset-confirm
-- route: /settings/summaries
+- route: /settings
 - spec: spec/component-kit.md §18
 - web: src/styles/app-responsive.css
 - flutter: lib/widgets/kit/kit_confirm.dart; test/kit/confirm_placement_test.dart
@@ -2645,7 +2645,7 @@ a new obligation on a finished screen is a new item.
 - device_test: none
 - shots: summary-reset-confirm; reader-reprocess-confirm
 - extra_gates: none
-- notes: Material's AlertDialog stood halfway down; web's panel sits on §15's scrim padding since 4.56.0. Found twice (TODO's burn-down and F3's frames), and §18 said only 'centred', which both clients could claim. Widget test at 390, 680, 1024 and 320, red on three mutants. Frames re-shot on the next simulator run; the two pairs read STALE until then.
+- notes: Material's AlertDialog stood halfway down; web's panel sits on §15's scrim padding since 4.56.0. Found twice (TODO's burn-down and F3's frames), and §18 said only 'centred', which both clients could claim. Widget test at 390, 680, 1024 and 320, red on three mutants. Frames re-shot 2026-11-05 after F-172 on the simulator and looked at: both panels stand near the top, in the place the widget test measures.
 
 ## F-174 · A passage's own h2 in a letter already sent is not a card (5.74.0, ADR-087 addendum 1)
 - status: done 2026-11-05
