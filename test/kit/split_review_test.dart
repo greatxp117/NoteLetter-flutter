@@ -2,6 +2,8 @@
 // ADR-136), mirroring web's SplitReview: the apply names each kept part by its
 // index with the reader's title — never document ids; what left the shelf
 // meanwhile is said before Done; a 409 STALE is drawn in the sheet.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,9 +30,16 @@ Future<List<List<Map<String, dynamic>>>> _mount(WidgetTester tester,
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final sent = <List<Map<String, dynamic>>>[];
+  // Over a home, as the app opens it: the sheet pops its own route when it is
+  // done, and a navigator's only route is not one it may pop.
+  final nav = GlobalKey<NavigatorState>();
   await tester.pumpWidget(MaterialApp(
+    navigatorKey: nav,
     theme: AppTheme.light,
-    home: Scaffold(
+    home: const SizedBox(),
+  ));
+  unawaited(nav.currentState!.push(MaterialPageRoute<void>(
+    builder: (_) => Scaffold(
       body: SplitShelfSheet(
         title: 'Politics',
         proposal: _proposal,
@@ -40,7 +49,7 @@ Future<List<List<Map<String, dynamic>>>> _mount(WidgetTester tester,
         },
       ),
     ),
-  ));
+  )));
   await tester.pumpAndSettle();
   return sent;
 }

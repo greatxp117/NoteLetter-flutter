@@ -97,6 +97,7 @@ flutter:
     - assets/landing-hero.png
     - assets/hero-knowledge.png
     - assets/favicon.png
+    - assets/paper/grain.png
   # All three token fonts are BUNDLED as OFL assets (assets/fonts/, licenses in
   # Geist-OFL.txt and SourceSerif4-OFL.txt): sans Geist, mono Geist Mono, serif
   # Source Serif 4 (design-tokens.md).

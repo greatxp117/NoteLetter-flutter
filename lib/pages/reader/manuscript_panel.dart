@@ -1652,6 +1652,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
             : const EdgeInsets.symmetric(horizontal: 60, vertical: 52),
         decoration: BoxDecoration(
           color: t.surface,
+          image: KitGround.grainImage,
           borderRadius: AppRadius.mdR,
           border: Border.all(color: _editing ? t.accent : t.border),
           boxShadow: _editing

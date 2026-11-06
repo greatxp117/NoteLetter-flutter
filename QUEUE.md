@@ -2659,3 +2659,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: kitLetterSections and the letter page's own script took every h2 as a card, so a stored passage's heading read as one more passage with no source, on 4 of 44 real letters, and on Home could push a real one out of the first three. The renderer steps them down from 5.74.0; this reads what was already mailed. The script runs in a web view, so a device run owes it: its source is held to the rule by a string test.
+
+## F-175 · A page changes plainly, on web's paper
+- status: done 2026-11-06
+- screen: library
+- route: /
+- spec: spec/component-kit.md §40; spec/component-kit.md §1.1; spec/design-tokens.md
+- web: src/styles/theme.css; src/styles/app-kit.css
+- flutter: lib/theme/app_page_transitions.dart (new); lib/theme/app_theme.dart; lib/widgets/kit/kit_ground.dart; lib/main.dart; lib/pages/onboarding/wizard.dart; lib/pages/reader/manuscript_panel.dart; lib/pages/reader/speed_read_panel.dart; lib/site/landing_page.dart; lib/site/landing_reel.dart; test/kit/page_change_plain_test.dart (new); test/kit/ground_test.dart (new); test/kit/split_review_test.dart; tool/bake_grain.cjs (new); assets/paper/grain.png (new); integration_test/hold_screen_test.dart; pubspec.yaml
+- folds: Xavier 2026-11-05
+- device_test: none
+- shots: library; sources; letters; letter-reader; letter-settings; scripture-day; notifications; settings; support; study; shelves; shelf-create-sheet; shelf-color-picker; proc-affordances; source-file; source-set; recipe; reader; reader-history; reader-manuscript; reader-speed-read; reader-listen; reader-shelves; shelf-picker-search; reader-reprocess-confirm; reader-edit-drag; reader-mark-as-read; ask-thread; onboarding; onboarding-librarian; settings-ai-off; reader-ai-off; ask-off; signin; signin-fail; landing-actual
+- extra_gates: flutter test test/kit/page_change_plain_test.dart test/kit/ground_test.dart
+- notes: Xavier: weird animations opening a page; the paper is not web's. A recording showed each route change sliding 430ms with the new page's text over the old, since a shell page has no background of its own; §40 already said a client without view transitions changes plainly. Durations went to zero in the theme, keeping the platform builders, so iOS's edge swipe and Android's predictive back still move a page. The paper: KitGround was a 48px ink speckle averaging 245 on white where web averages 250. Grain is now web's own pixels (tool/bake_grain.cjs), the lattice computed at screen pixels: 250.0 on both. A zero-length pop finishes inline, so a test that popped a navigator's ONLY route now asserts; split_review_test hosts its sheet as the app does. Three holds (scripture-day, source-file, source-set) had not run since direction D: they looked for KitProcCard and an uncapped back label.

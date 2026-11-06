@@ -1120,6 +1120,8 @@ class _Cast {
       height: lt.h,
       decoration: BoxDecoration(
         color: t.surface,
+        // `.pl-letter::before`: the grain at .5.
+        image: KitGround.grainImageAt(0.5),
         border: Border.all(color: t.border),
         borderRadius: AppRadius.mdR,
         boxShadow: AppShadows.s3,

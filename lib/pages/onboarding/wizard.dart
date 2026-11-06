@@ -338,7 +338,9 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
     final main = Expanded(
       child: Container(
         color: t.bg,
+        // `.ob-main`: the lattice, and `::before` the grain at .5.
         child: KitGround(
+          grainOpacity: 0.5,
           child: Column(
             children: [
               Expanded(
@@ -484,9 +486,11 @@ class _Rail extends StatelessWidget {
       color: t.chrome,
       // The grain alone: a lattice of dots belongs to the paper ground, and on
       // the plum field it would be a different surface rather than a softer one.
+      // `.ob-rail::after`: opacity .5, overlaid on the plum.
       child: KitGround(
         lattice: false,
-        darkTint: true,
+        grainOpacity: 0.5,
+        grainBlend: BlendMode.overlay,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             compact ? AppSpacing.frameGutterCompact : 28,

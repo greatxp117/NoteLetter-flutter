@@ -3,6 +3,7 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_html_table/flutter_html_table.dart';
 import 'tokens.dart';
 import 'app_colors.dart';
+import 'app_page_transitions.dart';
 import 'app_radius.dart';
 
 class AppTheme {
@@ -302,6 +303,7 @@ class AppTheme {
       fontFamily: fontSans,
       textTheme: _buildTextTheme(AppColors.foregroundLight, AppColors.foregroundLight),
       scaffoldBackgroundColor: AppColors.backgroundLight,
+      pageTransitionsTheme: plainPageTransitions,
       cardTheme: CardThemeData(
         color: AppColors.cardLight,
         elevation: 0,
@@ -434,6 +436,7 @@ class AppTheme {
       fontFamily: fontSans,
       textTheme: _buildTextTheme(AppColors.foregroundDark, AppColors.foregroundDark),
       scaffoldBackgroundColor: AppColors.backgroundDark,
+      pageTransitionsTheme: plainPageTransitions,
       cardTheme: CardThemeData(
         color: AppColors.cardDark,
         elevation: 0,

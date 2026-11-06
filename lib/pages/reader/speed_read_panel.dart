@@ -6,6 +6,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/kit/kit_controls.dart' show KitKeyHint;
+import '../../widgets/kit/kit_ground.dart';
 import '../../widgets/kit/kit_text.dart';
 
 /// Reader → Speed read panel: RSVP (one word at a time, pinned to a fixed
@@ -270,6 +271,7 @@ class _SpeedReadPanelState extends State<SpeedReadPanel> {
           constraints: BoxConstraints(minHeight: narrow ? 200 : 248),
           decoration: BoxDecoration(
             color: _held ? t.surfaceRaised : t.surface,
+            image: KitGround.grainImage,
             borderRadius: AppRadius.lgR,
             border: Border.all(color: t.border),
             boxShadow: _held ? AppShadows.s2 : AppShadows.s1,

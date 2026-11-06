@@ -11,10 +11,6 @@
 //    crosses the viewport instead.
 //  * Links scroll to their department with `Scrollable.ensureVisible` — the
 //    reference's `#n04` anchors.
-//  * The sheet and the letters carry no grain: the reference lays it at 60%
-//    and 50% opacity, and the kit's ground has one strength, which read as a
-//    grey speckled page beside the reference's clean one (first frame,
-//    2026-09-26). The desk around the sheet keeps its lattice.
 //  * The footer's `rgba(255,255,255,.72/.5)` are the chrome tokens nearest them
 //    (`--chrome-control`, `--chrome-muted`); `--brick-300` on the plum band is
 //    `Tokens.dark.accentText`, the same fixed step in both themes.
@@ -634,6 +630,8 @@ class _Sheet extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
+        // `.pg::before`: the grain at .6.
+        image: KitGround.grainImageAt(0.6),
         border: Border.all(color: t.border),
         borderRadius: AppRadius.lgR,
         boxShadow: AppShadows.s3,

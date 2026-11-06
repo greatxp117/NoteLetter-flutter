@@ -14,6 +14,7 @@ import 'app_providers.dart';
 import 'router.dart';
 import 'state/auth_notifier.dart';
 import 'state/camera_sweep_host.dart';
+import 'widgets/kit/kit_ground.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,8 @@ void main() async {
   // Android's share target (F-123): the share that launched the app, if any,
   // then each one that arrives while it runs.
   ShareIntake.instance.start(router);
+
+  await KitGround.prepare();
 
   runApp(
     MultiProvider(

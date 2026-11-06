@@ -1219,8 +1219,14 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       final title = holdState == 'source-file'
           ? 'minutes-2026-08.docx'
           : 'Kitchen notebook, three pages';
+      // Direction D's row (`KitLibProcRow`), lower in the Library than the
+      // first screen, in a list that builds only what it shows: scroll for it.
       final row = find.ancestor(
-          of: find.text(title), matching: find.byType(KitProcCard));
+          of: find.text(title), matching: find.byType(KitLibProcRow));
+      for (var i = 0; i < 20 && row.evaluate().isEmpty; i++) {
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
+        await settle();
+      }
       expect(row, findsOneWidget,
           reason: 'run tool/seed_overlay_sources.py first — no processing '
               'row for "$title"');
@@ -1252,7 +1258,7 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       await settle();
       final row = find.ancestor(
           of: find.text('A long thread, six screenshots'),
-          matching: find.byType(KitProcCard));
+          matching: find.byType(KitLibProcRow));
       expect(row, findsOneWidget,
           reason: 'run tool/seed_overlay_sources.py --stitched first');
       final view = find.descendant(of: row, matching: find.text('View file'));
@@ -1538,7 +1544,11 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
       }
       await settle();
       ApiService.instance.resetTestSeams();
-      expect(find.text('Back to the letter'), findsOneWidget,
+      // D's back control caps its label, so the type says it, not the text.
+      expect(
+          find.byWidgetPredicate(
+              (w) => w is KitDBackControl && w.label == 'Back to the letter'),
+          findsOneWidget,
           reason: 'the day did not open — this frame would be the letter');
       expect(find.textContaining('One reading could not be searched',
               findRichText: true),
