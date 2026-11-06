@@ -2672,3 +2672,16 @@ a new obligation on a finished screen is a new item.
 - shots: library; sources; letters; letter-reader; letter-settings; scripture-day; notifications; settings; support; study; shelves; shelf-create-sheet; shelf-color-picker; proc-affordances; source-file; source-set; recipe; reader; reader-history; reader-manuscript; reader-speed-read; reader-listen; reader-shelves; shelf-picker-search; reader-reprocess-confirm; reader-edit-drag; reader-mark-as-read; ask-thread; onboarding; onboarding-librarian; settings-ai-off; reader-ai-off; ask-off; signin; signin-fail; landing-actual
 - extra_gates: flutter test test/kit/page_change_plain_test.dart test/kit/ground_test.dart
 - notes: Xavier: weird animations opening a page; the paper is not web's. A recording showed each route change sliding 430ms with the new page's text over the old, since a shell page has no background of its own; §40 already said a client without view transitions changes plainly. Durations went to zero in the theme, keeping the platform builders, so iOS's edge swipe and Android's predictive back still move a page. The paper: KitGround was a 48px ink speckle averaging 245 on white where web averages 250. Grain is now web's own pixels (tool/bake_grain.cjs), the lattice computed at screen pixels: 250.0 on both. A zero-length pop finishes inline, so a test that popped a navigator's ONLY route now asserts; split_review_test hosts its sheet as the app does. Three holds (scripture-day, source-file, source-set) had not run since direction D: they looked for KitProcCard and an uncapped back label.
+
+## F-176 · The app icon: bookcloth, white, pressed (Xavier 2026-11-06)
+- status: done 2026-11-06
+- screen: app-icon
+- route: none
+- spec: spec/features/app-icon.md
+- web: scripts/build-favicons.mjs; public/favicon.svg; public/favicon.ico; public/apple-touch-icon.png
+- flutter: tool/app_icons.mjs; ios/Runner/AppIcon.icon/icon.json; ios/Runner.xcodeproj/project.pbxproj; ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json; android/app/src/main/res/drawable/ic_launcher_foreground.xml; android/app/src/main/res/drawable/ic_launcher_monochrome.xml; android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml; test/contract/app_icon_test.dart
+- folds: Xavier 2026-11-06
+- device_test: none
+- shots: none
+- extra_gates: flutter test test/contract/app_icon_test.dart
+- notes: Taken out of order at Xavier's request: the icon is the handoff's first surface. No screen, so no pair; the proof is a home screen. A stub app holding the compiled catalog on the iOS 26.5 simulator showed a bitmap lose its weave and pressed edge to Liquid Glass and its quill turn pink, hence AppIcon.icon with every effect off. Every iOS below 26 reads bitmaps Xcode flattens from it: extracted from the .car, Any and Dark are the master pixel for pixel, Tinted a white quill on black. Not yet seen on Xavier's iPhone 12 (iOS 18.1.1) or on an Android launcher.
