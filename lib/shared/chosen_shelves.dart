@@ -1,7 +1,7 @@
 /// Kit §20.3's choice (contract 5.73.0, ADR-238, INV-38) — web's
 /// `useChosenShelves` (`shared/AddShelves.jsx`), the one rule that tells a shelf
 /// that has gone from a shelf that is on its way. Pure, so it is asserted
-/// (`test/kit/chosen_shelves_test.dart`).
+/// (`test/kit/add_shelves_test.dart`).
 library;
 
 import 'package:flutter/foundation.dart';

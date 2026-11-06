@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_app/widgets/add_shelves.dart';
 import 'package:flutter_app/shared/document_window.dart';
 import 'package:flutter_app/models/document.dart';
 import 'package:flutter_app/models/newsletter.dart';
@@ -326,6 +327,8 @@ void main() {
         findsOneWidget);
     expect(find.textContaining('within a minute'), findsNothing);
     expect(find.text('Drop files to begin'), findsOneWidget);
+    // Kit §20.3 (5.73.0, ADR-238): every manual add, the empty catalogue's too.
+    expect(find.byType(AddShelves), findsOneWidget);
   });
 }
 

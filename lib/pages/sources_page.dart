@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/cloud_integration.dart';
 import '../models/document.dart';
+import '../shared/chosen_shelves.dart';
 import '../shared/cloud_providers.dart';
 import '../shared/cloud_return.dart';
 import '../shared/document_window.dart';
@@ -103,6 +104,10 @@ class _SourcesPageState extends State<SourcesPage> {
   /// What the connect page's *Bring in* queued — a status in the notices.
   String? _returnNote;
 
+  /// Kit §20.3 on the empty catalogue. Held here, not by the uploader: the
+  /// uploader leaves with the empty state, and the page's life is the choice's.
+  final _chosen = ChosenShelves();
+
   /// An `insufficient_scope` reason, in §States' copy — one of the two
   /// answers about organization rather than a connection, which stay on the
   /// Library's notices.
@@ -173,6 +178,7 @@ class _SourcesPageState extends State<SourcesPage> {
     for (final t in _justDone.values) {
       t.cancel();
     }
+    _chosen.dispose();
     super.dispose();
   }
 
@@ -549,8 +555,10 @@ class _SourcesPageState extends State<SourcesPage> {
                   bottom: 24);
             case LibraryState.empty:
               // The catalogue before anything is in it: the drop zone and the
-              // link field — this client's one upload path.
-              catalogue = const FileUploader(look: FileUploaderLook.first);
+              // link field — this client's one upload path. Kit §20.3 here too
+              // (5.73.0, ADR-238): every manual add, as web's Library has it.
+              catalogue =
+                  FileUploader(look: FileUploaderLook.first, chosen: _chosen);
             case LibraryState.ready:
               catalogue = items.isEmpty
                   ? KitDNone('No volumes match.',

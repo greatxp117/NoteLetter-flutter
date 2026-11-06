@@ -37,7 +37,8 @@ class FileUploader extends StatefulWidget {
   final FileUploaderLook look;
 
   /// Kit §20.3 (5.73.0, ADR-238), held by the page it stands on: Add a source
-  /// draws the row, and every add from here carries what it holds. Null where
+  /// and the empty Library draw the row, and every add from here carries what it
+  /// holds. Null where
   /// no shelf is offered (`screens/sources.md`: onboarding's first add).
   final ChosenShelves? chosen;
 
