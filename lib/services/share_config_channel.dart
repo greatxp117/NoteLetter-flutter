@@ -25,6 +25,8 @@ class ShareConfigChannel {
             ? {
                 'host': ApiService.emulatorHost,
                 'authPort': ApiService.authPort,
+                // §Shelves reads `tags` over Firestore REST (5.73.0, ADR-238).
+                'firestorePort': ApiService.firestorePort,
                 'functionsPort': ApiService.functionsPort,
                 'shim': ApiService.useFunctionsShim,
               }

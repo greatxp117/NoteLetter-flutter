@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -11,10 +12,14 @@ import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/shared/cloud_return.dart';
 import 'package:flutter_app/shared/upload_types.dart';
 import 'package:flutter_app/state/cloud_notifier.dart';
+import 'package:flutter_app/state/documents_notifier.dart';
+import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 import 'package:flutter_app/widgets/quick_add.dart';
+
+import 'shelves_harness.dart';
 
 /// Quick add (F-152; web `overlays/QuickAdd.jsx`, `image-set-choice.test.js`):
 /// the sheet's anatomy and words, the phone sheet and the wide dialog, the
@@ -98,8 +103,10 @@ PlatformFile _png(String name) =>
 void main() {
   late UploadNotifier upload;
   late _Wire wire;
+  late LiveTags tags;
 
   setUp(() {
+    tags = LiveTags([shelf('a', 'Attention'), shelf('b', 'Birds')]);
     ApiService.instance.tokenProvider = () async => 'test-token';
     wire = _Wire();
     ApiService.instance.httpClientAdapter = wire;
@@ -118,6 +125,8 @@ void main() {
         providers: [
           ChangeNotifierProvider<UploadNotifier>.value(value: upload),
           ChangeNotifierProvider<CloudNotifier>.value(value: cloud ?? _Cloud()),
+          ChangeNotifierProvider<TagsNotifier>.value(value: tags),
+          ChangeNotifierProvider<DocumentsNotifier>(create: (_) => QuietDocs()),
         ],
         child: MaterialApp(
           theme: dark ? AppTheme.dark : AppTheme.light,
@@ -507,5 +516,280 @@ void main() {
     ));
     expect(find.text('Drop files, or tap to add one'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  group('kit §20.3: shelves at add (5.73.0, ADR-238)', () {
+    /// What each request to [path] said about shelves, in order.
+    List<Object?> shelvesSent(String path) => [
+          for (final r in wire.sent)
+            if (r.path.endsWith(path)) (r.data as Map)['tagIds'],
+        ];
+
+    Future<void> choose(WidgetTester tester, String title) async {
+      await tester.tap(find.bySemanticsLabel('Add a shelf'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.text(title));
+      await tester.pump();
+    }
+
+    Future<void> addLink(WidgetTester tester, String url) async {
+      await tester.enterText(find.byType(TextField), url);
+      await tester.pump();
+      await tester.tap(find.text('Add'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    testWidgets('the row stands after the link row, before what is going',
+        (tester) async {
+      await pumpBody(tester);
+      await addLink(tester, 'https://example.com/a');
+      final link = tester.getTopLeft(find.byType(KitQaLinkRow)).dy;
+      final row = tester.getTopLeft(find.text('SHELVES')).dy;
+      final going = tester.getTopLeft(find.text('GOING TO YOUR LIBRARY')).dy;
+      expect(link, lessThan(row));
+      expect(row, lessThan(going));
+      expect(tags.starts, 1, reason: 'quick add can open over any page');
+    });
+
+    testWidgets('none chosen: no key at all, on every kind of add',
+        (tester) async {
+      FilePicker.platform = _Picker([_png('a.png'), _png('b.png')]);
+      await pumpBody(tester);
+      await addLink(tester, 'https://example.com/a');
+      await tester.tap(find.text('Drop files, or tap to add one'));
+      await tester.pump();
+      await tester.tap(find.text('Separate sources'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.text('Drop files, or tap to add one'));
+      await tester.pump();
+      await tester.tap(find.text('One source'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final bodies = [
+        for (final r in wire.sent)
+          if (r.data is Map &&
+              RegExp(r'fn_(ingest_url|create_upload_session|create_multi_image_session)$')
+                  .hasMatch(r.path))
+            r.data as Map,
+      ];
+      expect(bodies.length, 4, reason: 'a link, two files, a set');
+      for (final b in bodies) {
+        expect(b.containsKey('tagIds'), isFalse, reason: '$b');
+      }
+    });
+
+    testWidgets('each add takes the row as it stood when pressed',
+        (tester) async {
+      await pumpBody(tester);
+      await choose(tester, 'Attention');
+      await addLink(tester, 'https://example.com/one');
+      await choose(tester, 'Birds');
+      await addLink(tester, 'https://example.com/two');
+      await tester.tap(find.bySemanticsLabel('Take Attention off'));
+      await tester.pump();
+      await addLink(tester, 'https://example.com/three');
+      expect(shelvesSent('fn_ingest_url'), [
+        ['a'],
+        ['a', 'b'],
+        ['b'],
+      ]);
+      expect(find.text('Attention'), findsNothing);
+      expect(find.text('Birds'), findsOneWidget, reason: 'the row stays live');
+    });
+
+    test('the notifier copies at the door: a later change cannot reach an add',
+        () async {
+      final live = ['a'];
+      final going = upload.addUrl('https://example.com/one', tagIds: live);
+      live
+        ..add('b')
+        ..remove('a');
+      await going;
+      expect(shelvesSent('fn_ingest_url'), [
+        ['a'],
+      ], reason: 'the request is built after the token is awaited');
+    });
+
+    testWidgets('a set takes the row when pressed, not when its frames are read',
+        (tester) async {
+      final dir = Directory.systemTemp.createTempSync('qa-set');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      PlatformFile onDisk(String name) {
+        final f = File('${dir.path}/$name')..writeAsBytesSync([1, 2, 3, 4]);
+        return PlatformFile(name: name, size: 4, path: f.path);
+      }
+
+      FilePicker.platform = _Picker([onDisk('a.png'), onDisk('b.png')]);
+      await pumpBody(tester);
+      await choose(tester, 'Attention');
+      await tester.tap(find.text('Drop files, or tap to add one'));
+      await tester.pump();
+      // In real time: the press starts a real read of a real file, which a test's
+      // fake clock would never let finish.
+      await tester.runAsync(() async {
+        await tester.tap(find.text('One source'));
+        await tester.pump();
+        // The frames are being read from disk, and the row is live meanwhile.
+        expect(wire.sent.where((r) => r.path.endsWith('session')), isEmpty);
+        await tester.tap(find.bySemanticsLabel('Take Attention off'));
+        await tester.pump();
+        expect(find.text('Attention'), findsNothing);
+        for (var i = 0;
+            i < 200 &&
+                !wire.sent.any(
+                    (r) => r.path.endsWith('fn_create_multi_image_session'));
+            i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          await tester.pump();
+        }
+      });
+      expect(shelvesSent('fn_create_multi_image_session'), [
+        ['a'],
+      ]);
+    });
+
+    testWidgets('a file and a set carry it too', (tester) async {
+      FilePicker.platform = _Picker([
+        _png('a.png'),
+        _png('b.png'),
+      ]);
+      await pumpBody(tester);
+      await choose(tester, 'Attention');
+      await tester.tap(find.text('Drop files, or tap to add one'));
+      await tester.pump();
+      await tester.tap(find.text('One source'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(shelvesSent('fn_create_multi_image_session'), [
+        ['a'],
+      ]);
+      await tester.tap(find.text('Drop files, or tap to add one'));
+      await tester.pump();
+      await tester.tap(find.text('Separate sources'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(shelvesSent('fn_create_upload_session'), [
+        ['a'],
+        ['a'],
+      ]);
+    });
+
+    testWidgets('a shelf deleted since it was chosen goes, and is not sent',
+        (tester) async {
+      await pumpBody(tester);
+      await choose(tester, 'Attention');
+      await choose(tester, 'Birds');
+      tags.deliver([shelf('b', 'Birds')]);
+      await tester.pump();
+      expect(find.text('Attention'), findsNothing);
+      await addLink(tester, 'https://example.com/one');
+      expect(shelvesSent('fn_ingest_url'), [
+        ['b'],
+      ]);
+    });
+
+    testWidgets(
+        'a shelf just made goes on the next add before the read delivers it',
+        (tester) async {
+      wire = _Wire(body: const {'docId': 'n1', 'tagId': 'made'});
+      ApiService.instance.httpClientAdapter = wire;
+      await pumpBody(tester);
+      await tester.tap(find.bySemanticsLabel('Add a shelf'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.enterText(
+          find.byKey(const ValueKey('shelf-pick-search')), 'Field notes');
+      await tester.pump();
+      await tester.tap(find.textContaining('Create', findRichText: true));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('It goes on what you add next.'), findsOneWidget);
+      expect(find.text('Find sources that belong here'), findsNothing,
+          reason: 'the library holds no complete source');
+
+      await tester.tap(find.text('Create shelf'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('It goes on what you add next.'), findsNothing,
+          reason: 'the sheet closed, and the reader stayed');
+      final made = wire.sent.singleWhere((r) => r.path.endsWith('fn_create_tag'));
+      expect((made.data as Map)['title'], 'Field notes');
+
+      // tags.shelves never had `made`: never a choice with no chip, and the add
+      // carries it.
+      expect(find.text('Field notes'), findsOneWidget);
+      await addLink(tester, 'https://example.com/one');
+      expect(shelvesSent('fn_ingest_url'), [
+        ['made'],
+      ]);
+
+      tags.deliver([shelf('made', 'Field notes'), ...tags.shelves]);
+      await tester.pump();
+      expect(find.text('Field notes'), findsOneWidget, reason: 'the same chip');
+    });
+
+    testWidgets("a refused shelf is that row's own line, in the server's words",
+        (tester) async {
+      const sentence = 'One of the shelves you chose no longer exists. '
+          'Take it off and try again.';
+      wire = _Wire(status: 404, body: const {'error': sentence});
+      ApiService.instance.httpClientAdapter = wire;
+      await pumpBody(tester);
+      await choose(tester, 'Attention');
+      await addLink(tester, 'https://example.com/one');
+      expect(find.text(sentence), findsOneWidget);
+      expect(find.text('Attention'), findsOneWidget,
+          reason: 'the chip stays, to be taken off');
+    });
+
+    testWidgets('a seeded opening sends what it was handed with none',
+        (tester) async {
+      await pumpBody(tester,
+          seed: [PlatformFile(name: 'one.pdf', size: 4, bytes: Uint8List(4))]);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final session =
+          wire.sent.singleWhere((r) => r.path.endsWith('fn_create_upload_session'));
+      expect((session.data as Map).containsKey('tagIds'), isFalse);
+    });
+
+    testWidgets('a second opening starts with nothing chosen', (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(providers(
+        Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => QuickAdd.show(context),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await choose(tester, 'Attention');
+      expect(find.text('Attention'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('SHELVES'), findsNothing, reason: 'closed');
+
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('SHELVES'), findsOneWidget);
+      expect(find.text('Attention'), findsNothing,
+          reason: 'closing the host drops the choice');
+      await addLink(tester, 'https://example.com/one');
+      expect(shelvesSent('fn_ingest_url'), [null]);
+    });
   });
 }

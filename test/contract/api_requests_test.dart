@@ -103,11 +103,18 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   // 5.51.0: `origin`, passed through and omitted when the case sends none —
   // `create-origin-unknown` sends a word outside the closed set, which the
   // builder carries and the server refuses by name.
+  //
+  // 5.73.0 (ADR-238): `tagIds`, passed through and omitted when the case sends
+  // none. `create-unknown-key` spells it `tagids`, which the builder cannot
+  // send: the key is dropped and the case pins the 400 the capture answered.
   'fn_create_upload_session': (b) => Api.instance.createUploadSession(
       b['filename'], b['mimeType'], b['size'],
-      origin: b['origin'] as String?),
-  'fn_create_multi_image_session': (b) =>
-      Api.instance.createMultiImageSession(_maps(b['files']), b['title']),
+      origin: b['origin'] as String?, tagIds: _strs(b['tagIds'])),
+  // The same: `multi-image-unknown-key`'s `layout` and an unknown file key are
+  // the server's refusal, and a set's `title` is omitted when none was given.
+  'fn_create_multi_image_session': (b) => Api.instance.createMultiImageSession(
+      _maps(b['files']), b['title'] as String?,
+      tagIds: _strs(b['tagIds'])),
   'fn_signal_uploads_complete': (b) =>
       Api.instance.signalUploadsComplete(b['docId']),
   // The camera-roll sweep (F-125 S2; INV-14). `capturedAt` is a «iso8601»
@@ -132,7 +139,10 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
         precheck: b['precheck'] == true,
         force: b['force'] == true,
       ),
-  'fn_ingest_url': (b) => Api.instance.ingestUrl(b['url'], b['type']),
+  // `shelves-not-a-list` sends a string the typed builder cannot carry: a local
+  // cast failure pinning the server's refusal.
+  'fn_ingest_url': (b) => Api.instance
+      .ingestUrl(b['url'], b['type'], tagIds: _strs(b['tagIds'])),
   'fn_update_document': (b) => Api.instance
       .updateDocument(b['docId'], Map<String, dynamic>.of(b)..remove('docId')),
   'fn_delete_document': (b) => Api.instance.deleteDocument(b['docId']),

@@ -10,11 +10,13 @@ import 'package:provider/provider.dart';
 import '../models/upload_file.dart';
 import '../pages/sources/sources_info_sheet.dart';
 import '../services/resumable_upload.dart';
+import '../shared/chosen_shelves.dart';
 import '../shared/cloud_return.dart';
 import '../shared/playlist.dart';
 import '../shared/upload_types.dart';
 import '../state/cloud_notifier.dart';
 import '../state/upload_notifier.dart';
+import 'add_shelves.dart';
 import 'kit/kit.dart';
 
 /// **Quick add** — *Add to your library* (F-152; web `overlays/QuickAdd.jsx`).
@@ -23,8 +25,9 @@ import 'kit/kit.dart';
 /// sheet, 540 wide, 82% tall): the zone (*Drop files, or tap to add one* —
 /// touch copy — and the accepted kinds), the one-source question when 2+
 /// images come in one pick (5.10.0, ADR-170), the link row, this client's
-/// *Add an image set* row, what this opening is sending (*Going to your
-/// library*), *Or connect a service* with the four providers, and the foot:
+/// *Add an image set* row, kit §20.3's shelves (5.73.0, ADR-238), what this
+/// opening is sending (*Going to your library*), *Or connect a service* with
+/// the four providers, and the foot:
 /// *What can I add?* and *More options →* (Add a source, `/sources/add`).
 ///
 /// Opened by the same buttons as on web: Home's and the Library's *Add a
@@ -155,6 +158,10 @@ class _QuickAddState extends State<QuickAdd> {
   String? _connectBusy;
   ({String id, String message})? _connectFail;
 
+  /// Kit §20.3: for this opening. Each opening is its own state, so closing
+  /// drops it, and a seed goes in before anything can be chosen.
+  final _chosen = ChosenShelves();
+
   @override
   void initState() {
     super.initState();
@@ -169,6 +176,7 @@ class _QuickAddState extends State<QuickAdd> {
   void dispose() {
     _link.dispose();
     _linkFocus.dispose();
+    _chosen.dispose();
     super.dispose();
   }
 
@@ -217,7 +225,8 @@ class _QuickAddState extends State<QuickAdd> {
     }
     unawaited(_upload.addFile(f.name, f.size, bytes, mime,
         source: path == null ? null : ChunkSource.file(path, f.size),
-        onRow: (id) => item.rowId = id));
+        onRow: (id) => item.rowId = id,
+        tagIds: _chosen.ids));
   }
 
   void _separate() {
@@ -250,6 +259,8 @@ class _QuickAddState extends State<QuickAdd> {
 
   Future<void> _sendSet(List<PlatformFile> frames) async {
     if (frames.isEmpty) return;
+    // Taken now, before the frames are read: the row stays live meanwhile.
+    final tagIds = _chosen.ids;
     final item = _Item('${frames.length} images — one source', 'note');
     setState(() => _items.insert(0, item));
     final images =
@@ -272,7 +283,8 @@ class _QuickAddState extends State<QuickAdd> {
       return;
     }
     if (!mounted) return;
-    await _upload.addImageSet(images, onRow: (id) => item.rowId = id);
+    await _upload.addImageSet(images,
+        onRow: (id) => item.rowId = id, tagIds: tagIds);
   }
 
   Future<void> _addLink() async {
@@ -285,7 +297,8 @@ class _QuickAddState extends State<QuickAdd> {
         playlist: type == playlistType);
     setState(() => _items.insert(0, item));
     _link.clear();
-    final rejection = await _upload.addUrl(v, onRow: (id) => item.rowId = id);
+    final rejection = await _upload.addUrl(v,
+        onRow: (id) => item.rowId = id, tagIds: _chosen.ids);
     // A link refused at the door makes no row: its reason is said here.
     if (mounted && rejection != null && item.rowId == null) {
       setState(() => item.refusal = rejection);
@@ -399,6 +412,7 @@ class _QuickAddState extends State<QuickAdd> {
           onSubmit: _addLink,
         ),
       ),
+      AddShelves(chosen: _chosen),
       if (rows.isNotEmpty) KitQaAdded(ready: ready, rows: rows),
       const KitQaOr('or connect a service'),
       KitQaHang(

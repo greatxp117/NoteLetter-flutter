@@ -24,6 +24,11 @@ abstract final class UploadOrigin {
       : phone;
 }
 
+/// The shelves a reader chose (5.73.0, ADR-238, INV-38; web `chosenShelves`):
+/// the `tagIds` key, or nothing at all with none chosen.
+Map<String, dynamic> _chosenShelves(List<String>? tagIds) =>
+    tagIds == null || tagIds.isEmpty ? const {} : {'tagIds': tagIds};
+
 /// `purposeText`'s bound (api/newsletter.md, 5.48.0; web `MISSION_MAX`).
 /// Since 5.61.0 `fn_newsletter_settings` refuses a longer one with a 400, as it
 /// refuses every other key out of bounds (until then it kept the first 1000
@@ -104,20 +109,31 @@ class Api {
 
   /// [origin] (5.51.0): [UploadOrigin]'s word, omitted when none is given —
   /// the closed set refuses anything else by name.
+  ///
+  /// [tagIds] (5.73.0, ADR-238, INV-38): the shelves the reader chose. No key
+  /// at all with none chosen, so a plain add is byte for byte what it was. The
+  /// closed key set is the server's, and it refuses what this cannot build.
   Future<Map<String, dynamic>> createUploadSession(
-          String filename, String mimeType, int size, {String? origin}) =>
+          String filename, String mimeType, int size,
+          {String? origin, List<String>? tagIds}) =>
       _http.post('/fn_create_upload_session', data: {
         'filename': filename,
         'mimeType': mimeType,
         'size': size,
         'origin': ?origin,
+        ..._chosenShelves(tagIds),
       });
 
   /// Multi-image note: one session over N image parts (contract 1.1.0).
+  /// [tagIds] as [createUploadSession], on the set's one document.
   Future<Map<String, dynamic>> createMultiImageSession(
-          List<Map<String, dynamic>> files, String title) =>
-      _http.post('/fn_create_multi_image_session',
-          data: {'files': files, 'title': title});
+          List<Map<String, dynamic>> files, String? title,
+          {List<String>? tagIds}) =>
+      _http.post('/fn_create_multi_image_session', data: {
+        'files': files,
+        'title': ?title,
+        ..._chosenShelves(tagIds),
+      });
 
   Future<Map<String, dynamic>> signalUploadsComplete(String docId) =>
       _http.post('/fn_signal_uploads_complete', data: {'docId': docId});
@@ -179,8 +195,14 @@ class Api {
   // ── Ingest (INV-07) ───────────────────────────────────────────────────────
 
   /// The single URL-ingest endpoint; `type` is client-detected (INV-07).
-  Future<Map<String, dynamic>> ingestUrl(String url, String type) =>
-      _http.post('/fn_ingest_url', data: {'url': url, 'type': type});
+  /// [tagIds] as [createUploadSession]; a playlist files every video on them.
+  Future<Map<String, dynamic>> ingestUrl(String url, String type,
+          {List<String>? tagIds}) =>
+      _http.post('/fn_ingest_url', data: {
+        'url': url,
+        'type': type,
+        ..._chosenShelves(tagIds),
+      });
 
   // ── Documents (INV-04) ────────────────────────────────────────────────────
 

@@ -6,12 +6,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:mime/mime.dart';
 import '../models/upload_file.dart';
 import '../services/resumable_upload.dart';
+import '../shared/chosen_shelves.dart';
 import '../state/upload_notifier.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../shared/playlist.dart';
 import '../shared/upload_types.dart';
+import 'add_shelves.dart';
 import 'kit/kit.dart';
 
 /// The add flows (`screens/sources.md` §Composition body 1): the **drop zone**,
@@ -34,11 +36,17 @@ class FileUploader extends StatefulWidget {
   /// under them the uploader says only what adding answered ([AddAnswered]).
   final FileUploaderLook look;
 
+  /// Kit §20.3 (5.73.0, ADR-238), held by the page it stands on: Add a source
+  /// draws the row, and every add from here carries what it holds. Null where
+  /// no shelf is offered (`screens/sources.md`: onboarding's first add).
+  final ChosenShelves? chosen;
+
   const FileUploader({
     super.key,
     this.onUploadComplete,
     this.onUploadError,
     this.look = FileUploaderLook.panel,
+    this.chosen,
   });
 
   @override
@@ -134,7 +142,8 @@ class FileUploaderState extends State<FileUploader> {
       // succeeded.
       notifier
           .addFile(file.name, file.size, bytes, mimeType,
-              source: path == null ? null : ChunkSource.file(path, file.size))
+              source: path == null ? null : ChunkSource.file(path, file.size),
+              tagIds: widget.chosen?.ids)
           .then((rowId) {
         if (!mounted) return;
         final match = notifier.files.firstWhere(
@@ -174,7 +183,7 @@ class FileUploaderState extends State<FileUploader> {
     }
     if (images.isEmpty) return;
 
-    final rowId = await notifier.addImageSet(images);
+    final rowId = await notifier.addImageSet(images, tagIds: widget.chosen?.ids);
     if (!mounted || rowId == null) return;
     final match = notifier.files.firstWhere(
       (f) => f.id == rowId,
@@ -197,7 +206,7 @@ class FileUploaderState extends State<FileUploader> {
     });
     notifier.beginIntake();
     try {
-      final refused = await notifier.addUrl(url);
+      final refused = await notifier.addUrl(url, tagIds: widget.chosen?.ids);
       if (!mounted) return;
       if (refused != null) {
         // **Keep the field, keep the text, say why.** Clearing it on a
@@ -325,6 +334,11 @@ extension on FileUploaderState {
         // The device capability web lacks: one source of up to 20 images.
         const SizedBox(height: 4),
         KitImageSetRow(onPressed: () => _pickImageSet(notifier)),
+        if (widget.chosen != null) ...[
+          // `.dp-add .add-shelves { margin-top: 14px }`.
+          const SizedBox(height: 14),
+          AddShelves(chosen: widget.chosen!),
+        ],
         const AddAnswered(),
       ],
     );

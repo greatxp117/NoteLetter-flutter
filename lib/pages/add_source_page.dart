@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/document.dart';
+import '../shared/chosen_shelves.dart';
 import '../state/documents_notifier.dart';
 import '../state/tags_notifier.dart';
 import '../state/upload_notifier.dart';
@@ -40,6 +41,9 @@ class AddSourcePage extends StatefulWidget {
 class _AddSourcePageState extends State<AddSourcePage> {
   final _uploader = GlobalKey<FileUploaderState>();
 
+  /// Kit §20.3 (5.73.0, ADR-238): for this visit, on everything added from it.
+  final _chosen = ChosenShelves();
+
   /// Where the intake's created ids stood when this visit began: the ones
   /// after it are this visit's.
   late final int _mark;
@@ -55,6 +59,12 @@ class _AddSourcePageState extends State<AddSourcePage> {
       // A page arriving starts with nothing answered (web: a new intake).
       context.read<UploadNotifier>().clearAnswered();
     });
+  }
+
+  @override
+  void dispose() {
+    _chosen.dispose();
+    super.dispose();
   }
 
   void _library() => context.go('/sources');
@@ -120,9 +130,10 @@ class _AddSourcePageState extends State<AddSourcePage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // The drop zone (touch copy: *tap*), the link row, the device's
-          // image-set row, and what adding answered — this client's one
-          // upload path.
-          FileUploader(key: _uploader, look: FileUploaderLook.add),
+          // image-set row, §20.3's shelves, and what adding answered — this
+          // client's one upload path.
+          FileUploader(
+              key: _uploader, look: FileUploaderLook.add, chosen: _chosen),
           if (added.isNotEmpty) ...[
             // `.dp-just{margin-top:56px}`.
             const SizedBox(height: 56),

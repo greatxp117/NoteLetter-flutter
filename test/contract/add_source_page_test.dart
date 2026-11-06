@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_app/models/document.dart';
+import 'package:flutter_app/models/tag.dart';
 import 'package:flutter_app/pages/add_source_page.dart';
 import 'package:flutter_app/pages/sources/browse_section.dart';
 import 'package:flutter_app/services/api_service.dart';
@@ -35,6 +36,7 @@ import 'sources_harness.dart';
 /// each time, and records nothing else.
 class _Ingest implements HttpClientAdapter {
   final ids = <String>[];
+  final bodies = <Map>[];
   int _n = 0;
 
   @override
@@ -42,6 +44,8 @@ class _Ingest implements HttpClientAdapter {
       Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     final id = 'n${++_n}';
     ids.add(id);
+    final d = options.data;
+    bodies.add((d is String ? jsonDecode(d) : d) as Map);
     return ResponseBody.fromString(jsonEncode({'docId': id}), 201, headers: {
       Headers.contentTypeHeader: [Headers.jsonContentType],
     });
@@ -83,7 +87,9 @@ void main() {
   });
 
   Future<void> pump(WidgetTester tester,
-      {Size size = const Size(800, 2400), bool dark = false}) async {
+      {Size size = const Size(800, 2400),
+      bool dark = false,
+      List<Tag> shelves = const []}) async {
     FirestoreService.instance = SourcesStubService(documents: docs.stream);
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -92,7 +98,7 @@ void main() {
       providers: [
         ChangeNotifierProvider<DocumentsNotifier>(
             create: (_) => DocumentsNotifier()),
-        ChangeNotifierProvider<TagsNotifier>(create: (_) => StubTags()),
+        ChangeNotifierProvider<TagsNotifier>(create: (_) => StubTags(shelves)),
         ChangeNotifierProvider<ActivityNotifier>(create: (_) => StubActivity()),
         ChangeNotifierProvider<UploadNotifier>.value(value: upload),
       ],
@@ -187,6 +193,43 @@ void main() {
     expect(find.byType(ProcessingRow), findsNothing);
     expect(find.byType(KitRegisterRow), findsOneWidget);
     expect(find.text('Now'), findsOneWidget);
+  });
+
+  testWidgets(
+      'kit §20.3: after the link row, before what adding answered; each add '
+      'carries the row as it stood', (tester) async {
+    const reading = Tag(
+        id: 's1', userId: 'u1', title: 'Reading list', color: 'teal-500');
+    await pump(tester, shelves: const [reading]);
+    await deliver(tester, const []);
+    final linkRow = tester.getTopLeft(find.text('Add link')).dy;
+    expect(tester.getTopLeft(find.text('SHELVES')).dy, greaterThan(linkRow));
+    expect(find.text('Optional. NoteLetter still adds its own as it reads.'),
+        findsOneWidget);
+
+    Future<void> add(String url) async {
+      await tester.enterText(find.byType(TextField), url);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(KitButton, 'Add link'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+    }
+
+    await add('https://example.com/plain');
+    expect(ingest.bodies.last.containsKey('tagIds'), isFalse,
+        reason: 'no key with none chosen');
+
+    await tester.tap(find.bySemanticsLabel('Add a shelf'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('Reading list'));
+    await tester.pump();
+    await add('https://example.com/shelved');
+    expect(ingest.bodies.last['tagIds'], ['s1']);
+    // On a D page a chip is §35's shelf tag, as web's `.hx-d .ms-shelf`.
+    expect(find.bySemanticsLabel('Reading list'), findsOneWidget,
+        reason: 'the choice stays for the visit');
   });
 
   testWidgets('a refused link is said by name, and the field keeps it',

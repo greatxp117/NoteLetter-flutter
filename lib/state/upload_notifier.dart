@@ -104,6 +104,10 @@ class UploadNotifier extends ChangeNotifier {
   /// [origin] (5.51.0): where the file came from, sent as the session's
   /// `origin` — the app's picker and quick add are [UploadOrigin.app]; the
   /// share screen says [UploadOrigin.shareSheet].
+  ///
+  /// [tagIds] (5.73.0, ADR-238): the shelves as the row stood when this add was
+  /// pressed. Copied here, at the door: nothing a chip does afterwards reaches
+  /// an add already pressed. The same on [addImageSet], [addUrl] and [shareUrl].
   Future<String> addFile(
     String name,
     int size,
@@ -112,7 +116,9 @@ class UploadNotifier extends ChangeNotifier {
     ChunkSource? source,
     void Function(String rowId)? onRow,
     String? origin,
+    List<String>? tagIds,
   }) async {
+    final shelves = List<String>.of(tagIds ?? const []);
     final from = source ?? (bytes == null ? null : ChunkSource.bytes(bytes));
     if (from == null) {
       throw ArgumentError('addFile needs bytes or a source');
@@ -127,7 +133,7 @@ class UploadNotifier extends ChangeNotifier {
     _pending[file.id] = from;
     onRow?.call(file.id);
     notifyListeners();
-    await _uploadFile(file, origin ?? UploadOrigin.app);
+    await _uploadFile(file, origin ?? UploadOrigin.app, shelves);
     return file.id;
   }
 
@@ -140,8 +146,10 @@ class UploadNotifier extends ChangeNotifier {
     List<({String name, int size, Uint8List bytes, String mimeType})> images, {
     String? title,
     void Function(String rowId)? onRow,
+    List<String>? tagIds,
   }) async {
     if (images.isEmpty) return null;
+    final shelves = List<String>.of(tagIds ?? const []);
     final set = images.take(20).toList(); // hard cap ≤20 (uploads.md)
     final setName =
         (title != null && title.trim().isNotEmpty) ? title.trim() : '${set.length} images';
@@ -164,8 +172,8 @@ class UploadNotifier extends ChangeNotifier {
           .map((im) =>
               {'filename': im.name, 'mimeType': im.mimeType, 'size': im.size})
           .toList();
-      final session =
-          await Api.instance.createMultiImageSession(filesMeta, setName);
+      final session = await Api.instance
+          .createMultiImageSession(filesMeta, setName, tagIds: shelves);
       final docId = session['docId'] as String;
       setDoc = docId;
       final urls = (session['uploadUrls'] as List).cast<String>();
@@ -211,15 +219,16 @@ class UploadNotifier extends ChangeNotifier {
   /// [onRow] as for [addFile]: told the row id once the link has a row — never
   /// for a link refused at the door, which makes none.
   Future<String?> addUrl(String rawUrl,
-          {void Function(String rowId)? onRow}) async =>
-      (await shareUrl(rawUrl, onRow: onRow)).rejection;
+          {void Function(String rowId)? onRow, List<String>? tagIds}) async =>
+      (await shareUrl(rawUrl, onRow: onRow, tagIds: tagIds)).rejection;
 
   /// [addUrl] for the share screen (F-123), which also says what was added:
   /// [note] is the playlist's sentence when the answer was a playlist
   /// (4.114.0, ADR-151), null for a single link.
   Future<({String? rejection, String? note})> shareUrl(String rawUrl,
-      {void Function(String rowId)? onRow}) async {
+      {void Function(String rowId)? onRow, List<String>? tagIds}) async {
     if (rawUrl.trim().isEmpty) return (rejection: null, note: null);
+    final shelves = List<String>.of(tagIds ?? const []);
 
     // Normalize, then detect (4.86.0, ADR-120): the normalized string is what
     // fn_ingest_url is sent, verbatim.
@@ -246,7 +255,7 @@ class UploadNotifier extends ChangeNotifier {
     _files.add(file);
     onRow?.call(file.id);
     notifyListeners();
-    await _ingestUrl(file, url, type);
+    await _ingestUrl(file, url, type, shelves);
     // The row carries the reason; hand it back too, so the field the reader is
     // still looking at can say so and keep what they typed.
     final row = _files.firstWhere((f) => f.id == file.id, orElse: () => file);
@@ -269,7 +278,8 @@ class UploadNotifier extends ChangeNotifier {
     _patch(id, description: description);
   }
 
-  Future<void> _uploadFile(UploadFile file, String origin) async {
+  Future<void> _uploadFile(
+      UploadFile file, String origin, List<String> tagIds) async {
     final source = _pending[file.id];
     if (source == null) return;
 
@@ -283,7 +293,7 @@ class UploadNotifier extends ChangeNotifier {
 
       final session = await Api.instance.createUploadSession(
           file.name, file.mimeType, file.size,
-          origin: origin);
+          origin: origin, tagIds: tagIds);
 
       final docId = session['docId'] as String;
       fileDoc = docId;
@@ -322,7 +332,8 @@ class UploadNotifier extends ChangeNotifier {
     }
   }
 
-  Future<void> _ingestUrl(UploadFile file, String url, String type) async {
+  Future<void> _ingestUrl(
+      UploadFile file, String url, String type, List<String> tagIds) async {
     // The URL itself is never sent. It is somebody's reading, and a URL is
     // legible where a Firestore id is not — the worst of the fields ADR-081
     // found on the wire (INV-25b).
@@ -330,7 +341,7 @@ class UploadNotifier extends ChangeNotifier {
     try {
       _patch(file.id, status: UploadStatus.uploading, progress: 0.5);
 
-      final result = await Api.instance.ingestUrl(url, type);
+      final result = await Api.instance.ingestUrl(url, type, tagIds: tagIds);
 
       // Response has either a single `docId` or a playlist `docIds` (INV-07).
       // A playlist's answer is ONE success, said with the measured count

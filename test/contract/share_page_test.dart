@@ -4,17 +4,49 @@
 // extension (ios/Share/ShareViewController.swift + ShareView.swift, F-122),
 // case for case; its copy is asserted verbatim because it exists nowhere else
 // (SPEC GAP).
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_app/pages/share_page.dart';
+import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/share_intake.dart';
 import 'package:flutter_app/shared/share_content.dart';
 import 'package:flutter_app/shared/upload_types.dart' show kScrollHint;
+import 'package:flutter_app/state/documents_notifier.dart';
+import 'package:flutter_app/state/tags_notifier.dart';
 import 'package:flutter_app/state/upload_notifier.dart';
 import 'package:flutter_app/theme/app_theme.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
+
+import '../kit/shelves_harness.dart';
+
+/// The add's request, recorded when it is sent; [hold] keeps the answer back.
+class _ShareWire implements HttpClientAdapter {
+  final bodies = <Map>[];
+  int status = 201;
+  Map<String, dynamic> answer = const {'docId': 'n1'};
+  Completer<void>? hold;
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    final d = options.data;
+    bodies.add((d is String ? jsonDecode(d) : d) as Map);
+    await hold?.future;
+    return ResponseBody.fromString(jsonEncode(answer), status, headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    });
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 SharedStream _s(String name, String mime, {int size = 1000, String? error}) =>
     SharedStream(
@@ -239,6 +271,9 @@ void main() {
   });
 
   group('SharePage — the states, from the kit', () {
+    late LiveTags tags;
+    setUp(() => tags = LiveTags([shelf('a', 'Attention'), shelf('b', 'Birds')]));
+
     Future<void> pump(
       WidgetTester tester,
       SharedContent content, {
@@ -247,8 +282,16 @@ void main() {
     }) async {
       ShareIntake.instance.show(content);
       await tester.pumpWidget(
-        ChangeNotifierProvider<UploadNotifier>(
-          create: (_) => UploadNotifier(),
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<UploadNotifier>(
+              create: (_) => UploadNotifier(),
+            ),
+            ChangeNotifierProvider<TagsNotifier>.value(value: tags),
+            ChangeNotifierProvider<DocumentsNotifier>(
+              create: (_) => QuietDocs(),
+            ),
+          ],
           child: MaterialApp(
             theme: theme ?? AppTheme.light,
             home: SharePage(signedIn: signedIn),
@@ -428,6 +471,172 @@ void main() {
       );
       expect(find.byType(KitCard), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    group('kit §20.3: Shelves (5.73.0, ADR-238)', () {
+      late _ShareWire wire;
+      setUp(() {
+        ApiService.instance.tokenProvider = () async => 'test-token';
+        wire = _ShareWire();
+        ApiService.instance.httpClientAdapter = wire;
+      });
+      tearDown(ApiService.instance.resetTestSeams);
+
+      Future<void> choose(WidgetTester tester, String title) async {
+        await tester.tap(find.bySemanticsLabel('Add a shelf'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        await tester.tap(find.text(title));
+        await tester.pump();
+      }
+
+      const sentence = 'Optional. NoteLetter still adds its own as it reads.';
+
+      testWidgets('every accepted card, between its lines and its button', (
+        tester,
+      ) async {
+        for (final (content, line, label) in <(SharedContent, String, String)>[
+          (
+            const SharedLink('https://example.com', 'article'),
+            'Files as: Article',
+            'Add to NoteLetter',
+          ),
+          (
+            SharedImages([_s('a.jpg', 'image/jpeg')]),
+            '1 photo selected',
+            'Upload Photos',
+          ),
+          (SharedFile(_s('a.pdf', 'application/pdf')), 'a.pdf', 'Upload File'),
+        ]) {
+          await pump(tester, content);
+          final y = tester.getTopLeft(find.text('SHELVES')).dy;
+          expect(tester.getTopLeft(find.text(line)).dy, lessThan(y));
+          expect(
+            y,
+            lessThan(tester.getTopLeft(find.byType(KitButton)).dy),
+            reason: label,
+          );
+          expect(find.text(sentence), findsOneWidget);
+        }
+      });
+
+      testWidgets('the states with nothing to add draw no row', (tester) async {
+        for (final c in <SharedContent>[
+          const SharedUnreadable('It couldn’t be read — gone'),
+          const SharedRefused('a.ppt', 'No.'),
+          const SharedNothing(),
+        ]) {
+          await pump(tester, c);
+          expect(find.text('SHELVES'), findsNothing, reason: '$c');
+        }
+      });
+
+      testWidgets('signed out: no row, and no read of anyone\'s shelves', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          const SharedLink('https://example.com', 'article'),
+          signedIn: false,
+        );
+        await tester.pump();
+        expect(find.text('SHELVES'), findsNothing);
+        expect(tags.starts, 0);
+      });
+
+      testWidgets('signed in: the row starts the tags read', (tester) async {
+        await pump(tester, const SharedLink('https://example.com', 'article'));
+        await tester.pump();
+        expect(tags.starts, 1);
+      });
+
+      testWidgets('a share starts with none, and sends no key', (tester) async {
+        await pump(tester, const SharedLink('https://example.com', 'article'));
+        await tester.tap(find.text('Add to NoteLetter'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(wire.bodies.single.containsKey('tagIds'), isFalse);
+        await tester.pump(const Duration(seconds: 1));
+      });
+
+      testWidgets('the add carries what is chosen; the row holds in flight', (
+        tester,
+      ) async {
+        wire.hold = Completer<void>();
+        await pump(tester, const SharedLink('https://example.com', 'article'));
+        await choose(tester, 'Attention');
+        await tester.tap(find.text('Add to NoteLetter'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(wire.bodies.single['tagIds'], ['a']);
+
+        // In flight: held, and no ring on the + Shelf that was last pressed.
+        expect(find.byType(KitBusyMark), findsNothing);
+        await tester.tap(
+          find.bySemanticsLabel('Take Attention off'),
+          warnIfMissed: false,
+        );
+        await tester.pump();
+        expect(find.text('Attention'), findsOneWidget, reason: 'it is held');
+
+        wire.hold!.complete();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(find.text('Added link for processing.'), findsOneWidget);
+        await tester.pump(const Duration(seconds: 1));
+      });
+
+      testWidgets(
+        'a refused shelf is the card\'s line, and the card stays, chip and all',
+        (tester) async {
+          const said =
+              'One of the shelves you chose no longer exists. Take it off and '
+              'try again.';
+          wire.status = 404;
+          wire.answer = const {'error': said};
+          await pump(tester, const SharedLink('https://example.com', 'article'));
+          await choose(tester, 'Attention');
+          await tester.tap(find.text('Add to NoteLetter'));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 50));
+          expect(find.widgetWithText(KitFailureInline, said), findsOneWidget);
+          expect(find.text('Files as: Article'), findsOneWidget);
+          await tester.tap(find.bySemanticsLabel('Take Attention off'));
+          await tester.pump();
+          expect(find.text('Attention'), findsNothing, reason: 'live again');
+        },
+      );
+
+      testWidgets('a share arriving while an add is in flight starts with none', (
+        tester,
+      ) async {
+        wire.hold = Completer<void>();
+        await pump(tester, const SharedLink('https://example.com', 'article'));
+        await choose(tester, 'Attention');
+        await tester.tap(find.text('Add to NoteLetter'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 20));
+        ShareIntake.instance.show(
+          const SharedLink('https://example.org', 'article'),
+        );
+        await tester.pump();
+        expect(find.text('Attention'), findsNothing);
+        expect(wire.bodies.single['tagIds'], ['a'], reason: 'its own copy');
+        wire.hold!.complete();
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+      });
+
+      testWidgets('a new share starts over with none chosen', (tester) async {
+        await pump(tester, const SharedLink('https://example.com', 'article'));
+        await choose(tester, 'Attention');
+        ShareIntake.instance.show(
+          const SharedLink('https://example.org', 'article'),
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(find.text('Attention'), findsNothing);
+      });
     });
   });
 }

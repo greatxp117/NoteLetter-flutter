@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/tag.dart';
+import '../../shared/chosen_shelves.dart';
 import '../../shared/shelf_pick.dart';
 import '../../shared/shelf_tree.dart';
 import '../../theme/app_colors.dart';
@@ -50,12 +51,25 @@ class KitShelfChipEditor extends StatefulWidget {
   final ValueChanged<String> onRemove;
   final ValueChanged<String> onCreate;
   final bool busy;
+
+  /// Every control held with no mark on any of them, for a host whose row writes
+  /// nothing itself (§20.3): its add is in flight, and no chip was pressed. A
+  /// press key that [busy] read here spun the last chip touched.
+  final bool disabled;
+
+  /// §20.3 at its cap: the add control alone is held, and every chip can still
+  /// be taken off.
+  final bool addHeld;
   final String? error;
   final String Function(Tag shelf) removeLabel;
 
   /// Every shelf, for the picker's tree order and path prefix (5.28.0,
   /// ADR-185). Defaults to [addable].
   final List<Tag>? allShelves;
+
+  /// The picker takes the phone's width, 16 inside each edge, rather than §20.1's
+  /// 288 (`screens/share-sheet.md` §Shelves: full-width over the card).
+  final bool fillPhone;
 
   const KitShelfChipEditor({
     super.key,
@@ -67,8 +81,11 @@ class KitShelfChipEditor extends StatefulWidget {
     required this.onCreate,
     required this.removeLabel,
     this.busy = false,
+    this.disabled = false,
+    this.addHeld = false,
     this.error,
     this.allShelves,
+    this.fillPhone = false,
   });
 
   /// `.shelf-pick` width. The panel never exceeds the viewport less 32.
@@ -92,13 +109,15 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
     super.dispose();
   }
 
-  void _open() => _openPicker(widget.addable.length);
+  void _open() => _openPicker(widget.addable.length, fillPhone: widget.fillPhone);
 
   void _close({bool refocus = true}) {
     if (!_pickerOpen) return;
     _hidePicker();
     if (refocus) _plusFocus.requestFocus();
   }
+
+  bool get _live => !widget.busy && !widget.disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +176,7 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
             excludeSemantics: true,
             child: _RoundTap(
               size: 16,
-              enabled: !widget.busy,
+              enabled: _live,
               onTap: () {
                 _pressed = c.shelf.id;
                 widget.onRemove(c.shelf.id);
@@ -189,7 +208,7 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
             excludeSemantics: true,
             child: _RoundTap(
               size: 20,
-              enabled: !widget.busy,
+              enabled: _live,
               onTap: () {
                 _pressed = c.shelf.id;
                 widget.onRemove(c.shelf.id);
@@ -232,7 +251,7 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
           focusNode: _plusFocus,
           child: _DashedTap(
             key: _anchorKey,
-            enabled: !widget.busy,
+            enabled: _live && !widget.addHeld,
             plain: d,
             onTap: () => open ? _close(refocus: false) : _open(),
             child: Row(
@@ -248,6 +267,94 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// §20.3 · Shelves at add (5.73.0, ADR-238) — §20 over a LOCAL choice, for a
+/// host that adds something that does not exist yet (web `shared/AddShelves.jsx`).
+///
+/// Required parts: the caps label *Shelves* · the §20 row, with §20.1's picker
+/// and its create row · [sentence], verbatim, or at [max] chosen [sentenceFull]
+/// with the add control held · the host's own §14.2 line, which this does not
+/// draw. Nothing is written until the host adds, so a chip comes
+/// and goes at once and none is ever busy; [disabled] holds the row while a sheet
+/// with one add is in flight. The host keeps [chosen] for its own life and reads
+/// `chosen.ids` when an add is pressed.
+class KitAddShelves extends StatelessWidget {
+  final ChosenShelves chosen;
+
+  /// What the tags read last delivered.
+  final List<Tag> shelves;
+
+  /// The create row, with the query: the host opens the form.
+  final ValueChanged<String> onCreate;
+  final bool disabled;
+  final bool fillPhone;
+
+  const KitAddShelves({
+    super.key,
+    required this.chosen,
+    required this.shelves,
+    required this.onCreate,
+    this.disabled = false,
+    this.fillPhone = false,
+  });
+
+  static const sentence = 'Optional. NoteLetter still adds its own as it reads.';
+
+  /// What the four endpoints take (`_CHOSEN_SHELVES_MAX`). An eleventh is held
+  /// here rather than refused there, and [sentenceFull] says why.
+  static const max = 10;
+  static const sentenceFull = 'Ten is the most one add can carry.';
+
+  /// §20.1's subtitle for the form the create row opens.
+  static const createSubtitle = 'It goes on what you add next.';
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return ListenableBuilder(
+      listenable: chosen,
+      builder: (context, _) {
+        chosen.read(shelves);
+        final on = chosen.ids.toSet();
+        final full = on.length >= max;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // The label sits above the row here (`.add-shelves-l`), not beside
+            // it as the reader's does, so it is not the editor's own [label].
+            Text('SHELVES',
+                style: AppTheme.mono(
+                    fontSize: 10, letterSpacing: 1.3, color: t.fgSubtle)),
+            const SizedBox(height: 6),
+            KitShelfChipEditor(
+              chips: [for (final s in chosen.chips) KitShelfChip(s)],
+              addable: [
+                for (final s in shelves)
+                  if (!on.contains(s.id)) s,
+              ],
+              allShelves: shelves,
+              disabled: disabled,
+              addHeld: full,
+              fillPhone: fillPhone,
+              removeLabel: (s) => 'Take ${s.title} off',
+              onAdd: chosen.add,
+              onRemove: chosen.remove,
+              onCreate: onCreate,
+            ),
+            const SizedBox(height: 6),
+            Text(full ? sentenceFull : sentence,
+                style: TextStyle(
+                    fontFamily: AppTheme.fontSans,
+                    fontSize: 12,
+                    height: 16 / 12,
+                    color: t.fgMuted)),
+          ],
+        );
+      },
     );
   }
 }
@@ -274,12 +381,14 @@ mixin _PickerAnchor<W extends StatefulWidget> on State<W> {
 
   /// [listRows] — the rows the list opens with, to know the panel's height
   /// before it exists.
-  void _openPicker(int listRows) {
+  void _openPicker(int listRows, {bool fillPhone = false}) {
     final box = _anchorKey.currentContext?.findRenderObject() as RenderBox?;
     final view = MediaQuery.sizeOf(context);
     final at = box?.localToGlobal(Offset.zero) ?? Offset.zero;
     final controlH = box?.size.height ?? 0;
-    final w = math.min(KitShelfChipEditor.panelWidth, view.width - 32);
+    final w = fillPhone && view.width <= 680
+        ? view.width - 32
+        : math.min(KitShelfChipEditor.panelWidth, view.width - 32);
     var x = math.min(0.0, view.width - 16 - w - at.dx);
     if (at.dx + x < 16) x = 16 - at.dx;
     final h = _ShelfPickerPanel.heightFor(view.width, listRows);

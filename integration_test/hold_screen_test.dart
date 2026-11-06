@@ -1172,6 +1172,25 @@ Future<void> reachState(WidgetTester tester, String holdState) async {
     // on quick add together, the one-source question open. Opened from the
     // tab bar's centre on Home (web: the tab bar's on a phone). Nothing is
     // sent until it is answered, so the frame writes nothing.
+    // F-172 — web theme-shots `quickadd-shelves`: kit §20.3 in quick add with a
+    // shelf chosen, and §20.1's picker open over the sheet. Nothing is sent.
+    case 'quickadd-shelves':
+      await settle();
+      await tester.tap(find.byKey(const ValueKey('d-tab-action')));
+      for (var i = 0; i < 30 && find.byType(QuickAdd).evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(find.byType(QuickAdd), findsOneWidget,
+          reason: "the tab bar's Add did not open quick add");
+      await settle();
+      final plus = find.bySemanticsLabel('Add a shelf');
+      await tester.tap(plus);
+      await settle();
+      await tester.tap(find.byKey(const ValueKey('shelf-pick-row-0')));
+      await settle();
+      await tester.tap(plus);
+      await settle();
+      return;
     case 'quickadd-image-set':
       await settle();
       await tester.tap(find.byKey(const ValueKey('d-tab-action')));

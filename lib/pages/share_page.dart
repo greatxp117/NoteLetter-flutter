@@ -9,12 +9,14 @@ import '../models/upload_file.dart';
 import '../services/api.dart' show UploadOrigin;
 import '../services/resumable_upload.dart';
 import '../services/share_intake.dart';
+import '../shared/chosen_shelves.dart';
 import '../shared/share_content.dart';
 import '../shared/upload_types.dart' show kScrollHint;
 import '../state/auth_notifier.dart';
 import '../state/upload_notifier.dart';
 import '../theme/app_spacing.dart';
 import '../theme/tokens.dart';
+import '../widgets/add_shelves.dart';
 import '../widgets/kit/kit.dart';
 
 /// **Add to NoteLetter** (`/share`, F-123) — Android's share sheet: what
@@ -29,6 +31,11 @@ import '../widgets/kit/kit.dart';
 ///
 /// **Write before move**: a button is disabled while its request is in
 /// flight, and the sheet says it is done only once the request came back.
+///
+/// Each accepted card carries kit §20.3 (5.73.0, ADR-238; `share-sheet.md`
+/// §Shelves) between its lines and its button. A share starts with none chosen,
+/// and a new share starts over. The row, not this page, starts the tags read,
+/// so a reader signed out never asks for one.
 class SharePage extends StatefulWidget {
   final ShareIntake? intake;
 
@@ -68,6 +75,7 @@ class SharePage extends StatefulWidget {
 
 class _SharePageState extends State<SharePage> {
   final _setTitle = TextEditingController();
+  final _chosen = ChosenShelves();
   bool _busy = false;
   bool _done = false;
   String? _error;
@@ -85,12 +93,16 @@ class _SharePageState extends State<SharePage> {
   void dispose() {
     _intake.removeListener(_reset);
     _setTitle.dispose();
+    _chosen.dispose();
     super.dispose();
   }
 
   /// A new share replaces the one on screen: its outcome starts over.
   void _reset() {
-    if (!mounted || _busy) return;
+    if (!mounted) return;
+    // Whatever the last add is still doing: it holds its own copy of the row.
+    _chosen.clear();
+    if (_busy) return;
     setState(() {
       _done = false;
       _error = null;
@@ -129,7 +141,9 @@ class _SharePageState extends State<SharePage> {
   }
 
   Future<void> _addLink(SharedLink link) => _run(() async {
-    final r = await context.read<UploadNotifier>().shareUrl(link.url);
+    final r = await context
+        .read<UploadNotifier>()
+        .shareUrl(link.url, tagIds: _chosen.ids);
     final rejection = r.rejection;
     if (rejection != null) throw _Refused(rejection);
     // A playlist is one success said with its measured count; its
@@ -141,6 +155,7 @@ class _SharePageState extends State<SharePage> {
 
   Future<void> _uploadPhotos(SharedImages set) => _run(() async {
     final uploads = context.read<UploadNotifier>();
+    final tagIds = _chosen.ids;
     final images =
         <({String name, int size, Uint8List bytes, String mimeType})>[];
     for (final im in set.items) {
@@ -162,6 +177,7 @@ class _SharePageState extends State<SharePage> {
     final rowId = await uploads.addImageSet(
       images,
       title: title.isEmpty ? null : title,
+      tagIds: tagIds,
     );
     _rowOutcome(uploads, rowId);
     _finish();
@@ -170,6 +186,7 @@ class _SharePageState extends State<SharePage> {
 
   Future<void> _uploadFile(SharedFile f) => _run(() async {
     final uploads = context.read<UploadNotifier>();
+    final tagIds = _chosen.ids;
     final copied = await _intake.copy(f.item);
     final rowId = await uploads.addFile(
       f.item.name,
@@ -179,6 +196,7 @@ class _SharePageState extends State<SharePage> {
       source: ChunkSource.file(copied.path, copied.size),
       // Another app's Share → NoteLetter (5.51.0, `upload_origin`).
       origin: UploadOrigin.shareSheet,
+      tagIds: tagIds,
     );
     _rowOutcome(uploads, rowId);
     _finish();
@@ -261,6 +279,7 @@ class _SharePageState extends State<SharePage> {
             // INV-07: the type is DETECTED, never asked.
             Text(SharePage.filesAs(type), style: meta),
           ],
+          shelves: _shelves(idle),
           action: KitButton.primary(
             SharePage.addLabel,
             onPressed: idle ? () => _addLink(content) : null,
@@ -284,6 +303,7 @@ class _SharePageState extends State<SharePage> {
             face: KitFieldFace.serif,
             enabled: idle,
           ),
+          shelves: _shelves(idle),
           action: KitButton.primary(
             SharePage.uploadPhotosLabel,
             onPressed: idle && count == null
@@ -295,6 +315,7 @@ class _SharePageState extends State<SharePage> {
         return _labelled(
           SharePage.fileEyebrow,
           [Text(item.name, style: meta)],
+          shelves: _shelves(idle),
           action: KitButton.primary(
             SharePage.uploadFileLabel,
             onPressed: idle ? () => _uploadFile(content) : null,
@@ -317,6 +338,10 @@ class _SharePageState extends State<SharePage> {
     }
   }
 
+  /// Kit §20.3: the sheet has one add, so the row holds while it is in flight.
+  Widget _shelves(bool idle) =>
+      AddShelves(chosen: _chosen, disabled: !idle, fillPhone: true);
+
   /// A state card: its title, then its lines.
   Widget _card(String title, List<Widget> lines) => KitCard(
     child: Column(
@@ -337,11 +362,12 @@ class _SharePageState extends State<SharePage> {
   );
 
   /// An action card: the eyebrow and its lines, then a field, then the
-  /// button.
+  /// shelves, then the button.
   Widget _labelled(
     String eyebrow,
     List<Widget> lines, {
     Widget? field,
+    required Widget shelves,
     required Widget action,
   }) => KitCard(
     child: Column(
@@ -350,6 +376,8 @@ class _SharePageState extends State<SharePage> {
         Eyebrow(eyebrow),
         for (final l in lines) ...[const SizedBox(height: AppSpacing.s1), l],
         if (field != null) ...[const SizedBox(height: AppSpacing.s4), field],
+        const SizedBox(height: AppSpacing.s4),
+        shelves,
         const SizedBox(height: AppSpacing.s4),
         Align(alignment: Alignment.centerLeft, child: action),
       ],
