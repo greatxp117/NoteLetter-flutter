@@ -982,19 +982,26 @@ class _TagPainter extends CustomPainter {
 /// row with padding of its own), the text staying on the column's edge and the
 /// rule straight; keyboard focus draws the same shape as a 2px accent outline.
 /// No hover on touch. [onTap] null is a row with no hover at all.
+///
+/// A row whose own parts answer the hover too (an Echo's arrow that steps
+/// right, kit §43) passes [builder] instead of [child], and is handed the
+/// same hover the fill reads — one pointer, one state.
 class KitRowHover extends StatelessWidget {
-  final Widget child;
+  final Widget? child;
+  final Widget Function(BuildContext context, bool hover)? builder;
   final VoidCallback? onTap;
   final String? label;
   final double reach;
 
   const KitRowHover({
     super.key,
-    required this.child,
+    this.child,
+    this.builder,
     this.onTap,
     this.label,
     this.reach = 12,
-  });
+  }) : assert((child == null) != (builder == null),
+            'a row hover takes a child or a builder, never both');
 
   @override
   Widget build(BuildContext context) {
@@ -1027,7 +1034,7 @@ class KitRowHover extends StatelessWidget {
               ),
             ),
           ),
-          child,
+          builder?.call(context, hover) ?? child!,
         ],
       ),
     );

@@ -40,6 +40,7 @@ const Map<String, int> kEndpointDeadlineSeconds = {
   'fn_disconnect_cloud_storage': 60,
   'fn_enable_organization': 60,
   'fn_execute_reorganization': 300,
+  'fn_find_echoes': 60,
   'fn_generate_audio': 120,
   'fn_get_cloud_integrations': 60,
   'fn_get_raw_document_url': 60,

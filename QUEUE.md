@@ -2685,3 +2685,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: flutter test test/contract/app_icon_test.dart
 - notes: Taken out of order at Xavier's request: the icon is the handoff's first surface. No screen, so no pair; the proof is a home screen. A stub app holding the compiled catalog on the iOS 26.5 simulator showed a bitmap lose its weave and pressed edge to Liquid Glass and its quill turn pink, hence AppIcon.icon with every effect off. Every iOS below 26 reads bitmaps Xcode flattens from it: extracted from the .car, Any and Dark are the master pixel for pixel, Tinted a white quill on black. Not yet seen on Xavier's iPhone 12 (iOS 18.1.1) or on an Android launcher.
+
+## F-177 · Echoes: a source's nearest passages in your other sources (5.83.0, ADR-255)
+- status: done 2026-11-09
+- screen: reader
+- route: /reader/:docId
+- spec: spec/api/echoes.md; spec/screens/reader.md §Echoes; spec/component-kit.md §43; spec/features/analytics-events.md
+- web: src/pages/reader/EchoesPanel.jsx; src/pages/ReaderView.jsx; src/api.js; src/analytics.js; src/styles/app-source.css
+- flutter: lib/pages/reader/echoes_panel.dart; lib/widgets/kit/kit_d_echoes.dart; lib/models/echo.dart; lib/pages/reader_page.dart; lib/pages/reader/manuscript_panel.dart; lib/widgets/kit/kit_d_parts.dart; lib/widgets/kit/kit.dart; lib/services/api.dart; lib/services/endpoint_budgets.dart; lib/services/analytics.dart; test/kit/d_echoes_test.dart; test/contract/api_requests_test.dart; integration_test/device_run_test.dart
+- folds: 5.83.0
+- device_test: none run; device_run_test.dart's reader tests now name seven sections and expect EchoesPanel to mount
+- shots: none
+- extra_gates: flutter test test/kit/d_echoes_test.dart
+- notes: The seventh section, third, mounted on approach and present with generative AI off: one fn_find_echoes {docId} per mount, Try again the only second call. Kit §43 is KitEchoStandfirst / KitEchoList / KitEchoPair / KitEchoNote (kit_d_echoes.dart); KitRowHover gained a builder so the echo's arrow reads the row's hover. An echo opens /reader/{docId}?p={chunkId}&from=/reader/{this} by push and fires echo_opened. The passage head rides the Manuscript's own ?p= anchor through PassageJumps (scroll and 2.6 s flash, no navigation). On a source that is not complete Echoes draws the same Still processing state as every non-Summary section and makes no call. api_requests_test drives api/echoes (8 of 10 cases; GET 405 and the preflight are not builder calls). Frames are shot later.

@@ -32,6 +32,7 @@ import 'package:flutter_app/state/chat_notifier.dart';
 import 'package:flutter_app/shared/local_flags.dart';
 import 'package:flutter_app/state/search_notifier.dart';
 import 'package:flutter_app/pages/onboarding/wizard.dart';
+import 'package:flutter_app/pages/reader/echoes_panel.dart';
 import 'package:flutter_app/pages/reader/history_panel.dart';
 import 'package:flutter_app/pages/reader/listen_panel.dart';
 import 'package:flutter_app/pages/reader/manuscript_panel.dart';
@@ -485,6 +486,7 @@ void main() {
     // section on its way (screens/reader.md §Continuous scroll).
     for (final label in const [
       'Manuscript',
+      'Echoes',
       'Speed read',
       'Listen',
       'Original',
@@ -541,7 +543,9 @@ void main() {
         reason: 'scrolling did not reach the last section — either a section '
             'never mounted or Contents is not reporting position');
     expect(seen.length, greaterThan(2), reason: 'reported only $seen');
-    for (final panel in [SpeedReadPanel, ListenPanel, HistoryPanel]) {
+    for (final panel in [
+      EchoesPanel, SpeedReadPanel, ListenPanel, HistoryPanel,
+    ]) {
       expect(find.byType(panel, skipOffstage: false), findsOneWidget,
           reason: '$panel never mounted on the way down');
     }
@@ -715,11 +719,11 @@ void main() {
   });
 
   // F-142 (direction D, screens/reader.md §Composition): the source page on
-  // a phone — the six sections under their §31 heads, the running head that
+  // a phone — the seven sections under their §31 heads, the running head that
   // says where the reader is with its reading-progress rule, and Source
   // details dropping from the app header.
   testWidgets(
-      "the six sections, the running head '§ II · Manuscript · 2 of 6' and its "
+      "the seven sections, the running head '§ II · Manuscript · 2 of 7' and its "
       "progress rule, Source details in the panel", (tester) async {
     KitPageTools.instance.reset();
     final router = await pumpApp(tester);
@@ -742,7 +746,7 @@ void main() {
         findsOneWidget,
         reason: "the tab bar's centre is the page's action, *To letter*");
 
-    // ── the running head: § I · Summary · 1 of 6 ──
+    // ── the running head: § I · Summary · 1 of 7 ──
     final peek = find.byKey(const ValueKey('d-peek'));
     expect(peek, findsOneWidget, reason: 'a phone runs the sheet as a head');
     String line() => [
@@ -753,18 +757,19 @@ void main() {
     debugPrint('DEVICE-RUN F-142 running head at rest: "${line()}"');
     expect(line(), contains('§ I'));
     expect(line(), contains('Summary'));
-    expect(line(), contains('1 of 6'));
+    expect(line(), contains('1 of 7'));
     double progress() => tester
         .widget<FractionallySizedBox>(find.byKey(const ValueKey('rx-progress')))
         .widthFactor!;
     expect(progress(), closeTo(0, 0.01), reason: 'nothing read at the top');
 
-    // Dropped, Contents lists the six sections in their normative order.
+    // Dropped, Contents lists the seven sections in their normative order.
     await tester.tap(peek);
     await pumpFor(tester, total: const Duration(milliseconds: 750));
     final rows = [
       for (final s in const [
-        'Summary', 'Manuscript', 'Speed read', 'Listen', 'Original', 'History',
+        'Summary', 'Manuscript', 'Echoes', 'Speed read', 'Listen', 'Original',
+        'History',
       ])
         find.descendant(of: find.byType(KitContents), matching: find.text(s)),
     ];
@@ -797,12 +802,12 @@ void main() {
         'progress=${progress().toStringAsFixed(3)}');
     expect(line(), contains('§ II'));
     expect(line(), contains('Manuscript'));
-    expect(line(), contains('2 of 6'));
+    expect(line(), contains('2 of 7'));
     expect(progress(), greaterThan(0),
         reason: 'the progress rule did not fill as the page scrolled');
     final p1 = progress();
 
-    // ── the six sections: a real scroll mounts and reaches each ──
+    // ── the seven sections: a real scroll mounts and reaches each ──
     for (var i = 0; i < 40 && _readerSections(tester).current != 'history';
         i++) {
       await tester.drag(_readerScrollable, const Offset(0, -520),
@@ -810,7 +815,8 @@ void main() {
       await pumpFor(tester, total: const Duration(milliseconds: 600));
     }
     for (final t in const [
-      'Summary', 'Manuscript', 'Speed read', 'Listen', 'Original', 'History',
+      'Summary', 'Manuscript', 'Echoes', 'Speed read', 'Listen', 'Original',
+      'History',
     ]) {
       expect(
           find.descendant(
@@ -820,13 +826,14 @@ void main() {
           reason: 'no §31 head for $t');
     }
     for (final panel in [
-      SummaryPanel, ManuscriptPanel, SpeedReadPanel, ListenPanel, HistoryPanel,
+      SummaryPanel, ManuscriptPanel, EchoesPanel, SpeedReadPanel, ListenPanel,
+      HistoryPanel,
     ]) {
       expect(find.byType(panel, skipOffstage: false), findsOneWidget,
           reason: '$panel never mounted');
     }
     expect(tester.takeException(), isNull);
-    expect(line(), contains('6 of 6'));
+    expect(line(), contains('7 of 7'));
     expect(progress(), greaterThan(p1), reason: 'the rule did not keep filling');
     // On to the scroll's end (the footer): the rule is then whole.
     final pos = tester.state<ScrollableState>(_readerScrollable).position;

@@ -79,6 +79,23 @@ bool passageHtmlHasContent(String html) {
   return RegExp(r'<img\b', caseSensitive: false).hasMatch(html);
 }
 
+/// Asks the Manuscript for one of its own passages from elsewhere on the
+/// page (5.83.0, ADR-255): Echoes' passage head brings it into view and
+/// flashes it as `?p=` does (web `showPassage`), on the same anchor — one
+/// mechanism, so the jump and the link cannot drift apart. A request, not
+/// a state: asking for the same passage twice scrolls to it twice.
+class PassageJumps extends ChangeNotifier {
+  String? _chunkId;
+
+  /// The passage last asked for.
+  String? get chunkId => _chunkId;
+
+  void show(String chunkId) {
+    _chunkId = chunkId;
+    notifyListeners();
+  }
+}
+
 class ManuscriptPanel extends StatefulWidget {
   final String docId;
 
@@ -98,6 +115,12 @@ class ManuscriptPanel extends StatefulWidget {
   /// document is simply not found, which leaves the reader at the top — the
   /// same place the link used to land them.
   final String? anchorChunkId;
+
+  /// A passage of THIS source asked for from elsewhere on the page — Echoes'
+  /// passage head (5.83.0, ADR-255, kit §43) — brought into view and flashed
+  /// exactly as [anchorChunkId] is. It does not navigate. Each request moves
+  /// the anchor; the `?p=` the reader opened with stops being it.
+  final PassageJumps? passageJumps;
 
   /// §Step jump branch 1 — this document has real audio, so a step's time chip
   /// switches to Listen and seeks. Null when it has none, and then the chip is
@@ -137,6 +160,7 @@ class ManuscriptPanel extends StatefulWidget {
       required this.chunks,
       required this.onSaved,
       this.anchorChunkId,
+      this.passageJumps,
       this.onSeekAudio,
       this.onOpenLink,
       this.onOpenSource,
@@ -239,6 +263,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     _chunks = _initFrom(widget.chunks);
     _lookUpNotionLinks();
     _scheduleAnchor();
+    widget.passageJumps?.addListener(_onPassageJump);
     ReaderPrefs.current.addListener(_onPrefs);
     ReaderPrefs.ensureLoaded().then((_) {
       if (!mounted) return;
@@ -364,7 +389,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
     // `?p=` WINS. It is the more specific statement of where to land — a letter
     // quoting one passage — and two schedulers racing to scroll one viewport
     // land on whichever frame finishes last (ADR-095, mirroring the reference).
-    final toPassage = widget.anchorChunkId != null;
+    final toPassage = _anchorId != null;
     if (!toPassage && _sharedChunkId == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _anchorScrolled) return;
@@ -390,13 +415,33 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   /// saying which passage had been quoted.
   void _flashAnchor() {
     if (!mounted) return;
+    final gen = ++_flashGen;
     setState(() => _flashing = true);
     Timer(const Duration(milliseconds: 2600), () {
-      if (mounted) setState(() => _flashing = false);
+      // A later jump's flash runs its own 2.6 s.
+      if (mounted && gen == _flashGen) setState(() => _flashing = false);
     });
   }
 
   bool _flashing = false;
+  int _flashGen = 0;
+
+  /// The passage an in-page jump asked for ([ManuscriptPanel.passageJumps]),
+  /// which replaces `?p=` as the anchor once there is one.
+  String? _jumpChunkId;
+
+  /// The passage the anchor rides: the last in-page jump, else `?p=`.
+  String? get _anchorId => _jumpChunkId ?? widget.anchorChunkId;
+
+  void _onPassageJump() {
+    final id = widget.passageJumps?.chunkId;
+    if (!mounted || id == null) return;
+    setState(() {
+      _jumpChunkId = id;
+      _anchorScrolled = false;
+    });
+    _scheduleAnchor();
+  }
 
   /// The chunk carrying the shared-slide mark, or null (4.58.0, ADR-095).
   String? get _sharedChunkId {
@@ -419,6 +464,10 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
   @override
   void didUpdateWidget(covariant ManuscriptPanel old) {
     super.didUpdateWidget(old);
+    if (!identical(old.passageJumps, widget.passageJumps)) {
+      old.passageJumps?.removeListener(_onPassageJump);
+      widget.passageJumps?.addListener(_onPassageJump);
+    }
     _lookUpNotionLinks();
     if (_pendingResync) {
       _pendingResync = false;
@@ -431,6 +480,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
   @override
   void dispose() {
+    widget.passageJumps?.removeListener(_onPassageJump);
     ReaderPrefs.current.removeListener(_onPrefs);
     _position?.removeListener(_measure);
     _progress.dispose();
@@ -1360,14 +1410,13 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
 
         // The anchor key rides the OUTERMOST element of the passage, so
         // `ensureVisible` scrolls to the passage and not to a span inside it.
-        final isAnchor =
-            c.chunkId != null && c.chunkId == widget.anchorChunkId;
+        final isAnchor = c.chunkId != null && c.chunkId == _anchorId;
         // The shared-slide anchor is the FIRST passage carrying the mark. One
         // document has at most one, but a chunk that has been split by an edit
         // could carry it twice, and scrolling to a second one is scrolling
         // somewhere the reader did not ask to be.
         final isShared = !isAnchor &&
-            widget.anchorChunkId == null &&
+            _anchorId == null &&
             _sharedChunkId != null &&
             c.chunkId == _sharedChunkId;
         return KeyedSubtree(

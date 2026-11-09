@@ -56,6 +56,8 @@ const Map<String, List<String>> events = <String, List<String>>{
   'result_opened': ['rank_bucket'],
   'reader_opened': ['kind'],
   'reader_mode_used': ['mode'],
+  // 5.83.0 (ADR-255): a reader followed an echo to its passage.
+  'echo_opened': [],
   'doc_finished': ['kind'],
   'letter_opened': [],
   'letter_settings_saved': [],

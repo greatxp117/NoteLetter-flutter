@@ -424,6 +424,21 @@ class Api {
   Future<Map<String, dynamic>> generateAudio(String docId) =>
       _http.post('/fn_generate_audio', data: {'docId': docId});
 
+  /// A source's **echoes** (`fn_find_echoes`, 5.83.0, ADR-255; api/echoes.md):
+  /// the passages in the reader's OTHER sources nearest this one's, read from
+  /// the vectors already stored on its chunks. It embeds nothing and asks no
+  /// model, so it answers with generative AI on or off.
+  ///
+  /// **Closed key set** `{docId, limit}` — an unknown key is a 400 naming it,
+  /// so `limit` is OMITTED rather than sent null; the server's default is 6.
+  /// Response: `{docId, echoes, count, compared, passages}`, the rows in the
+  /// source's own order, which a client draws as given.
+  Future<Map<String, dynamic>> findEchoes(String docId, {int? limit}) =>
+      _http.post('/fn_find_echoes', data: {
+        'docId': docId,
+        if (limit != null) 'limit': limit,
+      });
+
   // ── Content editing (INV-04 / INV-10 / INV-11) ────────────────────────────
 
   /// Edit chunk content. Each `chunks` entry carries exactly one of `html`

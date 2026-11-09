@@ -29,6 +29,7 @@ export 'kit_d_camera.dart';
 export 'kit_d_catalogue.dart';
 export 'kit_d_chrome.dart';
 export 'kit_d_covers.dart';
+export 'kit_d_echoes.dart';
 export 'kit_d_format.dart';
 export 'kit_d_frame.dart';
 export 'kit_d_home.dart';

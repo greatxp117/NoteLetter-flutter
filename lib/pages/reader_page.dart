@@ -15,6 +15,7 @@ import '../state/documents_notifier.dart';
 import '../state/tags_notifier.dart';
 import 'reader/content_form_action.dart';
 import 'reader/delete_source.dart';
+import 'reader/echoes_panel.dart';
 import 'reader/history_panel.dart';
 import 'reader/listen_panel.dart';
 import 'reader/manuscript_panel.dart';
@@ -43,9 +44,10 @@ import '../services/error_text.dart';
 /// fires `logReadEvent` on open (INV-03). See `screens/reader.md`.
 ///
 /// **One document on one scroll** (4.64.0, ADR-100). Summary · Manuscript ·
-/// Speed read · Listen · Original · History are all present and reached by
-/// scrolling, in that order — which is normative, because the Contents'
-/// positions mean nothing across clients otherwise. They were six TABS until
+/// Echoes · Speed read · Listen · Original · History are all present and
+/// reached by scrolling, in that order — which is normative, because the
+/// Contents' positions mean nothing across clients otherwise. Echoes joined
+/// third at 5.83.0 (ADR-255). The others were six TABS until
 /// 4.64.0, and the manuscript — which `?p=` and `[data-shared]` scroll into —
 /// was not mounted on a cold open, so neither jump had ever fired from a link.
 ///
@@ -56,7 +58,7 @@ import '../services/error_text.dart';
 /// notice in the standfirst's place), the one toolbar (*Add to letter*, short
 /// *To letter*; the gear is *Source details*), the sheet *In this volume*
 /// (the identity block, Contents, the catalogue card, Finish, Also) — on a
-/// phone the running head, with its reading-progress rule — and the six
+/// phone the running head, with its reading-progress rule — and the seven
 /// sections in the column, each under its §31 head, mounting on approach.
 /// Until D this was a Reading frame under a §2.1 chapter opening with the
 /// actions, shelves, priority and stat rows above a sticky §19 rail.
@@ -82,11 +84,16 @@ class ReaderPage extends StatefulWidget {
   State<ReaderPage> createState() => _ReaderPageState();
 }
 
-/// The six sections, in the order `screens/reader.md` §Continuous scroll makes
-/// normative, with the label each one's §31 head and Contents row read.
+/// The seven sections, in the order `screens/reader.md` §Continuous scroll
+/// makes normative, with the label each one's §31 head and Contents row read.
+/// Echoes (5.83.0, ADR-255) follows the text it answers: a reader who has just
+/// finished it is the one who asks what else says it. Its Contents row names
+/// the section only — a count there would be a figure drawn before its read
+/// had answered.
 const List<(String, String)> readerSections = [
   ('summary', 'Summary'),
   ('manuscript', 'Manuscript'),
+  ('echoes', 'Echoes'),
   ('speedread', 'Speed read'),
   ('listen', 'Listen'),
   ('original', 'Original'),
@@ -95,7 +102,8 @@ const List<(String, String)> readerSections = [
 
 /// Rendered on open, never deferred: the summary because it is the top of the
 /// page, and the manuscript because `?p=` (ADR-051) and `[data-shared]`
-/// (ADR-095) scroll to elements inside it. The four below mount on approach.
+/// (ADR-095) scroll to elements inside it. The five below mount on approach —
+/// Echoes among them, so opening the reader costs no `fn_find_echoes` call.
 const List<String> _eager = ['summary', 'manuscript'];
 
 /// The sheet's Contents: one row per section this source HAS (kit §29) — the
@@ -187,6 +195,10 @@ class _ReaderPageState extends State<ReaderPage> {
   KitSections? _sections;
   bool? _sectionsAiOn;
 
+  /// Echoes' passage head asks the Manuscript for one of this source's own
+  /// passages: scrolled to and flashed on the `?p=` anchor, never navigated.
+  final PassageJumps _passageJumps = PassageJumps();
+
   KitSections _sectionsFor(bool aiOn) {
     final have = _sections;
     if (have != null && _sectionsAiOn == aiOn) return have;
@@ -210,6 +222,7 @@ class _ReaderPageState extends State<ReaderPage> {
   void dispose() {
     ReaderPrefs.current.removeListener(_onReaderPrefs);
     _sections?.dispose();
+    _passageJumps.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -920,6 +933,7 @@ class _ReaderPageState extends State<ReaderPage> {
           onSaved: _reload,
           onChunksRead: _foldInChunksRead,
           anchorChunkId: widget.passageId,
+          passageJumps: _passageJumps,
           // §Step jump branch 1, keyed on **type OR field**: an uploaded
           // recording and an uploaded video both carry `source_audio_url:
           // null` by design, so a client that tests only the field draws a
@@ -947,6 +961,23 @@ class _ReaderPageState extends State<ReaderPage> {
           // candidates it does not (ADR-212).
           heldDocIds: {
             for (final d in context.read<DocumentsNotifier>().documents) d.id,
+          },
+        );
+      case 'echoes':
+        // Present with generative AI on or off: nothing in it is a model's.
+        return EchoesPanel(
+          docId: widget.docId,
+          // PUSHED, as a Notion page link is (ADR-212), so Back pops to this
+          // source, and `?from=` names it on the echo's back control (§The
+          // way back); `?p=` opens it at the passage (§Deep link).
+          onOpenEcho: (docId, chunkId) => context.push(
+              KitSourceLink.readerHref(
+                  docId, echoReaderQuery(chunkId, widget.docId))),
+          onShowPassage: (chunkId) {
+            // A jump the reader held on Echoes would put the page back there
+            // as soon as a section above changed size: this is a new place.
+            _sections?.release();
+            _passageJumps.show(chunkId);
           },
         );
       case 'speedread':

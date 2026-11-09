@@ -322,6 +322,13 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   // three cloud reads above.
   'fn_plan_status': (_) => Api.instance.getPlanStatus(),
   'fn_generate_audio': (b) => Api.instance.generateAudio(b['docId']),
+  // 5.83.0 (ADR-255) — a source's echoes. `limit` is passed only when the case
+  // sends one: the key set is closed, so the builder omits it rather than
+  // sending null. A case whose `limit` is not a whole number (`"3"`, `true`,
+  // `2.5`) cannot be typed through this builder — a local cast failure pinning
+  // the server's 400, as `capture-session-bad-width` is.
+  'fn_find_echoes': (b) => Api.instance
+      .findEchoes(b['docId'] as String, limit: b['limit'] as int?),
   'fn_execute_reorganization': (b) => Api.instance
       .executeReorganization(b['plan_id'], b['operations'] as List),
 };
@@ -367,6 +374,8 @@ const _suites = [
   'api/tasks',
   // 5.29.0 (ADR-186) + 5.33.0 (ADR-190) — the AI settings (F-133, in F-144).
   'api/ai-settings',
+  // 5.83.0 (ADR-255) — Echoes (F-177).
+  'api/echoes',
 ];
 
 // ── What this client does NOT drive, declared ───────────────────────────────
