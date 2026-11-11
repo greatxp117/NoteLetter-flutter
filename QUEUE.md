@@ -2894,17 +2894,17 @@ a new obligation on a finished screen is a new item.
 - notes: On a 390 phone web's refusals drew below the page scroller's edge, under the tab bar: Add's rejection row (its Shelves block, 5.73.0, pushed it below the fold; W4) and the Original panel's Update from {provider} line (the scroller ends where the tab bar starts, so a line under a bar at the foot is clipped; found on the Mac). Web now brings each into view when it arrives, once per arrival and never on a remount (intake.jsx useIntoView; UpdateFromSourceBar.jsx errRef, via FailureInline's lineRef). Flutter has neither: file_uploader.dart:101 `_reject` sets `_rejection` (drawn at :277) with no Scrollable.ensureVisible, AddAnswered's KitRefusedNotices likewise, and update_from_source_bar.dart:69 sets `_error` (drawn through kitRefusalSlot at :86) with none. The Notifications channel-list tandem W4 named is already true (notification_settings_page.dart:123 uses describeSdkError), so it has no item. Built (lane flutter2, 2026-11-11), left OPEN for its device run only: new kit part KitIntoView (kit_failure.dart, with kitRevealNearest = web's scrollIntoView block nearest; KitSendLine now calls it) brings a refusal into view once per ARRIVAL — one Object per refusal, remembered in an Expando as web's WeakSet, so a remount never scrolls back. Hosts: AddAnswered's KitRefusedNotices (UploadNotifier.refusedArrival, new per refuse/_fail, null on clear), the panel look's _rejection, and UpdateFromSourceBar's refusal slot. refusal_into_view_test (Add at 390 with shelves; a remount then a new arrival; onboarding's panel; the reader bar at the scroller's foot) was red on the old hosts (4 of 4) and its remount case red against a per-mount KitIntoView. Owed: the device run above (no simulator this wave).
 
 ## F-195 · Wait out fn_suggest_tags' 180 s deadline: its client budget follows the recipe
-- status: open
+- status: done 2026-11-11
 - screen: none
 - route: none
 - spec: spec/api/tags.md
 - web: none
-- flutter: lib/services/endpoint_budgets.dart
+- flutter: lib/services/endpoint_budgets.dart; test/contract/endpoint_budget_test.dart
 - folds: backend bd/backend 2026-11-11 (ADR-259): fn_suggest_tags --timeout 60s -> 180s
 - device_test: none
 - shots: none
 - extra_gates: client_timeout_check --target flutter
-- notes: ADR-259 (lands with this contract version). fn_suggest_tags answered 504 on a cold start: its 60 s deadline held the instance's start, about a minute. It deploys at 180 s now (the model call stays bounded at 40 s, the meaning check's embedding at 17 s), so a client that waits 60 + 15 s gives up on a request the server may still answer. Set 'fn_suggest_tags': 180 in endpoint_budgets.dart (line 79); client_timeout_check reads DRIFT and TOO-TIGHT until it does. Web sets no client timeout. The endpoint saves nothing, so the interim loses nothing; the reader's Retry is the same request.
+- notes: ADR-259 (lands with this contract version). fn_suggest_tags answered 504 on a cold start: its 60 s deadline held the instance's start, about a minute. It deploys at 180 s now (the model call stays bounded at 40 s, the meaning check's embedding at 17 s), so a client that waits 60 + 15 s gives up on a request the server may still answer. Set 'fn_suggest_tags': 180 in endpoint_budgets.dart (line 79); client_timeout_check reads DRIFT and TOO-TIGHT until it does. Web sets no client timeout. The endpoint saves nothing, so the interim loses nothing; the reader's Retry is the same request. Done (lane flutter2, 2026-11-11), after backend 7a539a0 (5.87.0) put --timeout=180s in the recipe and deployed it: 'fn_suggest_tags': 180, so the request waits 195 s. endpoint_budget_test asserts the budget Dio resolves for suggestTags (red at 75 s on the old table); client_timeout_check --target flutter read DRIFT on main before and is green on main at landing.
 
 ## F-196 · A refused tags read is §14, never *No shelves yet.*: the shelf picker, Shelves at add and the reader's Filing row say so
 - status: open

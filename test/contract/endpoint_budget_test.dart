@@ -59,6 +59,15 @@ void main() {
             'writes an answer and deploys at 120s');
   });
 
+  test('Suggest shelves waits out its 180s deadline + the margin', () async {
+    await Api.instance.suggestTags('Theology and cooking');
+    expect(adapter.budgets['/fn_suggest_tags'],
+        const Duration(seconds: 180) + kTimeoutMargin,
+        reason: 'ADR-259 (5.87.0): a cold start held the 60s deadline, so it '
+            'deploys at 180s; a client that waited 60 + 15s gave up on a '
+            'request the server could still answer');
+  });
+
   test('every budget outlasts the deadline it waits on', () {
     for (final e in kEndpointDeadlineSeconds.entries) {
       expect(clientTimeoutFor('/${e.key}').inSeconds, greaterThan(e.value),
