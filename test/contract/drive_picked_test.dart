@@ -64,10 +64,15 @@ Map<String, dynamic> _answer([Map<String, dynamic> over = const {}]) => {
       ...over,
     };
 
-/// The integrations read, answered: [connected] and nothing else.
+/// The integrations read, answered: [connected] and nothing else, under the
+/// Drive [mode] (`drive_access`).
 class _Cloud extends QuietCloud {
-  _Cloud([this.connected = const []]);
+  _Cloud([this.connected = const [], this.mode = 'picked']);
   final List<CloudIntegration> connected;
+  final String mode;
+
+  @override
+  String? get driveAccess => mode;
 
   @override
   bool get integrationsLoaded => true;
@@ -108,6 +113,18 @@ class _Backend implements HttpClientAdapter {
         return connect ?? (200, const {'authUrl': null});
       case 'fn_list_cloud_files':
         return (200, {'items': const [], 'nextPageToken': null});
+      case 'fn_get_cloud_integrations':
+        return (200, {
+          'integrations': [
+            {
+              'provider': 'google_drive',
+              'token_valid': true,
+              'access': 'picked',
+              'granted_access': 'picked',
+            }
+          ],
+          'drive_access': 'full',
+        });
     }
     return (404, {'error': 'not stubbed'});
   }
@@ -190,6 +207,18 @@ void main() {
           }).access,
           isNull,
           reason: 'an unreadable value is no access, never a crash');
+    });
+
+    test('the integrations read keeps the mode, `drive_access`, beside each '
+        'connection’s own access', () async {
+      ApiService.instance.httpClientAdapter = _Backend();
+      final cloud = CloudNotifier();
+      addTearDown(cloud.dispose);
+      expect(cloud.driveAccess, isNull);
+      await cloud.loadIntegrations();
+      expect(cloud.driveAccess, 'full');
+      expect(cloud.integrationFor('google_drive')!.picked, isTrue,
+          reason: 'picked by its grant: the mode never draws a connection');
     });
   });
 
@@ -416,11 +445,32 @@ void main() {
           findsOneWidget);
     });
 
+    testWidgets('picked by its grant while the mode is full, the action says '
+        'Connect asks for the whole Drive', (tester) async {
+      final backend = _Backend();
+      ApiService.instance.httpClientAdapter = backend;
+      await pumpServicePage(tester, SourcesStubService(),
+          provider: 'google_drive', cloud: _Cloud(const [_picked], 'full'));
+      expect(find.widgetWithText(KitSettingLink, 'Connect for folders…'),
+          findsOneWidget);
+      expect(_heads(), ['Bring in', 'Import history', 'Connection']);
+      expect(
+          find.text('Google Drive was connected for the files you pick only. '
+              'Connect it again to let NoteLetter open its folders.'),
+          findsOneWidget);
+      expect(find.text('Add files…'), findsNothing);
+      await _tap(
+          tester, find.widgetWithText(KitSettingLink, 'Connect for folders…'));
+      expect(backend.bodies('fn_connect_cloud_storage'), [
+        {'provider': 'google_drive', 'return': 'app'}
+      ], reason: 'the same connect entry point');
+    });
+
     testWidgets('a Drive with full access keeps every section it had',
         (tester) async {
       _wide(tester);
       await pumpServicePage(tester, SourcesStubService(),
-          provider: 'google_drive', cloud: _Cloud(const [_full]));
+          provider: 'google_drive', cloud: _Cloud(const [_full], 'full'));
       expect(find.widgetWithText(KitSettingLink, 'Browse files…'),
           findsOneWidget);
       expect(_heads(), [

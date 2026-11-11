@@ -297,7 +297,10 @@ class _ServicePageState extends State<ServicePage> {
 /// A picked Google Drive (ADR-275, INV-44) has no browser: its head action is
 /// *Add files…* — the one connect entry point (`CloudNotifier.connect`, the
 /// in-app auth session), which opens Google's own picker; the claim imports
-/// what was picked — and its refusal is said under the head.
+/// what was picked — and its refusal is said under the head. Picked by its
+/// GRANT while the mode (`drive_access`) is `full`, the same entry point asks
+/// for the whole Drive with no picker, so the action is *Connect for
+/// folders…* and the line says so.
 class _BringIn extends StatefulWidget {
   final String provider;
   final String name;
@@ -364,6 +367,9 @@ class _BringInState extends State<_BringIn> {
     final i = widget.integration;
     final notion = widget.provider == 'notion';
     final picked = i.picked;
+    // Picked by its GRANT while the mode is full (ADR-275): Connect now asks
+    // for the whole Drive, with no picker, so the action says what it will do.
+    final regrant = picked && cloud.driveAccess == 'full';
     final needsReconnect = i.needsReconnect;
     final browsing = !picked && cloud.browseProvider == widget.provider;
     final held = [
@@ -379,7 +385,11 @@ class _BringInState extends State<_BringIn> {
           actions: [
             if (picked)
               KitSettingLink(
-                _adding ? 'Opening ${widget.name}…' : 'Add files…',
+                _adding
+                    ? 'Opening ${widget.name}…'
+                    : regrant
+                        ? 'Connect for folders…'
+                        : 'Add files…',
                 icon: null,
                 busy: _adding,
                 onTap: needsReconnect || _adding ? null : _addFiles,
@@ -422,6 +432,10 @@ class _BringInState extends State<_BringIn> {
         KitProcNote(
           notion
               ? 'Notion pages keep their headings, lists, tables, pictures and links. A PDF, video or file stored in Notion becomes a link to it there.'
+              : regrant
+                  ? '${widget.name} was connected for the files you pick '
+                      'only. Connect it again to let NoteLetter open its '
+                      'folders.'
               : picked
                   ? 'Pick files in ${widget.name}’s own window. NoteLetter '
                       'reads only the files you pick there — nothing else in '

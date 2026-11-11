@@ -407,6 +407,14 @@ class CloudNotifier extends ChangeNotifier {
   bool _integrationsLoaded = false;
   bool get integrationsLoaded => _integrationsLoaded;
 
+  /// The Drive mode (`drive_access`, ADR-275): what a Connect of Google Drive
+  /// asks for now — `picked` (Google's picker, `drive.file`) or `full`. Never
+  /// what a connection may do (that is its own `access`, INV-44); read only
+  /// to say what Connect will do for a Drive picked by its GRANT while the
+  /// mode is `full`. Null until a read answers it.
+  String? _driveAccess;
+  String? get driveAccess => _driveAccess;
+
   Future<void> loadIntegrations() async {
     _loadingIntegrations = true;
     _notify();
@@ -416,6 +424,8 @@ class CloudNotifier extends ChangeNotifier {
       _integrations = raw
           .map((e) => CloudIntegration.fromJson(e as Map<String, dynamic>))
           .toList();
+      final mode = data['drive_access'];
+      _driveAccess = mode is String ? mode : null;
       _integrationsError = null;
       _integrationsLoaded = true;
     } on UnauthorizedException {
