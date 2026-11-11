@@ -2790,17 +2790,17 @@ a new obligation on a finished screen is a new item.
 - notes: (1) When connect returns no sign-in link, Flutter says *No authorization URL returned.* (cloud_notifier.dart:449, org_notifier.dart:186), developer wording on the Library rows, quick add and the connect page. Web and sources.md:876-878: *The sign-in link did not come back. Try connecting again.* (2) An import-status read that fails draws only the raw error (cloud_imports.dart:105-116); web says *Import status could not be read — {detail}* (CloudImportPanel.jsx:793-794). (3) manuscript_panel.dart:1199 writes "it's" with a straight apostrophe; web's is curly (ManuscriptPanel.jsx:1051). Done (lane flutter, 2026-11-11): (1) signInLinkMissing() (shared/cloud_return.dart) says The sign-in link did not come back. Try connecting again. — or Try reconnecting. where the reader pressed Reconnect (CloudNotifier.connect again:, from the Library row's Reconnect and the service page, as web's intake.jsx and CloudImportPanel do); OrgNotifier.enableOrganization says the connect form (web's enable says nothing at all). (2) importStatusUnread: Import status could not be read — {detail}, in both of cloud_imports.dart's failure slots. (3) the manuscript's it’s is curly (a source read: manuscript_copy_test). Each test was red first.
 
 ## F-187 · Read the syllabus says it is reading in the background, and where the plan will be
-- status: open
+- status: done 2026-11-11
 - screen: study
 - route: /study
 - spec: spec/screens/study.md
 - web: src/pages/study/ProgramEditor.jsx
-- flutter: lib/pages/study/program_editor.dart
+- flutter: lib/pages/study/program_editor.dart; test/kit/program_editor_test.dart
 - folds: none
 - device_test: none
 - shots: none
 - extra_gates: none
-- notes: Gap. On fn_request_task's 202, study.md:110-112 has the picker close and the client say *Reading the syllabus for “{program}” in the background* / *You'll find it in For your review.* Web announces it (ProgramEditor.jsx:353-356). Flutter's `_suggest` (program_editor.dart:1065-1090) closes the picker and says nothing, so the phone user cannot tell the request was taken. Every other background-task request in Flutter shows its toast (tags/shelf_page.dart:301, :322, :347; tags/suggest_shelves.dart:368-386).
+- notes: Gap. On fn_request_task's 202, study.md:110-112 has the picker close and the client say *Reading the syllabus for “{program}” in the background* / *You'll find it in For your review.* Web announces it (ProgramEditor.jsx:353-356). Flutter's `_suggest` (program_editor.dart:1065-1090) closes the picker and says nothing, so the phone user cannot tell the request was taken. Every other background-task request in Flutter shows its toast (tags/shelf_page.dart:301, :322, :347; tags/suggest_shelves.dart:368-386). Done (lane flutter, 2026-11-11): on the 202 the editor toasts Reading the syllabus for “{program}” in the background. You'll find it in For your review. (web's announce title and line joined, as this client's other background requests are; 'this program' when untitled). With no syllabus attached the picker stays, as web's (!syl || attaching), its choice spent. program_editor_test drives the picker and was red on the missing toast.
 
 ## F-188 · Activity: a refused read is the failure alone, not the failure over the feed it could not refresh
 - status: done 2026-11-11

@@ -237,6 +237,32 @@ void main() {
     });
   });
 
+  // F-187 (study.md §Syllabus; web ProgramEditor.jsx `suggest`): on the 202
+  // the picker closes AND the client says where the read went — the phone
+  // user could not tell the request was taken.
+  testWidgets('Read the syllabus says it is reading in the background, and '
+      'where the plan will be', (tester) async {
+    final rec = _Router(() => (202, {'taskId': 't1', 'status': 'queued'}));
+    ApiService.instance.httpClientAdapter = rec;
+    await _pump(tester, '/study/p1');
+    await _tapVisible(tester, find.text('Choose a document…'));
+    await tester.tap(find.text('Kitchen notebook').last);
+    await tester.pumpAndSettle();
+    await _tapVisible(tester, find.text('Read the syllabus'));
+
+    expect(_body(rec.sent.single),
+        {'kind': 'syllabus_plan', 'programId': 'p1', 'documentId': 'd-note'});
+    expect(
+        find.text('Reading the syllabus for “Cooking fundamentals” in the '
+            "background. You'll find it in For your review."),
+        findsOneWidget);
+    // With no syllabus yet the picker stays (web `!syl || attaching`); its
+    // choice is spent, and the note says where the plan will wait.
+    expect(find.text('Choose a document…'), findsOneWidget);
+    expect(find.textContaining('its plan will wait for you in For your review'),
+        findsOneWidget);
+  });
+
   testWidgets('Delete program asks first (§18), and sends only on the confirm',
       (tester) async {
     final rec = _Router(() => (200, {'ok': true}));

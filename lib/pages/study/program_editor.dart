@@ -34,6 +34,7 @@ import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../state/schedule.dart';
 import '../../state/study_schedule.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/kit/kit.dart';
 import '../../shared/passage_figure.dart';
 
@@ -1054,6 +1055,12 @@ class _SyllabusPanel extends StatefulWidget {
   State<_SyllabusPanel> createState() => _SyllabusPanelState();
 }
 
+/// *Read the syllabus*'s 202, in web's words (ProgramEditor.jsx `suggest`):
+/// web's announce title and line, joined as this client's one-line toast.
+String syllabusReadingToast(String program) =>
+    'Reading the syllabus for “${program.isEmpty ? 'this program' : program}” '
+    "in the background. You'll find it in For your review.";
+
 class _SyllabusPanelState extends State<_SyllabusPanel> {
   /// 'suggest' | 'detach'
   String? _busy;
@@ -1072,6 +1079,10 @@ class _SyllabusPanelState extends State<_SyllabusPanel> {
     try {
       await Api.instance.requestSyllabusPlan(widget.program.id, docId);
       if (!mounted) return;
+      // Said, as every background request is (F-187; study.md §Syllabus,
+      // web `announce`): the picker closing alone does not tell the reader
+      // the request was taken, or where its plan will be.
+      AppToast.show(context, syllabusReadingToast(widget.program.title));
       setState(() {
         _requested = true;
         _attaching = false;
