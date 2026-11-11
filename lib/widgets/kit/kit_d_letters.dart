@@ -24,6 +24,7 @@ import 'kit_d_parts.dart';
 import 'kit_d_shelf.dart' show KitDNote;
 import 'kit_failure.dart' show KitFailureInline;
 import 'kit_letter.dart' show KitLetterBadge;
+import 'kit_text.dart' show KitText;
 import 'kit_busy_mark.dart';
 
 // ── Letters: the latest letter ──────────────────────────────────────────────
@@ -900,4 +901,107 @@ class KitDFailureNote extends StatelessWidget {
     padding: EdgeInsets.only(top: top),
     child: KitFailureInline(text),
   );
+}
+
+/// The readings letter's Off card (`.rl-optin`; letters.md §The readings
+/// letter, F-189): a SUNKEN panel — `--surface-sunken`, 1px `--border`,
+/// `--r-lg` — cut into the page rather than laid on it, holding the letter's
+/// [body] (`.rl-optin-body`) and, 300 wide beside it, its [side]
+/// (`.rl-optin-side`, a [KitLectList]). Web's phone stacks at 680 (gap 22,
+/// padding 20); this client's one breakpoint is 768.
+class KitOptInPanel extends StatelessWidget {
+  final Widget body;
+  final Widget side;
+
+  const KitOptInPanel({super.key, required this.body, required this.side});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final wide = MediaQuery.sizeOf(context).width >= 768;
+    return Container(
+      padding: wide
+          ? const EdgeInsets.symmetric(horizontal: 28, vertical: 26)
+          : const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: t.surfaceSunken,
+        borderRadius: AppRadius.lgR,
+        border: Border.all(color: t.border),
+      ),
+      child: wide
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: body),
+                const SizedBox(width: 32),
+                SizedBox(width: 300, child: side),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [body, const SizedBox(height: 22), side],
+            ),
+    );
+  }
+}
+
+/// What a lectionary letter carries, named and never cited (`.rl-optin-side`:
+/// `.rl-optin-cap`, `.lect`, `.rl-cal-note`; F-189): the small-caps
+/// [caption], then the [labels] in a bordered list on `--surface` (`.lect`,
+/// `--r-md`, 13/14 in, rows 7 apart), each a `.lect-lbl` in `--fg-subtle` —
+/// the [lead] one in `--accent-text` — then the [note] under it, gap 9.
+/// Labels only: a client asserting today's citations would be authoring
+/// lectionary knowledge (letters.md).
+class KitLectList extends StatelessWidget {
+  final String caption;
+  final List<String> labels;
+  final int? lead;
+  final String? note;
+
+  const KitLectList({
+    super.key,
+    required this.caption,
+    required this.labels,
+    this.lead,
+    this.note,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(caption.toUpperCase(),
+            style: KitText.monoCaps(context, letterSpacing: 0.12)),
+        const SizedBox(height: 9),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: AppRadius.mdR,
+            border: Border.all(color: t.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < labels.length; i++) ...[
+                if (i > 0) const SizedBox(height: 7),
+                Text(
+                  labels[i].toUpperCase(),
+                  style: KitText.monoCaps(context,
+                      letterSpacing: 0.12,
+                      color: i == lead ? t.accentText : t.fgSubtle),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (note != null) ...[
+          const SizedBox(height: 9),
+          Text(note!, style: KitText.fine(context, color: t.fgSubtle)),
+        ],
+      ],
+    );
+  }
 }

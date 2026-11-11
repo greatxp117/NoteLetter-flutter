@@ -22,6 +22,7 @@ import 'package:flutter_app/pages/letters/letter_reader.dart';
 import 'package:flutter_app/pages/letters_page.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/shared/cooldown.dart';
+import 'package:flutter_app/theme/tokens.dart';
 import 'package:flutter_app/widgets/kit/kit.dart';
 
 import '../contract/letters_harness.dart';
@@ -282,6 +283,64 @@ void main() {
       );
       expect(find.text('30+'), findsOneWidget);
     });
+
+    // F-189 (1) · The readings letter's Off card in web's order
+    // (ReadingsLetter.jsx `ReadingsOptIn`, app-scripture.css `.rl-optin`): a
+    // sunken panel; the paragraph, then Turn on under it; then the caption
+    // *What it carries* over the three readings in a bordered list, Gospel
+    // the lead. Wide, the readings stand beside the body (1fr / 300); at this
+    // client's one breakpoint they stack under it.
+    for (final wide in [true, false]) {
+      testWidgets('the readings opt-in in web\'s order '
+          '(${wide ? 'wide' : 'phone'})', (tester) async {
+        await pumpLetters(
+          tester,
+          LettersReads(),
+          settings: LettersSettings(_on),
+          size: wide ? const Size(1280, 2400) : const Size(390, 3200),
+        );
+        final para = find.textContaining('Each morning the day’s Mass readings');
+        final on = find.text('Turn on the readings letter');
+        final cap = find.text('WHAT IT CARRIES');
+        final rows = [
+          for (final l in ['FIRST READING', 'RESPONSORIAL', 'GOSPEL']) find.text(l),
+        ];
+        expect(cap, findsOneWidget, reason: 'the caption web draws');
+        for (final r in rows) {
+          expect(r, findsOneWidget);
+        }
+        double top(Finder f) => tester.getTopLeft(f).dy;
+        expect(top(para) < top(on), isTrue, reason: 'Turn on under the paragraph');
+        if (wide) {
+          expect(tester.getTopLeft(cap).dx > tester.getTopRight(para).dx, isTrue,
+              reason: 'the side column stands beside the body');
+        } else {
+          expect(top(on) < top(cap), isTrue,
+              reason: 'stacked, the readings follow the button');
+        }
+        expect(top(cap) < top(rows[0]), isTrue);
+        expect(top(rows[0]) < top(rows[1]) && top(rows[1]) < top(rows[2]), isTrue,
+            reason: 'First reading, Responsorial, Gospel');
+        final t = Tokens.of(tester.element(on));
+        bool painted(Finder of, Color c) => find
+            .ancestor(
+              of: of,
+              matching: find.byWidgetPredicate((w) =>
+                  w is Container &&
+                  w.decoration is BoxDecoration &&
+                  (w.decoration! as BoxDecoration).color == c),
+            )
+            .evaluate()
+            .isNotEmpty;
+        expect(painted(on, t.surfaceSunken), isTrue,
+            reason: 'a sunken panel, not an ordinary card');
+        expect(painted(rows[0], t.surface), isTrue,
+            reason: 'the readings in their own bordered list on --surface');
+        expect(tester.widget<Text>(rows[2]).style?.color, t.accentText,
+            reason: 'Gospel is the lead');
+        expect(tester.widget<Text>(rows[0]).style?.color, t.fgSubtle);
+      });
+    }
 
     testWidgets('Contents: the latest letter, the readings letter, each month '
         'counted, readings sent', (tester) async {

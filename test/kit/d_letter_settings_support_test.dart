@@ -667,6 +667,43 @@ void main() {
       await _unmount(tester);
     });
 
+    // F-189 (2): web's readings save ends on *Saved.* (ReadingsLetter.jsx's
+    // foot, set from LetterSettings.jsx) — a save that landed must not look
+    // like one that never started.
+    testWidgets('a readings save that landed says Saved.', (tester) async {
+      final api = _Api();
+      ApiService.instance.httpClientAdapter = api;
+      await _letterSettings(
+        tester,
+        _Fs(
+          settings: const {},
+          readings: const ScriptureNewsletterSettings(enabled: true),
+        ),
+      );
+      expect(find.text('Your daily letter keeps arriving either way.'),
+          findsOneWidget);
+      expect(find.text('Saved.'), findsNothing);
+      final save = find.descendant(
+        of: find.ancestor(
+          of: find.text('Arrives at').last,
+          matching: find.byType(KitConfigField),
+        ),
+        matching: find.widgetWithText(KitButton, 'Save'),
+      );
+      await tester.ensureVisible(save);
+      await tester.pump();
+      await tester.tap(save);
+      await _settle(tester);
+      expect(
+        api.sent.where((o) => o.path.endsWith('/fn_scripture_newsletter_settings')),
+        hasLength(1),
+      );
+      expect(find.text('Saved.'), findsOneWidget);
+      expect(find.text('Your daily letter keeps arriving either way.'),
+          findsNothing);
+      await _unmount(tester);
+    });
+
     testWidgets('a Contents row jumps to its section', (tester) async {
       await _letterSettings(tester, _Fs(settings: const {}, letter: _built()));
       await tester.tap(

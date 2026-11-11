@@ -338,45 +338,51 @@ class _OptIn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KitCard(
-      padding: const EdgeInsets.all(AppSpacing.s6),
-      child: Column(
+    // web `ReadingsOptIn` (F-189): the body — eyebrow, title, the paragraph,
+    // Turn on under it, its refusal — and beside it what the letter carries,
+    // on a sunken panel. Labels only, never a citation (letters.md).
+    final t = Tokens.of(context);
+    return KitOptInPanel(
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Eyebrow('A second letter'),
-          const SizedBox(height: AppSpacing.s2),
-          Text('The readings letter', style: KitText.h4(context)),
-          const SizedBox(height: AppSpacing.s2),
-          const Lede(
-            'Each morning the day’s Mass readings arrive with the passages '
-            'from your own shelves that answer them. It comes beside your '
-            'daily letter, at its own hour — your daily letter is not changed.',
-            fontSize: 16,
-            height: 24,
-            maxWidth: double.infinity,
+          const SizedBox(height: 10),
+          Text(
+            'The readings letter',
+            style: KitText.title(context,
+                fontSize: 25, height: 1.15, tracking: -0.015, letterpress: true),
           ),
-          const SizedBox(height: AppSpacing.s4),
-          // What it carries — the three labels, with no citation against them.
-          KitRowList(
-            rows: const [
-              KitRowSlot(child: Eyebrow('First reading')),
-              KitRowSlot(child: Eyebrow('Responsorial')),
-              KitRowSlot(child: Eyebrow('Gospel')),
-            ],
+          const SizedBox(height: 10),
+          ConstrainedBox(
+            // `.rl-optin-p` max-width 54ch at 16px serif.
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Text(
+              'Each morning the day’s Mass readings arrive with the passages '
+              'from your own shelves that answer them. It comes beside your '
+              'daily letter, at its own hour — your daily letter is not '
+              'changed.',
+              style: KitText.bodyReading(context,
+                  fontSize: 16, height: 26, color: t.fgLede),
+            ),
           ),
-          const SizedBox(height: AppSpacing.s3),
-          KitRowNote('$calendarLabel calendar. $calendarNote'),
-          const SizedBox(height: AppSpacing.s4),
+          const SizedBox(height: 18),
           KitButton(
             busy ? 'Turning on…' : 'Turn on the readings letter',
-          busy: busy,
+            busy: busy,
             onPressed: busy ? null : () => onTurnOn(),
           ),
           if (error != null) ...[
-            const SizedBox(height: AppSpacing.s3),
+            const SizedBox(height: 10),
             KitFailureInline(error!),
           ],
         ],
+      ),
+      side: const KitLectList(
+        caption: 'What it carries',
+        labels: ['First reading', 'Responsorial', 'Gospel'],
+        lead: 2,
+        note: '$calendarLabel calendar. $calendarNote',
       ),
     );
   }

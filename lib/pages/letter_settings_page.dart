@@ -142,6 +142,11 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
   /// it (`.rl-ferr`), not at the foot of the form.
   String? _rlField;
 
+  /// The last readings write landed (F-189; web `rlSaved`): the foot says
+  /// *Saved.* until the next write starts. Page state, as web's is the
+  /// component's — a save from an earlier visit is not this one's answer.
+  bool _rlSaved = false;
+
   @override
   void initState() {
     super.initState();
@@ -343,8 +348,16 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
 
   /// A readings-letter write, remembered by the control that made it.
   void _rlWrite(String field, Future<void> Function() write) {
-    setState(() => _rlField = field);
-    write();
+    setState(() {
+      _rlField = field;
+      _rlSaved = false;
+    });
+    write().then((_) {
+      if (!mounted) return;
+      if (context.read<ScriptureLetterNotifier>().saveError == null) {
+        setState(() => _rlSaved = true);
+      }
+    });
   }
 
   @override
@@ -884,9 +897,12 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
                 note: calendarNote,
                 child: const KitConfigStatic(calendarLabel),
               ),
+              // web's foot: Saving…, then Saved. once the write landed.
               KitConfigFoot(
                 held
                     ? 'Saving…'
+                    : _rlSaved
+                    ? 'Saved.'
                     : 'Your daily letter keeps arriving either way.',
               ),
             ],
