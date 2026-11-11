@@ -2803,17 +2803,17 @@ a new obligation on a finished screen is a new item.
 - notes: Gap. On fn_request_task's 202, study.md:110-112 has the picker close and the client say *Reading the syllabus for “{program}” in the background* / *You'll find it in For your review.* Web announces it (ProgramEditor.jsx:353-356). Flutter's `_suggest` (program_editor.dart:1065-1090) closes the picker and says nothing, so the phone user cannot tell the request was taken. Every other background-task request in Flutter shows its toast (tags/shelf_page.dart:301, :322, :347; tags/suggest_shelves.dart:368-386).
 
 ## F-188 · Activity: a refused read is the failure alone, not the failure over the feed it could not refresh
-- status: open
+- status: done 2026-11-11
 - screen: activity
 - route: /activity
 - spec: spec/screens/activity.md; spec/invariants.md §INV-24
 - web: src/pages/ActivityView.jsx
-- flutter: lib/pages/activity_page.dart
+- flutter: lib/pages/activity_page.dart; test/contract/activity_failure_test.dart
 - folds: none
 - device_test: none
 - shots: none
 - extra_gates: none
-- notes: Bug, low. activity_page.dart:217-225 draws §14.1 *Your activity could not be loaded.* above rows that loaded earlier, and :237-296 keeps drawing them (its comment calls this C1). The folio meanwhile reads *— events* (:143-147), so the masthead says unmeasured while day sections below give exact counts. Web draws the failure block alone (ActivityView.jsx:385-390); activity.md's Refused state is §14.1 *in the column*, and INV-24 puts it in the region the collection would have filled. C1 is recorded nowhere in CLAUDE.md, so it is drift, not a deviation: follow web, or record it there by ruling.
+- notes: Bug, low. activity_page.dart:217-225 draws §14.1 *Your activity could not be loaded.* above rows that loaded earlier, and :237-296 keeps drawing them (its comment calls this C1). The folio meanwhile reads *— events* (:143-147), so the masthead says unmeasured while day sections below give exact counts. Web draws the failure block alone (ActivityView.jsx:385-390); activity.md's Refused state is §14.1 *in the column*, and INV-24 puts it in the region the collection would have filled. C1 is recorded nowhere in CLAUDE.md, so it is drift, not a deviation: follow web, or record it there by ruling. Done (lane flutter, 2026-11-11): followed web, not a ruling — a refused feed draws §14.1 alone in the column; no rows, no day sections, so nothing counts under the — events folio. The sheet's facets are web's (they still list what loaded). activity_failure_test's ORDER case became ALONE and was red on the old page (KitTimeline found).
 
 ## F-189 · The readings letter: the opt-in card in web's order, with its caption, and a save that says Saved.
 - status: open

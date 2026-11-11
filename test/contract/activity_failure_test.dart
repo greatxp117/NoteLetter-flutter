@@ -21,10 +21,15 @@ import 'package:flutter_app/widgets/kit/kit.dart';
 /// of what the account has done.
 ///
 /// Two halves are asserted here and they fail differently. **EMPTY-ONLY** is
-/// the original defect: §7 standing in for §14. **ORDER** is the one hiding
+/// the original defect: §7 standing in for §14. **ALONE** is the one hiding
 /// behind it — the block was gated on `rows.isEmpty`, so a feed that loaded
 /// once and then failed kept its rows and said nothing at all, which is worse
-/// than the first: stale rows read as current.
+/// than the first: stale rows read as current. C1 then drew the block ABOVE
+/// the stale rows, which web never did and CLAUDE.md never recorded (F-188):
+/// the folio said `— events` while the day sections under it gave exact
+/// counts. Web draws the §14.1 block alone (ActivityView.jsx), activity.md's
+/// Refused state is §14.1 *in the column*, and INV-24 puts it in the region
+/// the collection would have filled — so this client does too.
 ///
 /// The service half — that a Firestore snapshot error reaches this notifier
 /// rather than being mapped to an empty list — cannot be pumped here. There is
@@ -118,8 +123,8 @@ void main() {
         reason: "§14 PARTS — the server's own sentence, quoted");
   });
 
-  testWidgets('ORDER — a feed that loaded and THEN failed says so, above rows',
-      (tester) async {
+  testWidgets('ALONE — a feed that loaded and THEN failed draws the failure, '
+      'not the failure over the rows it could not refresh', (tester) async {
     final activity = _StubActivity(items: [_event('a')]);
     await _pump(tester, activity);
     expect(find.byType(KitFailureBlock), findsNothing);
@@ -130,14 +135,11 @@ void main() {
 
     expect(find.byType(KitFailureBlock), findsOneWidget,
         reason: 'stale rows with no notice read as current');
-    expect(find.byType(KitTimeline), findsOneWidget,
-        reason: 'what did load is still true, and is kept');
-    // Above, not below: the notice has to be met before the rows it qualifies.
-    expect(
-      tester.getTopLeft(find.byType(KitFailureBlock)).dy <
-          tester.getTopLeft(find.byType(KitTimeline)).dy,
-      isTrue,
-    );
+    expect(find.byType(KitTimeline), findsNothing,
+        reason: 'web draws §14.1 alone, in the region the feed would fill');
+    expect(find.byType(KitSectionHead), findsNothing,
+        reason: 'no day section counts what the folio calls unmeasured');
+    expect(find.text('ACTIVITY\u00a0· — EVENTS'), findsOneWidget);
   });
 
   // Direction D (F-145, screens/activity.md §Composition): an answered feed

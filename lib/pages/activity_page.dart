@@ -214,16 +214,18 @@ class _ActivityPageState extends State<ActivityPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // §14.1 (ADR-070) whenever there IS an error, and above the rows
-              // (C1): a feed that loaded once and then failed keeps what did
-              // load — it is still true — under the notice that it is stale.
+              // §14.1 (ADR-070) whenever there IS an error, and ALONE (F-188;
+              // web ActivityView, activity.md's Refused state, INV-24): the
+              // region the feed would fill holds the failure, never the
+              // failure over rows it could not refresh — those would give
+              // exact day counts under a folio that says `— events`.
               if (failed)
                 KitFailureBlock(
                   sentence: 'Your activity could not be loaded.',
                   detail: activity.error!,
                   onRetry: () => context.read<ActivityNotifier>().refresh(),
-                ),
-              if (loading)
+                )
+              else if (loading)
                 const KitSkeletonLines(
                   lines: [
                     KitSkelLine(0.3, true),
@@ -235,7 +237,7 @@ class _ActivityPageState extends State<ActivityPage> {
                     KitSkelLine(0.7),
                   ],
                 )
-              else if (buckets.isEmpty && !failed)
+              else if (buckets.isEmpty)
                 // Under All the feed itself is empty, so the sentence is about
                 // the account; *Nothing of that kind yet.* answers a kind the
                 // reader chose (web, the release lane's QA FOUND 4).
@@ -249,7 +251,7 @@ class _ActivityPageState extends State<ActivityPage> {
                   // `.dp-act-g + .dp-act-g { margin-top: 48px }` — outside
                   // the section, so When's jump lands its head 24 under the
                   // top.
-                  if (i > 0 || failed) const SizedBox(height: 48),
+                  if (i > 0) const SizedBox(height: 48),
                   KeyedSubtree(
                     key: _sec.keyOf(buckets[i].$1),
                     child: Column(
