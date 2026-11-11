@@ -3009,3 +3009,47 @@ class KitPanelRow extends StatelessWidget {
     );
   }
 }
+
+/// A switch with its label and the line under it (`.or-switch`, the connect
+/// page's *Keep in sync*; F-191): the 40-wide switch, 11 apart from the text —
+/// [label] sans 13.5/500 at `--fg`, [sub] sans 12/17 at `--fg-subtle`, 3
+/// apart. Null [onChanged] holds the switch (`.or-switch.held`).
+class KitSyncSwitch extends StatelessWidget {
+  final bool value;
+  final String label;
+  final String sub;
+  final ValueChanged<bool>? onChanged;
+
+  const KitSyncSwitch({
+    super.key,
+    required this.value,
+    required this.label,
+    required this.sub,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        KitSwitch(value: value, tooltip: label, onChanged: onChanged),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: KitText.ui(context, weight: FontWeight.w500)
+                      .copyWith(fontSize: 13.5)),
+              const SizedBox(height: 3),
+              Text(sub,
+                  style: KitText.small(context, color: t.fgSubtle, height: 17)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}

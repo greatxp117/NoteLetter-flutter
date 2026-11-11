@@ -508,3 +508,28 @@ class KitReaderSection extends StatelessWidget {
     );
   }
 }
+
+/// Where a History row came from, when it is not the reader's own reading
+/// (`.history-origin`; reader.md §History, F-191): mono 10 caps at 0.08em in
+/// `--fg-subtle`, on a hairline pill (`--border`, inset), 2 down to sit on
+/// the label's line.
+class KitOriginTag extends StatelessWidget {
+  final String label;
+
+  const KitOriginTag(this.label, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: t.border),
+      ),
+      child: Text(label.toUpperCase(),
+          style: KitText.monoCaps(context, letterSpacing: 0.08)),
+    );
+  }
+}

@@ -214,6 +214,8 @@ void main() {
       expect(find.text('Processing failed'), findsOneWidget);
       expect(find.text('Not a valid DOCX.'), findsOneWidget);
       expect(find.text('ACTIVITY'), findsNWidgets(2));
+      // The kit's `.history-origin` (F-191), not a pill the panel builds.
+      expect(find.byType(KitOriginTag), findsNWidgets(2));
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
       expect(find.textContaining(RegExp(r'\d+ events?')), findsNothing);
     });

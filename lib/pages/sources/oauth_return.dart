@@ -1155,37 +1155,17 @@ class _ManifestState extends State<_Manifest> {
         ]),
         // No File under (5.52.0, ADR-203): the tally, then Keep in sync.
         const SizedBox(height: 18),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            KitSwitch(
-              value: syncOn,
-              tooltip: 'Keep in sync',
-              // Held until a folder is ticked: only folders stay in sync.
-              onChanged: folderSel == 0 || _busy
-                  ? null
-                  : (_) => setState(() => _sync = !_sync),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Keep in sync',
-                      style: KitText.ui(context, weight: FontWeight.w500)
-                          .copyWith(fontSize: 13.5)),
-                  const SizedBox(height: 3),
-                  Text(
-                    folderSel > 0
-                        ? 'New files in ${folderSel == 1 ? 'this ${nouns[0]}' : 'these ${nouns[1]}'} '
-                            'come in $cadence.'
-                        : 'Only ${nouns[1]} stay in sync — tick one to keep it.',
-                    style: KitText.small(context, color: t.fgSubtle, height: 17),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        KitSyncSwitch(
+          value: syncOn,
+          label: 'Keep in sync',
+          sub: folderSel > 0
+              ? 'New files in ${folderSel == 1 ? 'this ${nouns[0]}' : 'these ${nouns[1]}'} '
+                  'come in $cadence.'
+              : 'Only ${nouns[1]} stay in sync — tick one to keep it.',
+          // Held until a folder is ticked: only folders stay in sync.
+          onChanged: folderSel == 0 || _busy
+              ? null
+              : (_) => setState(() => _sync = !_sync),
         ),
         // What a folder brings in is the integration's include_types,
         // measured (an empty set imports nothing, 4.59.0). Notion's databases
@@ -1348,9 +1328,7 @@ class _OfferCard extends StatelessWidget {
           color: lit ? t.accent : t.fgSubtle,
         ),
         const SizedBox(height: 12),
-        Text(item.name,
-            style: KitText.label(context, weight: FontWeight.w600)
-                .copyWith(fontSize: 14.5)),
+        Text(item.name, style: KitText.offerName(context)),
         const SizedBox(height: 3),
         Text(refusal ?? _meta(), style: KitText.note(context, color: t.fgSubtle)),
       ],

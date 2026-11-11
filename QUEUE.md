@@ -2842,17 +2842,17 @@ a new obligation on a finished screen is a new item.
 - notes: Composition. Web (steps.jsx:131-160) draws the label *In your library* with *{indexed} indexed · {total} total* and the rows under it. Flutter (steps.dart:133-151) draws the uploader first and the label after it, so on a first run the count stands below the uploads it counts, and on a replay with an existing library it stands over nothing. A finished upload reads *Queued for processing* with a remove ✕ (file_uploader.dart:280-288, :471-485); web says *added — indexing continues in the background*, with Uploading / Added / Failed. onboarding.md:25 and :49-54. Done (lane flutter, 2026-11-11): In your library heads the rows this run added, inside the uploader's panel look (FileUploader.addedTotal: {indexed} indexed · {total} total), and only when there is a row — a replay with a library and nothing added draws no count. The box and rows are the rows kit's new KitAddedList / KitAddedRow (.ob-added, .ob-urow): badge, name, web's words (uploading…, the refusal or could not be added, added — indexing continues in the background) and the Uploading / Added / Failed pill; the bar is the client's own PUT, web's still 35% until measured. No remove ✕ (web's has none; the panel look is onboarding's alone). onboarding_sources_test was red first; playlist_link_test takes web's words. No frame pair was asked or taken.
 
 ## F-191 · Two pages compose their own parts: the connect page's Keep in sync row and type sizes, History's Activity tag
-- status: open
+- status: done 2026-11-11
 - screen: none
 - route: none
 - spec: spec/component-kit.md; spec/screens/reader.md §History
 - web: src/pages/sources/OAuthReturn.jsx; src/pages/reader/HistoryPanel.jsx
-- flutter: lib/pages/sources/oauth_return.dart; lib/pages/reader/history_panel.dart
+- flutter: lib/pages/sources/oauth_return.dart; lib/pages/reader/history_panel.dart; lib/widgets/kit/kit_controls.dart; lib/widgets/kit/kit_d_reader.dart; lib/widgets/kit/kit_text.dart; test/contract/oauth_return_test.dart; test/contract/source_history_test.dart
 - folds: none
 - device_test: none
 - shots: none
 - extra_gates: none
-- notes: Composition (ADR-041: a client composes from a named kit, never inline). oauth_return.dart builds its Keep in sync row in the page (:1158-1186) and hard-codes font sizes 13.5 and 14.5 (:1176, :1353), beside 14 EdgeInsets and 3 copyWith; history_panel.dart:319-333 builds the History *Activity* tag pill itself (reader.md:870-877). Move each into the kit role web's CSS names, so no pixel moves. The other high EdgeInsets counts (service_page, manuscript_panel, sync_settings_panel, 16 each) were found to be spacing inside kit roles or one-off paddings handed to a kit part, and are not booked.
+- notes: Composition (ADR-041: a client composes from a named kit, never inline). oauth_return.dart builds its Keep in sync row in the page (:1158-1186) and hard-codes font sizes 13.5 and 14.5 (:1176, :1353), beside 14 EdgeInsets and 3 copyWith; history_panel.dart:319-333 builds the History *Activity* tag pill itself (reader.md:870-877). Move each into the kit role web's CSS names, so no pixel moves. The other high EdgeInsets counts (service_page, manuscript_panel, sync_settings_panel, 16 each) were found to be spacing inside kit roles or one-off paddings handed to a kit part, and are not booked. Done (lane flutter, 2026-11-11): the connect page's Keep in sync row is the controls kit's KitSyncSwitch (.or-switch: the switch, 11 apart from sans 13.5/500 and sans 12/17 at --fg-subtle); an offered item's name is KitText.offerName (.or-name, 14.5/600) — no font size is written in the page now; History's Activity tag is the reader kit's KitOriginTag (.history-origin). The values moved unchanged, so no pixel should move (no frame pair was asked or taken). oauth_return_test and source_history_test assert the kit parts.
 
 ## F-192 · Plate I's later cuts (the port TODO and ADR-178 call F-129): web's 5.25.2 to 5.26.2 film in place of 5.25.1's
 - status: blocked: HELD until Xavier approves the film (TODO "Flutter F-129: HELD"); its partial port is a stash on the Mac

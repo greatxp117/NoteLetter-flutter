@@ -468,6 +468,8 @@ void main() {
           cloud: _Cloud([_drive]), shelves: _shelves);
       await _settle(tester);
       await _tap(tester, find.text('Essay.pdf'));
+      // Composed from the kit's `.or-switch` (F-191), not built in the page.
+      expect(find.byType(KitSyncSwitch), findsOneWidget);
       // Only folders stay in sync: the switch is held with a file alone.
       final sw = tester.widget<KitSwitch>(find.byType(KitSwitch));
       expect(sw.onChanged, isNull);

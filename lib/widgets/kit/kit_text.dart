@@ -345,6 +345,12 @@ class KitText {
         color: color ?? Tokens.of(context).fgSubtle,
       );
 
+  /// `.or-name` — sans 14.5/600 at `--fg`: the name on an item the connect
+  /// page offers (a folder, a file, a database), between [label]'s 14 and a
+  /// title (F-191; it was a page's `copyWith(fontSize: 14.5)`).
+  static TextStyle offerName(BuildContext context) =>
+      label(context, weight: FontWeight.w600).copyWith(fontSize: 14.5);
+
   /// `.pull-quote` — italic serif 22/32 at `--fg-muted`.
   static TextStyle pullQuote(BuildContext context) => AppTheme.serif(
         fontSize: 22,

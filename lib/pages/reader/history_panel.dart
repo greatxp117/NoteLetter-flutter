@@ -318,17 +318,7 @@ class _HistoryPanelState extends State<HistoryPanel> {
           ),
           if (e.isActivity) ...[
             const SizedBox(width: 12),
-            // The origin tag: mono 10 caps at 0.08em in a hairline pill.
-            Container(
-              margin: const EdgeInsets.only(top: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: t.border),
-              ),
-              child: Text('ACTIVITY',
-                  style: KitText.monoCaps(context, letterSpacing: 0.08)),
-            ),
+            const KitOriginTag('Activity'),
           ],
           const SizedBox(width: 12),
           Padding(
