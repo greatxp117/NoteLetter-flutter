@@ -2944,3 +2944,29 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: §6.1 State — Busy (5.72.0, ADR-237): a control whose own request is in flight is held and draws the ring, one view per client (Flutter KitBusyMark, through KitButton's busy:). share_page.dart holds every action on _busy (idle = !_busy && !_done, :267) but passes no busy: to the KitButton.primary at :283 (Add), :307 (Upload photos) and :319 (Upload file), so a press greys the button with no ring. Pass busy: _busy on the pressed one (the page has one action at a time, so it is that one).
+
+## F-199 · Listen says whose audio it is: an uploaded recording is 'The recording itself', never narration
+- status: open
+- screen: reader
+- route: /reader/:docId
+- spec: spec/screens/reader.md §Listen follow-along
+- web: src/pages/reader/ListenPanel.jsx; src/pages/reader/docAudio.js
+- flutter: lib/pages/reader/listen_panel.dart; lib/pages/reader/reading_cost.dart
+- folds: web eca03fc 2026-11-11 (lane web2): ListenPanel keyed its eyebrow and note to source_audio_url
+- device_test: none (a widget test: an audio and a video upload read 'Listen · {d}' and 'The recording itself, at your pace…'; a podcast 'The original episode…'; a narrated source '… narration' / 'Hear the source read aloud…')
+- shots: none
+- extra_gates: none
+- notes: Lane flutter's FOUND 3 (reports/flutter.md): web keyed the eyebrow and note to source_audio_url, which an UPLOADED recording carries as null by design, and F-184 mirrored it — listen_panel.dart:300-302 (_note) and :354 (the eyebrow's ' narration'). Web eca03fc keys both to hasOwnAudio (already imported here, reading_cost.dart): eyebrow 'Listen · {d}' with ' narration' only when the audio is TTS; note: podcast (source_audio_url set) 'The original episode, at your pace. The transcript follows along — tap any line to jump there.'; an uploaded audio/video 'The recording itself, at your pace. The transcript follows along — tap any line to jump there.'; otherwise 'Hear the source read aloud, …'.
+
+## F-200 · Original's 'The full text, before the recipe' is the full text or says where it is, never the recipe's own chunks
+- status: open
+- screen: reader
+- route: /reader/:docId
+- spec: spec/invariants.md §INV-20 (20b); spec/screens/reader.md §Sections (Original row)
+- web: src/pages/reader/OriginalPanel.jsx
+- flutter: lib/pages/reader/original_panel.dart
+- folds: web eca03fc 2026-11-11 (lane web2): OriginalPanel's previewHtml fell back to chunkHtml for a distilled document
+- device_test: none (a widget test: a recipe with its original_content_url fetch held reads 'Loading the full original text…', refused reads 'The full original text couldn’t be loaded here — open it with the link below.', and neither shows a chunk's text; fetched shows the fetched HTML)
+- shots: none
+- extra_gates: none
+- notes: Lane flutter's FOUND 4: web drew a recipe's chunks — the recipe itself — under 'The full text, before the recipe' while the full text loaded or after its fetch failed, and F-185 mirrored it: original_panel.dart:141-142 (_previewHtml falls back to _chunkHtml), drawn at :299 and :317. Web eca03fc: a distilled document's preview is the fetched HTML or nothing; until it has loaded the section holds one panel-note — 'Loading the full original text…' while out, 'The full original text couldn’t be loaded here — open it with the link below.' when refused (the separate failure note above the section went: one sentence, in the section) — and the raw-text block waits for the text. Non-distilled documents are unchanged.
