@@ -93,8 +93,10 @@ class _OriginalPanelState extends State<OriginalPanel> {
   bool get _fetches => _shape == 'file' || _shape == 'set';
 
   /// A recipe's original (ADR-042, INV-20b), fetched: '' until it answers.
+  /// [_fullLoaded] once it has; [_fullFailed] when it was refused.
   String _fullHtml = '';
   String _fullText = '';
+  bool _fullLoaded = false;
   bool _fullFailed = false;
 
   bool get _isDistilled =>
@@ -116,6 +118,7 @@ class _OriginalPanelState extends State<OriginalPanel> {
       setState(() {
         _fullHtml = html;
         _fullText = blockText(html);
+        _fullLoaded = true;
       });
     } catch (_) {
       // Degrades to the link below, never to a substitute: the chunks ARE the
@@ -138,35 +141,56 @@ class _OriginalPanelState extends State<OriginalPanel> {
           c.text.isNotEmpty ? c.text : blockText(c.html ?? ''),
       ].join('\n\n');
 
-  String get _previewHtml =>
-      _isDistilled && _fullHtml.isNotEmpty ? _fullHtml : _chunkHtml;
+  /// A distilled document's original is the pre-distillation HTML OR
+  /// NOTHING: while that fetch is out, or after it failed, the only HTML in
+  /// hand is the chunks — the recipe itself — and drawn under *The full text,
+  /// before the recipe* they said the opposite of INV-20b (F-200, web
+  /// eca03fc). The section says where the full text is instead
+  /// ([_fullPending]). Everything else shows what was extracted and stored.
+  String get _previewHtml => _isDistilled ? _fullHtml : _chunkHtml;
+
+  /// The section's one sentence while a recipe's full text has not loaded
+  /// (web `fullPending`, a `.panel-note`), or null.
+  String? get _fullPending => !_isDistilled || _fullLoaded
+      ? null
+      : _fullFailed
+          ? 'The full original text couldn’t be loaded here — open it with '
+              'the link below.'
+          : 'Loading the full original text…';
 
   /// The render, under its own eyebrow (`.orig-section`): 22 above, the
   /// eyebrow 10 over the frame; before anything was extracted, a sentence.
   Widget _section(String label, {String? liveUrl}) {
     final doc = widget.doc;
     final html = _previewHtml;
+    final pending = _fullPending;
     return Padding(
       padding: const EdgeInsets.only(top: 22),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Eyebrow(label),
         const SizedBox(height: 10),
-        html.trim().isEmpty
-            ? const KitProcNote(
-                'Nothing has been extracted from this source yet — the '
-                'preview appears once processing finishes.',
-                padding: EdgeInsets.zero)
-            : KitExtractionPreview(
-                title: doc.title.isEmpty ? 'Captured page' : doc.title,
-                html: html,
-                onOpenLive: liveUrl == null ? null : () => _launch(liveUrl),
-              ),
+        // A recipe's full text not in hand: the section's one sentence.
+        if (pending != null)
+          Lede(pending, fontSize: 15, height: 23, maxWidth: 480)
+        else
+          html.trim().isEmpty
+              ? const KitProcNote(
+                  'Nothing has been extracted from this source yet — the '
+                  'preview appears once processing finishes.',
+                  padding: EdgeInsets.zero)
+              : KitExtractionPreview(
+                  title: doc.title.isEmpty ? 'Captured page' : doc.title,
+                  html: html,
+                  onOpenLive: liveUrl == null ? null : () => _launch(liveUrl),
+                ),
       ]),
     );
   }
 
   /// The raw text, where the render is not the text (web `showRawText`).
-  Widget _raw({required String note}) => (_isDistilled || _hasTwoSources)
+  /// A recipe's waits for its full text (F-200, web `showRawText`).
+  Widget _raw({required String note}) =>
+      ((_isDistilled && _fullLoaded) || (!_isDistilled && _hasTwoSources))
       ? KitRawText(
           text: _isDistilled ? _fullText : _chunkText,
           label: 'Raw extracted text',
@@ -287,12 +311,6 @@ class _OriginalPanelState extends State<OriginalPanel> {
             host.isEmpty ? 'Open the source' : 'Open on ${host.replaceFirst('www.', '')}',
             icon: Icons.open_in_new,
             onPressed: () => _launch(live),
-          ),
-        if (_isDistilled && _fullFailed)
-          const KitProcNote(
-            'The full original text couldn’t be loaded here — open it with '
-            'the link below.',
-            padding: EdgeInsets.only(top: 12),
           ),
         _section(
             _isDistilled

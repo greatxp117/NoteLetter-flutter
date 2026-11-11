@@ -11,6 +11,7 @@
 /// the Open on {host} button (CLAUDE.md §Composition deviations).
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -185,12 +186,13 @@ void main() {
   group('a recipe', () {
     final real = OriginalPanel.fetchOriginal;
     tearDown(() => OriginalPanel.fetchOriginal = real);
-    Document recipe() => _doc({
-          'type': 'article',
-          'source_url': 'https://www.example.com/stew',
-          'content_form': 'recipe',
-          'original_content_url': 'https://storage.example.com/orig.txt',
-        });
+    const recipeJson = <String, dynamic>{
+      'type': 'article',
+      'source_url': 'https://www.example.com/stew',
+      'content_form': 'recipe',
+      'original_content_url': 'https://storage.example.com/orig.txt',
+    };
+    Document recipe() => _doc(recipeJson);
 
     testWidgets('draws the full text before the recipe, and its raw text',
         (tester) async {
@@ -219,5 +221,56 @@ void main() {
           findsOneWidget);
       expect(find.text('Full original text'), findsOneWidget);
     });
+
+    // F-200 (web eca03fc; INV-20b): the section under "The full text, before
+    // the recipe" is the fetched text or says where it is — never the
+    // recipe's own chunks, which are the distillation itself.
+    const loading = 'Loading the full original text…';
+    const refused = 'The full original text couldn’t be loaded here — open '
+        'it with the link below.';
+
+    for (final (shape, extra) in <(String, Map<String, dynamic>)>[
+      ('a link', const {}),
+      ('a file', const {
+        'type': 'pdf',
+        'gcs_path': 'raw/u1/stew.pdf',
+        'source_url': null,
+      }),
+    ]) {
+      testWidgets('$shape, its full text out: the section says it is loading, '
+          'and draws no chunk', (tester) async {
+        final out = Completer<String>();
+        OriginalPanel.fetchOriginal = (_) => out.future;
+        await _pump(tester, _doc({...recipeJson, ...extra}),
+            chunks: _chunks);
+        expect(find.text('THE FULL TEXT, BEFORE THE RECIPE'), findsOneWidget);
+        expect(_says(loading), findsOneWidget);
+        expect(_says('The first paragraph we read.'), findsNothing,
+            reason: 'the recipe is not its own original');
+        expect(_says('A second, plainer one.'), findsNothing);
+        expect(find.textContaining('RAW EXTRACTED TEXT'), findsNothing,
+            reason: 'the raw block waits for the text');
+        out.complete('Para one of the original.');
+        for (var i = 0; i < 3; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(_says(loading), findsNothing);
+        expect(_says('Para one of the original.'), findsOneWidget);
+      });
+
+      testWidgets('$shape, its fetch refused: one sentence, in the section, '
+          'and no chunk', (tester) async {
+        OriginalPanel.fetchOriginal = (_) async => throw Exception('403');
+        await _pump(tester, _doc({...recipeJson, ...extra}),
+            chunks: _chunks);
+        expect(_says(refused), findsOneWidget);
+        expect(_says(loading), findsNothing);
+        expect(_says('The first paragraph we read.'), findsNothing);
+        expect(_says('A second, plainer one.'), findsNothing);
+        expect(find.textContaining('RAW EXTRACTED TEXT'), findsNothing);
+        expect(find.text('Full original text'), findsOneWidget,
+            reason: 'the link below is where it is');
+      });
+    }
   });
 }
