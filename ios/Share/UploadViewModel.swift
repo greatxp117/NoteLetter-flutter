@@ -50,10 +50,15 @@ final class UploadViewModel: ObservableObject {
         defer { isUploading = false }
 
         do {
+            // `origin` (5.51.0, ADR-202 addendum 1): a file shared into
+            // NoteLetter says so, as the app's own share screen does
+            // (UploadOrigin.shareSheet) — a copy's Compare reads it back as
+            // "Uploaded from …" (F-197). The image set's session takes none.
             let response = try await APIClient.call("fn_create_upload_session", method: .post, body: ShelfRead.adding(tagIds, to: [
                 "filename": item.filename,
                 "mimeType": item.mimeType,
-                "size": item.data.count
+                "size": item.data.count,
+                "origin": "share_sheet"
             ]))
             if Self.usesResumableSession(mimeType: item.mimeType) {
                 // No fallback to the single PUT if the session fails: that
