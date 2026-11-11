@@ -796,6 +796,10 @@ KitProcTone _stageTone(Document doc, DateTime now) {
       return KitProcTone.work;
     case DocumentStatus.processing:
       return doc.isStalled(now) ? KitProcTone.fail : KitProcTone.work;
+    // A status this build does not know is in progress (F-182; web
+    // `procPill`'s last line), never a failure.
+    case DocumentStatus.unknown:
+      return KitProcTone.work;
   }
 }
 
@@ -834,6 +838,9 @@ String _stageLabel(Document doc, DateTime now) {
       return 'Error';
     case DocumentStatus.complete:
       return 'Done';
+    // web `procPill`'s fallback: an unknown status reads as in progress.
+    case DocumentStatus.unknown:
+      return 'Processing';
   }
 }
 

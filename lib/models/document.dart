@@ -6,7 +6,17 @@ enum DocumentStatus {
   processing,
   complete,
   error,
-  skipped;
+  skipped,
+
+  /// A status this build does not know, or none at all (F-182). `status` is
+  /// written by the backend alone and a later one may write a token this
+  /// client has never seen; web fails a source only on a literal `error` or
+  /// `skipped` and draws anything else as in progress (`procPill`'s
+  /// *Processing*). So does this client: never Failed, never in For your
+  /// review, never offered Retry — `fn_retry_document` would 409 it. It is
+  /// not `queued`/`processing` either: no stall clock judges it and it is not
+  /// counted as incoming, exactly as on web.
+  unknown;
 
   static DocumentStatus fromString(String? s) {
     switch (s) {
@@ -18,10 +28,12 @@ enum DocumentStatus {
         return DocumentStatus.processing;
       case 'complete':
         return DocumentStatus.complete;
+      case 'error':
+        return DocumentStatus.error;
       case 'skipped':
         return DocumentStatus.skipped;
       default:
-        return DocumentStatus.error;
+        return DocumentStatus.unknown;
     }
   }
 }

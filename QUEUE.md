@@ -2725,17 +2725,17 @@ a new obligation on a finished screen is a new item.
 - notes: `Api.listCloudFiles` (api.dart:714) takes a ready-made `params` map; the keys are assembled at cloud_notifier.dart:583, :604, :756 and sync_folder_picker.dart:121. Web builds them in the builder (api.js:2258-2261). The keys are right today, but CLAUDE.md's rule is that every request is built in api.dart, because that is what api_requests_test asserts: a misspelt key at a call site would pass the suite and the picker would quietly list the provider's root. Move the keys into named parameters; the request suite then reads them.
 
 ## F-182 · A document status this build does not know stays in progress, never Failed
-- status: open
+- status: done 2026-11-11
 - screen: sources
 - route: /sources
 - spec: spec/data-model.md §documents
 - web: src/pages/sources/proc.jsx
-- flutter: lib/models/document.dart; lib/pages/sources/browse_section.dart; lib/state/review_inbox.dart
+- flutter: lib/models/document.dart; lib/pages/sources/browse_section.dart; lib/state/review_inbox.dart; test/contract/document_status_open_test.dart
 - folds: none
 - device_test: none
 - shots: none
 - extra_gates: none
-- notes: `DocumentStatus.fromString` (document.dart:11-26) maps a missing or unknown status to `error`. Web fails only a literal `error` or `skipped` (proc.jsx:70) and draws anything else as in progress; data-model.md's status is an open vocabulary (web CLAUDE.md: open vocabularies stay open). A phone user would see such a source as Failed with Retry (browse_section.dart:354), counted in For your review (review_inbox.dart:24), and the retry refused with a 409. Latent: today's backend writes only known values. Add an unknown case that reads as in progress, with a test red on the old default.
+- notes: `DocumentStatus.fromString` (document.dart:11-26) maps a missing or unknown status to `error`. Web fails only a literal `error` or `skipped` (proc.jsx:70) and draws anything else as in progress; data-model.md's status is an open vocabulary (web CLAUDE.md: open vocabularies stay open). A phone user would see such a source as Failed with Retry (browse_section.dart:354), counted in For your review (review_inbox.dart:24), and the retry refused with a 409. Latent: today's backend writes only known values. Add an unknown case that reads as in progress, with a test red on the old default. Done (lane flutter, 2026-11-11): DocumentStatus.unknown takes a missing or unrecognised token (error only on a literal 'error'); it reads Processing on the work tone in every ProcessingRow look, is not in For your review, not stallable, offers no Retry and is not counted as incoming, as on web. document_status_open_test.dart was red on the old default (5 failures: Error + Retry).
 
 ## F-183 · Dead code: kit_capture.dart (owed since 5.43.0), KitRailShelfRow, ActivityItem.typeLabel, importFromCloud's tag_ids
 - status: open
