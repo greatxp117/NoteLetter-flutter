@@ -2905,3 +2905,42 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: client_timeout_check --target flutter
 - notes: ADR-259 (lands with this contract version). fn_suggest_tags answered 504 on a cold start: its 60 s deadline held the instance's start, about a minute. It deploys at 180 s now (the model call stays bounded at 40 s, the meaning check's embedding at 17 s), so a client that waits 60 + 15 s gives up on a request the server may still answer. Set 'fn_suggest_tags': 180 in endpoint_budgets.dart (line 79); client_timeout_check reads DRIFT and TOO-TIGHT until it does. Web sets no client timeout. The endpoint saves nothing, so the interim loses nothing; the reader's Retry is the same request.
+
+## F-196 · A refused tags read is §14, never *No shelves yet.*: the shelf picker, Shelves at add and the reader's Filing row say so
+- status: open
+- screen: add
+- route: /sources/add
+- spec: spec/invariants.md §INV-24; spec/component-kit.md §20.1 §20.3 §14.3; spec/decisions/ADR-071-a-subscription-failure-is-a-failure-state.md
+- web: src/shared/shelvesRead.js; src/shared/shelfPick.js; src/shared/ShelfPicker.jsx; src/shared/AddShelves.jsx; src/pages/ReaderView.jsx
+- flutter: lib/shared/shelf_pick.dart; lib/widgets/kit/kit_shelf_chips.dart; lib/state/tags_notifier.dart; lib/pages/reader_page.dart
+- folds: web 97b4b85 2026-11-11 (lane web2): a refused tags read said No shelves yet. in every §20 host; gate:rejection shelves-pick-read
+- device_test: none (widget tests: pickState with read failed/loading; KitShelfChipEditor's panel, KitShelfSelect, KitAddShelves and the reader's Filing row under a TagsNotifier holding a permission-denied error say web's line)
+- shots: shelves-read-refused
+- extra_gates: none
+- notes: Web 97b4b85: App's tags subscription handed every §20 host [] when refused and each read it as an answer. Flutter has the same hole: TagsNotifier (tags_notifier.dart:40) stores describeSdkError(e) in its error, but pickState (shelf_pick.dart:122, its callers kit_shelf_chips.dart:777 and :907) knows nothing of it, so the panel says 'No shelves yet.' (shelf_pick.dart:150) or 'No shelf matches …' of a library nobody read; KitAddShelves (kit_shelf_chips.dart:284) keeps its 'Optional. NoteLetter still adds its own as it reads.'; the reader's Filing row shows no chips and its folio and identity say 'Unshelved' (reader_page.dart:132, :447) for a shelved source. Port web's rule: pickState takes read ('answered' | 'loading' | 'failed'); while loading no §20.1 sentence (the create row stays); refused, no sentence and NO create row (a name cannot be checked against shelves nobody read), rows read before the refusal kept, and the panel draws KitFailureInline 'Your shelves could not be read — ' + describeSdkError's sentence where the sentence would be; with no option at all nothing is active and Enter chooses nothing. KitAddShelves: the same line in its sentence's place. Reader: the Filing row carries the line; the folio/identity say '—' for a source whose tag_ids are non-empty while the read is refused (the document says whether it is shelved; the read only names it), 'Unshelved' only for one with none. The extension already does the panel half (ShelfPanel readFailed/loading, 5.73.0).
+
+## F-197 · The iOS share extension's upload says where it came from: origin share_sheet, as the app's own share screen does
+- status: open
+- screen: share
+- route: /share
+- spec: spec/data-model.md §upload_origin; spec/features/picture-dedupe.md; spec/decisions/ADR-202-a-picture-already-in-the-library.md
+- web: src/api.js
+- flutter: ios/Share/UploadViewModel.swift; lib/services/api.dart; lib/pages/share_page.dart
+- folds: TODO 'Flutter: … the iOS upload sends no origin' (5.73.0 round, booked 2026-11-11 by lane web2)
+- device_test: none (no simulator this wave; the body is asserted where the extension builds it, and read back from the created document's upload_origin on the next device run)
+- shots: none
+- extra_gates: none
+- notes: fn_create_upload_session takes a closed origin (computer · phone · share_sheet; 5.51.0, ADR-202 addendum 1), read back only by a copy's Compare ('Uploaded from …'). The Dart share screen sends UploadOrigin.shareSheet (share_page.dart:198 → api.dart:15), but the iOS Share extension builds its own body at ios/Share/UploadViewModel.swift:53 with filename, mimeType and size only, so every file shared into NoteLetter on iOS is stored upload_origin: null and its Compare says nothing of where it came from. Add "origin": "share_sheet" there (beside ShelfRead.adding's tagIds). The multi-image path (fn_create_multi_image_session) carries no origin by contract; leave it.
+
+## F-198 · /share's buttons say they are working: Add, Upload photos and Upload file carry the busy ring while the add runs
+- status: open
+- screen: share
+- route: /share
+- spec: spec/component-kit.md §6.1; spec/decisions/ADR-237-a-control-says-it-is-working.md
+- web: src/shared/BusyMark.jsx
+- flutter: lib/pages/share_page.dart; lib/widgets/kit/kit_controls.dart
+- folds: TODO "Flutter: … /share's button has no ring" (5.73.0 round, booked 2026-11-11 by lane web2)
+- device_test: none (a widget test: the share page with its add held open shows one KitBusyMark on the pressed KitButton and the others held)
+- shots: none
+- extra_gates: none
+- notes: §6.1 State — Busy (5.72.0, ADR-237): a control whose own request is in flight is held and draws the ring, one view per client (Flutter KitBusyMark, through KitButton's busy:). share_page.dart holds every action on _busy (idle = !_busy && !_done, :267) but passes no busy: to the KitButton.primary at :283 (Add), :307 (Upload photos) and :319 (Upload file), so a press greys the button with no ring. Pass busy: _busy on the pressed one (the page has one action at a time, so it is that one).
