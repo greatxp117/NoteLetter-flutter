@@ -2756,12 +2756,12 @@ a new obligation on a finished screen is a new item.
 - route: /reader/:id
 - spec: spec/screens/reader.md §Listen
 - web: src/pages/reader/ListenPanel.jsx
-- flutter: lib/pages/reader/listen_panel.dart; lib/services/api.dart
+- flutter: lib/pages/reader/listen_panel.dart; lib/services/api.dart; lib/widgets/kit/kit_empty.dart; test/contract/listen_load_test.dart
 - folds: none
 - device_test: an uploaded recording plays itself in Listen and is never offered narration
 - shots: none
 - extra_gates: none
-- notes: Bug. listen_panel.dart:66-67 and :113-121 take the source audio from `source_audio_url` alone. An uploaded recording (type `audio`, ADR-046) or video (`video`, ADR-049) has that field null BY DESIGN; its URL is minted per request by fn_get_raw_document_url. Web tests type-or-field and fetches it (ListenPanel.jsx:29-79), drawing *Loading the recording…* (:166). Flutter draws *No narration yet.* and Generate audio (:278-290): the phone user is offered a synthesized voice reading the transcript of their own recording, which reader.md forbids ("never offer TTS for a document that has its own audio"). Api.getRawDocumentUrl exists (api.dart:417).
+- notes: Bug. listen_panel.dart:66-67 and :113-121 take the source audio from `source_audio_url` alone. An uploaded recording (type `audio`, ADR-046) or video (`video`, ADR-049) has that field null BY DESIGN; its URL is minted per request by fn_get_raw_document_url. Web tests type-or-field and fetches it (ListenPanel.jsx:29-79), drawing *Loading the recording…* (:166). Flutter draws *No narration yet.* and Generate audio (:278-290): the phone user is offered a synthesized voice reading the transcript of their own recording, which reader.md forbids ("never offer TTS for a document that has its own audio"). Api.getRawDocumentUrl exists (api.dart:417). Built (lane flutter, 2026-11-11, the commit naming F-184): an uploaded audio or video (hasOwnAudio, type OR field) asks fn_get_raw_document_url on mount and plays the signed URL; until it answers Listen says Loading the recording… and never offers Generate audio; a URL that does not come back says This recording could not be loaded., a refusal its own sentence. listen_load_test drives both types and the missing URL (red on the old panel); its audio plugin's global scope now starts in setUpAll, as listen_speed_test's does. Web's eyebrow and note stay keyed to source_audio_url, so an uploaded recording reads '· narration' on both clients (booked as a web finding, not changed here). OPEN only for its device_test: no device in this wave.
 
 ## F-185 · Original shows the extraction beside the file: the captured page, the embed or poster, the text as read
 - status: open

@@ -196,12 +196,16 @@ class KitEmptyState extends StatelessWidget {
                   opsz: 30,
                 ).copyWith(shadows: AppShadows.letterpress),
               ),
-              SizedBox(height: quiet ? 8 : 10),
-              ConstrainedBox(
-                constraints:
-                    BoxConstraints(maxWidth: 58 * KitText.ch(context, sub)),
-                child: Text(standfirst, style: sub),
-              ),
+              // An empty standfirst draws nothing (web's `.be-title` alone,
+              // as Listen's *Loading the recording…*, F-184).
+              if (standfirst.isNotEmpty) ...[
+                SizedBox(height: quiet ? 8 : 10),
+                ConstrainedBox(
+                  constraints:
+                      BoxConstraints(maxWidth: 58 * KitText.ch(context, sub)),
+                  child: Text(standfirst, style: sub),
+                ),
+              ],
               if (suggestions.isNotEmpty && !quiet) ...[
                 const SizedBox(height: 24),
                 Container(

@@ -7,6 +7,7 @@ import '../../services/error_text.dart';
 import '../../widgets/kit/kit.dart';
 import 'reader_prefs.dart';
 import 'reader_ui.dart';
+import 'reading_cost.dart' show hasOwnAudio;
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
@@ -66,6 +67,33 @@ class _ListenPanelState extends State<ListenPanel> {
   String? get _sourceAudio =>
       (widget.doc.sourceAudioUrl?.isNotEmpty ?? false) ? widget.doc.sourceAudioUrl : null;
 
+  /// An uploaded recording (`audio`, ADR-046) or video (`video`, ADR-049):
+  /// its `source_audio_url` is null BY DESIGN — a stored signed URL would be
+  /// dead an hour after ingest — so its URL is minted per request by
+  /// `fn_get_raw_document_url` (F-184; web `isUploadedMedia`).
+  bool get _uploadedMedia =>
+      widget.doc.type == 'audio' || widget.doc.type == 'video';
+
+  /// Mints the recording's URL and plays it. Not cached across the hour it is
+  /// valid for: a remount asks again, as web's does.
+  Future<void> _fetchRecording() async {
+    try {
+      final res = await Api.instance.getRawDocumentUrl(widget.docId);
+      final url = (res['signed_url'] ?? res['signedUrl']) as String?;
+      if (!mounted) return;
+      if (url == null || url.isEmpty) {
+        setState(() => _error = _loadFailed);
+        return;
+      }
+      setState(() => _audioUrl = url);
+      await _load(url);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _error = describeSdkError(e));
+    }
+  }
+
   /// Real transcript timestamps are usable only when every para has one.
   bool get _hasRealStarts =>
       widget.lineStarts.length == widget.paras.length &&
@@ -118,6 +146,8 @@ class _ListenPanelState extends State<ListenPanel> {
     if (src != null) {
       _audioUrl = src;
       _load(src);
+    } else if (_uploadedMedia) {
+      _fetchRecording();
     }
     // The player reports a source it cannot play as an ERROR on these
     // streams. With no `onError` that error was uncaught — a zone error on a
@@ -276,19 +306,25 @@ class _ListenPanelState extends State<ListenPanel> {
     final ui = ReaderUi(context);
 
     if (_audioUrl == null) {
+      // A document that HAS its own audio is never offered TTS — paying to
+      // synthesize a voice reading a transcript of the user's own recording
+      // is the wrong result, not a slower one (reader.md §Listen; F-184).
+      final own = hasOwnAudio(widget.doc);
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ui.intro('Listen', _note),
-        ui.empty(
-          KitQuill.icon,
-          'No narration yet.',
-          'Generate an audio reading of this source.',
-          action: KitButton.primary(
-            _generating ? 'Generating…' : 'Generate audio',
-            icon: Icons.auto_awesome,
-            busy: _generating,
-            onPressed: _generating ? null : _generate,
-          ),
-        ),
+        own
+            ? ui.empty(KitQuill.icon, 'Loading the recording…', '')
+            : ui.empty(
+                KitQuill.icon,
+                'No narration yet.',
+                'Generate an audio reading of this source.',
+                action: KitButton.primary(
+                  _generating ? 'Generating…' : 'Generate audio',
+                  icon: Icons.auto_awesome,
+                  busy: _generating,
+                  onPressed: _generating ? null : _generate,
+                ),
+              ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
