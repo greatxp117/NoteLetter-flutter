@@ -1,5 +1,11 @@
+import 'dart:convert' show HtmlEscape;
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:url_launcher/url_launcher.dart';
+import '../../models/chunk.dart';
 import '../../models/document.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
@@ -32,10 +38,34 @@ import '../../services/error_text.dart';
 /// pre-distillation text, and this panel is the only place that guarantee is
 /// visible (INV-20b) — so a document whose manuscript is a recipe MUST offer
 /// it here, and nothing else in the reader may render it.
+///
+/// **The extraction beside the source (F-185; kit §15.1 rule 3, web
+/// `OriginalPanel`)**: every shape draws what NoteLetter read out of it — *The
+/// page as we captured it*, *The document as we read it*, *The article it
+/// resolved to*, or for a recipe *The full text, before the recipe* — from
+/// the ordered [chunks] the reader already holds (ADR-004), and the raw text,
+/// collapsed, where the render above it is not the text (a screenshot, a
+/// recipe). A link's live embed is web's iframe; here it is the provider's
+/// poster beside *Open on {host}* (CLAUDE.md §Composition deviations).
 class OriginalPanel extends StatefulWidget {
   final String docId;
   final Document doc;
-  const OriginalPanel({super.key, required this.docId, required this.doc});
+
+  /// The document's passages, in order — what the extraction is drawn from.
+  final List<Chunk> chunks;
+
+  const OriginalPanel(
+      {super.key, required this.docId, required this.doc, this.chunks = const []});
+
+  /// A recipe's pre-distillation text (`original_content_url`, a durable
+  /// download-token URL): an ordinary GET. A seam for the tests.
+  static Future<String> Function(String url) fetchOriginal = _get;
+
+  static Future<String> _get(String url) async {
+    final res = await Dio().get<String>(url,
+        options: Options(responseType: ResponseType.plain));
+    return res.data ?? '';
+  }
 
   @override
   State<OriginalPanel> createState() => _OriginalPanelState();
@@ -62,11 +92,87 @@ class _OriginalPanelState extends State<OriginalPanel> {
   /// one call answers for every shape that has bytes.
   bool get _fetches => _shape == 'file' || _shape == 'set';
 
+  /// A recipe's original (ADR-042, INV-20b), fetched: '' until it answers.
+  String _fullHtml = '';
+  String _fullText = '';
+  bool _fullFailed = false;
+
+  bool get _isDistilled =>
+      widget.doc.contentForm != null &&
+      (widget.doc.originalContentUrl?.isNotEmpty ?? false);
+
   @override
   void initState() {
     super.initState();
     if (_fetches) _load();
+    if (_isDistilled) _loadFull();
   }
+
+  Future<void> _loadFull() async {
+    try {
+      final raw = await OriginalPanel.fetchOriginal(widget.doc.originalContentUrl!);
+      if (!mounted) return;
+      final html = asExtractionHtml(raw);
+      setState(() {
+        _fullHtml = html;
+        _fullText = blockText(html);
+      });
+    } catch (_) {
+      // Degrades to the link below, never to a substitute: the chunks ARE the
+      // distillation, and showing them as "the full text" is INV-20b reversed.
+      if (mounted) setState(() => _fullFailed = true);
+    }
+  }
+
+  /// The extraction, assembled from the ordered chunks (web `chunkHtml`): a
+  /// chunk's html, or its text as a paragraph.
+  String get _chunkHtml => [
+        for (final c in widget.chunks)
+          (c.html ?? '').trim().isNotEmpty
+              ? c.html!.trim()
+              : '<p>${const HtmlEscape().convert(c.text)}</p>',
+      ].join('\n');
+
+  String get _chunkText => [
+        for (final c in widget.chunks)
+          c.text.isNotEmpty ? c.text : blockText(c.html ?? ''),
+      ].join('\n\n');
+
+  String get _previewHtml =>
+      _isDistilled && _fullHtml.isNotEmpty ? _fullHtml : _chunkHtml;
+
+  /// The render, under its own eyebrow (`.orig-section`): 22 above, the
+  /// eyebrow 10 over the frame; before anything was extracted, a sentence.
+  Widget _section(String label, {String? liveUrl}) {
+    final doc = widget.doc;
+    final html = _previewHtml;
+    return Padding(
+      padding: const EdgeInsets.only(top: 22),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Eyebrow(label),
+        const SizedBox(height: 10),
+        html.trim().isEmpty
+            ? const KitProcNote(
+                'Nothing has been extracted from this source yet — the '
+                'preview appears once processing finishes.',
+                padding: EdgeInsets.zero)
+            : KitExtractionPreview(
+                title: doc.title.isEmpty ? 'Captured page' : doc.title,
+                html: html,
+                onOpenLive: liveUrl == null ? null : () => _launch(liveUrl),
+              ),
+      ]),
+    );
+  }
+
+  /// The raw text, where the render is not the text (web `showRawText`).
+  Widget _raw({required String note}) => (_isDistilled || _hasTwoSources)
+      ? KitRawText(
+          text: _isDistilled ? _fullText : _chunkText,
+          label: 'Raw extracted text',
+          note: note,
+        )
+      : const SizedBox.shrink();
 
   Future<void> _load() async {
     setState(() {
@@ -150,36 +256,69 @@ class _OriginalPanelState extends State<OriginalPanel> {
               icon: Icons.open_in_new,
               onPressed: () => _launch(doc.sourceUrl!)),
         ],
+        _section('The article it resolved to',
+            liveUrl: (doc.sourceUrl?.isNotEmpty ?? false) ? doc.sourceUrl : null),
+        _raw(
+            note: _isDistilled
+                ? 'The complete text of the source, before it was reduced to the recipe.'
+                : 'The text of the resolved article, exactly as it was extracted and stored.'),
         _fullOriginal(),
       ]);
     }
 
     if (_shape == 'link') {
       final host = Uri.tryParse(doc.sourceUrl ?? '')?.host ?? '';
+      final live = (doc.sourceUrl?.isNotEmpty ?? false) ? doc.sourceUrl : null;
+      // web `LiveEmbed`: the provider's poster, else the captured page's lead
+      // image. The embed itself is a phone deviation (CLAUDE.md).
+      final poster = (doc.thumbnailUrl?.isNotEmpty ?? false)
+          ? doc.thumbnailUrl
+          : firstImage(_previewHtml);
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ui.intro(
           'Original · ${host.isEmpty ? kind : host.replaceFirst('www.', '')}',
-          doc.contentForm != null
-              ? 'This source came from a link and has been reduced to the recipe. The source itself is below, and the full text it was reduced from is kept with it.'
-              : 'This source came from a link — there is no uploaded file. The source itself is below.',
+          _isDistilled
+              ? 'This source came from a link and has been reduced to the recipe. Here is the source itself, and below it the page as NoteLetter captured it, in full.'
+              : 'This source came from a link — there is no uploaded file. Here is the source itself, and below it the page as NoteLetter captured it.',
         ),
-        if (doc.sourceUrl?.isNotEmpty ?? false)
+        if (poster != null) KitPoster(poster, alt: doc.title),
+        if (live != null)
           KitButton.secondary(
             host.isEmpty ? 'Open the source' : 'Open on ${host.replaceFirst('www.', '')}',
             icon: Icons.open_in_new,
-            onPressed: () => _launch(doc.sourceUrl!),
+            onPressed: () => _launch(live),
           ),
+        if (_isDistilled && _fullFailed)
+          const KitProcNote(
+            'The full original text couldn’t be loaded here — open it with '
+            'the link below.',
+            padding: EdgeInsets.only(top: 12),
+          ),
+        _section(
+            _isDistilled
+                ? 'The full text, before the recipe'
+                : 'The page as we captured it',
+            liveUrl: live),
+        _raw(
+            note:
+                'The complete text of the source, before it was reduced to the recipe.'),
         _fullOriginal(),
       ]);
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ui.intro('Original · $kind',
-          'The source exactly as it arrived. NoteLetter keeps the original alongside the text it extracted.'),
+          'The source exactly as it arrived. NoteLetter keeps the original file alongside the text it extracted.'),
       // reader.md §Source freshness, 5.12.0 (ADR-172): beneath the intro,
       // before the file.
       UpdateFromSourceBar(docId: widget.docId, doc: doc),
       _sourceBody(),
+      _section(_isDistilled
+          ? 'The full text, before the recipe'
+          : 'The document as we read it'),
+      _raw(
+          note:
+              'The complete text of the source, before it was reduced to the recipe.'),
       _fullOriginal(),
     ]);
   }
@@ -270,4 +409,45 @@ class _OriginalPanelState extends State<OriginalPanel> {
       ]),
     );
   }
+}
+
+/// A stored original with no markup of its own (an Instagram reel's caption
+/// and transcript) as paragraphs, so a renderer does not run it into one
+/// blob; anything with a tag in it is left exactly as stored (web `asHtml`).
+String asExtractionHtml(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty || RegExp(r'<[a-z][a-z0-9]*[\s/>]', caseSensitive: false).hasMatch(s)) {
+    return s;
+  }
+  return s
+      .split(RegExp(r'\n\s*\n'))
+      .map((b) => b.trim())
+      .where((b) => b.isNotEmpty)
+      .map((b) => '<p>${const HtmlEscape().convert(b).replaceAll('\n', '<br>')}</p>')
+      .join();
+}
+
+/// The first image in a captured fragment — a lead image for a source that
+/// publishes no poster (web `firstImage`).
+String? firstImage(String html) {
+  if (html.isEmpty) return null;
+  final d = html_parser.parseFragment(html);
+  final img = d.querySelector('img[data-nl-image-id]') ?? d.querySelector('img');
+  final src = img?.attributes['src'];
+  return (src == null || src.isEmpty) ? null : src;
+}
+
+/// A fragment's text with its block boundaries kept (web `blockText`):
+/// paragraphs are not run into one word.
+String blockText(String html) {
+  if (html.isEmpty) return '';
+  final d = html_parser.parseFragment(html);
+  for (final el in d.querySelectorAll(
+      'p, div, li, h1, h2, h3, h4, blockquote, tr, figcaption, pre, br')) {
+    el.append(dom.Text('\n'));
+  }
+  return (d.text ?? '')
+      .replaceAll(RegExp(r'[ \t]+\n'), '\n')
+      .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+      .trim();
 }

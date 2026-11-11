@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show ValueListenable, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
@@ -941,5 +942,266 @@ class _DashedBorderPainter extends BoxPainter {
         canvas.drawPath(metric.extractPath(at, at + 4), paint);
       }
     }
+  }
+}
+
+// ── §15.1 rule 3: what the panel that composes the renderer adds (F-185) ────
+
+/// The extraction as NoteLetter read it (`.pdf-viewer` over `.orig-stage
+/// .orig-render`; reader.md §Original, F-185): the same frame as
+/// [KitSourceFileView] — a toolbar naming it, with [onOpenLive] for a source
+/// that has a live page — over the rendered [html] on `--surface`, set in
+/// the reading serif 16/27 within 68ch, the stage capped at 720 and scrolled.
+/// §15.1 rule 3: the extraction belongs to the panel that composes the
+/// renderer, never to the renderer, which is why this is its own part.
+class KitExtractionPreview extends StatelessWidget {
+  final String title;
+  final String html;
+  final VoidCallback? onOpenLive;
+
+  const KitExtractionPreview({
+    super.key,
+    required this.title,
+    required this.html,
+    this.onOpenLive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final phone = MediaQuery.sizeOf(context).width < 768;
+    final body = AppTheme.serif(fontSize: 16, color: t.fg);
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: AppRadius.mdR,
+        border: Border.all(color: t.borderStrong),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: t.rule)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.mono(fontSize: 13, color: t.fg),
+                  ),
+                ),
+                if (onOpenLive != null)
+                  KitIconButton(
+                    Icons.open_in_new,
+                    tooltip: 'Open the live page',
+                    onPressed: onOpenLive,
+                  ),
+              ],
+            ),
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 720),
+            child: SingleChildScrollView(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints:
+                      BoxConstraints(maxWidth: 68 * KitText.ch(context, body)),
+                  child: Padding(
+                    // `.orig-render` 34/32/40; at ≤720 22/18/28 — this
+                    // client's one breakpoint, 768.
+                    padding: phone
+                        ? const EdgeInsets.fromLTRB(18, 22, 18, 28)
+                        : const EdgeInsets.fromLTRB(32, 34, 32, 40),
+                    child: AppTheme.htmlOpticalSize(
+                      18,
+                      child: Html(
+                        data: html,
+                        extensions: AppTheme.htmlExtensions,
+                        style: {
+                          ...AppTheme.htmlStyles(
+                            t,
+                            body: Style(
+                              margin: Margins.zero,
+                              fontFamily: AppTheme.fontSerif,
+                              fontSize: FontSize(16),
+                              lineHeight: LineHeight.number(27 / 16),
+                              color: t.fg,
+                            ),
+                          ),
+                          'p': Style(margin: Margins.only(top: 0, bottom: 16)),
+                          'h1': _head(t, 25),
+                          'h2': _head(t, 21),
+                          'h3': _head(t, 18),
+                          'h4': _head(t, 16),
+                          'li': Style(margin: Margins.only(bottom: 6)),
+                          'blockquote': Style(
+                            margin: Margins.only(left: 0, bottom: 16),
+                            padding: HtmlPaddings.only(left: 16),
+                            border: Border(
+                                left: BorderSide(color: t.border, width: 2)),
+                            color: t.fgLede,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          'a': Style(color: t.accentText),
+                          'figcaption': Style(
+                            fontFamily: AppTheme.fontSans,
+                            fontSize: FontSize(12),
+                            color: t.fgSubtle,
+                          ),
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Style _head(Tokens t, double size) => Style(
+        fontFamily: AppTheme.fontSerif,
+        fontSize: FontSize(size),
+        lineHeight: LineHeight.number(1.25),
+        margin: Margins.only(top: 28, bottom: 10),
+        color: t.fg,
+      );
+}
+
+/// The extraction as plain text, exactly as stored (`.orig-raw`, F-185):
+/// collapsed — the same words as the render above, offered for checking
+/// rather than reading. The summary is the [label] in mono caps with the
+/// measured word count beside it; open, the [note] and the text on
+/// `--surface-sunken` in mono 12.5/21, capped at 520 and scrolled. Draws
+/// nothing for a text with no words.
+class KitRawText extends StatefulWidget {
+  final String text;
+  final String label;
+  final String? note;
+
+  const KitRawText({
+    super.key,
+    required this.text,
+    required this.label,
+    this.note,
+  });
+
+  @override
+  State<KitRawText> createState() => _KitRawTextState();
+}
+
+class _KitRawTextState extends State<KitRawText> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    final words = widget.text
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .length;
+    if (words == 0) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.only(top: 14),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: t.rule)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            button: true,
+            expanded: _open,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _open = !_open),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(_open ? '▾' : '▸',
+                      style: KitText.capsLabel(context, color: t.fgSubtle)),
+                  const SizedBox(width: 10),
+                  Text(widget.label.toUpperCase(),
+                      style: KitText.capsLabel(context)),
+                  const SizedBox(width: 10),
+                  Text('$words ${words == 1 ? 'word' : 'words'}',
+                      style: KitText.monoMeta(context, letterSpacing: 0)),
+                ],
+              ),
+            ),
+          ),
+          if (_open) ...[
+            if (widget.note != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(widget.note!, style: KitText.note(context)),
+              ),
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              constraints: const BoxConstraints(maxHeight: 520),
+              decoration: BoxDecoration(
+                color: t.surfaceSunken,
+                borderRadius: AppRadius.mdR,
+                border: Border.all(color: t.border),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                child: Text(
+                  widget.text,
+                  style: AppTheme.mono(fontSize: 12.5, color: t.fgLede)
+                      .copyWith(height: 21 / 12.5),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A poster frame for a link (`.orig-poster`, F-185): the provider's
+/// `thumbnail_url`, or the captured page's lead image, framed on
+/// `--surface-sunken` up to 640 wide. Offered when it loads and gone when it
+/// does not — a provider's poster expires (Instagram's `oe=`), and a broken
+/// image standing in for the original is worse than none.
+class KitPoster extends StatelessWidget {
+  final String url;
+  final String? alt;
+
+  const KitPoster(this.url, {super.key, this.alt});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Image.network(
+      url,
+      semanticLabel: alt ?? 'Preview of the original',
+      frameBuilder: (context, child, frame, sync) => ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 18),
+          decoration: BoxDecoration(
+            color: t.surfaceSunken,
+            borderRadius: AppRadius.mdR,
+            border: Border.all(color: t.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: child,
+        ),
+      ),
+      errorBuilder: (context, error, stack) => const SizedBox.shrink(),
+      fit: BoxFit.fitWidth,
+    );
   }
 }

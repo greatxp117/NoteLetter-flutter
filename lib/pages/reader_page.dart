@@ -991,7 +991,8 @@ class _ReaderPageState extends State<ReaderPage> {
           seekTo: _listenSeek,
         );
       case 'original':
-        return OriginalPanel(docId: widget.docId, doc: _document!);
+        return OriginalPanel(
+            docId: widget.docId, doc: _document!, chunks: _chunks);
       case 'history':
         return HistoryPanel(docId: widget.docId, chunks: _chunks);
       case 'summary':
