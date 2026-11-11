@@ -755,9 +755,9 @@ class Api {
   /// picker showed it, stored at `sync_config.folder_names` so the import row
   /// and the sync settings draw a name rather than a provider id. Only ids in
   /// [folderIds] may be named (400 otherwise); sent only when given.
-  /// [tagIds] (5.46.0, ADR-201): sent only when non-empty. The endpoint still
-  /// accepts it, and since 5.52.0 (ADR-203) no caller passes it — there is
-  /// no *File under* — so it is booked to retire with the endpoint's.
+  /// No `tag_ids` (F-183): *File under* left both surfaces in 5.52.0
+  /// (ADR-203), and since 5.62.0 the endpoint refuses the key with 400
+  /// UNKNOWN_KEYS (`api/cloud-storage.md` §fn_import_from_cloud).
   /// Queue folder/file imports (web `importFromCloud`).
   ///
   /// More than [kImportFileBatch] files go as consecutive requests
@@ -765,9 +765,8 @@ class Api {
   /// A TIME — the first refusal must stop the rest, and the plan gate
   /// (INV-28) must see them one after another. The first request carries the
   /// folders, their names and the settings with the first batch; a later one
-  /// carries `provider` and its `file_ids` only (and `tag_ids`, which rides
-  /// every job). 50 or fewer files is one request, byte-for-byte what it
-  /// always was.
+  /// carries `provider` and its `file_ids` only. 50 or fewer files is one
+  /// request, byte-for-byte what it always was.
   ///
   /// Answers the 202s' SUMS (ADR-103 §5). [onProgress] (sent, total) after
   /// each 202 when there is more than one request. A refusal of the first
@@ -781,7 +780,6 @@ class Api {
     List<String>? includeTypes,
     List<String>? excludePatterns,
     Map<String, String>? folderNames,
-    List<String>? tagIds,
     void Function(int sent, int total)? onProgress,
   }) async {
     final files = fileIds ?? const <String>[];
@@ -795,13 +793,6 @@ class Api {
     if (folderNames != null && folderNames.isNotEmpty) {
       first['folder_names'] = folderNames;
     }
-    // `tag_ids` (5.46.0, ADR-201): shelves applied to every document this
-    // import creates instead of the ones indexing would choose. Absent (not
-    // `[]`) when none is given — the only case since 5.52.0 (ADR-203), when
-    // File under left both surfaces. Mirrors web, which keeps it the same.
-    // Per job, so on every batch.
-    final tags = tagIds != null && tagIds.isNotEmpty ? tagIds : null;
-    if (tags != null) first['tag_ids'] = tags;
 
     final bodies = <Map<String, dynamic>>[first];
     for (var i = kImportFileBatch; i < files.length; i += kImportFileBatch) {
@@ -809,7 +800,6 @@ class Api {
       bodies.add({
         'provider': provider,
         'file_ids': files.sublist(i, end),
-        if (tags != null) 'tag_ids': tags,
       });
     }
 

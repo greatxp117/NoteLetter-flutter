@@ -175,16 +175,14 @@ void main() {
           {'queued_folders': 0, 'queued_files': 59});
     });
 
-    test('carries tag_ids on every batch, because it rides every job',
-        () async {
+    // F-183: `tag_ids` was retired in 5.62.0 (cloud-storage.md, 400
+    // UNKNOWN_KEYS), so no batch carries it — the builder has no such input.
+    test('no batch carries tag_ids', () async {
       final e = _Endpoint();
       ApiService.instance.httpClientAdapter = e;
-      await Api.instance
-          .importFromCloud('google_drive', fileIds: _ids(51), tagIds: ['t1']);
-      expect([for (final b in e.posts) b['tag_ids']], [
-        ['t1'],
-        ['t1']
-      ]);
+      await Api.instance.importFromCloud('google_drive', fileIds: _ids(51));
+      expect(e.posts, hasLength(2));
+      expect([for (final b in e.posts) b.containsKey('tag_ids')], [false, false]);
     });
 
     test('sends one request at a time', () async {

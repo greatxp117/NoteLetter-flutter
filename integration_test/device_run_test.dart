@@ -3366,9 +3366,8 @@ void main() {
       expect(inRail(gone), findsNothing,
           reason: 'the compact rail draws no "$gone" row');
     }
-    expect(find.descendant(of: rail, matching: find.byType(KitRailShelfRow)),
-        findsNothing,
-        reason: 'the compact rail draws no shelf tree');
+    // The compact rail draws no shelf tree: its row (`KitRailShelfRow`) was
+    // deleted with its last caller (F-183), so nothing can draw one.
     expect(find.bySemanticsLabel('New shelf'), findsOneWidget,
         reason: "the Shelves row's + is drawn whatever the library holds");
     final card = find.byType(KitReaderCard);

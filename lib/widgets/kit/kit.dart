@@ -18,7 +18,6 @@ library;
 
 export 'kit_ask_answer.dart';
 export 'kit_busy_mark.dart';
-export 'kit_capture.dart';
 export 'kit_cards.dart';
 export 'kit_compare.dart';
 export 'kit_composer.dart';

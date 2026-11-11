@@ -273,9 +273,10 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
       fileIds: _strs(b['file_ids']),
       includeTypes: _strs(b['include_types']),
       excludePatterns: _strs(b['exclude_patterns']),
-      folderNames: (b['folder_names'] as Map?)?.cast<String, String>(),
-      // 5.46.0 (ADR-201): File under.
-      tagIds: _strs(b['tag_ids'])),
+      // No `tag_ids` (F-183): retired in 5.62.0, so the builder cannot send
+      // it, and `cloud:import-tag-ids-retired`'s 400 is a server refusal
+      // this loop asserts only as one the builder does not resolve on.
+      folderNames: (b['folder_names'] as Map?)?.cast<String, String>()),
   'fn_retry_import_job': (b) => Api.instance.retryImportJob(b['job_id']),
   'fn_request_cloud_sync': (b) => Api.instance.requestCloudSync(b['provider']),
   'fn_sync_settings': (b) => Api.instance.syncSettings(b['provider'],

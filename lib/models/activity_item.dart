@@ -78,23 +78,6 @@ class ActivityItem {
     return '${dt.month}/${dt.day}/${dt.year}';
   }
 
-  String get typeLabel {
-    switch (type) {
-      case 'pdf': return 'PDF';
-      case 'docx': return 'Word';
-      case 'youtube': return 'YouTube';
-      case 'url': return 'Article';
-      case 'image': return 'Image';
-      case 'image_set': return 'Images';
-      case 'instagram': return 'Instagram';
-      case 'tiktok': return 'TikTok';
-      case 'social_video': return 'Video';
-      case 'podcast': return 'Podcast';
-      case 'service_connected': return 'Integration';
-      default: return type;
-    }
-  }
-
   String get statusLabel {
     switch (status) {
       case 'complete': return 'Indexed';
