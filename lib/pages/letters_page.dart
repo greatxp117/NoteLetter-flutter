@@ -524,7 +524,7 @@ class _LettersPageState extends State<LettersPage> {
         has: const ['letter'],
         body: (context, close) => KitLetterQuick(
           settings: settings.newsletter,
-          readError: settings.newsletter == null ? settings.error : null,
+          readError: settings.newsletter == null ? settings.readError : null,
           write: (patch) => _writeSettings(settings, patch),
           onEverySetting: () {
             close();

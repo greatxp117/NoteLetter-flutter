@@ -524,6 +524,12 @@ void main() {
         findsOneWidget,
       );
       expect(find.byType(KitFailureBlock), findsOneWidget);
+      // Its detail is §14.3's sentence, never a constant of ours (F-193).
+      expect(
+        find.text('This could not be read right now. Please try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('Could not load newsletter settings.'), findsNothing);
       expect(find.byKey(const ValueKey('lset-schedule')), findsNothing);
       expect(find.byKey(const ValueKey('lset-passages')), findsNothing);
       expect(find.byKey(const ValueKey('lset-save')), findsNothing);

@@ -168,7 +168,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     await settings.loadAll();
     if (!mounted) return;
     final stored = settings.newsletter;
-    final error = settings.error;
+    final error = settings.readError;
     if (error != null || stored == null) {
       setState(
         () => _cfgError = error ?? 'Could not load newsletter settings.',

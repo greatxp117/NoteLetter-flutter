@@ -111,7 +111,10 @@ class HomeSettings extends SettingsNotifier {
   NewsletterSettings? get newsletter => value;
 
   @override
-  String? get error => failed ? 'Could not load newsletter settings.' : null;
+  String? get readError => failed
+      ? 'NoteLetter could not read this. Sign out and back in, or contact '
+            'support.'
+      : null;
 }
 
 /// The shell's one inbox over fixed lists — all four answered.
@@ -164,7 +167,7 @@ Newsletter homeLetter(String id, Map<String, dynamic> json) =>
 Future<void> pumpHome(
   WidgetTester tester,
   HomeReads reads, {
-  HomeSettings? settings,
+  SettingsNotifier? settings,
   ReviewInbox? inbox,
   Size size = const Size(1280, 2400),
   Brightness brightness = Brightness.light,

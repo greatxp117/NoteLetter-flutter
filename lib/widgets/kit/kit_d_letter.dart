@@ -460,8 +460,11 @@ List<int> kitPassageOptions(int items) {
 /// write puts it back to what the last READ stored.
 ///
 /// [settings] is the stored document (null while the read is out),
-/// [readError] its refusal. The host owns the request ([write] — built in
-/// `services/api.dart`) and the re-read that follows it.
+/// [readError] its refusal's sentence — §14.3's for a Firestore read
+/// (`describeSdkError`) — which the panel draws after *Your letter settings
+/// could not be read —*, web's words (LetterQuick.jsx:50; F-193). The host
+/// owns the request ([write] — built in `services/api.dart`) and the re-read
+/// that follows it.
 ///
 /// Letters hands in its own delivery row ([switchRow], which carries the
 /// activation send and the optimistic letter row) and what it said
@@ -612,7 +615,9 @@ class _KitLetterQuickState extends State<KitLetterQuick> {
       return widget.readError != null
           ? Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: KitFailureInline(widget.readError!),
+              child: KitFailureInline(
+                'Your letter settings could not be read — ${widget.readError!}',
+              ),
             )
           : Padding(
               padding: const EdgeInsets.only(top: 16),

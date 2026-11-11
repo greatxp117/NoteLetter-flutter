@@ -881,7 +881,10 @@ void main() {
         tester,
         () => quick(null, none, readError: 'Could not load.'),
         check: (b) async => expect(
-          find.widgetWithText(KitFailureInline, 'Could not load.'),
+          find.widgetWithText(
+            KitFailureInline,
+            'Your letter settings could not be read — Could not load.',
+          ),
           findsOneWidget,
         ),
       );

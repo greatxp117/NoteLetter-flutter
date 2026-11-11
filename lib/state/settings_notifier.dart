@@ -4,6 +4,7 @@ import '../models/newsletter_settings.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/error_text.dart';
 import '../services/firestore_service.dart';
 
 class SettingsNotifier extends ChangeNotifier {
@@ -11,6 +12,7 @@ class SettingsNotifier extends ChangeNotifier {
   bool _isLoading = false;
   bool _isSaving = false;
   String? _error;
+  String? _readError;
 
   NewsletterSettings? get newsletter => _newsletter;
 
@@ -21,11 +23,23 @@ class SettingsNotifier extends ChangeNotifier {
   bool get letterOn => newsletter?.enabled == true;
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
+
+  /// The last write's refusal (the save path). Never the read's: a refused
+  /// save is not a document nobody could read.
   String? get error => _error;
+
+  /// The settings read's refusal, as §14.3 says it (web `failureDetail`): a
+  /// Firestore read carries no envelope of ours, so the SDK's own words are
+  /// never shown (ADR-111). Null while the read is out and once it answers.
+  /// Each host puts its own sentence before it (F-193): the panels say
+  /// *Your letter settings could not be read — …* (web LetterQuick.jsx:50),
+  /// Letter settings' §14.1 block carries it as its detail.
+  String? get readError => _readError;
 
   Future<void> loadAll() async {
     _isLoading = true;
     _error = null;
+    _readError = null;
     notifyListeners();
     try {
       await _loadNewsletter();
@@ -41,8 +55,8 @@ class SettingsNotifier extends ChangeNotifier {
   Future<void> _loadNewsletter() async {
     try {
       _newsletter = await FirestoreService.instance.getNewsletterSettings();
-    } catch (_) {
-      _error = 'Could not load newsletter settings.';
+    } catch (e) {
+      _readError = describeSdkError(e);
     }
   }
 

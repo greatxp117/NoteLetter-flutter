@@ -551,7 +551,7 @@ class _LetterQuickHost extends StatelessWidget {
     final router = GoRouter.maybeOf(context);
     return KitLetterQuick(
       settings: settings.newsletter,
-      readError: settings.newsletter == null ? settings.error : null,
+      readError: settings.newsletter == null ? settings.readError : null,
       write: (patch) => writeLetterSettings(settings, patch),
       onEverySetting: () {
         close();
