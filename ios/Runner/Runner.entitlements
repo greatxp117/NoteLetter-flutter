@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- A letter's links open this app (2026-11-11): noteletter.com serves
+	     /.well-known/apple-app-site-association claiming /reader/* for
+	     3SA8A2JP3T.xp.NoteLetter.Flutter, and the router's /reader/:docId
+	     reads ?p= (INV-21). Signing needs the Associated Domains capability on
+	     the App ID; test/contract/letter_link_test.dart ties the three. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:noteletter.com</string>
+	</array>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.xp.NoteLetter.Flutter</string>
