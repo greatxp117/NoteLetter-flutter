@@ -2892,3 +2892,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: On a 390 phone web's refusals drew below the page scroller's edge, under the tab bar: Add's rejection row (its Shelves block, 5.73.0, pushed it below the fold; W4) and the Original panel's Update from {provider} line (the scroller ends where the tab bar starts, so a line under a bar at the foot is clipped; found on the Mac). Web now brings each into view when it arrives, once per arrival and never on a remount (intake.jsx useIntoView; UpdateFromSourceBar.jsx errRef, via FailureInline's lineRef). Flutter has neither: file_uploader.dart:101 `_reject` sets `_rejection` (drawn at :277) with no Scrollable.ensureVisible, AddAnswered's KitRefusedNotices likewise, and update_from_source_bar.dart:69 sets `_error` (drawn through kitRefusalSlot at :86) with none. The Notifications channel-list tandem W4 named is already true (notification_settings_page.dart:123 uses describeSdkError), so it has no item.
+
+## F-195 · Wait out fn_suggest_tags' 180 s deadline: its client budget follows the recipe
+- status: open
+- screen: none
+- route: none
+- spec: spec/api/tags.md
+- web: none
+- flutter: lib/services/endpoint_budgets.dart
+- folds: backend bd/backend 2026-11-11 (ADR-259): fn_suggest_tags --timeout 60s -> 180s
+- device_test: none
+- shots: none
+- extra_gates: client_timeout_check --target flutter
+- notes: ADR-259 (lands with this contract version). fn_suggest_tags answered 504 on a cold start: its 60 s deadline held the instance's start, about a minute. It deploys at 180 s now (the model call stays bounded at 40 s, the meaning check's embedding at 17 s), so a client that waits 60 + 15 s gives up on a request the server may still answer. Set 'fn_suggest_tags': 180 in endpoint_budgets.dart (line 79); client_timeout_check reads DRIFT and TOO-TIGHT until it does. Web sets no client timeout. The endpoint saves nothing, so the interim loses nothing; the reader's Retry is the same request.
