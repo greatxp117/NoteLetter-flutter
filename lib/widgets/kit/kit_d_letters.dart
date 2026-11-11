@@ -22,7 +22,7 @@ import 'kit_d_home.dart' show KitLetterPassages;
 import 'kit_d_letter.dart';
 import 'kit_d_parts.dart';
 import 'kit_d_shelf.dart' show KitDNote;
-import 'kit_failure.dart' show KitFailureInline;
+import 'kit_failure.dart' show KitFailureInline, kitRevealNearest;
 import 'kit_letter.dart' show KitLetterBadge;
 import 'kit_text.dart' show KitText;
 import 'kit_busy_mark.dart';
@@ -302,21 +302,7 @@ class _KitSendLineState extends State<KitSendLine> {
 
   Future<void> _reveal() async {
     if (!mounted) return;
-    final still = KitD.still(context);
-    final d = still ? Duration.zero : const Duration(milliseconds: 240);
-    // `nearest`: above the view → its top to the top; below → its foot to the
-    // foot; already in view → nothing moves.
-    await Scrollable.ensureVisible(
-      context,
-      duration: d,
-      alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-    );
-    if (!mounted) return;
-    await Scrollable.ensureVisible(
-      context,
-      duration: d,
-      alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-    );
+    await kitRevealNearest(context);
   }
 
   @override

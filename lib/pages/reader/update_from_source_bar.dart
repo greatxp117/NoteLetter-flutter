@@ -29,6 +29,11 @@ class _UpdateFromSourceBarState extends State<UpdateFromSourceBar> {
   bool _queued = false;
   String? _error;
 
+  /// One object per refusal that arrived. On a phone the bar can sit at the
+  /// foot of the page's scroller, so the line under it lay under the tab bar;
+  /// it comes into view when it arrives (F-194; web errRef, 19003d4).
+  Object? _errorArrival;
+
   String? get _provider => widget.doc.sourceIntegration?['provider'] as String?;
 
   Future<void> _update() async {
@@ -67,6 +72,7 @@ class _UpdateFromSourceBarState extends State<UpdateFromSourceBar> {
           // A cooldown with its number is the control's wait and says itself
           // until it ends (4.107.0, ADR-140).
           _error = res.waits ? null : res.message;
+          _errorArrival = _error == null ? null : Object();
         case SupersessionOutcome.kept:
           break;
       }
@@ -112,7 +118,10 @@ class _UpdateFromSourceBarState extends State<UpdateFromSourceBar> {
                 ),
               if (slot != null) ...[
                 const SizedBox(height: 6),
-                slot,
+                KitIntoView(
+                  arrival: _error != null ? _errorArrival : null,
+                  child: slot,
+                ),
               ],
             ],
           ),

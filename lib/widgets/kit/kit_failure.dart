@@ -154,3 +154,73 @@ class KitFailureInline extends StatelessWidget {
     );
   }
 }
+
+/// §14.2 — bring [context]'s widget into view as web's
+/// `scrollIntoView({block: 'nearest'})` does: above the view → its top to the
+/// top; below → its foot to the foot; already in view → nothing moves. Still
+/// under reduced motion.
+Future<void> kitRevealNearest(BuildContext context) async {
+  final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+  final d = still ? Duration.zero : const Duration(milliseconds: 240);
+  await Scrollable.ensureVisible(
+    context,
+    duration: d,
+    alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+  );
+  if (!context.mounted) return;
+  await Scrollable.ensureVisible(
+    context,
+    duration: d,
+    alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+  );
+}
+
+/// §14.2 — a refusal under a control **comes into view when it arrives**
+/// (F-194; web 19003d4: `sources/intake.jsx` useIntoView,
+/// `reader/UpdateFromSourceBar.jsx` errRef). On a phone a refusal drawn under
+/// a control at the scroller's foot, or under a block that pushed it below the
+/// fold, lies under the tab bar where nobody reads it.
+///
+/// **Once per arrival, never per mount**: a host that moves its refusal to
+/// another parent (the Library's empty catalogue and its slot) must not scroll
+/// the page back to an old refusal nobody just made. [arrival] is one object
+/// per refusal — a new `Object()` each time one arrives; null is nothing to
+/// bring. Which arrivals were brought is kept here, not in a mount's state (web
+/// keeps a module-level WeakSet), so a remount knows.
+class KitIntoView extends StatefulWidget {
+  final Object? arrival;
+  final Widget child;
+
+  const KitIntoView({super.key, required this.arrival, required this.child});
+
+  @override
+  State<KitIntoView> createState() => _KitIntoViewState();
+}
+
+class _KitIntoViewState extends State<KitIntoView> {
+  static final Expando<bool> _brought = Expando('KitIntoView');
+
+  @override
+  void initState() {
+    super.initState();
+    _bring();
+  }
+
+  @override
+  void didUpdateWidget(KitIntoView old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.arrival, widget.arrival)) _bring();
+  }
+
+  void _bring() {
+    final a = widget.arrival;
+    if (a == null || _brought[a] == true) return;
+    _brought[a] = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) kitRevealNearest(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}

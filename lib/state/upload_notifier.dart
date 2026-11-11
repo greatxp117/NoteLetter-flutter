@@ -61,6 +61,13 @@ class UploadNotifier extends ChangeNotifier {
   List<({String name, String reason})> get refused =>
       List.unmodifiable(_refused);
 
+  /// One object per refusal that ARRIVED (F-194): new each time [refused]
+  /// grows, null once it is cleared. What adding answered comes into view per
+  /// arrival ([KitIntoView]) — web's new rejections array per arrival — and
+  /// never because the row was mounted again somewhere else.
+  Object? _refusedArrival;
+  Object? get refusedArrival => _refusedArrival;
+
   /// A playlist's measured count, said once (4.114.0, ADR-151); a single link
   /// says nothing here, because its row is the statement.
   String? _linkNote;
@@ -71,6 +78,7 @@ class UploadNotifier extends ChangeNotifier {
   void beginIntake() {
     if (_refused.isEmpty && _linkNote == null) return;
     _refused.clear();
+    _refusedArrival = null;
     _linkNote = null;
     notifyListeners();
   }
@@ -78,6 +86,7 @@ class UploadNotifier extends ChangeNotifier {
   /// Say that [name] was refused — the caller's own refusal at the door.
   void refuse(String name, String reason) {
     _refused.add((name: name, reason: reason));
+    _refusedArrival = Object();
     notifyListeners();
   }
 
@@ -399,6 +408,7 @@ class UploadNotifier extends ChangeNotifier {
   /// The row fails, and the intake says so by name.
   void _fail(String rowId, String name, String message) {
     _refused.add((name: name, reason: message));
+    _refusedArrival = Object();
     _patch(rowId, status: UploadStatus.error, errorMessage: message);
   }
 

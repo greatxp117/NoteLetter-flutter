@@ -102,9 +102,16 @@ class FileUploaderState extends State<FileUploader> {
   /// not rendered anywhere (4.19.3).
   String? _rejection;
 
+  /// One object per [_rejection] that arrived: it comes into view then, and
+  /// only then (F-194, [KitIntoView]).
+  Object? _rejectionArrival;
+
   void _reject(String? message) {
     if (!mounted) return;
-    setState(() => _rejection = message);
+    setState(() {
+      _rejection = message;
+      _rejectionArrival = message == null ? null : Object();
+    });
   }
 
   Future<void> _pickFiles(UploadNotifier notifier) async {
@@ -280,7 +287,10 @@ class FileUploaderState extends State<FileUploader> {
             // reader is looking. Dense: it sits under a control group.
             if (_rejection != null) ...[
               const SizedBox(height: 10),
-              KitFailureInline(_rejection!),
+              KitIntoView(
+                arrival: _rejectionArrival,
+                child: KitFailureInline(_rejection!),
+              ),
             ],
 
             // web `.ob-added` (F-190): In your library heads the rows it
@@ -372,9 +382,15 @@ class AddAnswered extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        KitRefusedNotices(children: [
-          for (final r in refused) KitRefusedNotice(name: r.name, reason: r.reason),
-        ]),
+        // Brought into view when a refusal arrives (F-194): under Add's
+        // Shelves block it lies below a phone's fold.
+        KitIntoView(
+          arrival: n.refusedArrival,
+          child: KitRefusedNotices(children: [
+            for (final r in refused)
+              KitRefusedNotice(name: r.name, reason: r.reason),
+          ]),
+        ),
         if (note != null) KitLibNote(note),
       ],
     );
