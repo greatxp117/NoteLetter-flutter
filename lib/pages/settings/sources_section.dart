@@ -46,7 +46,16 @@ class SourcesSection extends StatefulWidget {
   /// reads the same rule for its Contents, so the row and the section cannot
   /// disagree.
   static bool shownFor(CloudNotifier? cloud) =>
-      cloud != null && order.any((p) => cloud.integrationFor(p) != null);
+      cloud != null && connectedOf(cloud).isNotEmpty;
+
+  /// The connected providers this section draws a row for, in [order]. A
+  /// Google Drive whose `access` is `picked` organizes nothing (ADR-275,
+  /// INV-44: `fn_enable_organization` refuses it), so it has no row here at
+  /// all (web `SourcesSection`'s `connected`).
+  static List<(String, CloudIntegration)> connectedOf(CloudNotifier cloud) => [
+        for (final p in order)
+          if (cloud.integrationFor(p) case final i? when !i.picked) (p, i),
+      ];
 
   @override
   State<SourcesSection> createState() => _SourcesSectionState();
@@ -150,10 +159,7 @@ class _SourcesSectionState extends State<SourcesSection> {
   Widget build(BuildContext context) {
     final cloud = context.watch<CloudNotifier?>();
     if (cloud == null) return const SizedBox.shrink();
-    final connected = <(String, CloudIntegration)>[
-      for (final p in SourcesSection.order)
-        if (cloud.integrationFor(p) case final i?) (p, i),
-    ];
+    final connected = SourcesSection.connectedOf(cloud);
     if (connected.isEmpty) return const SizedBox.shrink();
     _focusOnce();
 

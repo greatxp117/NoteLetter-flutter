@@ -79,6 +79,25 @@ class CloudIntegration {
   final List<String> orgRootFolderIds;
   bool get orgWriteReady => orgEnabled && orgWriteAccess;
 
+  /// What a Google Drive connection may do now (ADR-275, INV-44;
+  /// `api/cloud-storage.md` §Google Drive access): `picked` | `full`, computed
+  /// by `fn_get_cloud_integrations` — `picked` when the mode
+  /// (`config/drive.access`, the top-level `drive_access`) is `picked` OR the
+  /// connection's own grant is. Absent on every other provider. A Drive is
+  /// drawn from THIS, never from the mode alone.
+  final String? access;
+
+  /// The access Google granted at the last exchange (`picked` for
+  /// `drive.file` alone, `full` for a whole-Drive scope), stored since
+  /// ADR-275; absent on an older connection. Kept for what it says — every
+  /// surface reads [access], the stricter of the mode and the grant.
+  final String? grantedAccess;
+
+  /// A Google Drive that reads only the files the reader picked in Google's
+  /// own picker (INV-44): no folder browser, scan, sync settings, *Sync now*,
+  /// filing or organization surface, and its import action is *Add files*.
+  bool get picked => access == 'picked';
+
   const CloudIntegration({
     required this.provider,
     required this.tokenValid,
@@ -101,6 +120,8 @@ class CloudIntegration {
     this.orgWriteAccess = false,
     this.orgScopeLevel,
     this.orgRootFolderIds = const [],
+    this.access,
+    this.grantedAccess,
   });
 
   factory CloudIntegration.fromJson(Map<String, dynamic> json) {
@@ -148,6 +169,10 @@ class CloudIntegration {
         for (final id in (org['root_folder_ids'] as List? ?? const []))
           if (id is String) id,
       ],
+      access: json['access'] is String ? json['access'] as String : null,
+      grantedAccess: json['granted_access'] is String
+          ? json['granted_access'] as String
+          : null,
     );
   }
 

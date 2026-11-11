@@ -465,9 +465,23 @@ class CloudNotifier extends ChangeNotifier {
     }
   }
 
+  /// A Google Drive picker consent that queued files (ADR-275; `screens/
+  /// sources.md` §The OAuth return): the claim imported what the reader
+  /// picked, so the connect page leaves for the Library with this kickoff —
+  /// [queuedFiles] as the claim COUNTED them (ADR-103), no folders — as
+  /// *Bring in* leaves (web `pickedLeave`'s `kickoff`). The progress section
+  /// and the completion notice follow it as they follow any import's.
+  void beginClaimedImport(String provider, int queuedFiles) {
+    if (queuedFiles < 1) return;
+    _beginSession(provider, 0, queuedFiles: queuedFiles);
+    _notify();
+  }
+
   /// The connection's second half (5.0.0, ADR-158, INV-32): spends a returned
   /// claim, once, signed in. Answers the claim's response
-  /// (`{cloud_connect, provider, org?, connection?, reason?}`), or the
+  /// (`{cloud_connect, provider, org?, connection?, reason?}`, and on a
+  /// Google Drive picker consent `picked_files`, `queued_files` and
+  /// `import_error` — ADR-275, read by `pickedClaim`), or the
   /// refusal's own sentence (403 another account started it, 404 expired or
   /// already finished — §14 shows it verbatim, with its `requestId`). The
   /// integrations are re-read either way: the integration exists only now.

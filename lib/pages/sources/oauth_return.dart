@@ -72,7 +72,63 @@ class OAuthReturn {
   });
 }
 
-enum ReturnView { claiming, granted, empty, already, denied, expired, refused, failed }
+/// The views. The three `picked…` are a Google Drive picker consent's
+/// (ADR-275): `pickedQueued` leaves for the Library at once (drawn as the
+/// claim in flight while it goes), `pickedRefused` is *Not Brought In*,
+/// `pickedEmpty` is *Nothing Picked*.
+enum ReturnView {
+  claiming,
+  granted,
+  empty,
+  already,
+  denied,
+  expired,
+  refused,
+  failed,
+  pickedQueued,
+  pickedRefused,
+  pickedEmpty,
+}
+
+/// A Google Drive picker consent's claim answer (ADR-275, INV-44;
+/// `api/cloud-storage.md` §fn_claim_cloud_connection): the claim imported what
+/// the reader picked in Google's own window, so a `success` carries
+/// `picked_files` — how many came back — `queued_files`, COUNTED (ADR-103),
+/// and `import_error`, the reader's sentence when not every picked file was
+/// queued. Null for any other answer: the page then never lists for it.
+/// Web `isPickedAnswer` (JS reads a missing `queued_files` as 0, and an empty
+/// `import_error` as none; so does this).
+({int picked, int queued, String? importError})? pickedClaim(
+    Map<String, dynamic>? answer) {
+  if (answer == null || answer['cloud_connect'] != 'success') return null;
+  final picked = answer['picked_files'];
+  if (picked is! num) return null;
+  final queued = answer['queued_files'];
+  final err = answer['import_error'];
+  return (
+    picked: picked.toInt(),
+    queued: queued is num ? queued.toInt() : 0,
+    importError: err is String && err.isNotEmpty ? err : null,
+  );
+}
+
+/// What a picker consent that queued files leaves for the Library with (web
+/// `pickedLeave`; `screens/sources.md` §The OAuth return): the notice —
+/// *Queued {n} file(s) from Google Drive.*, then `import_error` verbatim when
+/// there is one — and the kickoff's provider and count, as *Bring in* leaves.
+/// Null when the answer is not a picker consent or queued nothing.
+({String note, String? provider, int queuedFiles})? pickedLeave(
+    Map<String, dynamic>? answer, String? name) {
+  final p = pickedClaim(answer);
+  if (p == null || p.queued < 1) return null;
+  final err = p.importError != null ? ' ${p.importError}' : '';
+  return (
+    note: 'Queued ${kitCounted(p.queued, 'file')} from '
+        '${name ?? 'Google Drive'}.$err',
+    provider: answer!['provider'] as String?,
+    queuedFiles: p.queued,
+  );
+}
 
 /// The view a return opens on, from what the URL or the claim answered. Open
 /// vocabulary: any `success` that is not `reconnected` is *Connected*, and any
@@ -82,6 +138,15 @@ ReturnView returnView(OAuthReturn r) {
   if (r.phase == ReturnPhase.direct) return ReturnView.granted;
   if (r.phase == ReturnPhase.refused) return ReturnView.refused;
   final a = r.answer;
+  final picked = r.phase == ReturnPhase.claimed ? pickedClaim(a) : null;
+  if (picked != null) {
+    // A picker consent (ADR-275): `connection` does not choose here — Add
+    // files is a reconnect every time.
+    if (picked.queued > 0) return ReturnView.pickedQueued;
+    return picked.importError != null
+        ? ReturnView.pickedRefused
+        : ReturnView.pickedEmpty;
+  }
   if (r.phase == ReturnPhase.claimed && a?['cloud_connect'] == 'success') {
     return a?['connection'] == 'reconnected'
         ? ReturnView.already
@@ -163,6 +228,27 @@ NoticeCopy noticeCopy(
         secondary: 'Back to library',
         toAdd: false,
       );
+    case ReturnView.pickedRefused:
+      return (
+        title: 'Not Brought In',
+        stand: '$n is connected, but the files you picked were not brought in.',
+        log: null,
+        body: null,
+        primary: 'Add files',
+        secondary: 'Back to library',
+        toAdd: false,
+      );
+    case ReturnView.pickedEmpty:
+      return (
+        title: 'Nothing Picked',
+        stand: '$n is connected, but no files came back from its picker.',
+        log: '0 files picked',
+        body: 'Use Add files to open $n’s picker again. The connection stays '
+            'live in the meantime.',
+        primary: 'Add files',
+        secondary: 'Back to library',
+        toAdd: false,
+      );
     case ReturnView.refused:
       return (
         title: 'Not Connected',
@@ -177,6 +263,7 @@ NoticeCopy noticeCopy(
     case ReturnView.granted:
     case ReturnView.empty:
     case ReturnView.failed:
+    case ReturnView.pickedQueued:
       // failed: missing_params, connect_failed, any other provider error.
       return (
         title: 'Not Connected',
@@ -301,7 +388,10 @@ class _OAuthReturnPageState extends State<OAuthReturnPage> {
         'Connected · $_at${email != null && email.isNotEmpty ? ' · $email' : ''}';
 
     switch (_view) {
+      // A picker consent that queued files is leaving for the Library
+      // (ADR-275): it draws as the claim in flight while it goes.
       case ReturnView.claiming:
+      case ReturnView.pickedQueued:
         return KitDPage(
           folio: 'Returned from ${name ?? 'the service'} · $_at',
           title: 'Connecting ${name ?? 'Your Service'}',
@@ -358,8 +448,11 @@ class _OAuthReturnPageState extends State<OAuthReturnPage> {
             reason: (ret.answer?['reason'] as String?) ?? ret.reason,
             integration: integration,
             provider: provider);
+        final connected = _view == ReturnView.already ||
+            _view == ReturnView.pickedRefused ||
+            _view == ReturnView.pickedEmpty;
         return KitDPage(
-          folio: _view == ReturnView.already
+          folio: connected
               ? connectedFolio
               : 'Returned from ${name ?? 'the service'} · $_at',
           title: copy.title,
@@ -371,7 +464,16 @@ class _OAuthReturnPageState extends State<OAuthReturnPage> {
                     detail: ret.refusal ?? 'The request did not complete.',
                     requestId: ret.refusalRequestId,
                   )
-                : null,
+                // The claim's own sentence, verbatim (§14): the plan, a cap,
+                // an enqueue — whatever kept the picked files from being
+                // queued (ADR-275).
+                : _view == ReturnView.pickedRefused
+                    ? KitFailureBlock(
+                        sentence: 'The picked files were not brought in.',
+                        detail: pickedClaim(ret.answer)?.importError ??
+                            'The request did not complete.',
+                      )
+                    : null,
             body: copy.body,
             log: copy.log,
             primary: copy.primary,
@@ -410,8 +512,14 @@ class _OAuthReturnPageState extends State<OAuthReturnPage> {
 ///   organization, not a connection, so they are handed to the Library;
 /// * nothing — Back, a reload, a copied link. Then `/connect/{provider}` opens
 ///   *{Provider}, Connected* while that provider is connected and its sign-in
-///   is live, and the Library otherwise; `/connect` alone is the Library. A
+///   is live, and the Library otherwise — a picked Google Drive's too, which
+///   has no offer to list (ADR-275); `/connect` alone is the Library. A
 ///   notice is never reopened: what it said came with the return.
+///
+/// A Google Drive picker consent (a claim answer with `picked_files`) never
+/// lists: one that queued files leaves for the Library at once with its
+/// notice and kickoff; one that queued none is *Not Brought In* or *Nothing
+/// Picked*.
 ///
 /// Leaving (*Not now*, *Back to library*, *Bring in*) goes to `/sources`,
 /// saying what it should say there through [ConnectHandoff].
@@ -547,6 +655,15 @@ class _ConnectPageState extends State<ConnectPage> {
         res['reason'] == 'insufficient_scope') {
       _toLibrary(
           connectError: (provider: provider, reason: 'insufficient_scope'));
+    } else if (pickedLeave(res, cloudProviders[provider]?.name)
+        case final leave?) {
+      // A Google Drive picker consent that queued files (ADR-275): the files
+      // were chosen in Google's window and the claim imported them, so the
+      // page leaves for the Library at once, as Bring in does — with the
+      // import's kickoff, which the Library's progress section follows.
+      cloud.beginClaimedImport(
+          leave.provider ?? provider ?? 'google_drive', leave.queuedFiles);
+      _toLibrary(note: leave.note);
     } else {
       setState(() => _ret =
           OAuthReturn(ReturnPhase.claimed, provider: provider, answer: res));
@@ -567,7 +684,10 @@ class _ConnectPageState extends State<ConnectPage> {
     await cloud.loadIntegrations();
     if (!mounted || _ret != null) return;
     final i = cloud.integrationsError != null ? null : cloud.integrationFor(p);
-    if (i == null || i.needsReconnect) {
+    // A picked Google Drive has no offer to list (ADR-275, INV-44): with
+    // nothing to answer, its connect page is the Library's, as an
+    // unconnected provider's is.
+    if (i == null || i.needsReconnect || i.picked) {
       _toLibrary();
       return;
     }

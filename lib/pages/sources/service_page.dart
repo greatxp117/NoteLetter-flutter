@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -29,6 +30,14 @@ import 'sync_settings_panel.dart';
 /// and five numbered sections — *Bring in* · *Sync settings* · *Filing* ·
 /// *Import history* · *Connection*.
 ///
+/// A Google Drive whose `access` is `picked` (ADR-275, INV-44) keeps no folder
+/// in sync and organizes nothing: its page holds **three** — *Bring in* ·
+/// *Import history* · *Connection*, numbered without the other two, in the
+/// column and in *Contents* — and *Bring in*'s action is *Add files…*, the one
+/// connect entry point, which opens Google's picker. Drawn from the
+/// connection's own `access`, never from the mode alone; every other provider
+/// and a Drive with `full` access are unchanged.
+///
 /// A path naming no connected service, or an unknown id, opens the Library in
 /// its place. A refused integrations read is §14 on the page with a way to
 /// ask again, and is never read as *not connected*. An expired sign-in keeps
@@ -46,6 +55,17 @@ class ServicePage extends StatefulWidget {
     'Import history',
     'Connection',
   ];
+
+  /// A picked Google Drive's sections (web `PICKED_SECTIONS`): no *Sync
+  /// settings* and no *Filing*.
+  static const pickedSectionIds = ['import', 'history', 'connection'];
+
+  /// The sections a connection's page holds, in order — ids and labels.
+  static List<(String, String)> sectionsFor({required bool picked}) => [
+        for (var n = 0; n < sectionIds.length; n++)
+          if (!picked || pickedSectionIds.contains(sectionIds[n]))
+            (sectionIds[n], sectionLabels[n]),
+      ];
 
   @override
   State<ServicePage> createState() => _ServicePageState();
@@ -155,18 +175,30 @@ class _ServicePageState extends State<ServicePage> {
     final i = integration;
     final email = i.providerEmail;
     final expired = i.needsReconnect;
+    // Drawn from the connection's own `access`, never from the mode alone
+    // (INV-44).
+    final picked = i.picked;
+    final sections = ServicePage.sectionsFor(picked: picked);
+    final ids = [for (final (id, _) in sections) id];
+    if (!listEquals(_sec.ids, ids)) _sec.ids = ids;
+    int sectionOf(String id) => ids.indexOf(id);
     final secs = [
-      for (var n = 0; n < ServicePage.sectionIds.length; n++)
-        KitContentsItem(ServicePage.sectionIds[n], ServicePage.sectionLabels[n]),
+      for (final (id, label) in sections) KitContentsItem(id, label),
     ];
+    final account =
+        ('Account', (email != null && email.isNotEmpty) ? email : 'Connected');
     final facts = <(String, String)>[
-      ('Account', (email != null && email.isNotEmpty) ? email : 'Connected'),
-      ('Access', i.orgWriteAccess ? 'Read and organize' : 'Read-only'),
-      (
-        'Auto-sync',
-        i.autoSyncEnabled ? (_cadence[i.syncFrequency] ?? 'On') : 'Off'
-      ),
-      ('Last synced', _synced(i.lastSyncAt)),
+      account,
+      if (picked)
+        ('Access', 'Files you pick')
+      else ...[
+        ('Access', i.orgWriteAccess ? 'Read and organize' : 'Read-only'),
+        (
+          'Auto-sync',
+          i.autoSyncEnabled ? (_cadence[i.syncFrequency] ?? 'On') : 'Off'
+        ),
+        ('Last synced', _synced(i.lastSyncAt)),
+      ],
     ];
     return KitCloudScope(ruled: false, child: KitDPage(
       back: back,
@@ -199,18 +231,20 @@ class _ServicePageState extends State<ServicePage> {
               name: name,
               integration: i,
               from: _from),
-          _SyncSection(
-              key: _sec.keyOf('sync'),
-              provider: widget.provider,
-              integration: i),
-          _Filing(
-              key: _sec.keyOf('filing'),
-              provider: widget.provider,
-              name: name,
-              integration: i),
+          if (!picked) ...[
+            _SyncSection(
+                key: _sec.keyOf('sync'),
+                provider: widget.provider,
+                integration: i),
+            _Filing(
+                key: _sec.keyOf('filing'),
+                provider: widget.provider,
+                name: name,
+                integration: i),
+          ],
           KitSecHead(
             key: _sec.keyOf('history'),
-            n: 3,
+            n: sectionOf('history'),
             title: 'Import history',
             actions: [
               if (_historyCount(cloud) > 0)
@@ -222,6 +256,7 @@ class _ServicePageState extends State<ServicePage> {
               provider: widget.provider, name: name, from: _from),
           _Connection(
             key: _sec.keyOf('connection'),
+            n: sectionOf('connection'),
             provider: widget.provider,
             name: name,
             integration: i,
@@ -258,6 +293,11 @@ class _ServicePageState extends State<ServicePage> {
 /// (*Browse pages…* on Notion; *Close* while open) in the head, the reconnect
 /// banner when flagged, the section's line, the picker, then this service's
 /// review queue and progress.
+///
+/// A picked Google Drive (ADR-275, INV-44) has no browser: its head action is
+/// *Add files…* — the one connect entry point (`CloudNotifier.connect`, the
+/// in-app auth session), which opens Google's own picker; the claim imports
+/// what was picked — and its refusal is said under the head.
 class _BringIn extends StatefulWidget {
   final String provider;
   final String name;
@@ -278,6 +318,26 @@ class _BringIn extends StatefulWidget {
 
 class _BringInState extends State<_BringIn> {
   bool _reconnecting = false;
+
+  /// *Add files…* on a picked Google Drive (ADR-275): in flight, and the
+  /// sentence a refusal answered (web `addState`).
+  bool _adding = false;
+  String? _addFail;
+
+  Future<void> _addFiles() async {
+    setState(() {
+      _adding = true;
+      _addFail = null;
+    });
+    // A session that came back is held, and the app opens the connect page
+    // for it (`ConnectOnReturn`), which answers the picker consent.
+    final err = await context.read<CloudNotifier>().connect(widget.provider);
+    if (!mounted) return;
+    setState(() {
+      _adding = false;
+      _addFail = err;
+    });
+  }
 
   /// The last import's 202, in the sum the server counted (ADR-103 §5).
   String? _notice;
@@ -303,8 +363,9 @@ class _BringInState extends State<_BringIn> {
     final cloud = context.watch<CloudNotifier>();
     final i = widget.integration;
     final notion = widget.provider == 'notion';
+    final picked = i.picked;
     final needsReconnect = i.needsReconnect;
-    final browsing = cloud.browseProvider == widget.provider;
+    final browsing = !picked && cloud.browseProvider == widget.provider;
     final held = [
       for (final j in cloud.heldJobs)
         if (j.provider == widget.provider) j,
@@ -316,21 +377,31 @@ class _BringInState extends State<_BringIn> {
           n: 0,
           title: 'Bring in',
           actions: [
-            KitSettingLink(
-              browsing
-                  ? 'Close'
-                  : notion
-                      ? 'Browse pages…'
-                      : 'Browse files…',
-              icon: null,
-              onTap: needsReconnect
-                  ? null
-                  : () => browsing
-                      ? cloud.closePicker()
-                      : cloud.openPicker(widget.provider),
-            ),
+            if (picked)
+              KitSettingLink(
+                _adding ? 'Opening ${widget.name}…' : 'Add files…',
+                icon: null,
+                busy: _adding,
+                onTap: needsReconnect || _adding ? null : _addFiles,
+              )
+            else
+              KitSettingLink(
+                browsing
+                    ? 'Close'
+                    : notion
+                        ? 'Browse pages…'
+                        : 'Browse files…',
+                icon: null,
+                onTap: needsReconnect
+                    ? null
+                    : () => browsing
+                        ? cloud.closePicker()
+                        : cloud.openPicker(widget.provider),
+              ),
           ],
         ),
+        if (picked && _addFail != null)
+          KitFailureInline(_addFail!, dense: true),
         if (needsReconnect) ...[
           KitReconnectBanner(
             icon: Icons.link_off,
@@ -351,8 +422,12 @@ class _BringInState extends State<_BringIn> {
         KitProcNote(
           notion
               ? 'Notion pages keep their headings, lists, tables, pictures and links. A PDF, video or file stored in Notion becomes a link to it there.'
-              : 'Choose what belongs in your library. Nothing is copied from '
-                  '${widget.name} until you say so.',
+              : picked
+                  ? 'Pick files in ${widget.name}’s own window. NoteLetter '
+                      'reads only the files you pick there — nothing else in '
+                      'your Drive.'
+                  : 'Choose what belongs in your library. Nothing is copied '
+                      'from ${widget.name} until you say so.',
           padding: const EdgeInsets.only(bottom: 10),
         ),
         if (browsing && !needsReconnect)
@@ -536,6 +611,8 @@ class _Filing extends StatelessWidget {
 /// provider answered (`disconnectOutcome`); a refusal stays in the confirm's
 /// failure slot.
 class _Connection extends StatelessWidget {
+  /// The section's number: 4, or 2 on a picked Google Drive.
+  final int n;
   final String provider;
   final String name;
   final CloudIntegration integration;
@@ -543,6 +620,7 @@ class _Connection extends StatelessWidget {
 
   const _Connection({
     super.key,
+    required this.n,
     required this.provider,
     required this.name,
     required this.integration,
@@ -554,6 +632,9 @@ class _Connection extends StatelessWidget {
     final router = GoRouter.of(context);
     cloud.clearDisconnectNote();
     final revoke = disconnectRevokeCopy(provider, name);
+    // A picked Google Drive organized nothing, and a reconnect is a fresh
+    // pick of FILES (ADR-275).
+    final picked = integration.picked;
     // §18 Confirmation (4.56.0, ADR-092). 4.90.0 (ADR-124 §7): only imports
     // that have not reached the pipeline stop — a file already downloaded
     // finishes. 4.89.0 (ADR-123 §5): what the provider answered is said AFTER,
@@ -561,12 +642,12 @@ class _Connection extends StatelessWidget {
     final done = await KitConfirm.show(
       context,
       title: 'Disconnect $name?',
-      body: '${disconnectConsequences(name)}'
+      body: '${disconnectConsequences(name, picked: picked)}'
           '${revoke != null ? '\n\n$revoke' : ''}'
           '\n\nEverything already in your library stays — '
           'documents, passages and letters are unaffected, and the '
           'files in $name itself are never touched. '
-          'Reconnecting starts a fresh pick of folders.',
+          'Reconnecting starts a fresh pick of ${picked ? 'files' : 'folders'}.',
       confirmLabel: 'Disconnect',
       cancelLabel: 'Stay connected',
       onConfirm: () async {
@@ -587,7 +668,7 @@ class _Connection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const KitSecHead(n: 4, title: 'Connection'),
+        KitSecHead(n: n, title: 'Connection'),
         KitServiceRow(
           provider: provider,
           name: name,

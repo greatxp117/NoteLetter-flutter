@@ -42,10 +42,15 @@ String? disconnectRevokeCopy(String provider, String name) {
 /// that have not reached the pipeline stop (held, waiting, downloading); a
 /// file already downloaded finishes, so "every import stops" would be a
 /// promise the backend does not keep.
-String disconnectConsequences(String name) =>
+///
+/// [picked] is a Google Drive with picked access (ADR-275, INV-44): it
+/// organizes nothing, so the organized folders' sentence is not said (web
+/// `ServicePage`).
+String disconnectConsequences(String name, {bool picked = false}) =>
     'Imports from $name that are waiting for your review or not yet '
-    'downloaded stop; files already downloaded finish importing. The folders '
-    'it organized are archived, and its suggestions expire.';
+    'downloaded stop; files already downloaded finish importing.'
+    '${picked ? '' : ' The folders it organized are archived, and its '
+        'suggestions expire.'}';
 
 /// The disconnect's answer, said once it has happened. `revoked` is
 /// `true` · `false` · `null` (confirmed · asked and refused or unreachable ·
