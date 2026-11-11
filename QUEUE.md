@@ -2866,3 +2866,29 @@ a new obligation on a finished screen is a new item.
 - shots: landing-actual
 - extra_gates: none
 - notes: F-129 was named in the CHANGELOG, ADR-178 and TODO but never had a block here, so the one thing holding the pin was invisible to the queue. The phone DOES draw the film: a signed-out user is sent to /landing (router.dart:80, :141), whose hero is Plate I (landing_page.dart:869). It plays 5.25.1's five-chapter cut, opening on "Everything / you kept." (reel_score.dart:137-143), plus F-128's titles (5e29c03). Web's is 5.26.2's (e0997dc). Missing, one beat each: the film-only hero (reelScore.js:11), Psych 101 (:361), the handwritten note (handwriting.js:4), "you saved it for nothing" (:18), typed titles, "the video … watch later" (:89), the heap (:14), the envelope (:232), the split-flap board (:9). 5.25.2's F-128 part landed. Port after approval, against web's frames; the stash predates 5.25.5.
+
+## F-193 · A refused letter-settings read says web's words and §14.3's sentence, not a constant
+- status: open
+- screen: letters
+- route: /letters
+- spec: spec/component-kit.md §14.3; spec/decisions/ADR-111-a-failure-with-no-envelope-still-owes-a-move.md
+- web: src/kit/d/LetterQuick.jsx; src/pages/LettersView.jsx
+- flutter: lib/state/settings_notifier.dart; lib/widgets/kit/kit_d_letter.dart
+- folds: web bd/web 2026-11-11: thirteen read and subscription failures said the SDK's own .message; all take failureDetail now
+- device_test: none (a widget test: SettingsNotifier given a permission-denied read, the Letters and Library settings panels say web's line)
+- shots: none
+- extra_gates: none
+- notes: Web's lane W4 found nine web lines printing a Firestore read's raw `.message` after the dash (Missing or insufficient permissions. in prod); the 2026-11-11 web lane fixed them and four more. Their Flutter equivalents are ALREADY §14.3 and owe nothing: documents_notifier.dart:60, tags_notifier.dart:40 and scripture_letter_notifier.dart:45 store describeSdkError(e), so sources_page.dart:345, library_page.dart (kit_d_home.dart:1610), tags_page.dart:210, shelf_page.dart:479, letters_page.dart:600 and letter_settings_page.dart:731 read §14.3 already, and letter_settings_page.dart:189 (the latest letter) does too. The one gap is the newsletter-settings read: settings_notifier.dart:44 swallows the error into the constant 'Could not load newsletter settings.', which kit_d_letter.dart:614 draws as readError in Letters' and Library's settings panels. Web now says `Your letter settings could not be read — ` + §14.3's sentence (LetterQuick.jsx:50); make Flutter say the same, from describeSdkError(e). `_error` is shared with the save path (settings_notifier.dart:175): keep the read's sentence to the read.
+
+## F-194 · A refusal under a control comes into view when it arrives: Add's rejection row, the reader's Update from source line
+- status: open
+- screen: add
+- route: /sources/add
+- spec: spec/component-kit.md §14.2
+- web: src/pages/sources/intake.jsx; src/pages/reader/UpdateFromSourceBar.jsx; src/shared/Failure.jsx
+- flutter: lib/widgets/file_uploader.dart; lib/pages/reader/update_from_source_bar.dart
+- folds: web bd/web 2026-11-11 (lane W4 + the burn-down's web lane): gate:rejection add-link @390 and update-from-source @390
+- device_test: a phone: a refused link on Add a source, and a refused Update from Google Drive on a reader scrolled so the bar sits at the foot, each draw their sentence on screen above the tab bar
+- shots: none
+- extra_gates: none
+- notes: On a 390 phone web's refusals drew below the page scroller's edge, under the tab bar: Add's rejection row (its Shelves block, 5.73.0, pushed it below the fold; W4) and the Original panel's Update from {provider} line (the scroller ends where the tab bar starts, so a line under a bar at the foot is clipped; found on the Mac). Web now brings each into view when it arrives, once per arrival and never on a remount (intake.jsx useIntoView; UpdateFromSourceBar.jsx errRef, via FailureInline's lineRef). Flutter has neither: file_uploader.dart:101 `_reject` sets `_rejection` (drawn at :277) with no Scrollable.ensureVisible, AddAnswered's KitRefusedNotices likewise, and update_from_source_bar.dart:69 sets `_error` (drawn through kitRefusalSlot at :86) with none. The Notifications channel-list tandem W4 named is already true (notification_settings_page.dart:123 uses describeSdkError), so it has no item.
