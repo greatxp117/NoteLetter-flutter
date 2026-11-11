@@ -111,7 +111,7 @@ class CloudImportActivity extends StatelessWidget {
           const SectionHeader('Cloud imports'),
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: KitFailureInline(error),
+            child: KitFailureInline(importStatusUnread(error)),
           ),
         ],
       );
@@ -129,7 +129,7 @@ class CloudImportActivity extends StatelessWidget {
         if (error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: KitFailureInline(error),
+            child: KitFailureInline(importStatusUnread(error)),
           ),
         if (discoveringFiles)
           Padding(
@@ -154,6 +154,11 @@ class CloudImportActivity extends StatelessWidget {
     );
   }
 }
+
+/// A job list that could not be read, in web's words (F-186;
+/// CloudImportPanel.jsx): the sentence, then the SDK's detail after the dash.
+String importStatusUnread(String detail) =>
+    'Import status could not be read — $detail';
 
 /// What an import's 202 queued, as the reference says it (web
 /// `CloudImportPanel` `setNotice`): *Queued {f} folder(s) and {n} file(s)

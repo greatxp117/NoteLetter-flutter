@@ -183,7 +183,7 @@ class OrgNotifier extends ChangeNotifier {
       final data = await Api.instance
           .enableOrganization(provider, returnTo: app ? 'app' : null);
       final authUrl = data['authUrl'] as String?;
-      if (authUrl == null) return 'No authorization URL returned.';
+      if (authUrl == null) return signInLinkMissing();
       if (app) return await CloudReturn.runSession(authUrl, provider: provider);
       final ok = await launchUrl(Uri.parse(authUrl),
           mode: LaunchMode.externalApplication);

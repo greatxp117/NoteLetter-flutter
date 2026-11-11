@@ -168,6 +168,11 @@ void main() {
       expect(textLike('Cloud imports'), findsOneWidget,
           reason: 'the section vanished entirely, which reads as no imports');
       expect(find.textContaining('You appear to be offline'), findsOneWidget);
+      // In web's words, the detail after the dash (F-186; CloudImportPanel).
+      expect(
+          find.textContaining(
+              'Import status could not be read — You appear to be offline'),
+          findsOneWidget);
       // Unread is not zero (§8, ADR-109) — the label stays, the count goes.
       expect(textLike('Cloud imports · '), findsNothing);
     });

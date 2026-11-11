@@ -1246,7 +1246,7 @@ class _ManuscriptPanelState extends State<ManuscriptPanel> {
         'Manuscript · the extracted text',
         _editing
             ? 'Edit a passage, split one in two, or merge it with the one above — saving re-embeds the changed passages. Images and tables can be removed but not edited.'
-            : "This is the content NoteLetter read out of your source. Switch on editing to correct the text or adjust how it's split into passages.",
+            : "This is the content NoteLetter read out of your source. Switch on editing to correct the text or adjust how it’s split into passages.",
       ),
       // `.panel-bar` — the count as a `.pf-label`, and the edit control: a
       // ghost button at rest, the secondary while editing. F-43: the count was

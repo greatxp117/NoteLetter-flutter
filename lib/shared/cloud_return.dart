@@ -8,6 +8,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'cloud_providers.dart';
 
+/// A connect that answered 200 with no sign-in link (F-186), in web's words
+/// (sources.md §Quick add; web intake.jsx, CloudImportPanel.jsx,
+/// OAuthReturn.jsx, QuickAdd.jsx): the handoff cannot happen, and the reader
+/// is told what to press. [again] is a Reconnect.
+String signInLinkMissing({bool again = false}) =>
+    'The sign-in link did not come back. '
+    'Try ${again ? 'reconnecting' : 'connecting again'}.';
+
 /// The cloud-connect return (5.0.0, ADR-158, INV-32; 5.1.0, ADR-159 —
 /// `api/cloud-storage.md` §Return target). Mirrors web `shared/cloudClaim.js`.
 ///

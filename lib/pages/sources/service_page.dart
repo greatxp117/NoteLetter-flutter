@@ -288,7 +288,9 @@ class _BringInState extends State<_BringIn> {
       _reconnecting = true;
       _reconnectFail = null;
     });
-    final err = await context.read<CloudNotifier>().connect(widget.provider);
+    final err = await context
+        .read<CloudNotifier>()
+        .connect(widget.provider, again: true);
     if (!mounted) return;
     setState(() {
       _reconnecting = false;

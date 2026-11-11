@@ -159,6 +159,21 @@ void main() {
       expect(CloudReturn.take()!.claim, 'cap-claim-org-app');
     });
 
+    // F-186 (sources.md §Quick add; web intake.jsx, CloudImportPanel.jsx,
+    // OAuthReturn.jsx, QuickAdd.jsx): a 200 with no sign-in link is said in
+    // web's words, not a developer's — *Try reconnecting.* where the reader
+    // pressed Reconnect, *Try connecting again.* everywhere else.
+    test('a connect with no sign-in link says so in web\'s words', () async {
+      ApiService.instance.httpClientAdapter = _Server(const {});
+      CloudReturn.session = (_) async => fail('no link, no session');
+      expect(await CloudNotifier().connect('google_drive'),
+          'The sign-in link did not come back. Try connecting again.');
+      expect(await CloudNotifier().connect('google_drive', again: true),
+          'The sign-in link did not come back. Try reconnecting.');
+      expect(await OrgNotifier().enableOrganization('google_drive'),
+          'The sign-in link did not come back. Try connecting again.');
+    });
+
     test('a cancelled session parked nothing and says nothing', () async {
       ApiService.instance.httpClientAdapter =
           _Server({'authUrl': 'https://accounts.example/auth'});

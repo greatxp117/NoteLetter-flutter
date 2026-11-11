@@ -2777,17 +2777,17 @@ a new obligation on a finished screen is a new item.
 - notes: Gap. original_panel.dart:136-184 and :243-272 draw the stored file, or a button for a link, under the line *NoteLetter keeps the original alongside the text it extracted.* (:178), and then never shows that text. Web's panel (OriginalPanel.jsx:249-397) also draws what was extracted: *The page as we captured it* / *The document as we read it* / *The article it resolved to*, a YouTube/Instagram/TikTok embed or the provider's poster (embedFor, :86-110), and the raw extraction. component-kit §15.1 rule 3: the extraction belongs to the panel that composes the renderer, which is why the reader shows both. Port the parts a phone can draw; an embed is a web view, so decide it inside the item and record any deviation in CLAUDE.md. The intro copy differs too.
 
 ## F-186 · Three sentences in web's words: the sign-in link, the import status, an apostrophe
-- status: open
+- status: done 2026-11-11
 - screen: sources
 - route: /sources
 - spec: spec/screens/sources.md
 - web: src/pages/sources/intake.jsx; src/overlays/QuickAdd.jsx; src/pages/sources/OAuthReturn.jsx; src/pages/sources/CloudImportPanel.jsx; src/pages/reader/ManuscriptPanel.jsx
-- flutter: lib/state/cloud_notifier.dart; lib/state/org_notifier.dart; lib/pages/sources/cloud_imports.dart; lib/pages/reader/manuscript_panel.dart
+- flutter: lib/state/cloud_notifier.dart; lib/state/org_notifier.dart; lib/pages/sources/cloud_imports.dart; lib/pages/reader/manuscript_panel.dart; lib/shared/cloud_return.dart; lib/pages/sources_page.dart; lib/pages/sources/service_page.dart; test/contract/cloud_return_test.dart; test/contract/stream_builder_failure_test.dart; test/kit/quick_add_test.dart; test/contract/manuscript_copy_test.dart
 - folds: none
 - device_test: none
 - shots: none
 - extra_gates: none
-- notes: (1) When connect returns no sign-in link, Flutter says *No authorization URL returned.* (cloud_notifier.dart:449, org_notifier.dart:186), developer wording on the Library rows, quick add and the connect page. Web and sources.md:876-878: *The sign-in link did not come back. Try connecting again.* (2) An import-status read that fails draws only the raw error (cloud_imports.dart:105-116); web says *Import status could not be read — {detail}* (CloudImportPanel.jsx:793-794). (3) manuscript_panel.dart:1199 writes "it's" with a straight apostrophe; web's is curly (ManuscriptPanel.jsx:1051).
+- notes: (1) When connect returns no sign-in link, Flutter says *No authorization URL returned.* (cloud_notifier.dart:449, org_notifier.dart:186), developer wording on the Library rows, quick add and the connect page. Web and sources.md:876-878: *The sign-in link did not come back. Try connecting again.* (2) An import-status read that fails draws only the raw error (cloud_imports.dart:105-116); web says *Import status could not be read — {detail}* (CloudImportPanel.jsx:793-794). (3) manuscript_panel.dart:1199 writes "it's" with a straight apostrophe; web's is curly (ManuscriptPanel.jsx:1051). Done (lane flutter, 2026-11-11): (1) signInLinkMissing() (shared/cloud_return.dart) says The sign-in link did not come back. Try connecting again. — or Try reconnecting. where the reader pressed Reconnect (CloudNotifier.connect again:, from the Library row's Reconnect and the service page, as web's intake.jsx and CloudImportPanel do); OrgNotifier.enableOrganization says the connect form (web's enable says nothing at all). (2) importStatusUnread: Import status could not be read — {detail}, in both of cloud_imports.dart's failure slots. (3) the manuscript's it’s is curly (a source read: manuscript_copy_test). Each test was red first.
 
 ## F-187 · Read the syllabus says it is reading in the background, and where the plan will be
 - status: open

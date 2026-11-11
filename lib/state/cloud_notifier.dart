@@ -440,13 +440,16 @@ class CloudNotifier extends ChangeNotifier {
   /// the return page's *Try again* and quick add come through here, so every
   /// one of them remembers which provider it sent to consent — an error
   /// return names none, and the return page names it.
-  Future<String?> connect(String provider) async {
+  ///
+  /// [again] is a Reconnect (web `connect(c, again)`, `reconnect`): only the
+  /// sentence for a missing sign-in link differs.
+  Future<String?> connect(String provider, {bool again = false}) async {
     try {
       final app = CloudReturn.appReturn;
       final data = await Api.instance
           .connectCloudStorage(provider, returnTo: app ? 'app' : null);
       final authUrl = data['authUrl'] as String?;
-      if (authUrl == null) return 'No authorization URL returned.';
+      if (authUrl == null) return signInLinkMissing(again: again);
       CloudReturn.noteConnecting(provider);
       if (app) return await CloudReturn.runSession(authUrl, provider: provider);
       final ok = await launchUrl(Uri.parse(authUrl),

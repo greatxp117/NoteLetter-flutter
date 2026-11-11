@@ -724,7 +724,9 @@ class _ServiceRowState extends State<_ServiceRow> {
       _connecting = true;
       _connectFail = null;
     });
-    final err = await context.read<CloudNotifier>().connect(widget.providerId);
+    final err = await context
+        .read<CloudNotifier>()
+        .connect(widget.providerId, again: again);
     if (!mounted) return;
     setState(() {
       _connecting = false;

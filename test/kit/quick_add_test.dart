@@ -87,7 +87,7 @@ class _Cloud extends CloudNotifier {
   Future<void> loadIntegrations() async {}
 
   @override
-  Future<String?> connect(String provider) async {
+  Future<String?> connect(String provider, {bool again = false}) async {
     asked.add(provider);
     if (hold) {
       CloudReturn.hold(
@@ -466,12 +466,14 @@ void main() {
   group('Connect, through the one entry point', () {
     testWidgets("a refusal is said under the chips, by the service's name",
         (tester) async {
-      final cloud = _Cloud(answer: 'No authorization URL returned.');
+      final cloud = _Cloud(answer: signInLinkMissing());
       final r = await pumpBody(tester, cloud: cloud);
       await tester.tap(find.text('Google Drive'));
       await tester.pump();
       expect(cloud.asked, ['google_drive']);
-      expect(find.text('Google Drive — No authorization URL returned.'),
+      expect(
+          find.text('Google Drive — The sign-in link did not come back. '
+              'Try connecting again.'),
           findsOneWidget);
       expect(find.byType(KitFailureInline), findsOneWidget);
       expect(find.text('Google Drive'), findsOneWidget,
