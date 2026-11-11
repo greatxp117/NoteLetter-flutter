@@ -11,7 +11,9 @@ import 'kit_d_covers.dart';
 import 'kit_d_frame.dart';
 import 'kit_d_parts.dart';
 import 'kit_failure.dart';
+import 'kit_shelf_chips.dart' show KitShelvesRead;
 import 'kit_text.dart';
+import '../../shared/shelf_pick.dart' show ShelvesRead;
 
 // ── Direction D: the source page's own parts (`screens/reader.md`
 // §Composition; web `pages/ReaderView.jsx` and the D block at the head of
@@ -21,6 +23,14 @@ import 'kit_text.dart';
 // reading-progress rule or a wrapping section — but a page file never styles
 // its own type (ADR-041), so they live here, beside Home's and the Library's
 // (kit_d_home.dart, kit_d_library.dart).
+
+/// A source's shelf word on the reader (web `shelfWord`, F-196): its first
+/// shelf's title. Without one, the DOCUMENT says whether it is shelved and the
+/// tags read only names the shelf, so a source with `tag_ids` while that read
+/// is [refused] is a dash, like any figure nobody read (INV-24) — *Unshelved*
+/// only for a source on no shelf.
+String kitShelfWord(Document doc, Tag? shelf, {bool refused = false}) =>
+    shelf?.title ?? (refused && doc.tagIds.isNotEmpty ? '—' : 'Unshelved');
 
 /// The sheet's **identity block**: a 52px §33 cover in the shelf's cloth (the
 /// unshelved cloth without one), the kind and shelf in mono caps
@@ -69,7 +79,8 @@ class KitReaderIdentity extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$kind · ${shelf?.title ?? 'Unshelved'}'.toUpperCase(),
+                  '$kind · ${kitShelfWord(doc, shelf, refused: KitShelvesRead.of(context).read == ShelvesRead.failed)}'
+                      .toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTheme.mono(

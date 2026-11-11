@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 import '../shared/reader_origin.dart';
+import '../shared/shelf_pick.dart' show ShelvesRead, shelvesReadLine;
 import '../shared/source_host.dart';
 import '../models/chunk.dart';
 import '../models/document.dart';
@@ -127,12 +128,23 @@ List<KitContentsItem> readerContentsItems(Document doc, {bool aiOn = true}) => [
 /// The masthead's folio: `{shelf} · {kind} · Added {Mon D, YYYY}` — the first
 /// of the shelves the document is on (*Unshelved* without), the kind as §33's
 /// word for its type (*Document*, *Web clip*, *Video*…), the added date.
+///
+/// With the tags read [refused], a source with `tag_ids` is a dash, never
+/// *Unshelved* (F-196, web `shelfWord`).
 @visibleForTesting
-String readerFolio(Document doc, Tag? shelf) => [
-  shelf?.title ?? 'Unshelved',
+String readerFolio(Document doc, Tag? shelf, {bool refused = false}) => [
+  kitShelfWord(doc, shelf, refused: refused),
   kitTypeLabel(doc.type),
   if (doc.createdAt != null) 'Added ${readerDate(doc.createdAt!)}',
 ].join(' · ');
+
+/// The Filing row's §14.2 slot (web DocumentShelves, F-196): its own refused
+/// write, which is the newer, else a refused tags read's line — the read
+/// leaves every id unresolved, and a row of no chips says this source is on
+/// no shelf.
+@visibleForTesting
+String? readerFilingError(String? writeError, String? readError) =>
+    writeError ?? (readError == null ? null : shelvesReadLine(readError));
 
 /// `Jul 1, 2026` (web `toLocaleDateString('en-US', {month: 'short', day:
 /// 'numeric', year: 'numeric'})`).
@@ -520,6 +532,9 @@ class _ReaderPageState extends State<ReaderPage> {
   Widget _readerPage(Document doc) {
     final shelves = context.watch<TagsNotifier>().tags;
     final shelf = _shelfOf(doc, shelves);
+    // INV-24 (F-196): a refused tags read leaves every id unresolved.
+    final shelvesRead = KitShelvesRead.of(context);
+    final shelvesRefused = shelvesRead.read == ShelvesRead.failed;
     final aiOn = shellAiOn(context);
     final sections = _sectionsFor(aiOn);
     final items = readerContentsItems(doc, aiOn: aiOn);
@@ -564,7 +579,10 @@ class _ReaderPageState extends State<ReaderPage> {
                 // section, 28 (`.d-pnl .set-section + .d-l`).
                 if (filing) ...[
                   const KitDLabel('Filing', top: 18),
-                  _documentShelves(shelves),
+                  _documentShelves(
+                    shelves,
+                    shelvesRefused ? shelvesRead.error : null,
+                  ),
                   const SizedBox(height: 14),
                   SourcePriorityRow(
                     docId: widget.docId,
@@ -737,7 +755,7 @@ class _ReaderPageState extends State<ReaderPage> {
         back: _backControl(),
         crumbStacks: true,
         gridTop: 40,
-        folio: readerFolio(doc, shelf),
+        folio: readerFolio(doc, shelf, refused: shelvesRefused),
         title: doc.title.isEmpty ? 'Untitled' : doc.title,
         byline: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -862,7 +880,10 @@ class _ReaderPageState extends State<ReaderPage> {
   /// panel outlives the build that opened it).
   /// [tags] are the ones [build] watched: this runs inside the panel's own
   /// build, where watching from the page's context is not allowed.
-  Widget _documentShelves(List<Tag> tags) {
+  ///
+  /// [readError] is a refused tags read's §14.3 sentence: the row says so
+  /// rather than show a shelved source on no shelf ([readerFilingError]).
+  Widget _documentShelves(List<Tag> tags, String? readError) {
     final byId = {for (final t in tags) t.id: t};
     final current = _document?.tagIds ?? const <String>[];
     return KitShelfChipEditor(
@@ -876,7 +897,7 @@ class _ReaderPageState extends State<ReaderPage> {
           if (!current.contains(t.id)) t,
       ],
       busy: _shelvesBusy,
-      error: _shelvesError,
+      error: readerFilingError(_shelvesError, readError),
       removeLabel: (s) => 'Take this source off ${s.title}',
       onAdd: (id) => _writeShelves([...current, id]),
       onRemove: (id) => _writeShelves([

@@ -271,13 +271,58 @@ class _KitShelfChipEditorState extends State<KitShelfChipEditor>
   }
 }
 
+/// INV-24 (ADR-071) for the shelves a §20 host lists (F-196; web
+/// `shared/shelvesRead.js`). The app holds the tags subscription once and
+/// hands each host its rows; a refused read hands them the rows it read
+/// before — none, on a first read — which every host read as an answer:
+/// §20.1's panel said *No shelves yet.* of a library nobody had read, §20.3's
+/// row offered its choice over nothing, the reader showed a shelved source as
+/// *Unshelved*. The read's STATE travels here, provided once at the app's root
+/// (`ShelvesReadScope`, over `TagsNotifier`), so every host of the picker — the
+/// chip editors, §20.2's selects, Shelves at add — knows it without each one
+/// threading it through. Outside a scope the read reads as answered.
+class KitShelvesRead extends InheritedWidget {
+  final ShelvesRead read;
+
+  /// §14.3's sentence for the refusal; null unless [read] is failed.
+  final String? error;
+
+  const KitShelvesRead({
+    super.key,
+    required this.read,
+    this.error,
+    required super.child,
+  });
+
+  static ({ShelvesRead read, String? error}) of(BuildContext context) {
+    final w = context.dependOnInheritedWidgetOfExactType<KitShelvesRead>();
+    return w == null
+        ? (read: ShelvesRead.answered, error: null)
+        : (read: w.read, error: w.error);
+  }
+
+  /// The one line a host draws for a refused read, or null.
+  static String? lineOf(BuildContext context) {
+    final r = of(context);
+    return r.read == ShelvesRead.failed
+        ? shelvesReadLine(r.error ??
+            'This could not be read right now. Please try again.')
+        : null;
+  }
+
+  @override
+  bool updateShouldNotify(KitShelvesRead oldWidget) =>
+      oldWidget.read != read || oldWidget.error != error;
+}
+
 /// §20.3 · Shelves at add (5.73.0, ADR-238) — §20 over a LOCAL choice, for a
 /// host that adds something that does not exist yet (web `shared/AddShelves.jsx`).
 ///
 /// Required parts: the caps label *Shelves* · the §20 row, with §20.1's picker
 /// and its create row · [sentence], verbatim, or at [max] chosen [sentenceFull]
 /// with the add control held · the host's own §14.2 line, which this does not
-/// draw. Nothing is written until the host adds, so a chip comes
+/// draw · a refused tags read's line ([KitShelvesRead]) in the sentence's
+/// place, since there is no list to choose from (F-196). Nothing is written until the host adds, so a chip comes
 /// and goes at once and none is ever busy; [disabled] holds the row while a sheet
 /// with one add is in flight. The host keeps [chosen] for its own life and reads
 /// `chosen.ids` when an add is pressed.
@@ -320,6 +365,7 @@ class KitAddShelves extends StatelessWidget {
         chosen.read(shelves);
         final on = chosen.ids.toSet();
         final full = on.length >= max;
+        final refused = KitShelvesRead.lineOf(context);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -346,12 +392,15 @@ class KitAddShelves extends StatelessWidget {
               onCreate: onCreate,
             ),
             const SizedBox(height: 6),
-            Text(full ? sentenceFull : sentence,
-                style: TextStyle(
-                    fontFamily: AppTheme.fontSans,
-                    fontSize: 12,
-                    height: 16 / 12,
-                    color: t.fgMuted)),
+            if (refused != null)
+              KitFailureInline(refused)
+            else
+              Text(full ? sentenceFull : sentence,
+                  style: TextStyle(
+                      fontFamily: AppTheme.fontSans,
+                      fontSize: 12,
+                      height: 16 / 12,
+                      color: t.fgMuted)),
           ],
         );
       },
@@ -754,8 +803,8 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
       widget.onPick('');
     } else if (i < lead + rows.length) {
       widget.onPick(rows[i - lead].shelf.id);
-    } else {
-      widget.onCreate(st.createName);
+    } else if (st.createName != null) {
+      widget.onCreate(st.createName!);
     }
   }
 
@@ -774,18 +823,37 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
     final rows = pickRows(_addable, _q.text);
+    // INV-24 (F-196): the tags read's state. Refused, no §20.1 sentence and
+    // no create row, and §14.2's line where the sentence would be; rows read
+    // before the refusal stay.
+    final read = KitShelvesRead.of(context);
+    final refused = KitShelvesRead.lineOf(context);
     final st = pickState(
-        onItem: widget.onItem, addable: _addable, q: _q.text, rows: rows);
+        onItem: widget.onItem,
+        addable: _addable,
+        q: _q.text,
+        rows: rows,
+        read: read.read);
     final lead = _lead(_q.text);
     final listed = lead + rows.length;
-    final count = listed + 1; // the create row is always last
-    final at = math.min(_active, count - 1);
+    final create = st.createName;
+    // The create row is last, when there is one. With no option at all no
+    // row is active, and Enter chooses nothing.
+    final count = listed + (create != null ? 1 : 0);
+    final at = count == 0 ? -1 : math.min(_active, count - 1);
 
     KeyEventResult onKey(FocusNode _, KeyEvent e) {
       if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
       }
       final k = e.logicalKey;
+      if (count == 0 &&
+          (k == LogicalKeyboardKey.arrowDown ||
+              k == LogicalKeyboardKey.arrowUp ||
+              k == LogicalKeyboardKey.enter ||
+              k == LogicalKeyboardKey.numpadEnter)) {
+        return KeyEventResult.handled;
+      }
       if (k == LogicalKeyboardKey.arrowDown) {
         final n = math.min(at + 1, count - 1);
         setState(() => _active = n);
@@ -836,8 +904,12 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 240),
                   child: Container(
-                    decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: t.rule))),
+                    // The rule closes the list above the create row; with no
+                    // create row the list is the panel's last part.
+                    decoration: create == null
+                        ? null
+                        : BoxDecoration(
+                            border: Border(bottom: BorderSide(color: t.rule))),
                     child: ListView(
                       controller: _scroll,
                       shrinkWrap: true,
@@ -864,16 +936,23 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
                             padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
                             child: Text(st.empty!, style: _emptyStyle(t)),
                           ),
+                        // `.shelf-pick-fail { padding: 7px 8px 8px }`.
+                        if (refused != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+                            child: KitFailureInline(refused),
+                          ),
                       ],
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: _row(t, at == listed, listed,
-                      onTap: () => _choose(rows, st, listed),
-                      child: _createRow(t, st.createName)),
-                ),
+                if (create != null)
+                  Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: _row(t, at == listed, listed,
+                        onTap: () => _choose(rows, st, listed),
+                        child: _createRow(t, create)),
+                  ),
               ],
             ),
           ),
@@ -908,9 +987,13 @@ class _ShelfPickerPanelState extends State<_ShelfPickerPanel> {
                         onItem: widget.onItem,
                         addable: _addable,
                         q: _q.text,
-                        rows: rows);
-                    _choose(rows, st,
-                        math.min(_active, _lead(_q.text) + rows.length));
+                        rows: rows,
+                        read: KitShelvesRead.of(context).read);
+                    final count = _lead(_q.text) +
+                        rows.length +
+                        (st.createName != null ? 1 : 0);
+                    if (count == 0) return;
+                    _choose(rows, st, math.min(_active, count - 1));
                   },
                   onChanged: (_) => setState(() => _active = 0),
                   style: AppTheme.serif(fontSize: 16, height: 22 / 16, color: t.fg),

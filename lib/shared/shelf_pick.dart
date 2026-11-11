@@ -107,14 +107,27 @@ List<PickRow> pickRows(List<Tag> addable, String q) {
   return [for (final r in rows) r.$1];
 }
 
+/// The tags read a §20 host lists from (INV-24, ADR-071; web
+/// `shelvesRead.js`'s `shelvesReadState`): every §20.1 sentence is a claim
+/// about the reader's shelves, so none is made before the read has ANSWERED.
+enum ShelvesRead { answered, loading, failed }
+
+/// The one line every §20 host draws for a refused tags read (§14.2 in the
+/// host's slot), after §14.3's [detail] — a subscription has no envelope of
+/// ours (web `shelvesReadLine`, F-196).
+String shelvesReadLine(String detail) =>
+    'Your shelves could not be read — $detail';
+
 /// What the create row offers and what an empty list says.
 ///
-/// [createName] is the name *Create "…"* offers, or `''` for *New shelf…*;
-/// [empty] is the sentence for an empty list, or null when rows exist. A query
-/// that exactly names a shelf (folded) never offers a second one: on the item
-/// the list says so; off it, that shelf is the first row already.
+/// [createName] is the name *Create "…"* offers, `''` for *New shelf…*, or
+/// null for no create row (a refused read: a name cannot be checked against
+/// shelves nobody could read); [empty] is the sentence for an empty list, or
+/// null when rows exist or the read has not answered. A query that exactly
+/// names a shelf (folded) never offers a second one: on the item the list
+/// says so; off it, that shelf is the first row already.
 class PickState {
-  final String createName;
+  final String? createName;
   final String? empty;
   const PickState(this.createName, this.empty);
 }
@@ -124,7 +137,11 @@ PickState pickState({
   required List<Tag> addable,
   required String q,
   required List<PickRow> rows,
+  ShelvesRead read = ShelvesRead.answered,
 }) {
+  // Refused (F-196, web 97b4b85): no sentence and no create row — the host
+  // draws §14's line where the sentence would be.
+  if (read == ShelvesRead.failed) return const PickState(null, null);
   final name = q.trim();
   final needle = foldQuery(name);
   Tag? here;
@@ -139,7 +156,7 @@ PickState pickState({
   final exists = here != null ||
       (needle.isNotEmpty && addable.any((s) => foldQuery(s.title) == needle));
   String? empty;
-  if (rows.isEmpty) {
+  if (rows.isEmpty && read == ShelvesRead.answered) {
     if (here != null) {
       empty = '“${here.title}” is already here.';
     } else if (needle.isNotEmpty) {
