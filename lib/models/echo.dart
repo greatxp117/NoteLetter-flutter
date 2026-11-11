@@ -14,7 +14,9 @@ class EchoPassage {
   final int chunkIndex;
 
   /// The chunk's text, whitespace collapsed and cut at a word at 240
-  /// characters. Markers are kept, and a cut may leave one open.
+  /// characters. `[On screen: …]` is taken out unless it is all the passage
+  /// says (5.86.0); every other marker is kept, and a cut inside one is closed
+  /// with `…]`.
   final String excerpt;
 
   const EchoPassage({
