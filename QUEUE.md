@@ -2926,7 +2926,7 @@ a new obligation on a finished screen is a new item.
 - spec: spec/invariants.md §INV-24; spec/component-kit.md §35 §32 §33; spec/screens/reader.md §Composition
 - web: src/shared/shelvesRead.js; src/kit/d/ShelfTag.jsx; src/kit/d/RegisterRow.jsx; src/kit/d/Catalogue.jsx; src/kit/d/Cover.jsx; src/pages/ReaderView.jsx; src/pages/sources/CloudImportPanel.jsx; tests/contract/shelf-word-refused.test.js
 - flutter: lib/widgets/kit/kit_d_reader.dart; lib/pages/reader_page.dart; lib/widgets/kit/kit_d_parts.dart; lib/widgets/kit/kit_d_catalogue.dart; lib/widgets/kit/kit_d_covers.dart; lib/widgets/kit/kit_shelf.dart
-- folds: web (lane web3, 2026-11-11; lane flutter2's FOUND 1): gate:rejection shelves-pick-read reads the Library's shelf cell
+- folds: web d534372 2026-11-11 (lane web3; lane flutter2's FOUND 1): shelf-word-refused.test.js; Library/Home/shelf pages draw §14 instead of rows under this refusal, so the rows that reach it are Add's Just added and an import row
 - device_test: none (widget tests: under a TagsNotifier holding a permission-denied error, a source with tag_ids draws — in the reader's loading folio, KitShelfTag in a register row, the Grid wall's caption and the cover strip; a source with none still draws Unshelved; answered, Unshelved for a shelf not found)
 - shots: none
 - extra_gates: none
