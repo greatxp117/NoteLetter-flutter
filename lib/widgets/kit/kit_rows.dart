@@ -1082,3 +1082,140 @@ class KitBuildStamp extends StatelessWidget {
     );
   }
 }
+
+/// What a run of onboarding has added (`.ob-added`; onboarding.md, F-190): a
+/// box on `--surface` (1px `--border`, `--r-md`) whose HEAD says what it
+/// counts — [label] in mono caps at `--fg-muted` and [total] in mono at
+/// `--accent-text`, on `--surface-sunken` over a `--rule` — then the [rows]
+/// it counts, a `--rule` between each. The caller draws it only when there is
+/// a row: a count over nothing stands for nothing.
+class KitAddedList extends StatelessWidget {
+  final String label;
+  final String total;
+  final List<Widget> rows;
+
+  const KitAddedList({
+    super.key,
+    required this.label,
+    required this.total,
+    required this.rows,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: AppRadius.mdR,
+        border: Border.all(color: t.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: t.surfaceSunken,
+              border: Border(bottom: BorderSide(color: t.rule)),
+            ),
+            child: Row(
+              children: [
+                Text(label.toUpperCase(), style: KitText.capsLabel(context)),
+                const Spacer(),
+                Text(total,
+                    style: KitText.monoMeta(context,
+                        color: t.accentText, letterSpacing: 0)),
+              ],
+            ),
+          ),
+          for (var i = 0; i < rows.length; i++)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: i == 0
+                    ? null
+                    : Border(top: BorderSide(color: t.rule)),
+              ),
+              child: rows[i],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One thing a run added (`.ob-urow`): its [badge], the [name] (sans 13.5/500,
+/// one line), the [sub] line saying where it stands (sans 12 `--fg-muted`), a
+/// 3px bar while it uploads — [progress] is the client's own measured PUT, or
+/// null for web's still 35% — and the state pill (§6.3: *Added* on the
+/// positive chip, *Uploading* / *Failed* sunken). No remove: web's has none.
+class KitAddedRow extends StatelessWidget {
+  final Widget badge;
+  final String name;
+  final String sub;
+  final String state;
+  final bool ready;
+  final bool uploading;
+  final double? progress;
+
+  const KitAddedRow({
+    super.key,
+    required this.badge,
+    required this.name,
+    required this.sub,
+    required this.state,
+    this.ready = false,
+    this.uploading = false,
+    this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Tokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          badge,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: KitText.ui(context, weight: FontWeight.w500)),
+                const SizedBox(height: 1),
+                Text(sub, style: KitText.small(context)),
+                if (uploading) ...[
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: AppRadius.pillR(2),
+                    child: SizedBox(
+                      height: 3,
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                              child: ColoredBox(color: t.surfaceSunken)),
+                          FractionallySizedBox(
+                            widthFactor: (progress ?? 0.35).clamp(0.0, 1.0),
+                            heightFactor: 1,
+                            child: ColoredBox(color: t.accent),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          KitStatusPill(state, positive: ready),
+        ],
+      ),
+    );
+  }
+}

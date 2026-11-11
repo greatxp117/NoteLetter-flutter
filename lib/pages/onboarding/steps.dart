@@ -136,14 +136,10 @@ class SourcesStep extends StatelessWidget {
               'more your letter has to draw from — you can always add more '
               'later.',
         ),
-        const FileUploader(),
-        if (documents.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.s6),
-          SectionHeader(
-            'In your library',
-            note: '$indexed indexed · ${documents.length} total',
-          ),
-        ],
+        // *In your library* heads the rows this run added, inside the
+        // uploader (web `.ob-added`, F-190) — never after them, and never
+        // over nothing on a replay.
+        FileUploader(addedTotal: '$indexed indexed · ${documents.length} total'),
         const KitProcNote(
           'Indexing runs in the background — you don’t have to wait here for '
           'it to finish.',

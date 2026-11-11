@@ -183,7 +183,8 @@ void main() {
 
       await _paste(tester, _playlist);
       await tester.pump();
-      expect(find.text('YouTube playlist — uploading'), findsOneWidget);
+      // web's onboarding row (steps.jsx `.ob-usub`, F-190).
+      expect(find.text('YouTube playlist — uploading…'), findsOneWidget);
       expect(find.text('YT'), findsOneWidget,
           reason: 'a playlist plates as YouTube, not NOTE');
 
@@ -209,7 +210,8 @@ void main() {
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 10));
       }
-      expect(find.text('Queued for processing'), findsOneWidget);
+      expect(find.text('added — indexing continues in the background'),
+          findsOneWidget);
       expect(find.textContaining('from this playlist'), findsNothing);
       expect(adapter.sent.single['type'], 'youtube');
     });

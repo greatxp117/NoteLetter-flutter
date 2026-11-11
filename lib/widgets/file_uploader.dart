@@ -42,12 +42,18 @@ class FileUploader extends StatefulWidget {
   /// no shelf is offered (`screens/sources.md`: onboarding's first add).
   final ChosenShelves? chosen;
 
+  /// [FileUploaderLook.panel]'s head figure (F-190; web steps.jsx `.ob-added`):
+  /// onboarding's *{indexed} indexed · {total} total*, drawn beside *In your
+  /// library* over the rows it counts. The head is drawn only with a row.
+  final String? addedTotal;
+
   const FileUploader({
     super.key,
     this.onUploadComplete,
     this.onUploadError,
     this.look = FileUploaderLook.panel,
     this.chosen,
+    this.addedTotal,
   });
 
   @override
@@ -277,12 +283,15 @@ class FileUploaderState extends State<FileUploader> {
               KitFailureInline(_rejection!),
             ],
 
+            // web `.ob-added` (F-190): In your library heads the rows it
+            // counts, and only when there is one.
             if (notifier.files.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              KitRowList(
+              const SizedBox(height: 16),
+              KitAddedList(
+                label: 'In your library',
+                total: widget.addedTotal ?? '',
                 rows: [
-                  for (final f in notifier.files)
-                    _InFlightRow(file: f, notifier: notifier),
+                  for (final f in notifier.files) _InFlightRow(file: f),
                 ],
               ),
             ],
@@ -458,65 +467,47 @@ class _LinkRow extends StatelessWidget {
   }
 }
 
-/// A file mid-upload. The §4.1 row, carrying its state in the subtitle slot and
-/// the **only determinate progress this screen has**: the client's own PUT.
-/// Both server phases are indeterminate by contract (ADR-024) — a synthesised
-/// percentage there would be a number with no measurement behind it.
+/// A file this run added, in web's words (steps.jsx `.ob-urow`, F-190): the
+/// name, where it stands — *uploading…*, the refusal, or *added — indexing
+/// continues in the background* — and the Uploading / Added / Failed pill.
+/// The bar is the **only determinate progress this screen has**: the
+/// client's own PUT. Both server phases are indeterminate by contract
+/// (ADR-024), so nothing here draws a figure for them.
 class _InFlightRow extends StatelessWidget {
   final UploadFile file;
-  final UploadNotifier notifier;
 
-  const _InFlightRow({required this.file, required this.notifier});
+  const _InFlightRow({required this.file});
 
   @override
   Widget build(BuildContext context) {
-    final t = Tokens.of(context);
     final playlist = file.linkType == playlistType;
-    final (label, failed) = switch (file.status) {
+    final uploading = file.status == UploadStatus.uploading ||
+        file.status == UploadStatus.pending;
+    final (sub, state) = switch (file.status) {
       // A playlist's `docIds` answer is said with its measured count
-      // (4.114.0, ADR-151 — api/ingest.md §A playlist link); a single link
-      // keeps the row's own line, because its document row is the statement.
-      UploadStatus.completed => (file.note ?? 'Queued for processing', false),
-      UploadStatus.uploading =>
-        (playlist ? '$playlistLabel — uploading' : 'Uploading', false),
-      UploadStatus.error => (file.errorMessage ?? 'Upload failed', true),
-      _ => ('Waiting', false),
-    };
-
-    return Column(
-      children: [
-        KitSourceRow(
-          // A link draws the kind its detected type makes — a playlist as
-          // YouTube, not NOTE (web QuickAdd `pendingBadgeKind`). A file keeps
-          // NOTE: its kind is the server's to decide.
-          leading: KitFileBadge(file.linkType == null
-              ? 'note'
-              : pendingBadgeKind(file.linkType!)),
-          title: file.name.isEmpty ? 'Untitled' : file.name,
-          subtitle: file.sizeLabel.isEmpty
-              ? label
-              : '$label · ${file.sizeLabel}',
-          trailing: KitIconButton(
-            Icons.close,
-            tooltip: 'Remove',
-            color: failed ? t.critical : null,
-            onPressed: () => notifier.removeFile(file.id),
-          ),
+      // (4.114.0, ADR-151 — api/ingest.md §A playlist link); anything else
+      // says web's line.
+      UploadStatus.completed =>
+        (file.note ?? 'added — indexing continues in the background', 'Added'),
+      UploadStatus.error => (file.errorMessage ?? 'could not be added', 'Failed'),
+      UploadStatus.uploading || UploadStatus.pending => (
+          playlist ? '$playlistLabel — uploading…' : 'uploading…',
+          'Uploading'
         ),
-        if (file.status == UploadStatus.uploading)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-            child: ClipRRect(
-              borderRadius: AppRadius.pillR(4),
-              child: LinearProgressIndicator(
-                value: file.progress,
-                minHeight: 4,
-                backgroundColor: t.surfaceSunken,
-                color: t.accent,
-              ),
-            ),
-          ),
-      ],
+    };
+    return KitAddedRow(
+      // A link draws the kind its detected type makes — a playlist as
+      // YouTube, not NOTE (web QuickAdd `pendingBadgeKind`). A file keeps
+      // NOTE: its kind is the server's to decide.
+      badge: KitFileBadge(
+          file.linkType == null ? 'note' : pendingBadgeKind(file.linkType!),
+          size: KitBadgeSize.inline),
+      name: file.name.isEmpty ? 'Untitled' : file.name,
+      sub: sub,
+      state: state,
+      ready: file.status == UploadStatus.completed,
+      uploading: uploading,
+      progress: file.status == UploadStatus.uploading ? file.progress : null,
     );
   }
 }
