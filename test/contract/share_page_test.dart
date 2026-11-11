@@ -6,10 +6,10 @@
 // (SPEC GAP).
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -570,8 +570,18 @@ void main() {
         await tester.pump(const Duration(milliseconds: 20));
         expect(wire.bodies.single['tagIds'], ['a']);
 
-        // In flight: held, and no ring on the + Shelf that was last pressed.
-        expect(find.byType(KitBusyMark), findsNothing);
+        // In flight: held, and the one ring is the pressed Add's (F-198) —
+        // never the + Shelf that was last pressed.
+        expect(find.byType(KitBusyMark), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byWidgetPredicate(
+              (w) => w is KitButton && w.label == 'Add to NoteLetter',
+            ),
+            matching: find.byType(KitBusyMark),
+          ),
+          findsOneWidget,
+        );
         await tester.tap(
           find.bySemanticsLabel('Take Attention off'),
           warnIfMissed: false,
@@ -584,6 +594,56 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
         expect(find.text('Added link for processing.'), findsOneWidget);
         await tester.pump(const Duration(seconds: 1));
+      });
+
+      // F-198 · §6.1 State — Busy (5.72.0, ADR-237): the pressed control
+      // draws the ring while its own request is in flight, and only it.
+      testWidgets('the pressed button carries the ring while its add runs; '
+          'the card is held, and the ring goes when it answers', (tester) async {
+        const channel = MethodChannel('xp.noteletter/share');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+        for (final (content, label) in <(SharedContent, String)>[
+          (const SharedLink('https://example.com', 'article'),
+              'Add to NoteLetter'),
+          (SharedImages([_s('a.jpg', 'image/jpeg')]), 'Upload Photos'),
+          (SharedFile(_s('a.pdf', 'application/pdf')), 'Upload File'),
+        ]) {
+          // The link's request, and the photos' and the file's copy out of
+          // the sharing app, each held open by the test.
+          wire.hold = Completer<void>();
+          final copying = Completer<Object?>();
+          messenger.setMockMethodCallHandler(channel, (_) => copying.future);
+          await pump(tester, content);
+          expect(find.byType(KitBusyMark), findsNothing, reason: '$label idle');
+
+          await tester.tap(find.text(label));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 20));
+          final pressed = button(tester, label);
+          expect(pressed.busy, isTrue, reason: label);
+          expect(pressed.onPressed, isNull, reason: '$label is held');
+          expect(find.byType(KitBusyMark), findsOneWidget, reason: label);
+          expect(
+            find.descendant(
+              of: find.byWidgetPredicate(
+                (w) => w is KitButton && w.label == label,
+              ),
+              matching: find.byType(KitBusyMark),
+            ),
+            findsOneWidget,
+            reason: 'the ring is $label\'s own',
+          );
+
+          copying.complete(null); // nothing came back: a refusal
+          wire.hold!.complete();
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 50));
+          expect(find.byType(KitBusyMark), findsNothing,
+              reason: '$label answered');
+          await tester.pump(const Duration(seconds: 1));
+        }
       });
 
       testWidgets(

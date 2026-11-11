@@ -2933,17 +2933,17 @@ a new obligation on a finished screen is a new item.
 - notes: fn_create_upload_session takes a closed origin (computer · phone · share_sheet; 5.51.0, ADR-202 addendum 1), read back only by a copy's Compare ('Uploaded from …'). The Dart share screen sends UploadOrigin.shareSheet (share_page.dart:198 → api.dart:15), but the iOS Share extension builds its own body at ios/Share/UploadViewModel.swift:53 with filename, mimeType and size only, so every file shared into NoteLetter on iOS is stored upload_origin: null and its Compare says nothing of where it came from. Add "origin": "share_sheet" there (beside ShelfRead.adding's tagIds). The multi-image path (fn_create_multi_image_session) carries no origin by contract; leave it. Done (lane flutter2, 2026-11-11): UploadViewModel.uploadSingleFile sends "origin": "share_sheet" beside filename, mimeType, size (and ShelfRead.adding's tagIds); the image set's body is unchanged. Proved with no simulator by tool/share_body_check.sh: a plain macOS swiftc build of UploadViewModel.swift with the extension's own Foundation-only helpers and a stand-in APIClient (the real one imports FirebaseAuth) that records each body and refuses; red on the old body (origin missing), green after (9 assertions: origin, the closed key set, tagIds only when chosen, the image set carries none). The extension itself was not built (no Xcode build this wave), and upload_origin read back from a created document is the next device run's.
 
 ## F-198 · /share's buttons say they are working: Add, Upload photos and Upload file carry the busy ring while the add runs
-- status: open
+- status: done 2026-11-11
 - screen: share
 - route: /share
 - spec: spec/component-kit.md §6.1; spec/decisions/ADR-237-a-control-says-it-is-working.md
 - web: src/shared/BusyMark.jsx
-- flutter: lib/pages/share_page.dart; lib/widgets/kit/kit_controls.dart
+- flutter: lib/pages/share_page.dart; test/contract/share_page_test.dart
 - folds: TODO "Flutter: … /share's button has no ring" (5.73.0 round, booked 2026-11-11 by lane web2)
 - device_test: none (a widget test: the share page with its add held open shows one KitBusyMark on the pressed KitButton and the others held)
 - shots: none
 - extra_gates: none
-- notes: §6.1 State — Busy (5.72.0, ADR-237): a control whose own request is in flight is held and draws the ring, one view per client (Flutter KitBusyMark, through KitButton's busy:). share_page.dart holds every action on _busy (idle = !_busy && !_done, :267) but passes no busy: to the KitButton.primary at :283 (Add), :307 (Upload photos) and :319 (Upload file), so a press greys the button with no ring. Pass busy: _busy on the pressed one (the page has one action at a time, so it is that one).
+- notes: §6.1 State — Busy (5.72.0, ADR-237): a control whose own request is in flight is held and draws the ring, one view per client (Flutter KitBusyMark, through KitButton's busy:). share_page.dart holds every action on _busy (idle = !_busy && !_done, :267) but passes no busy: to the KitButton.primary at :283 (Add), :307 (Upload photos) and :319 (Upload file), so a press greys the button with no ring. Pass busy: _busy on the pressed one (the page has one action at a time, so it is that one). Done (lane flutter2, 2026-11-11): busy: _busy on all three KitButton.primary (each card has one action, so it is the pressed one); share_page_test drives each card with its request (the link) or its copy out of the sharing app (photos, file; the share channel held by the test) and asserts one KitBusyMark, inside the pressed button, the button held, and none once it answers — red on the old page; the held-shelf case's 'no ring' became 'the ring is Add's'. Not seen on a device (no simulator this wave).
 
 ## F-199 · Listen says whose audio it is: an uploaded recording is 'The recording itself', never narration
 - status: open

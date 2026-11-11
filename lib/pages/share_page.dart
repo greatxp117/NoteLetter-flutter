@@ -265,6 +265,9 @@ class _SharePageState extends State<SharePage> {
   Widget _contentCard(SharedContent content) {
     final meta = KitText.meta(context);
     final idle = !_busy && !_done;
+    // §6.1 State — Busy (ADR-237, F-198): each card has ONE action, so while
+    // [_busy] it is the pressed one, and it draws the ring; the card's other
+    // controls are held plain.
     switch (content) {
       case SharedLink(:final url, :final type):
         return _labelled(
@@ -282,6 +285,7 @@ class _SharePageState extends State<SharePage> {
           shelves: _shelves(idle),
           action: KitButton.primary(
             SharePage.addLabel,
+            busy: _busy,
             onPressed: idle ? () => _addLink(content) : null,
           ),
         );
@@ -306,6 +310,7 @@ class _SharePageState extends State<SharePage> {
           shelves: _shelves(idle),
           action: KitButton.primary(
             SharePage.uploadPhotosLabel,
+            busy: _busy,
             onPressed: idle && count == null
                 ? () => _uploadPhotos(content)
                 : null,
@@ -318,6 +323,7 @@ class _SharePageState extends State<SharePage> {
           shelves: _shelves(idle),
           action: KitButton.primary(
             SharePage.uploadFileLabel,
+            busy: _busy,
             onPressed: idle ? () => _uploadFile(content) : null,
           ),
         );
