@@ -179,4 +179,45 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(KitExtractionPreview), findsOneWidget);
   });
+
+  // A recipe (ADR-042, INV-20b): the panel is the one place the text it
+  // replaced is reachable, fetched from original_content_url.
+  group('a recipe', () {
+    final real = OriginalPanel.fetchOriginal;
+    tearDown(() => OriginalPanel.fetchOriginal = real);
+    Document recipe() => _doc({
+          'type': 'article',
+          'source_url': 'https://www.example.com/stew',
+          'content_form': 'recipe',
+          'original_content_url': 'https://storage.example.com/orig.txt',
+        });
+
+    testWidgets('draws the full text before the recipe, and its raw text',
+        (tester) async {
+      String? asked;
+      OriginalPanel.fetchOriginal = (url) async {
+        asked = url;
+        return 'Para one of the original.\n\nPara two.';
+      };
+      await _pump(tester, recipe(), chunks: _chunks);
+      expect(asked, 'https://storage.example.com/orig.txt');
+      expect(find.text('THE FULL TEXT, BEFORE THE RECIPE'), findsOneWidget);
+      expect(_says('Para one of the original.'), findsOneWidget,
+          reason: 'plain text becomes paragraphs (web asHtml)');
+      expect(_says('The first paragraph we read.'), findsNothing,
+          reason: 'the recipe\'s chunks are not the original');
+      expect(find.text('7 words'), findsOneWidget);
+      expect(find.text('Full original text'), findsOneWidget);
+    });
+
+    testWidgets('a fetch that fails says so and keeps the link', (tester) async {
+      OriginalPanel.fetchOriginal = (_) async => throw Exception('403');
+      await _pump(tester, recipe(), chunks: _chunks);
+      expect(
+          _says('The full original text couldn’t be loaded here — open it '
+              'with the link below.'),
+          findsOneWidget);
+      expect(find.text('Full original text'), findsOneWidget);
+    });
+  });
 }
