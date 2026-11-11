@@ -296,10 +296,15 @@ class _ListenPanelState extends State<ListenPanel> {
     await _player.seek(Duration(milliseconds: (clamped * 1000).round()));
   }
 
-  /// The panel note, as the reference words it for each source of sound.
+  /// The panel note, as the reference words it for each source of sound —
+  /// keyed to WHOSE audio it is (F-199, web eca03fc): a podcast's episode, the
+  /// reader's own uploaded recording (`source_audio_url` null by design), or
+  /// a narration of the text.
   String get _note => _sourceAudio != null
       ? 'The original episode, at your pace. The transcript follows along — tap any line to jump there.'
-      : 'Hear the source read aloud, at your pace. The transcript follows along — tap any line to jump there.';
+      : hasOwnAudio(widget.doc)
+          ? 'The recording itself, at your pace. The transcript follows along — tap any line to jump there.'
+          : 'Hear the source read aloud, at your pace. The transcript follows along — tap any line to jump there.';
 
   @override
   Widget build(BuildContext context) {
@@ -351,7 +356,9 @@ class _ListenPanelState extends State<ListenPanel> {
       ui.intro(
           _dur == Duration.zero
               ? 'Listen'
-              : 'Listen · ${_fmt(_dur)}${_sourceAudio != null ? '' : ' narration'}',
+              // ' narration' only for a voice reading the text: never the
+              // reader's own recording (F-199).
+              : 'Listen · ${_fmt(_dur)}${hasOwnAudio(widget.doc) ? '' : ' narration'}',
           _note),
       // `.player` — the card the transport sits on (F-43: this was a flat
       // `--r-md` box with a Material slider and a waveform glyph).

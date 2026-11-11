@@ -186,4 +186,94 @@ void main() {
     expect(find.text('This recording could not be loaded.'), findsOneWidget);
     expect(find.text('Generate audio'), findsNothing);
   });
+
+  // F-199 (web eca03fc; reader.md §Listen follow-along): the eyebrow and the
+  // note say WHOSE audio it is — keyed to hasOwnAudio, never to
+  // source_audio_url alone, which an uploaded recording carries as null by
+  // design (web ListenPanel read "Listen · 3:12 narration" over "Hear the
+  // source read aloud" for the reader's own recording, and F-184 mirrored it).
+  group('whose audio it is', () {
+    const recording = 'The recording itself, at your pace. The transcript '
+        'follows along — tap any line to jump there.';
+    const episode = 'The original episode, at your pace. The transcript '
+        'follows along — tap any line to jump there.';
+    const narration = 'Hear the source read aloud, at your pace. The '
+        'transcript follows along — tap any line to jump there.';
+
+    /// A source the player can load: prepared, 3:12 long.
+    void playable() {
+      MockStreamHandlerEventSink? events;
+      messenger.setMockMethodCallHandler(
+          const MethodChannel('xyz.luan/audioplayers'), (call) async {
+        final id = (call.arguments as Map)['playerId'] as String;
+        if (call.method == 'create') {
+          messenger.setMockStreamHandler(
+              EventChannel('xyz.luan/audioplayers/events/$id'),
+              MockStreamHandler.inline(onListen: (_, sink) {
+                events = sink;
+              }));
+        }
+        if (call.method == 'setSourceUrl') {
+          loaded.add((call.arguments as Map)['url'] as String);
+          events?.success({'event': 'audio.onPrepared', 'value': true});
+          events?.success({'event': 'audio.onDuration', 'value': 192000});
+        }
+        if (call.method == 'getDuration') return 192000;
+        return null;
+      });
+    }
+
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 40 && loaded.isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      }
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+    }
+
+    for (final type in ['audio', 'video']) {
+      testWidgets('an uploaded $type: the recording itself, never narration',
+          (tester) async {
+        playable();
+        final release = Completer<void>();
+        ApiService.instance.httpClientAdapter = _Raw(
+            200, {'signed_url': 'https://x.test/memo.m4a'},
+            gate: release.future);
+        await pump(tester, doc({'type': type}));
+        await tester.pump(const Duration(milliseconds: 10));
+        expect(find.text(recording), findsOneWidget,
+            reason: 'while its URL is out');
+        expect(find.text(narration), findsNothing);
+
+        release.complete();
+        await settle(tester);
+        expect(loaded, ['https://x.test/memo.m4a']);
+        expect(find.text('LISTEN · 3:12'), findsOneWidget);
+        expect(find.textContaining('NARRATION'), findsNothing);
+        expect(find.text(recording), findsOneWidget);
+      });
+    }
+
+    testWidgets('a podcast: the original episode', (tester) async {
+      playable();
+      await pump(tester,
+          doc({'type': 'podcast', 'source_audio_url': 'https://x.test/ep.mp3'}));
+      await settle(tester);
+      expect(find.text('LISTEN · 3:12'), findsOneWidget);
+      expect(find.text(episode), findsOneWidget);
+    });
+
+    testWidgets('a narrated source: narration, read aloud', (tester) async {
+      playable();
+      await pump(tester, doc({'audio_url': 'https://x.test/n.mp3'}));
+      await settle(tester);
+      expect(find.text('LISTEN · 3:12 NARRATION'), findsOneWidget);
+      expect(find.text(narration), findsOneWidget);
+    });
+  });
 }

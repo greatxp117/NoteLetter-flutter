@@ -2946,17 +2946,17 @@ a new obligation on a finished screen is a new item.
 - notes: §6.1 State — Busy (5.72.0, ADR-237): a control whose own request is in flight is held and draws the ring, one view per client (Flutter KitBusyMark, through KitButton's busy:). share_page.dart holds every action on _busy (idle = !_busy && !_done, :267) but passes no busy: to the KitButton.primary at :283 (Add), :307 (Upload photos) and :319 (Upload file), so a press greys the button with no ring. Pass busy: _busy on the pressed one (the page has one action at a time, so it is that one). Done (lane flutter2, 2026-11-11): busy: _busy on all three KitButton.primary (each card has one action, so it is the pressed one); share_page_test drives each card with its request (the link) or its copy out of the sharing app (photos, file; the share channel held by the test) and asserts one KitBusyMark, inside the pressed button, the button held, and none once it answers — red on the old page; the held-shelf case's 'no ring' became 'the ring is Add's'. Not seen on a device (no simulator this wave).
 
 ## F-199 · Listen says whose audio it is: an uploaded recording is 'The recording itself', never narration
-- status: open
+- status: done 2026-11-11
 - screen: reader
 - route: /reader/:docId
 - spec: spec/screens/reader.md §Listen follow-along
 - web: src/pages/reader/ListenPanel.jsx; src/pages/reader/docAudio.js
-- flutter: lib/pages/reader/listen_panel.dart; lib/pages/reader/reading_cost.dart
+- flutter: lib/pages/reader/listen_panel.dart; lib/pages/reader/reading_cost.dart; test/contract/listen_load_test.dart
 - folds: web eca03fc 2026-11-11 (lane web2): ListenPanel keyed its eyebrow and note to source_audio_url
 - device_test: none (a widget test: an audio and a video upload read 'Listen · {d}' and 'The recording itself, at your pace…'; a podcast 'The original episode…'; a narrated source '… narration' / 'Hear the source read aloud…')
 - shots: none
 - extra_gates: none
-- notes: Lane flutter's FOUND 3 (reports/flutter.md): web keyed the eyebrow and note to source_audio_url, which an UPLOADED recording carries as null by design, and F-184 mirrored it — listen_panel.dart:300-302 (_note) and :354 (the eyebrow's ' narration'). Web eca03fc keys both to hasOwnAudio (already imported here, reading_cost.dart): eyebrow 'Listen · {d}' with ' narration' only when the audio is TTS; note: podcast (source_audio_url set) 'The original episode, at your pace. The transcript follows along — tap any line to jump there.'; an uploaded audio/video 'The recording itself, at your pace. The transcript follows along — tap any line to jump there.'; otherwise 'Hear the source read aloud, …'.
+- notes: Lane flutter's FOUND 3 (reports/flutter.md): web keyed the eyebrow and note to source_audio_url, which an UPLOADED recording carries as null by design, and F-184 mirrored it — listen_panel.dart:300-302 (_note) and :354 (the eyebrow's ' narration'). Web eca03fc keys both to hasOwnAudio (already imported here, reading_cost.dart): eyebrow 'Listen · {d}' with ' narration' only when the audio is TTS; note: podcast (source_audio_url set) 'The original episode, at your pace. The transcript follows along — tap any line to jump there.'; an uploaded audio/video 'The recording itself, at your pace. The transcript follows along — tap any line to jump there.'; otherwise 'Hear the source read aloud, …'. Done (lane flutter2, 2026-11-11): _note and the eyebrow key to hasOwnAudio(doc) as web eca03fc does — a podcast 'The original episode…', an uploaded audio/video 'The recording itself…' and 'Listen · {d}', a narrated source 'Listen · {d} narration' / 'Hear the source read aloud…'. listen_load_test 'whose audio it is' (the player faked prepared at 3:12): the upload cases red on the old panel, podcast and narration green on both; the eyebrow alone reverted turns the uploads red again.
 
 ## F-200 · Original's 'The full text, before the recipe' is the full text or says where it is, never the recipe's own chunks
 - status: open
