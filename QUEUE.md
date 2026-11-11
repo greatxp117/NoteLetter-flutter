@@ -2712,7 +2712,7 @@ a new obligation on a finished screen is a new item.
 - notes: A record, not work: lane F4 (2026-11-06) walked every CHANGELOG Flutter tandem from 5.25.0 to 5.80.0 and opened the code for each. These seven are built, but no item folds them (F-135's folds say none; the rest landed in lanes with no item), so folded-through could not pass them truthfully. Evidence, read at a0404c7: 5.32.0 F-135 b61126a, upload_notifier.dart social_video hosts = web api.js; 5.37.1 a41364d, shelf_page.dart _notFound draws KitFailureBlock *This shelf could not be read.*, test/kit/shelf_read_failure_test.dart; 5.63.0 308ad07 chat_page.dart Open wears openSource's book, 9028f52 letter_sections_built_test.dart; 5.63.1 0526ad2 analytics.dart service-{provider}; 5.63.2 66a5ff7 delete_source.dart deleteSourceBody, web's words; 5.68.0 d0e3994/436fb4e kit_d_covers.dart dim 0.94; 5.69.0 a9fc5a3 the Library file drop and the `web` dependency gone. Full table: .claude/cloud/reports/f4.md (umbrella).
 
 ## F-181 · fn_list_cloud_files: its query is built in api.dart, not at four call sites
-- status: open
+- status: done 2026-11-11
 - screen: none
 - route: none
 - spec: spec/api/cloud-storage.md §fn_list_cloud_files
@@ -2722,7 +2722,7 @@ a new obligation on a finished screen is a new item.
 - device_test: none
 - shots: none
 - extra_gates: none
-- notes: `Api.listCloudFiles` (api.dart:714) takes a ready-made `params` map; the keys are assembled at cloud_notifier.dart:583, :604, :756 and sync_folder_picker.dart:121. Web builds them in the builder (api.js:2258-2261). The keys are right today, but CLAUDE.md's rule is that every request is built in api.dart, because that is what api_requests_test asserts: a misspelt key at a call site would pass the suite and the picker would quietly list the provider's root. Move the keys into named parameters; the request suite then reads them.
+- notes: `Api.listCloudFiles` (api.dart:714) takes a ready-made `params` map; the keys are assembled at cloud_notifier.dart:583, :604, :756 and sync_folder_picker.dart:121. Web builds them in the builder (api.js:2258-2261). The keys are right today, but CLAUDE.md's rule is that every request is built in api.dart, because that is what api_requests_test asserts: a misspelt key at a call site would pass the suite and the picker would quietly list the provider's root. Move the keys into named parameters; the request suite then reads them. Done (lane flutter, 2026-11-11): Api.listCloudFiles(provider, {folderId, pageToken}) builds the query, each optional key sent only with a value (web api.js); the four call sites pass parameters, and SyncFolderPicker's list seam takes the builder's signature. api_requests_test drives every captured fn_list_cloud_files case through the builder and asserts its query key for key (the loop skips GETs), plus a page-token case; red until the parameters existed.
 
 ## F-182 · A document status this build does not know stays in progress, never Failed
 - status: done 2026-11-11

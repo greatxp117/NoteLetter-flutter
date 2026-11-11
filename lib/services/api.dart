@@ -725,8 +725,18 @@ class Api {
   Future<Map<String, dynamic>> claimCloudConnection(String claim) =>
       _http.post('/fn_claim_cloud_connection', data: {'claim': claim});
 
-  Future<Map<String, dynamic>> listCloudFiles(Map<String, dynamic> params) =>
-      _http.get('/fn_list_cloud_files', queryParameters: params);
+  /// One page of the provider's file listing (`api/cloud-storage.md`
+  /// §fn_list_cloud_files; web `listCloudFiles`). The query is built HERE
+  /// (F-181), not at the call sites, because this is what the request suite
+  /// reads: [folderId] omitted is the provider's root, and [pageToken] is the
+  /// last page's `nextPageToken`. Each is sent only when it has a value.
+  Future<Map<String, dynamic>> listCloudFiles(String provider,
+          {String? folderId, String? pageToken}) =>
+      _http.get('/fn_list_cloud_files', queryParameters: {
+        'provider': provider,
+        if (folderId != null && folderId.isNotEmpty) 'folderId': folderId,
+        if (pageToken != null && pageToken.isNotEmpty) 'pageToken': pageToken,
+      });
 
   /// What is inside ONE folder, before it is chosen (4.59.0, ADR-096) —
   /// `screens/sources.md` §Folder contents. Called on a row's disclosure,

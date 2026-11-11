@@ -583,9 +583,8 @@ class CloudNotifier extends ChangeNotifier {
     _listing = null;
     _notify();
     try {
-      final params = <String, dynamic>{'provider': provider};
-      if (folderId != 'root') params['folderId'] = folderId;
-      final data = await Api.instance.listCloudFiles(params);
+      final data = await Api.instance.listCloudFiles(provider,
+          folderId: folderId == 'root' ? null : folderId);
       _listing = CloudFileListing.fromJson(data);
     } on ApiException catch (e) {
       _browseError = e.message;
@@ -604,10 +603,9 @@ class CloudNotifier extends ChangeNotifier {
     _loadingMore = true;
     _notify();
     try {
-      final params = <String, dynamic>{'provider': provider, 'pageToken': token};
       final folderId = _crumbs.isNotEmpty ? _crumbs.last.id : 'root';
-      if (folderId != 'root') params['folderId'] = folderId;
-      final data = await Api.instance.listCloudFiles(params);
+      final data = await Api.instance.listCloudFiles(provider,
+          folderId: folderId == 'root' ? null : folderId, pageToken: token);
       final next = CloudFileListing.fromJson(data);
       _listing = CloudFileListing(
         items: [...?_listing?.items, ...next.items],
@@ -756,10 +754,8 @@ class CloudNotifier extends ChangeNotifier {
       String provider,
       {String? pageToken}) async {
     try {
-      final data = await Api.instance.listCloudFiles({
-        'provider': provider,
-        if (pageToken != null) 'pageToken': pageToken,
-      });
+      final data =
+          await Api.instance.listCloudFiles(provider, pageToken: pageToken);
       return (listing: CloudFileListing.fromJson(data), error: null);
     } on UnauthorizedException {
       await AuthService.instance.signOut();

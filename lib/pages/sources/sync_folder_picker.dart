@@ -49,9 +49,10 @@ class SyncFolderPicker extends StatefulWidget {
   final VoidCallback? onFixTypes;
 
   /// The listing request, injectable so the picker is testable without a
-  /// network. Defaults to [Api.listCloudFiles].
-  final Future<Map<String, dynamic>> Function(Map<String, dynamic> params)?
-  list;
+  /// network. Defaults to [Api.listCloudFiles], whose parameters it takes —
+  /// the query is the builder's (F-181), never assembled here.
+  final Future<Map<String, dynamic>> Function(String provider,
+      {String? folderId, String? pageToken})? list;
 
   /// The scan behind each row's disclosure, injectable for the same reason.
   final Future<Map<String, dynamic>> Function(String folderId)? scan;
@@ -117,13 +118,10 @@ class _SyncFolderPickerState extends State<SyncFolderPicker> {
         _pageToken = null;
       }
     });
-    final params = <String, dynamic>{'provider': widget.provider};
-    if (_folderId != null) params['folderId'] = _folderId;
-    if (token != null) params['pageToken'] = token;
+    final list = widget.list ?? Api.instance.listCloudFiles;
     try {
       final data =
-          await (widget.list?.call(params) ??
-              Api.instance.listCloudFiles(params));
+          await list(widget.provider, folderId: _folderId, pageToken: token);
       if (!mounted || seq != _seq) return;
       final page = CloudFileListing.fromJson(data);
       setState(() {

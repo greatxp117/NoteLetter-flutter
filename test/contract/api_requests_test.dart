@@ -195,8 +195,10 @@ final Map<String, Future<dynamic> Function(Map<String, dynamic> b)> adapters = {
   // these three sat in `_noBuilder` describing screens this client has had for
   // versions. Naming the builder is what takes them out of the debt list.
   'fn_get_cloud_integrations': (_) => Api.instance.getCloudIntegrations(),
-  'fn_list_cloud_files': (b) =>
-      Api.instance.listCloudFiles(Map<String, dynamic>.of(b)),
+  'fn_list_cloud_files': (b) => Api.instance.listCloudFiles(
+      b['provider'] as String? ?? '',
+      folderId: b['folderId'] as String?,
+      pageToken: b['pageToken'] as String?),
   // The per-folder disclosure (4.59.0, ADR-096) — QUEUE F-23.
   'fn_scan_cloud_folder': (b) => Api.instance.scanCloudFolder(
       b['provider'] as String? ?? '',
@@ -701,6 +703,55 @@ void main() {
       });
     });
   }
+
+  // F-181 · A READ's query is built here too. The loop above skips every GET
+  // as "a read, not a builder call", so a query assembled at a call site was
+  // invisible to this suite: a misspelt `folderId` would pass and the picker
+  // would quietly list the provider's root. fn_list_cloud_files is the one
+  // read whose keys vary (web api.js `listCloudFiles`: provider, then
+  // folderId and pageToken only when given), so its builder takes them as
+  // named parameters and every captured case drives it, its query asserted
+  // key for key.
+  group('fn_list_cloud_files — the query is the builder\'s', () {
+    final cases = [
+      for (final c in (loadSuite('api/cloud-storage')?['cases'] as List? ?? []))
+        if ((c['request'] as Map)['endpoint'] == 'fn_list_cloud_files') c,
+    ];
+    test('the fixtures have cases to drive', () => expect(cases, isNotEmpty));
+    for (final c in cases) {
+      test(c['id'], () async {
+        final q = ((c['request'] as Map)['query'] as Map).cast<String, dynamic>();
+        final resp = (c['response'] as Map).cast<String, dynamic>();
+        capture
+          ..lastOptions = null
+          ..status = resp['status'] as int
+          ..responseBody = _feedable(resp['body']);
+        try {
+          await Api.instance.listCloudFiles(q['provider'] as String,
+              folderId: q['folderId'] as String?,
+              pageToken: q['pageToken'] as String?);
+        } on ApiException {
+          // A refusal's query is the same query; the loop owns the envelope.
+        }
+        expect(capture.lastOptions!.method, 'GET');
+        expect(capture.lastOptions!.uri.path, endsWith('/fn_list_cloud_files'));
+        expect(capture.lastOptions!.queryParameters, q);
+      });
+    }
+    test('a page token travels with its folder; absent keys are not sent',
+        () async {
+      capture
+        ..status = 200
+        ..responseBody = {'items': <Object>[]};
+      await Api.instance
+          .listCloudFiles('google_drive', folderId: 'f-1', pageToken: 'p-2');
+      expect(capture.lastOptions!.queryParameters,
+          {'provider': 'google_drive', 'folderId': 'f-1', 'pageToken': 'p-2'});
+      await Api.instance.listCloudFiles('google_drive', folderId: '', pageToken: '');
+      expect(capture.lastOptions!.queryParameters, {'provider': 'google_drive'},
+          reason: 'web sets a key only when it has a value');
+    });
+  });
 
   // The direction the list cannot supply about itself: an entry that has
   // stopped being true. When this client grows a builder, the fixtures start
