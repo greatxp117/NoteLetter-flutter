@@ -284,14 +284,19 @@ class _KitWrapSwitchState<T> extends State<KitWrapSwitch<T>> {
     }
   }
 
-  /// Each option's max-content width: its label (and glyph) and its padding.
+  /// Each option's max-content width: its label (and glyph) and its padding,
+  /// measured as it is DRAWN — the ambient style merged with the option's
+  /// own, since the theme's body style carries Material's 0.25 tracking and a
+  /// bare style leaves it out (a label at its natural width lost its last
+  /// letters; row_width_rounding_test).
   List<double> _natural(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
+    final base = DefaultTextStyle.of(context).style;
     return [
       for (final o in widget.options)
         () {
           final tp = TextPainter(
-            text: TextSpan(text: o.label, style: _style()),
+            text: TextSpan(text: o.label, style: base.merge(_style())),
             textDirection: TextDirection.ltr,
             textScaler: scaler,
             maxLines: 1,

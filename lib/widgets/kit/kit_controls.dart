@@ -1714,18 +1714,25 @@ class _SegMultiD extends StatelessWidget {
             ],
           ]);
         }
+        // Each segment's natural width, measured as it is DRAWN: the label in
+        // the ambient style merged with its own (the theme's body style
+        // carries Material's 0.25 tracking, which a bare style leaves out),
+        // and a busy segment's mark and its gap beside it (§6.1). Measured
+        // short, a label at its natural width lost its last letters (F-112's
+        // class; row_width_rounding_test).
+        final base = DefaultTextStyle.of(context).style;
         final natural = [
           for (final s in segments)
             () {
               final tp = TextPainter(
-                text: TextSpan(text: s.label, style: _style()),
+                text: TextSpan(text: s.label, style: base.merge(_style())),
                 textDirection: TextDirection.ltr,
                 textScaler: scaler,
                 maxLines: 1,
               )..layout();
               final w = tp.width;
               tp.dispose();
-              return (w + 2 * _padX).ceilToDouble();
+              return (w + (s.busy ? 12 + 6 : 0) + 2 * _padX).ceilToDouble();
             }(),
         ];
         final avail = c.maxWidth;
@@ -1972,8 +1979,15 @@ double _segNaturalWidth(KitSegment s, TextStyle base, TextScaler scaler) {
     textScaler: scaler,
     maxLines: 1,
   )..layout();
-  final icon = s.icon != null ? 14 + 7 : 0;
-  return (tp.width + icon + 2 * _segPadX).ceilToDouble();
+  // What sits beside the label: a busy segment's mark (it replaces the icon,
+  // §6.1), else the icon. A busy mark left out of the measure cut the label
+  // of the segment whose write was in flight (row_width_rounding_test).
+  final lead = s.busy
+      ? 13 + 7
+      : s.icon != null
+          ? 14 + 7
+          : 0;
+  return (tp.width + lead + 2 * _segPadX).ceilToDouble();
 }
 
 /// `.seg { flex-wrap: wrap; gap: 2px }` over `button { flex: 1 }`: segments
