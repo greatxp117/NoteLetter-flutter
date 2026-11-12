@@ -28,6 +28,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
+import '../../shared/trim_text.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/tokens.dart';
@@ -133,8 +134,8 @@ class _SplitShelfSheetState extends State<SplitShelfSheet> {
         for (final p in kept)
           {
             'index': p.index,
-            'title': p.title.text.trim(),
-            'description': p.description.text.trim(),
+            'title': trimText(p.title.text),
+            'description': trimText(p.description.text),
           }
       ]);
       // That a shelf was split, and nothing about into what: every part carries

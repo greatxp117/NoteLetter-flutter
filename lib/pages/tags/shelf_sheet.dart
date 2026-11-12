@@ -13,6 +13,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../models/tag.dart';
+import '../../shared/trim_text.dart';
 import '../../services/analytics.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
@@ -310,7 +311,7 @@ class ShelfFormFields extends StatefulWidget {
 
 class _ShelfFormFieldsState extends State<ShelfFormFields> {
   late final _name = TextEditingController(
-      text: widget.initialName.trim().characters.take(shelfTitleMax).toString());
+      text: trimText(widget.initialName).characters.take(shelfTitleMax).toString());
   final _desc = TextEditingController();
   late String _color = AppColors.shelfColorLabels.containsKey(widget.parent?.color)
       ? widget.parent!.color!
@@ -330,7 +331,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
   }
 
   Future<void> _submit() async {
-    final title = _name.text.trim();
+    final title = trimText(_name.text);
     if (title.isEmpty || _busy) return;
     setState(() {
       _busy = true;
@@ -339,7 +340,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
     widget.onBusy(true);
     try {
       final res = await _create(title,
-          description: _desc.text.trim(),
+          description: trimText(_desc.text),
           color: _color,
           parentTagId: _inside.isEmpty ? null : _inside);
       if (!mounted) return;
@@ -364,7 +365,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
   }
 
   Future<void> _createParent(String name) async {
-    final title = name.trim();
+    final title = trimText(name);
     if (title.isEmpty || _busy) return;
     setState(() {
       _busy = true;
@@ -476,7 +477,7 @@ class _ShelfFormFieldsState extends State<ShelfFormFields> {
             KitButton.primary(
               _busy ? 'Creating…' : widget.submitLabel,
               busy: _busy,
-              onPressed: _name.text.trim().isEmpty || _busy ? null : _submit,
+              onPressed: trimText(_name.text).isEmpty || _busy ? null : _submit,
             ),
             if (widget.onCancel != null)
               KitButton.ghost('Cancel',

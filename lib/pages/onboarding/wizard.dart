@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
+import '../../shared/trim_text.dart';
 import '../../shared/local_flags.dart';
 import '../../state/ai_settings_notifier.dart';
 import '../../state/documents_notifier.dart';
@@ -267,7 +268,7 @@ class _OnboardingWizardState extends State<OnboardingWizard> {
       deliveryTime: _time.text.trim(),
       itemsPerNewsletter: _count,
       timezone: deviceTimezone(),
-      purposeText: _prompt.text.trim(),
+      purposeText: trimText(_prompt.text),
     );
 
     // A SECOND call, to a document with its own closed key set (ADR-029) —

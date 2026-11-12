@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/document.dart';
+import '../../shared/trim_text.dart';
 import '../../models/tag.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
@@ -121,7 +122,7 @@ class _ShelfPageState extends State<ShelfPage> {
   /// saying it could not be saved — the sentence and the field disagreeing,
   /// with the field the one a reader believes.
   Future<void> _saveName(Tag shelf) async {
-    final next = _name.text.trim();
+    final next = trimText(_name.text);
     if (next.isEmpty || next == _savedName) return;
     final err = await context.read<TagsNotifier>().updateTag(
       shelf.id,

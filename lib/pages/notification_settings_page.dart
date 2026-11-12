@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/notification_channel.dart';
+import '../shared/trim_text.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
@@ -173,7 +174,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       setState(() => _error = 'Pick at least one level.');
       return;
     }
-    if (_type == 'email' && !_emailRe.hasMatch(_destCtrl.text.trim())) {
+    if (_type == 'email' && !_emailRe.hasMatch(trimText(_destCtrl.text))) {
       setState(
         () => _error = 'Enter a valid email address for an email channel.',
       );
@@ -189,8 +190,10 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       await Api.instance.createNotificationChannel(
         type: _type,
         levels: _levelsDraft.toList(),
-        label: _labelCtrl.text.trim().isEmpty ? null : _labelCtrl.text.trim(),
-        destination: _type == 'email' ? _destCtrl.text.trim() : null,
+        label: trimText(_labelCtrl.text).isEmpty
+            ? null
+            : trimText(_labelCtrl.text),
+        destination: _type == 'email' ? trimText(_destCtrl.text) : null,
       );
       _destCtrl.clear();
       _labelCtrl.clear();

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/newsletter_settings.dart';
+import '../shared/trim_text.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -143,7 +144,8 @@ class SettingsNotifier extends ChangeNotifier {
       // 2.29.0 — sent in the SAME call as `deliveryTime`, always.
       'timezone': timezone,
       if (email != null && email.isNotEmpty) 'emailAddress': email,
-      if (purposeText.trim().isNotEmpty) 'purposeText': purposeText.trim(),
+      if (trimText(purposeText).isNotEmpty)
+        'purposeText': trimText(purposeText),
     });
   }
 

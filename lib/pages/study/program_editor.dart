@@ -28,6 +28,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../models/document.dart';
+import '../../shared/trim_text.dart';
 import '../../models/study.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
@@ -62,8 +63,8 @@ bool studyThisOffered(Document d) =>
 /// The name *Study this* fills in: the source's title, trimmed, cut to the
 /// endpoint's 120-character bound on `title` (web `seedTitle`).
 String studySeedTitle(Document d) {
-  final t = d.title.trim();
-  return (t.length > 120 ? t.substring(0, 120) : t).trim();
+  final t = trimText(d.title);
+  return trimText(t.length > 120 ? t.substring(0, 120) : t);
 }
 
 /// The editor's standfirst when *Study this* opened it (the August design's).
@@ -204,12 +205,12 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
     // deliveryTime and timezone travel in the same call — the 2.29.0 rule:
     // a time with no zone is read as UTC.
     final body = <String, dynamic>{
-      'title': _title.text.trim(),
+      'title': trimText(_title.text),
       'deliveryTime': _time.text.trim(),
       'timezone': _timezone,
       'frequency': _frequency,
       'emailEnabled': _emailOn,
-      'emailAddress': _email.text.trim(),
+      'emailAddress': trimText(_email.text),
       'newPerSession': _newPer,
       'maxReviewsPerSession': _maxReviews,
     };
@@ -279,13 +280,13 @@ class _ProgramEditorPageState extends State<ProgramEditorPage> {
     final existing = !_isNew;
     final p = _program;
     final canSave =
-        !_busy && _title.text.trim().isNotEmpty && (existing || _ids.isNotEmpty);
+        !_busy && trimText(_title.text).isNotEmpty && (existing || _ids.isNotEmpty);
     // Direction D (`screens/study.md` §Composition — the program editor; web
     // `ProgramEditor` in place): the form in the column; what the program
     // will be, in figures, on the sheet *This program*, with Delete program
     // as its Also — the form's foot no longer carries it.
     final docsN = existing ? (p?.documentIds.length ?? 0) : _ids.length;
-    final name = _title.text.trim();
+    final name = trimText(_title.text);
     final title = name.isEmpty ? 'Untitled program' : name;
     return KitDPage(
       // Opened by *Study this*, the crumb names the source it returns to (one

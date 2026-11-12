@@ -16,6 +16,7 @@
 /// here is cosmetic, never behavioural.
 library;
 
+import '../../shared/trim_text.dart';
 const String defaultSummaryPrompt =
     'a substantive free-form summary in flowing prose, typically 5-10 sentences; '
     "structure it around the document's own content rather than a fixed template: "
@@ -30,7 +31,7 @@ const int summaryPromptMaxChars = 2000;
 /// prompt" state (the empty string is a 400); resetting to the default is its
 /// own control and sends `summaryPrompt: null`.
 String? sendablePrompt(String? draft) {
-  final text = (draft ?? '').trim();
+  final text = trimText(draft ?? '');
   if (text.isEmpty || text.length > summaryPromptMaxChars) return null;
   return text;
 }
@@ -104,7 +105,7 @@ String? composePrompt(Map<String, String> choices) {
 /// text itself reads as all-defaults, so a prompt saved verbatim from the
 /// 4.3.0 textarea round-trips into the toggles.
 Map<String, String>? parsePrompt(String? text) {
-  final t = (text ?? '').trim();
+  final t = trimText(text ?? '');
   if (t.isEmpty) return {...defaultChoices};
   if (t == defaultSummaryPrompt) return {...defaultChoices};
 

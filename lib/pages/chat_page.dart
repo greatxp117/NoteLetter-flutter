@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 import '../models/ask_thread.dart';
+import '../shared/trim_text.dart';
 import '../shared/source_host.dart';
 import '../state/tags_notifier.dart';
 import '../state/chat_notifier.dart';
@@ -116,7 +117,7 @@ class _ChatPageState extends State<ChatPage> {
     // (ADR-097). It is not lost: a refusal leaves the turn on screen with the
     // server's sentence and a retry, and a question returned to the composer
     // would be the screen saying it had never been asked.
-    final question = _controller.text.trim();
+    final question = trimText(_controller.text);
     if (question.isEmpty || notifier.sending) return;
     _controller.clear();
     // The turn is on screen from the moment it is sent; bring it into view

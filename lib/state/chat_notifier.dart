@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/ask_thread.dart';
+import '../shared/trim_text.dart';
 import 'sent_turn.dart';
 import '../shared/local_flags.dart';
 import '../services/api.dart';
@@ -255,7 +256,7 @@ class ChatNotifier extends ChangeNotifier {
   /// landed, and it would revert on the next reload with nothing to say why.
   Future<void> renameThread(String id, String title) async {
     if (_entryBusyId != null) return;
-    final next = title.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final next = trimText(title).replaceAll(RegExp(r'\s+'), ' ');
     final current = _threads.where((t) => t.id == id).firstOrNull?.title ?? '';
     if (next.isEmpty || next == current) {
       cancelRename();
@@ -342,7 +343,7 @@ class ChatNotifier extends ChangeNotifier {
   /// a URL naming a thread the server has not recorded is the rail pointing at
   /// nothing.
   Future<String?> ask(String text) async {
-    final question = text.trim();
+    final question = trimText(text);
     if (question.isEmpty || searching) return null;
 
     // How many copies of this question the thread ALREADY holds, counted

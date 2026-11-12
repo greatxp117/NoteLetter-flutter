@@ -17,6 +17,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../services/analytics.dart';
+import '../../shared/trim_text.dart';
 import '../../services/api.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
@@ -108,7 +109,7 @@ class ShelfSuggestions extends ChangeNotifier {
   }
 
   Future<void> ask() async {
-    final purpose = field.text.trim();
+    final purpose = trimText(field.text);
     if (purpose.isEmpty || phase == SuggestPhase.reading) return;
     phase = SuggestPhase.reading;
     askError = null;
@@ -118,9 +119,11 @@ class ShelfSuggestions extends ChangeNotifier {
       final res = await _suggest(purpose);
       final list = <ShelfProposal>[
         for (final t in (res['tags'] as List? ?? const []))
-          if (t is Map && t['title'] is String && (t['title'] as String).trim().isNotEmpty)
-            ShelfProposal((t['title'] as String).trim(),
-                ((t['description'] as String?) ?? '').trim(), t['color']),
+          if (t is Map &&
+              t['title'] is String &&
+              trimText(t['title'] as String).isNotEmpty)
+            ShelfProposal(trimText(t['title'] as String),
+                trimText((t['description'] as String?) ?? ''), t['color']),
       ];
       tags = list;
       existing = [
@@ -221,7 +224,7 @@ class SuggestAsk extends StatelessWidget {
         Wrap(spacing: 8, runSpacing: 8, children: [
           KitButton.primary(busy ? 'Suggesting…' : 'Suggest shelves',
               busy: busy,
-              onPressed: s.field.text.trim().isEmpty || busy ? null : s.ask),
+              onPressed: trimText(s.field.text).isEmpty || busy ? null : s.ask),
           ...actions,
         ]),
       ],

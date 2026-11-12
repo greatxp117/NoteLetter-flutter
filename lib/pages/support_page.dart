@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/support.dart';
+import '../shared/trim_text.dart';
 import '../shared/cooldown.dart';
 import '../state/support_notifier.dart';
 import '../widgets/kit/kit.dart';
@@ -197,7 +198,7 @@ class _SupportPageState extends State<SupportPage> {
           waitNote: wait.sentence,
           waitLeft: wait.left,
           maxLength: 4000,
-          onSend: _controller.text.trim().isEmpty ? null : _send,
+          onSend: trimText(_controller.text).isEmpty ? null : _send,
         ),
       ),
       child: _thread(support, messages),

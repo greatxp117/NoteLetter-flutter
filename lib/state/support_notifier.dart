@@ -6,6 +6,7 @@ import '../models/support.dart';
 import '../services/api.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
+import '../shared/trim_text.dart';
 import '../services/error_text.dart';
 
 /// The support conversation (4.18.0, ADR-054; `spec/screens/support.md`).
@@ -106,7 +107,7 @@ class SupportNotifier extends ChangeNotifier {
   /// `false` with [error] set, and the caller keeps the user's text. Clearing
   /// optimistically loses a bug report on the exact path where it matters most.
   Future<bool> send(String body, {String? route}) async {
-    final text = body.trim();
+    final text = trimText(body);
     if (text.isEmpty || _sending) return false;
     _sending = true;
     _error = null;

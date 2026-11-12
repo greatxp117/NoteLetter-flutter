@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/newsletter.dart';
+import '../shared/trim_text.dart';
 import '../models/newsletter_settings.dart';
 import '../models/scripture_newsletter_settings.dart';
 import '../models/tag.dart';
@@ -267,7 +268,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
   }
 
   Future<void> _save() async {
-    final email = _emailCtrl.text.trim();
+    final email = trimText(_emailCtrl.text);
     if (email.isNotEmpty && !RegExp(_emailRe).hasMatch(email)) {
       setState(() => _saveError = 'That does not look like an email address.');
       return;
@@ -280,7 +281,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     // `enabled` is deliberately NOT sent here — the switch above owns it.
     final shelves = context.read<TagsNotifier>().tags;
     final settings = context.read<SettingsNotifier>();
-    final purpose = _purposeCtrl.text.trim();
+    final purpose = trimText(_purposeCtrl.text);
     final purposeChanged = purpose != _purposeRead;
     final error = await settings.saveLetterSettings(
       // Titles, not ids: they bias scoring by topic rather than scoping.
@@ -368,7 +369,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
     final stored = rl.settings;
     if (stored != null && !_rlPopulated) _populateReadings(stored);
 
-    final email = _emailCtrl.text.trim();
+    final email = trimText(_emailCtrl.text);
     final accountEmail = widget.accountEmail();
     final sending = context.watch<NewsletterNotifier>().isSending;
 
@@ -883,7 +884,7 @@ class _LetterSettingsPageState extends State<LetterSettingsPage> {
                             'emailAddress',
                             () => rl.save(
                               cfg.copyWith(
-                                emailAddress: _rlEmailCtrl.text.trim(),
+                                emailAddress: trimText(_rlEmailCtrl.text),
                               ),
                             ),
                           ),

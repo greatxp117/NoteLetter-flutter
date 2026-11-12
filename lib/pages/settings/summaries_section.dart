@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import '../../services/api.dart';
+import '../../shared/trim_text.dart';
 import '../../services/api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/kit/kit.dart';
@@ -288,7 +289,7 @@ class _SummariesSectionState extends State<SummariesSection> {
       _textCtrl.text = effectiveText;
     }
     final shownText = _draftText ?? effectiveText;
-    final textDirty = _draftText != null && _draftText!.trim() != effectiveText;
+    final textDirty = _draftText != null && trimText(_draftText!) != effectiveText;
     final sendable = sendablePrompt(shownText);
 
     return Column(
@@ -347,7 +348,7 @@ class _SummariesSectionState extends State<SummariesSection> {
                 // Adopt matching positions when the text is (or reverts to) a
                 // composed shape; otherwise start from the stored positions or
                 // the defaults. Nothing is written by switching modes.
-                final parsed = parsePrompt(shownText.trim());
+                final parsed = parsePrompt(trimText(shownText));
                 setState(() {
                   _draftChoices = parsed ?? storedChoices ?? defaultChoices;
                   _draftText = null;
