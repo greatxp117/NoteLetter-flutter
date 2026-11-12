@@ -5,6 +5,7 @@
 library;
 
 import '../../models/background_task.dart';
+import '../../shared/backfill_sentence.dart';
 import '../../widgets/kit/kit.dart' show KitProcTone;
 
 String _counted(int n, String one, [String? many]) =>
@@ -91,8 +92,8 @@ String? proposalLine(BackgroundTask t) {
   int n(String k) => (r[k] as num?)?.toInt() ?? 0;
   switch (t.kind) {
     case 'shelf_backfill':
-      return '${list('candidates').length} of your '
-          '${_counted(n('scanned'), 'source')} look like they belong on $shelf.';
+      // Counts what the model read, not every eligible source (5.92.0).
+      return backfillSentence(list('candidates').length, r, shelf);
     case 'shelf_split':
       return '$shelf could become '
           '${_counted(list('parts').length, 'shelf', 'shelves')}.';

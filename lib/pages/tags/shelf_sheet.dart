@@ -13,6 +13,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../models/tag.dart';
+import '../../shared/backfill_sentence.dart';
 import '../../shared/trim_text.dart';
 import '../../services/analytics.dart';
 import '../../services/api.dart';
@@ -537,7 +538,11 @@ class ShelfBackfillReview extends StatefulWidget {
 }
 
 class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
-  int _scanned = 0;
+  static String _sources(int k) => k == 1 ? 'source' : 'sources';
+
+  /// What the model read of what was eligible (5.92.0, F-204).
+  ({int scanned, int asked, int rest}) _counts =
+      (scanned: 0, asked: 0, rest: 0);
   List<Map<String, dynamic>> _candidates = const [];
   final Set<String> _kept = {};
   bool _applying = false;
@@ -557,7 +562,7 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
       for (final c in (res['candidates'] as List?) ?? const [])
         (c as Map).cast<String, dynamic>(),
     ];
-    _scanned = (res['scanned'] as num?)?.toInt() ?? 0;
+    _counts = backfillCounts(res);
     _candidates = candidates;
     _kept
       ..clear()
@@ -638,12 +643,26 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text.rich(
-            TextSpan(children: [
-              const TextSpan(
-                  text: 'Nothing in your library looks like it belongs on '),
-              TextSpan(text: widget.title, style: em),
-              const TextSpan(text: ' yet.'),
-            ]),
+            TextSpan(
+              children: _counts.rest > 0
+                  ? [
+                      const TextSpan(text: 'Nothing among the '),
+                      TextSpan(text: '${_counts.asked}', style: em),
+                      TextSpan(text: ' ${_sources(_counts.asked)} most like '),
+                      TextSpan(text: widget.title, style: em),
+                      TextSpan(
+                        text: ' looks like it belongs on it yet; '
+                            '${uncheckedTail(_counts.rest)}',
+                      ),
+                    ]
+                  : [
+                      const TextSpan(
+                          text: 'Nothing in your library looks like it '
+                              'belongs on '),
+                      TextSpan(text: widget.title, style: em),
+                      const TextSpan(text: ' yet.'),
+                    ],
+            ),
             style: lede,
           ),
           const SizedBox(height: 8),
@@ -661,14 +680,33 @@ class _ShelfBackfillReviewState extends State<ShelfBackfillReview> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text.rich(
-          TextSpan(children: [
-            TextSpan(text: '${_candidates.length}', style: em),
-            const TextSpan(text: ' of your '),
-            TextSpan(text: '$_scanned', style: em),
-            const TextSpan(text: ' sources look like they belong on '),
-            TextSpan(text: widget.title, style: em),
-            const TextSpan(text: '.'),
-          ]),
+          // What the model READ, not every eligible source (5.92.0, ADR-117
+          // addendum 1; web ShelfForm's bf-lede).
+          TextSpan(
+            children: _counts.rest > 0
+                ? [
+                    TextSpan(text: '${_candidates.length}', style: em),
+                    const TextSpan(text: ' of the '),
+                    TextSpan(text: '${_counts.asked}', style: em),
+                    TextSpan(text: ' ${_sources(_counts.asked)} most like '),
+                    TextSpan(text: widget.title, style: em),
+                    TextSpan(
+                      text: ' look like they belong on it; '
+                          '${uncheckedTail(_counts.rest)}',
+                    ),
+                  ]
+                : [
+                    TextSpan(text: '${_candidates.length}', style: em),
+                    const TextSpan(text: ' of your '),
+                    TextSpan(text: '${_counts.scanned}', style: em),
+                    TextSpan(
+                      text: ' ${_sources(_counts.scanned)} look like they '
+                          'belong on ',
+                    ),
+                    TextSpan(text: widget.title, style: em),
+                    const TextSpan(text: '.'),
+                  ],
+          ),
           style: lede,
         ),
         const SizedBox(height: 14), // `.bf-review` gap
