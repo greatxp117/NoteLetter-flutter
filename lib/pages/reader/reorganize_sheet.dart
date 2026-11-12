@@ -263,13 +263,22 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
 
   Widget _liveView(ReaderUi ui) {
     final status = _live?['status'];
+    final failed = status == 'failed';
     final msg = status == 'executing'
         ? 'Reorganizing… sections are being routed to their destinations.'
         // "New documents are in your library" was a claim about every
         // operation; each one's own outcome is listed below instead.
         : status == 'done'
             ? 'Done. A snapshot of the original was kept.'
-            : 'Failed: ${_live?['error'] ?? 'unknown error'}. Nothing below the snapshot point was lost.';
+            : 'Nothing below the snapshot point was lost.';
+    // A failed plan's sentence is the worker's, verbatim, as §14's failure
+    // line under the note (web ReorganizeSheet). It was spliced into
+    // "Failed: {error}. Nothing below…", and the worker's sentence ends in
+    // its own full stop (lane organizer's FOUND 6).
+    final error = _live?['error'];
+    final failure = error is String && error.isNotEmpty
+        ? error
+        : 'The reorganization did not complete.';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 18),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -277,6 +286,11 @@ class _ReorganizeSheetState extends State<ReorganizeSheet> {
         // last saw: the progress sentence would be a claim this sheet can no
         // longer back. The failure above it is the only thing it still knows.
         if (_error == null) ui.note(msg),
+        if (_error == null && failed)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: KitFailureInline(failure),
+          ),
         // Per operation, what LANDED (4.92.0, ADR-126 §6/§10):
         // `executed_operations` is written in the batch that performs each
         // one and kept on failure, and `created_without_artifact` says a

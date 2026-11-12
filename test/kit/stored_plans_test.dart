@@ -14,8 +14,23 @@ import 'package:flutter_app/pages/study/syllabus_plan_editor.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/services/firestore_service.dart';
 import 'package:flutter_app/theme/app_theme.dart';
+import 'package:flutter_app/widgets/kit/kit.dart' show KitFailureInline;
 
 import '../contract/sources_harness.dart' show SourcesStubService;
+
+/// The plan's record as the sheet's subscription last delivered it.
+class _PlanFailed extends SourcesStubService {
+  _PlanFailed(this.error);
+  final String? error;
+
+  @override
+  Stream<Map<String, dynamic>?> subscribeReorgPlan(String planId) =>
+      Stream.value({
+        'plan_id': planId,
+        'status': 'failed',
+        'error': ?error,
+      });
+}
 
 const _proposal = {
   'units': [
@@ -105,6 +120,59 @@ void main() {
         },
       ],
     };
+
+    // Lane organizer's FOUND 6 (2026-11-11): the failed-plan line read
+    // "Failed: {error}. Nothing below…", and the worker's error is a sentence
+    // that ends in its own full stop — "…not saved.. Nothing below". Web
+    // (ReorganizeSheet.jsx) says the note, then the worker's sentence as §14's
+    // failure line, verbatim, or "The reorganization did not complete."
+    for (final (error, line) in [
+      (
+        'The file “Kitchen.md” was written, but its document was not saved.',
+        'The file “Kitchen.md” was written, but its document was not saved.',
+      ),
+      (null, 'The reorganization did not complete.'),
+    ]) {
+      testWidgets('a failed plan: the note, then the worker\'s sentence as its '
+          'failure line (${error == null ? 'none' : 'a sentence'})',
+          (tester) async {
+        FirestoreService.instance = _PlanFailed(error);
+        addTearDown(FirestoreService.resetInstance);
+        tester.view.physicalSize = const Size(1000, 1400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        late BuildContext host;
+        await tester.pumpWidget(MaterialApp(
+          theme: AppTheme.light,
+          home: Builder(builder: (c) {
+            host = c;
+            return const Scaffold();
+          }),
+        ));
+        ReorganizeSheet.show(host, 'd1', () {},
+            stored: StoredReorg(
+              result:
+                  (jsonDecode(jsonEncode(plan)) as Map).cast<String, dynamic>(),
+              apply: (ops) async => {
+                'plan': {'plan_id': 'p1', 'status': 'executing'},
+              },
+              rerun: () async {},
+            ));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Reorganize 1 section'));
+        await tester.pumpAndSettle();
+        if (find.text('Yes, reorganize').evaluate().isNotEmpty) {
+          await tester.tap(find.text('Yes, reorganize'));
+          await tester.pumpAndSettle();
+        }
+        expect(find.text('Nothing below the snapshot point was lost.'),
+            findsOneWidget);
+        expect(find.widgetWithText(KitFailureInline, line), findsOneWidget);
+        expect(find.textContaining('..'), findsNothing,
+            reason: 'no sentence ends in two full stops');
+        expect(find.textContaining('Failed:'), findsNothing);
+      });
+    }
 
     testWidgets('a 409 STALE offers Run again, which retries and closes',
         (tester) async {
