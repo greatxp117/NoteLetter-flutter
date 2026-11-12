@@ -3013,13 +3013,13 @@ a new obligation on a finished screen is a new item.
 - notes: Built (lane web3, 2026-11-11), left OPEN for its device run only. Web serves /.well-known/apple-app-site-association (application/json; hosting.appAssociation NONE, since AUTO served a generated file claiming nothing) with appIDs 3SA8A2JP3T.xp.NoteLetter.Flutter and components exactly /reader/* — every letter link lands there (/reader/{id}?p={chunk}, INV-21; the arrived-since list without ?p=); sign-in's handler, the OAuth callback and the landing stay in the browser. release-config-check refuses a dist without the file or claiming more. Runner.entitlements declares com.apple.developer.associated-domains = [applinks:noteletter.com]; deep linking is Flutter's default (no FlutterDeepLinkingEnabled in Info.plist), so the link reaches GoRouter's /reader/:docId, which reads ?p=. letter_link_test ties the entitlement, web's file, the pbxproj team/bundle, the router and the backend's link format (red without the entitlement). Not done: Android — assetlinks.json needs the release-signing SHA-256 and the repo holds no key (release signs with the debug config), so no autoVerify intent filter either: an unverified filter shows a chooser below Android 12 and does nothing above it. XAVIER: enable Associated Domains on the App ID (automatic signing may do it on the next build; a manual profile must be regenerated, or signing fails on the new entitlement), then the device run.
 
 ## F-203 · Google Drive reads only the files you pick: a picked Drive draws no folder path, Add files opens Google's picker, the connect page answers a picker consent by its import (ADR-275, INV-44)
-- status: open
+- status: blocked: built (lane drive, tests 19/19); device run + the three pairs owed — no simulator this wave
 - screen: service-drive-picked
 - route: /sources/google_drive
-- spec: spec/invariants.md §INV-44; spec/screens/sources.md §A service's page (A picked Google Drive) and §The OAuth return (A Google Drive picker consent); spec/screens/settings.md §Sources section; spec/api/cloud-storage.md §Google Drive access
+- spec: spec/decisions/ADR-275-google-drive-reads-only-the-files-you-pick.md; spec/invariants.md §INV-44; spec/screens/sources.md §A service's page (A picked Google Drive) and §The OAuth return (A Google Drive picker consent); spec/screens/settings.md §Sources section; spec/api/cloud-storage.md §Google Drive access
 - web: src/pages/ServicePage.jsx; src/pages/sources/CloudImportPanel.jsx; src/pages/sources/OAuthReturn.jsx; src/pages/ConnectReturn.jsx; src/pages/SettingsView.jsx
 - flutter: lib/pages/sources/service_page.dart; lib/pages/sources/oauth_return.dart; lib/pages/settings/sources_section.dart
-- folds: ADR-275 (lane drive, 2026-11-11)
+- folds: 5.93.0 (ADR-275, lane drive, 2026-11-11)
 - device_test: a picked Drive's page (config/drive picked in the emulator): three sections, Add files opens the connect flow; a parked picker claim with the plan full lands on Not Brought In with the server's sentence; one with picked_files 0 lands on Nothing Picked
 - shots: service-drive-picked; oauth-picked-refused; oauth-picked-empty
 - extra_gates: none
