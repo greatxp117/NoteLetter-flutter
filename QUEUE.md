@@ -3076,3 +3076,16 @@ a new obligation on a finished screen is a new item.
 - shots: none
 - extra_gates: none
 - notes: Lane design's FOUND, ported from web 0839609. Four Flutter sentences say folders/files for every provider: oauth_return.dart:1050 _leave() ('Queued $f folder(s) and $x file(s) from {name}.' — the page already has notion ? 'database(s)' : 'folder(s)' at :184-185), cloud_imports.dart:167 cloudQueuedNotice (service_page.dart:451), cloud_notifier.dart:731 the kickoff ('Queued {f} folder(s) and {n} file(s).'), and cloud_notifier.dart:915 Sync now ('Checking $f folder(s)…'). On Notion they say database(s) and page(s): web's words are 'Queued 1 database and 60 pages from Notion.' and 'Checking 2 databases in Notion…' (singular at one, kitCounted). Google Drive, OneDrive and Dropbox are unchanged.
+
+## F-209 · The seed carries device-run-long-doc and a shared-slide carousel (5.95.2): retire tool/seed_long_doc.py; a cold open lands on the mark
+- status: open
+- screen: reader
+- route: /reader/seed-doc-carousel-shared; /reader/device-run-long-doc
+- spec: NoteLetter-contracts/emulator-seed/README.md (documents, chunks); spec/extraction-contract.md §Attributes (figure[data-shared] / p[data-shared], ADR-095); spec/screens/reader.md §Opening at a shared carousel slide
+- web: src/pages/reader/ManuscriptPanel.jsx (sharedJumpedRef effect: scrollIntoView block center, never when ?p=); scripts/theme-shots.mjs reader-shared-mark (cold open must have scrolled and hold the marked slide in the visible box)
+- flutter: integration_test/device_run_test.dart (:76, :360-387, :574, :4889 name tool/seed_long_doc.py); tool/seed_long_doc.py (delete); tool/emu_alt.sh (:105 seed loop); tool/device_test.sh (:16); QUEUE.md (:184 note)
+- folds: contracts 5.95.2 (lane seed, 2026-11-12): the canonical seed holds device-run-long-doc (same id and chunk ids, now embedded) and seed-doc-carousel-shared (six slides, shared_slide_index 4, one <figure data-shared=""> in chunk 2); web frame reader-shared-mark
+- device_test: the reader opens a cold /reader/seed-doc-carousel-shared with the marked slide (figure[data-shared]) on screen and the scroll moved; the long-doc reader tests read the seed, not the script (SIM)
+- shots: reader-shared-mark (light, dark) beside web's screenshots/reader-shared-mark.web.*.png
+- extra_gates: shared_mark_check.py (5af)
+- notes: Lane seed folded both into NoteLetter-contracts/emulator-seed. tool/seed_long_doc.py still runs (emu_alt.sh up) and overwrites the seed's copy with its older shape (no embedding, typed word_count 1200) — harmless for the drag test, but it is now a second writer of one document: delete it and its mentions, and change the device run's 'run tool/seed_long_doc.py' reasons to name the seed. The 6 Flutter tests that read the moved fixtures (activity_merge, search_response, firestore_shapes, api_requests, priority_default_row, d_search) pass unchanged (605/605, NOTELETTER_CONTRACTS at the lane's tree). The device half of TODO A13 — watching where the reader lands on a marked document — needs a simulator, which this wave had none of.
