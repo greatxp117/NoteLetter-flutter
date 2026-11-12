@@ -6,6 +6,7 @@
 /// (`test/kit/shelf_picker_test.dart`).
 library;
 
+import '../models/document.dart';
 import '../models/tag.dart';
 
 /// Latin-script letters with their diacritics removed. Dart has no NFD, so the
@@ -117,6 +118,16 @@ enum ShelvesRead { answered, loading, failed }
 /// ours (web `shelvesReadLine`, F-196).
 String shelvesReadLine(String detail) =>
     'Your shelves could not be read — $detail';
+
+/// The word for a source's shelf when the read holds none of its own (web
+/// `noShelfWord`, F-201). The DOCUMENT says whether it is shelved; the tags
+/// read only NAMES the shelf. So with that read [refused], a source carrying
+/// shelves is not *Unshelved* — its shelf is a dash, like any figure nobody
+/// read (INV-24). Every surface that names a source's shelf says it through
+/// here: the reader's folio, identity and loading masthead, §35's tag (so
+/// §32's row and an import row), and the covers' captions.
+String noShelfWord(Document? doc, bool refused) =>
+    refused && (doc?.tagIds.isNotEmpty ?? false) ? '—' : 'Unshelved';
 
 /// What the create row offers and what an empty list says.
 ///

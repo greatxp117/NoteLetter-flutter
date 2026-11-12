@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../models/document.dart';
 import '../../shared/local_flags.dart';
+import '../../shared/shelf_pick.dart' show noShelfWord;
 import '../../theme/app_motion.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
@@ -17,6 +18,7 @@ import '../../theme/tokens.dart';
 import 'kit_shell.dart' show KitGlyph;
 import 'kit_source_link.dart';
 import 'kit_busy_mark.dart';
+import 'kit_shelf_chips.dart' show KitShelvesRead;
 
 // ── Direction D's small shared parts (component-kit §31–§39) ────────────────
 //
@@ -876,7 +878,9 @@ class KitViewToggle extends StatelessWidget {
 
 /// §35 — a source's shelf as its NAME: serif italic 14.5 in `--fg-lede`,
 /// underlined 2px in the shelf's own colour 5px under the baseline, never
-/// skipping ink; *Unshelved* underlined in `--border-strong`. The colour is a
+/// skipping ink; *Unshelved* underlined in `--border-strong` — or, while the
+/// shelves read is refused ([KitShelvesRead]), *—* for a source whose own
+/// `tag_ids` say it is shelved (INV-24; [noShelfWord], F-201). The colour is a
 /// line, never the text's colour. [row]: a register row's cell, whose 7px
 /// under the text keeps the underline from being clipped.
 class KitShelfTag extends StatelessWidget {
@@ -886,12 +890,23 @@ class KitShelfTag extends StatelessWidget {
   final Color? color;
   final bool row;
 
-  const KitShelfTag({super.key, this.title, this.color, this.row = false});
+  /// The source, so a null [title] can tell "on none" from "not read".
+  final Document? doc;
+
+  const KitShelfTag({
+    super.key,
+    this.title,
+    this.color,
+    this.row = false,
+    this.doc,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    final text = (title == null || title!.isEmpty) ? 'Unshelved' : title!;
+    final text = (title == null || title!.isEmpty)
+        ? noShelfWord(doc, KitShelvesRead.refused(context))
+        : title!;
     final style = AppTheme.serif(
       fontSize: 14.5,
       height: 1.25,
@@ -934,16 +949,20 @@ class KitShelfTag extends StatelessWidget {
 
 /// An import row's shelves (5.59.0, ADR-213; web `.import-row-shelves`): every
 /// shelf holding the document as §35 tags, the home shelf first, 12 apart with
-/// a 7px clearing for their underline; *Unshelved* when none. `(title, colour)`
+/// a 7px clearing for their underline; *Unshelved* when none (*—* for a
+/// shelved [doc] while the shelves read is refused, F-201). `(title, colour)`
 /// — the colour already resolved for the theme.
 class KitImportShelves extends StatelessWidget {
   final List<(String, Color?)> shelves;
 
-  const KitImportShelves({super.key, required this.shelves});
+  /// The imported source, which says whether it is shelved at all.
+  final Document? doc;
+
+  const KitImportShelves({super.key, required this.shelves, this.doc});
 
   @override
   Widget build(BuildContext context) {
-    if (shelves.isEmpty) return const KitShelfTag(row: true);
+    if (shelves.isEmpty) return KitShelfTag(row: true, doc: doc);
     return Wrap(
       spacing: 12,
       runSpacing: 2,
@@ -1314,6 +1333,7 @@ class KitRegisterRow extends StatelessWidget {
                             title: shelfTitle,
                             color: shelfColor,
                             row: true,
+                            doc: doc,
                           ),
                         ),
                   ),

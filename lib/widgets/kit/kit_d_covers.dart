@@ -3,12 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/document.dart';
+import '../../shared/shelf_pick.dart' show noShelfWord;
 import '../../theme/app_colors.dart';
 import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kit_controls.dart' show kKindByType, kitDocKind, kitKindLabel;
 import 'kit_shell.dart' show KitQuill;
+import 'kit_shelf_chips.dart' show KitShelvesRead;
 import 'kit_source_link.dart';
 
 // ── component-kit §33 — Covers (direction D) ─────────────────────────────────
@@ -1844,7 +1846,8 @@ class _KitCoverItemState extends State<KitCoverItem> {
 /// face-out in ONE row — `repeat(auto-fill, minmax(124px, 1fr))`, column gap
 /// 26, 12 above — as many of [items] as fit, the rest not drawn. Each cover in
 /// its own home shelf's cloth, each line its shelf (a 7×9 cloth swatch and the
-/// name, or *Unshelved*).
+/// name, or *Unshelved* — *—* for a shelved source while the shelves read is
+/// refused, F-201).
 class KitCoverStrip extends StatelessWidget {
   final List<Document> items;
 
@@ -1899,7 +1902,12 @@ class KitCoverStrip extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Flexible(child: Text(home?.title ?? 'Unshelved')),
+              Flexible(
+                child: Text(
+                  home?.title ??
+                      noShelfWord(doc, KitShelvesRead.refused(context)),
+                ),
+              ),
             ],
           ),
         );

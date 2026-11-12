@@ -294,7 +294,8 @@ class ImportHistorySection extends StatelessWidget {
 /// One import job (web `ImportJobRow`; 5.59.0, ADR-213): §33's **Cover lead**
 /// (the document's `type` once one exists, else what the file will become),
 /// the file name, **its shelves** — every shelf holding the document, home
-/// shelf first, *Unshelved* when none — then `{mark} {provider} · {path}`, the
+/// shelf first, *Unshelved* when none (*—* for a shelved source under a
+/// refused shelves read, F-201) — then `{mark} {provider} · {path}`, the
 /// controls and the §6.3 pill, then the slots under it.
 ///
 /// **The row is a link to its source** (§6.4.3) whenever the documents
@@ -422,7 +423,7 @@ class _ImportJobRowState extends State<ImportJobRow> {
       title: title,
       underTitle: shelves == null
           ? null
-          : KitImportShelves(shelves: [
+          : KitImportShelves(doc: doc, shelves: [
               for (final (name, color) in shelves)
                 (name, AppColors.shelfColor(color, dark: t.isDark)),
             ]),

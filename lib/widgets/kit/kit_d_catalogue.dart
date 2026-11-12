@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../models/document.dart';
 import '../../shared/passage_figure.dart';
+import '../../shared/shelf_pick.dart' show noShelfWord;
 import '../../theme/app_colors.dart';
 import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
@@ -19,6 +20,7 @@ import 'kit_d_format.dart';
 import 'kit_d_library.dart' show KitJumpLetters, KitLibGrid;
 import 'kit_d_parts.dart';
 import 'kit_d_shelves.dart' show KitShelfNode;
+import 'kit_shelf_chips.dart' show KitShelvesRead;
 
 /// The catalogue's orders (web `SORTS`): Recent · A–Z · Most passages.
 const List<(String, String)> kSorts = [
@@ -347,8 +349,9 @@ class _StickyLetterState extends State<_StickyLetter> {
 
 /// §33 — Grid: one wall of covers (`repeat(auto-fill, minmax(136px, 1fr))`,
 /// `30px 26px`), each in its home shelf's cloth, with the shelf under it (a
-/// dot and its name, *Unshelved* without one) and the passage figure — none
-/// for a count never taken (ADR-109).
+/// dot and its name, *Unshelved* without one — *—* for a shelved source while
+/// the shelves read is refused, F-201) and the passage figure — none for a
+/// count never taken (ADR-109).
 class KitLibWall extends StatelessWidget {
   final List<Document> items;
   final Map<String, KitShelfNode> homeOf;
@@ -399,7 +402,15 @@ class KitLibWall extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Flexible(child: Text(home?.title ?? 'Unshelved')),
+                          Flexible(
+                            child: Text(
+                              home?.title ??
+                                  noShelfWord(
+                                    v,
+                                    KitShelvesRead.refused(context),
+                                  ),
+                            ),
+                          ),
                         ],
                       ),
                       if (n != null) ...[

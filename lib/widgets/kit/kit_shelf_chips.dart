@@ -301,6 +301,10 @@ class KitShelvesRead extends InheritedWidget {
         : (read: w.read, error: w.error);
   }
 
+  /// Whether the read is refused — what [noShelfWord] asks (F-201).
+  static bool refused(BuildContext context) =>
+      of(context).read == ShelvesRead.failed;
+
   /// The one line a host draws for a refused read, or null.
   static String? lineOf(BuildContext context) {
     final r = of(context);

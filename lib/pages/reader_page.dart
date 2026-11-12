@@ -138,6 +138,17 @@ String readerFolio(Document doc, Tag? shelf, {bool refused = false}) => [
   if (doc.createdAt != null) 'Added ${readerDate(doc.createdAt!)}',
 ].join(' · ');
 
+/// The loading masthead's folio, `{shelf} · {kind}`, drawn from the listing's
+/// row while the source is read: the same shelf word the loaded folio and the
+/// identity say, so a shelved source is *—*, never *Unshelved*, while the tags
+/// read is refused (F-201, web `ReaderLoading`). The refusal is the
+/// [KitShelvesRead] scope's, read where the masthead is built.
+@visibleForTesting
+String readerLoadingFolio(BuildContext context, Document row, Tag? shelf) => [
+  kitShelfWord(row, shelf, refused: KitShelvesRead.refused(context)),
+  kitTypeLabel(row.type),
+].join(' · ');
+
 /// The Filing row's §14.2 slot (web DocumentShelves, F-196): its own refused
 /// write, which is the newer, else a refused tags read's line — the read
 /// leaves every id unresolved, and a row of no chips says this source is on
@@ -454,9 +465,7 @@ class _ReaderPageState extends State<ReaderPage> {
       back: _backControl(),
       crumbStacks: true,
       gridTop: 40,
-      folio: row == null
-          ? ''
-          : [shelf?.title ?? 'Unshelved', kitTypeLabel(row.type)].join(' · '),
+      folio: row == null ? '' : readerLoadingFolio(context, row, shelf),
       title: row == null ? '' : (row.title.isEmpty ? 'Untitled' : row.title),
       titleWidget: row == null
           ? const KitSkeletonLines(lines: [KitSkelLine(0.6, true)], top: 0)
